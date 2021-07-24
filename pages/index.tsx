@@ -1,34 +1,11 @@
 import Head from 'next/head';
-import { FormEvent, ChangeEvent, useState } from 'react';
-import {
-  Stack,
-  FormControl,
-  Input,
-  Button,
-  useColorModeValue,
-  Heading,
-  Text,
-  Container,
-  Flex,
-} from '@chakra-ui/react';
-import { useRouter } from 'next/router';
-import punycode from 'punycode';
-import validator from 'validator';
+import { useColorModeValue, Heading, Container, Flex } from '@chakra-ui/react';
 
-enum FormStates {
-  Initial,
-  Submitting,
-  Success,
-}
+import SearchForm from '@/components/SearchForm';
 
 // Based on simple newsletter template from https://chakra-templates.dev
 
 const Home = () => {
-  const router = useRouter();
-  const [domain, setDomain] = useState('');
-  const [state, setState] = useState<FormStates>(FormStates.Initial);
-  const [error, setError] = useState(false);
-
   return (
     <>
       <Head>
@@ -57,64 +34,8 @@ const Home = () => {
           >
             Get details about any Domain
           </Heading>
-          <Stack
-            direction={{ base: 'column', md: 'row' }}
-            as="form"
-            spacing="12px"
-            onSubmit={(event: FormEvent) => {
-              event.preventDefault();
-              setError(false);
-              setState(FormStates.Submitting);
 
-              const normalizedDomain = punycode.toASCII(
-                domain.trim().toLowerCase()
-              );
-
-              if (!validator.isFQDN(normalizedDomain)) {
-                setError(true);
-                setState(FormStates.Initial);
-                return;
-              }
-
-              router.push(`/lookup/${normalizedDomain}`);
-            }}
-          >
-            <FormControl>
-              <Input
-                borderWidth={1}
-                id="email"
-                type="text"
-                required
-                placeholder="example.com"
-                aria-label="Domain"
-                value={domain}
-                disabled={state !== FormStates.Initial}
-                onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                  setDomain(event.target.value)
-                }
-              />
-            </FormControl>
-            <FormControl w={{ base: '100%', md: '40%' }}>
-              <Button
-                colorScheme="blue"
-                isLoading={state === FormStates.Submitting}
-                w="100%"
-                type="submit"
-              >
-                Lookup
-              </Button>
-            </FormControl>
-          </Stack>
-
-          <Text
-            mt={2}
-            textAlign="center"
-            color={error ? 'red.500' : 'gray.500'}
-          >
-            {error
-              ? 'An error occured! Please check your input or try again later.'
-              : 'It can be anything! An apex or subdomain.'}
-          </Text>
+          <SearchForm />
         </Container>
       </Flex>
     </>
