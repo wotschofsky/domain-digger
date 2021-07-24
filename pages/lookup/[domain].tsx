@@ -27,6 +27,21 @@ type RecordTypes =
   | 'SRV'
   | 'TXT';
 
+const recordTypes: RecordTypes[] = [
+  'A',
+  'AAAA',
+  'CAA',
+  'CNAME',
+  'DNSKEY',
+  'MX',
+  'NAPTR',
+  'NS',
+  'PTR',
+  'SOA',
+  'SRV',
+  'TXT',
+];
+
 type ResolvedRecords = {
   [name: string]: RawRecord[];
 };
@@ -73,35 +88,15 @@ export const getServerSideProps: GetServerSideProps<LookupDomainProps> = async (
   const domain = context.query.domain as string;
 
   try {
-    const results = await Promise.allSettled([
-      fetchRecords(domain, 'A'),
-      fetchRecords(domain, 'AAAA'),
-      fetchRecords(domain, 'CAA'),
-      fetchRecords(domain, 'CNAME'),
-      fetchRecords(domain, 'DNSKEY'),
-      fetchRecords(domain, 'MX'),
-      fetchRecords(domain, 'NAPTR'),
-      fetchRecords(domain, 'NS'),
-      fetchRecords(domain, 'PTR'),
-      fetchRecords(domain, 'SOA'),
-      fetchRecords(domain, 'SRV'),
-      fetchRecords(domain, 'TXT'),
-    ]);
+    const results = await Promise.allSettled(
+      recordTypes.map((type) => fetchRecords(domain, type))
+    );
 
-    const records: ResolvedRecords = {
-      A: filterRecords(domain, extractRecords(results[0])),
-      AAAA: filterRecords(domain, extractRecords(results[1])),
-      CAA: filterRecords(domain, extractRecords(results[2])),
-      CNAME: filterRecords(domain, extractRecords(results[3])),
-      DNSKEY: filterRecords(domain, extractRecords(results[4])),
-      MX: filterRecords(domain, extractRecords(results[5])),
-      NAPTR: filterRecords(domain, extractRecords(results[6])),
-      NS: filterRecords(domain, extractRecords(results[7])),
-      PTR: filterRecords(domain, extractRecords(results[8])),
-      SOA: filterRecords(domain, extractRecords(results[9])),
-      SRV: filterRecords(domain, extractRecords(results[10])),
-      TXT: filterRecords(domain, extractRecords(results[11])),
-    };
+    const records: ResolvedRecords = {};
+    for (let i = 0; i < recordTypes.length; i++) {
+      const type = recordTypes[i];
+      records[type] = filterRecords(domain, extractRecords(results[i]));
+    }
 
     return {
       props: { records: records, error: false },
