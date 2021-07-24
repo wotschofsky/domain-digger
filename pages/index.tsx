@@ -12,16 +12,14 @@ import {
   Flex,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
+import punycode from 'punycode';
+import validator from 'validator';
 
 enum FormStates {
   Initial,
   Submitting,
   Success,
 }
-
-const domainRegex = new RegExp(
-  /^((?:(?:(?:\w[\.\-\+]?)*)\w)+)((?:(?:(?:\w[\.\-\+]?){0,62})\w)+)\.(\w{2,6})$/
-);
 
 // Based on simple newsletter template from https://chakra-templates.dev
 
@@ -68,13 +66,17 @@ const Home = () => {
               setError(false);
               setState(FormStates.Submitting);
 
-              if (!domain.match(domainRegex)) {
+              const normalizedDomain = punycode.toASCII(
+                domain.trim().toLowerCase()
+              );
+
+              if (!validator.isFQDN(normalizedDomain)) {
                 setError(true);
                 setState(FormStates.Initial);
                 return;
               }
 
-              router.push(`/lookup/${domain}`);
+              router.push(`/lookup/${normalizedDomain}`);
             }}
           >
             <FormControl>
