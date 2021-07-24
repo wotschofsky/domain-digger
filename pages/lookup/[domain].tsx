@@ -51,13 +51,17 @@ const fetchRecords = async (
 };
 
 const extractRecords = (
-  record: PromiseSettledResult<RawRecord[]>
+  records: PromiseSettledResult<RawRecord[]>
 ): RawRecord[] => {
-  if (record.status === 'fulfilled') {
-    return record.value;
+  if (records.status === 'fulfilled') {
+    return records.value;
   }
   return [];
 };
+
+// Filter records to prevent results from recursive CNAME lookups showing up
+const filterRecords = (domain: string, records: RawRecord[]): RawRecord[] =>
+  records.filter((record) => record.name.includes(domain));
 
 type LookupDomainProps = {
   records?: ResolvedRecords;
@@ -84,28 +88,26 @@ export const getServerSideProps: GetServerSideProps<LookupDomainProps> = async (
       fetchRecords(domain, 'TXT'),
     ]);
 
-    console.log(results);
-
     const records: ResolvedRecords = {
-      A: extractRecords(results[0]),
-      AAAA: extractRecords(results[1]),
-      CAA: extractRecords(results[2]),
-      CNAME: extractRecords(results[3]),
-      DNSKEY: extractRecords(results[4]),
-      MX: extractRecords(results[5]),
-      NAPTR: extractRecords(results[6]),
-      NS: extractRecords(results[7]),
-      PTR: extractRecords(results[8]),
-      SOA: extractRecords(results[9]),
-      SRV: extractRecords(results[10]),
-      TXT: extractRecords(results[11]),
+      A: filterRecords(domain, extractRecords(results[0])),
+      AAAA: filterRecords(domain, extractRecords(results[1])),
+      CAA: filterRecords(domain, extractRecords(results[2])),
+      CNAME: filterRecords(domain, extractRecords(results[3])),
+      DNSKEY: filterRecords(domain, extractRecords(results[4])),
+      MX: filterRecords(domain, extractRecords(results[5])),
+      NAPTR: filterRecords(domain, extractRecords(results[6])),
+      NS: filterRecords(domain, extractRecords(results[7])),
+      PTR: filterRecords(domain, extractRecords(results[8])),
+      SOA: filterRecords(domain, extractRecords(results[9])),
+      SRV: filterRecords(domain, extractRecords(results[10])),
+      TXT: filterRecords(domain, extractRecords(results[11])),
     };
 
     return {
       props: { records: records, error: false },
     };
   } catch (error) {
-    console.log(error);
+    console.error(error);
   }
 
   return {
