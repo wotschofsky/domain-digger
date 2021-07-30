@@ -2,17 +2,17 @@ import type { GetServerSideProps, InferGetServerSidePropsType } from 'next';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import {
-  Table,
-  Thead,
-  Tbody,
-  Tr,
-  Th,
-  Td,
-  Heading,
   Container,
+  Heading,
+  Table,
+  Tbody,
+  Th,
+  Thead,
+  Tr,
 } from '@chakra-ui/react';
 
-import DnsLookup, { RawRecord, ResolvedRecords } from '@/utils/DnsLookup';
+import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
+import RecordRow from '@/components/RecordRow';
 
 type LookupDomainProps = {
   records?: ResolvedRecords;
@@ -39,14 +39,6 @@ export const getServerSideProps: GetServerSideProps<LookupDomainProps> = async (
     },
   };
 };
-
-const CustomRow = ({ record }: { record: RawRecord }) => (
-  <Tr>
-    <Td>{record.name}</Td>
-    <Td>{record.TTL}</Td>
-    <Td>{record.data}</Td>
-  </Tr>
-);
 
 const LookupDomain = ({
   records,
@@ -103,7 +95,7 @@ const LookupDomain = ({
                 </Thead>
                 <Tbody>
                   {value.map((v) => (
-                    <CustomRow key={JSON.stringify(v)} record={v} />
+                    <RecordRow key={JSON.stringify(v)} record={v} />
                   ))}
                 </Tbody>
               </Table>
