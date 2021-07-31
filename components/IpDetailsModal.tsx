@@ -14,11 +14,11 @@ import {
   Td,
   Tr,
 } from '@chakra-ui/react';
+import { css } from '@emotion/react';
 import useSWR from 'swr';
 import type { LatLngExpression } from 'leaflet';
 
 import type { IpLookupResponse } from '@/api/lookupIp';
-import styles from '@/styles/IpDetailsModal.module.css'
 
 type IpDetailsModalProps = {
   ip: string;
@@ -99,7 +99,15 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
                 </Tbody>
               </Table>
 
-              <chakra.div className={styles.mapWrapper} my={4}>
+              <chakra.div
+                css={css`
+                  .leaflet-container {
+                    width: 100%;
+                    height: 20rem;
+                  }
+                `}
+                my={4}
+              >
                 <LocationMap location={location} />
               </chakra.div>
             </>

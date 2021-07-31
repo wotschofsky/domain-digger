@@ -14,6 +14,7 @@ import {
 
 import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
 import RecordRow from '@/components/RecordRow';
+import SearchForm from '@/components/SearchForm';
 
 type LookupDomainProps = {
   records?: ResolvedRecords;
@@ -63,8 +64,12 @@ const LookupDomain = ({
         <title>Results for {router.query.domain} - Domain Digger</title>
       </Head>
 
+      <Container maxW="container.sm" mb={8}>
+        <SearchForm />
+      </Container>
+
       <Container maxW="container.xl">
-        <Heading as="h1" mb={5}>
+        <Heading as="h1" mb={4}>
           Results for {router.query.domain}
         </Heading>
 
@@ -82,7 +87,7 @@ const LookupDomain = ({
                 fontSize={{ base: 'xl', sm: '2xl' }}
                 mb={4}
                 mt={8}
-                ml={5}
+                ml={6}
               >
                 {recordType}
               </Heading>
