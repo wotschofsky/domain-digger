@@ -1,6 +1,7 @@
-import type { GetServerSideProps, InferGetServerSidePropsType } from 'next';
+import { Fragment } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
+import type { GetServerSideProps, InferGetServerSidePropsType } from 'next';
 import {
   Container,
   Heading,
@@ -75,7 +76,7 @@ const LookupDomain = ({
           }
 
           return (
-            <>
+            <Fragment key={recordType}>
               <Heading
                 as="h2"
                 fontSize={{ base: 'xl', sm: '2xl' }}
@@ -95,11 +96,11 @@ const LookupDomain = ({
                 </Thead>
                 <Tbody>
                   {value.map((v) => (
-                    <RecordRow key={JSON.stringify(v)} record={v} />
+                    <RecordRow key={v.type + v.data} record={v} />
                   ))}
                 </Tbody>
               </Table>
-            </>
+            </Fragment>
           );
         })}
       </Container>

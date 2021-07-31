@@ -16,22 +16,26 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
         <Td>{record.TTL}</Td>
         <Td>
           {record.data}
+
           {recordIsIp && (
-            <IconButton
-              variant="link"
-              size="sm"
-              ml={1}
-              aria-label="Get IP Info"
-              icon={<FaInfoCircle size="16px" />}
-              onClick={onOpen}
-            />
+            <>
+              <IconButton
+                variant="link"
+                size="sm"
+                ml={1}
+                aria-label="Get IP Info"
+                icon={<FaInfoCircle size="16px" />}
+                onClick={onOpen}
+              />
+              <IpDetailsModal
+                ip={record.data}
+                isOpen={isOpen}
+                onClose={onClose}
+              />
+            </>
           )}
         </Td>
       </Tr>
-
-      {recordIsIp && (
-        <IpDetailsModal ip={record.data} isOpen={isOpen} onClose={onClose} />
-      )}
     </>
   );
 };

@@ -10,6 +10,7 @@ import {
   ModalOverlay,
   Spinner,
   Table,
+  Tbody,
   Td,
   Tr,
 } from '@chakra-ui/react';
@@ -88,12 +89,14 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
           ) : (
             <>
               <Table>
-                {mappedEntries.map((el) => (
-                  <Tr key={el.label + el.value}>
-                    <Td pl={0}>{el.label}</Td>
-                    <Td pr={0}>{el.value}</Td>
-                  </Tr>
-                ))}
+                <Tbody>
+                  {mappedEntries.map((el) => (
+                    <Tr key={el.label + el.value}>
+                      <Td pl={0}>{el.label}</Td>
+                      <Td pr={0}>{el.value}</Td>
+                    </Tr>
+                  ))}
+                </Tbody>
               </Table>
 
               <chakra.div className={styles.mapWrapper} my={4}>
