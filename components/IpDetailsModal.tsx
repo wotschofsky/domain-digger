@@ -1,4 +1,6 @@
+import dynamic from 'next/dynamic';
 import {
+  chakra,
   Flex,
   Modal,
   ModalBody,
@@ -12,8 +14,10 @@ import {
   Tr,
 } from '@chakra-ui/react';
 import useSWR from 'swr';
+import type { LatLngExpression } from 'leaflet';
 
 import type { IpLookupResponse } from '@/api/lookupIp';
+import styles from '@/styles/IpDetailsModal.module.css'
 
 type IpDetailsModalProps = {
   ip: string;
@@ -27,6 +31,8 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
   );
 
   let mappedEntries: { label: string; value: string }[] = [];
+  let location: LatLngExpression = [0, 0];
+
   if (data) {
     mappedEntries = [
       {
@@ -58,7 +64,13 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
         value: data.timezone,
       },
     ];
+
+    location = [data.lat, data.lon];
   }
+
+  const LocationMap = dynamic(() => import('@/components/LocationMap'), {
+    ssr: false,
+  });
 
   return (
     <Modal size="xl" isOpen={props.isOpen} onClose={props.onClose}>
@@ -83,6 +95,10 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
                   </Tr>
                 ))}
               </Table>
+
+              <chakra.div className={styles.mapWrapper} my={4}>
+                <LocationMap location={location} />
+              </chakra.div>
             </>
           )}
         </ModalBody>

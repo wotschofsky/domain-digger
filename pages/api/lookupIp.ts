@@ -5,15 +5,15 @@ import dns from 'dns';
 import isIP from 'validator/lib/isIP';
 
 export type IpLookupResponse = {
-  reverse: string[];
-  isp: string;
-  org: string;
-  country: string;
-  region: string;
   city: string;
+  country: string;
+  isp: string;
+  lat: number;
+  lon: number;
+  org: string;
+  region: string;
+  reverse: string[];
   timezone: string;
-  lat: string;
-  lon: string;
 };
 
 export type IpLookupErrorResponse = { error: true; message: string };
