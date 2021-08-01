@@ -27,7 +27,7 @@ const App = ({ Component, pageProps }: AppProps) => {
       router.events.off('routeChangeComplete', NProgress.done);
       router.events.off('routeChangeError', NProgress.done);
     };
-  });
+  }, [router]);
 
   return (
     <>
