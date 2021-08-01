@@ -3,18 +3,22 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import type { GetServerSideProps, InferGetServerSidePropsType } from 'next';
 import {
+  Button,
   Container,
   Heading,
+  HStack,
   Table,
   Tbody,
   Th,
   Thead,
   Tr,
+  useDisclosure,
 } from '@chakra-ui/react';
 
 import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
 import RecordRow from '@/components/RecordRow';
 import SearchForm from '@/components/SearchForm';
+import WhoisModal from '@/components/WhoisModal';
 
 type LookupDomainProps = {
   records?: ResolvedRecords;
@@ -47,6 +51,8 @@ const LookupDomain = ({
 }: InferGetServerSidePropsType<typeof getServerSideProps>) => {
   const router = useRouter();
 
+  const { isOpen, onOpen, onClose } = useDisclosure();
+
   if (!records) {
     return (
       <Container maxW="container.xl">
@@ -69,9 +75,20 @@ const LookupDomain = ({
       </Container>
 
       <Container maxW="container.xl">
-        <Heading as="h1" mb={4}>
-          Results for {router.query.domain}
-        </Heading>
+        <HStack align="center" mb={4}>
+          <Heading as="h1">
+            Results for {router.query.domain}
+          </Heading>
+          <Button variant="ghost" onClick={onOpen}>
+            Show Whois
+          </Button>
+        </HStack>
+
+        <WhoisModal
+          domain={router.query.domain as string}
+          isOpen={isOpen}
+          onClose={onClose}
+        />
 
         {Object.keys(records).map((recordType) => {
           const value = records[recordType];
