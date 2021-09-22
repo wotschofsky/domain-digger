@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import { chakra, ChakraProvider, Flex } from '@chakra-ui/react';
 import { css } from '@emotion/react';
+import { SWRConfig } from 'swr';
 import NProgress from 'nprogress';
 import 'nprogress/nprogress.css';
 
@@ -36,22 +37,26 @@ const App = ({ Component, pageProps }: AppProps) => {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <ChakraProvider>
-        <Flex minH="100vh" direction="column" align="center" justify="center">
-          <Header />
+      <SWRConfig
+        value={{ fetcher: (url) => fetch(url).then((res) => res.json()) }}
+      >
+        <ChakraProvider>
+          <Flex minH="100vh" direction="column" align="center" justify="center">
+            <Header />
 
-          <chakra.div
-            css={css(`
-          width: 100%;
-        `)}
-            flex={1}
-          >
-            <Component {...pageProps} />
-          </chakra.div>
+            <chakra.div
+              css={css(`
+            width: 100%;
+            `)}
+              flex={1}
+            >
+              <Component {...pageProps} />
+            </chakra.div>
 
-          <Footer />
-        </Flex>
-      </ChakraProvider>
+            <Footer />
+          </Flex>
+        </ChakraProvider>
+      </SWRConfig>
     </>
   );
 };
