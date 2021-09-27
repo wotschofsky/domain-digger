@@ -26,6 +26,8 @@ export type ResolvedRecords = {
   [name: string]: RawRecord[];
 };
 
+const trimPeriods = (input: string) => input.replace(/^\.+|\.+$/g, '');
+
 class DnsLookup {
   static recordTypes: RecordTypes[] = [
     'A',
@@ -66,7 +68,10 @@ class DnsLookup {
 
   // Filter records to prevent results from recursive CNAME lookups showing up
   static filterRecords(domain: string, records: RawRecord[]): RawRecord[] {
-    return records.filter((record) => record.name.includes(domain));
+    const trimmedDomain = trimPeriods(domain);
+    return records.filter(
+      (record) => trimPeriods(record.name) === trimmedDomain
+    );
   }
 
   static async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
