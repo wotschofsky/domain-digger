@@ -62,7 +62,7 @@ const SearchForm = () => {
             aria-label="Domain"
             value={domain}
             disabled={state !== FormStates.Initial}
-            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+            onInput={(event: ChangeEvent<HTMLInputElement>) =>
               setDomain(event.target.value)
             }
           />
