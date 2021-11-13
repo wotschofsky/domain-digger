@@ -30,7 +30,7 @@
     "react-leaflet": "^3.2.0",
     "react-string-replace": "^0.4.4",
     "swr": "^1.0.1",
-    "validator": "^13.6.0",
+    "validator": "^13.7.0",
     "whois": "^2.13.5"
   },
   "devDependencies": {
