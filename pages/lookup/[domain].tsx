@@ -11,6 +11,7 @@ import {
   Tabs,
 } from '@chakra-ui/react';
 
+import CertInfo from '@/components/CertInfo';
 import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
 import DnsTable from '@/components/DnsTable';
 import SearchForm from '@/components/SearchForm';
@@ -77,6 +78,7 @@ const LookupDomain = ({
           <TabList>
             <Tab>DNS</Tab>
             <Tab>Whois</Tab>
+            <Tab>Certs</Tab>
           </TabList>
 
           <TabPanels>
@@ -86,6 +88,10 @@ const LookupDomain = ({
 
             <TabPanel>
               <WhoisInfo domain={router.query.domain as string} />
+            </TabPanel>
+
+            <TabPanel>
+              <CertInfo domain={router.query.domain as string} />
             </TabPanel>
           </TabPanels>
         </Tabs>
