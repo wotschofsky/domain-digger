@@ -1,9 +1,17 @@
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { FaInfoCircle } from 'react-icons/fa';
-import { IconButton, Td, Tooltip, Tr, useDisclosure } from '@chakra-ui/react';
+import {
+  IconButton,
+  Link,
+  Td,
+  Tooltip,
+  Tr,
+  useDisclosure,
+} from '@chakra-ui/react';
 import { useRouter } from 'next/router';
 import { useState, ReactNodeArray } from 'react';
 import isIP from 'validator/lib/isIP';
+import NextLink from 'next/link';
 import reactStringReplace from 'react-string-replace';
 
 import { RawRecord } from '@/utils/DnsLookup';
@@ -53,15 +61,18 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
             <>
               <span>{match}</span>{' '}
               <Tooltip label="View Domain Records">
-                <IconButton
-                  variant="link"
-                  size="sm"
-                  ml={-2.5}
-                  mr={-1.5}
-                  aria-label="View Domain Records"
-                  icon={<ExternalLinkIcon />}
-                  onClick={() => router.push(`/lookup/${match}`)}
-                />
+                <NextLink href={`/lookup/${match}`} passHref>
+                  <Link>
+                    <IconButton
+                      variant="link"
+                      size="sm"
+                      ml={-2.5}
+                      mr={-1.5}
+                      aria-label="View Domain Records"
+                      icon={<ExternalLinkIcon />}
+                    />
+                  </Link>
+                </NextLink>
               </Tooltip>
             </>
           );
