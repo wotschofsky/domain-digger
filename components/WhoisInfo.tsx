@@ -13,24 +13,26 @@ const WhoisModal = (props: IpDetailsModalProps) => {
     `/api/lookupWhois?domain=${encodeURIComponent(props.domain)}`
   );
 
+  if (!data) {
+    return (
+      <Flex justify="center" align="center">
+        <Spinner size="xl" my={8} />
+      </Flex>
+    );
+  }
+
+  if (error) {
+    return <p>An error occurred!</p>;
+  }
+
   return (
-    <>
-      {!data ? (
-        <Flex justify="center" align="center">
-          <Spinner size="xl" my={8} />
-        </Flex>
-      ) : error ? (
-        <p>An error occurred!</p>
-      ) : (
-        <chakra.code
-          css={css`
-            white-space: pre-wrap;
-          `}
-        >
-          {data.data}
-        </chakra.code>
-      )}
-    </>
+    <chakra.code
+      css={css`
+        white-space: pre-wrap;
+      `}
+    >
+      {data.data}
+    </chakra.code>
   );
 };
 
