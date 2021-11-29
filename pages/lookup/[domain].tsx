@@ -1,24 +1,20 @@
-import { Fragment } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 import type { GetServerSideProps, InferGetServerSidePropsType } from 'next';
 import {
-  Button,
   Container,
   Heading,
-  HStack,
-  Table,
-  Tbody,
-  Th,
-  Thead,
-  Tr,
-  useDisclosure,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
 } from '@chakra-ui/react';
 
 import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
-import RecordRow from '@/components/RecordRow';
+import DnsTable from '@/components/DnsTable';
 import SearchForm from '@/components/SearchForm';
-import WhoisModal from '@/components/WhoisModal';
+import WhoisInfo from '@/components/WhoisInfo';
 
 type LookupDomainProps = {
   records?: ResolvedRecords;
@@ -51,8 +47,6 @@ const LookupDomain = ({
 }: InferGetServerSidePropsType<typeof getServerSideProps>) => {
   const router = useRouter();
 
-  const { isOpen, onOpen, onClose } = useDisclosure();
-
   if (!records) {
     return (
       <Container maxW="container.xl">
@@ -75,56 +69,26 @@ const LookupDomain = ({
       </Container>
 
       <Container maxW="container.xl">
-        <HStack align="center" mb={4}>
-          <Heading as="h1">
-            Results for {router.query.domain}
-          </Heading>
-          <Button variant="ghost" onClick={onOpen}>
-            Show Whois
-          </Button>
-        </HStack>
+        <Heading as="h1" mb={6}>
+          Results for {router.query.domain}
+        </Heading>
 
-        <WhoisModal
-          domain={router.query.domain as string}
-          isOpen={isOpen}
-          onClose={onClose}
-        />
+        <Tabs isLazy>
+          <TabList>
+            <Tab>DNS</Tab>
+            <Tab>Whois</Tab>
+          </TabList>
 
-        {Object.keys(records).map((recordType) => {
-          const value = records[recordType];
+          <TabPanels>
+            <TabPanel>
+              <DnsTable records={records} />
+            </TabPanel>
 
-          if (!value || value.length === 0) {
-            return;
-          }
-
-          return (
-            <Fragment key={recordType}>
-              <Heading
-                as="h2"
-                fontSize={{ base: 'xl', sm: '2xl' }}
-                mb={4}
-                mt={8}
-                ml={6}
-              >
-                {recordType}
-              </Heading>
-              <Table key={recordType}>
-                <Thead>
-                  <Tr>
-                    <Th>Name</Th>
-                    <Th>TTL</Th>
-                    <Th>Value</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {value.map((v) => (
-                    <RecordRow key={v.type + v.data} record={v} />
-                  ))}
-                </Tbody>
-              </Table>
-            </Fragment>
-          );
-        })}
+            <TabPanel>
+              <WhoisInfo domain={router.query.domain as string} />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </Container>
     </>
   );

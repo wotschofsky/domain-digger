@@ -21,8 +21,6 @@ const domainRegex =
   /(_)*(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/g;
 
 const RecordRow = ({ record }: { record: RawRecord }) => {
-  const router = useRouter();
-
   const [detailedIp, setDetailedIp] = useState<string | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
@@ -84,9 +82,9 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
   return (
     <>
       <Tr>
-        <Td>{record.name}</Td>
+        <Td pl={0}>{record.name}</Td>
         <Td>{record.TTL}</Td>
-        <Td>{interpolatedValue ? interpolatedValue : record.data}</Td>
+        <Td pr={0}>{interpolatedValue ? interpolatedValue : record.data}</Td>
       </Tr>
 
       <IpDetailsModal
