@@ -14,6 +14,7 @@ import {
 import CertInfo from '@/components/CertInfo';
 import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
 import DnsTable from '@/components/DnsTable';
+import InvertedWWWLink from '@/components/InvertedWWWLink';
 import SearchForm from '@/components/SearchForm';
 import WhoisInfo from '@/components/WhoisInfo';
 
@@ -70,11 +71,13 @@ const LookupDomain = ({
       </Container>
 
       <Container maxW="container.xl">
-        <Heading as="h1" mb={6}>
+        <Heading as="h1" mb={2}>
           Results for {router.query.domain}
         </Heading>
 
-        <Tabs isLazy>
+        <InvertedWWWLink domain={router.query.domain as string} />
+
+        <Tabs isLazy mt={6}>
           <TabList>
             <Tab>DNS</Tab>
             <Tab>Whois</Tab>
