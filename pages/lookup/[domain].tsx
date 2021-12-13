@@ -66,7 +66,7 @@ const LookupDomain = ({
       </Head>
 
       <Container maxW="container.sm" mb={8}>
-        <SearchForm />
+        <SearchForm initialValue={router.query.domain as string} />
       </Container>
 
       <Container maxW="container.xl">

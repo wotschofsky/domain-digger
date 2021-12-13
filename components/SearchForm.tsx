@@ -10,11 +10,21 @@ enum FormStates {
   Success,
 }
 
-const SearchForm = () => {
+type SearchFormProps = {
+  initialValue?: string;
+};
+
+const SearchForm = (props: SearchFormProps) => {
   const router = useRouter();
   const [domain, setDomain] = useState('');
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (props.initialValue) {
+      setDomain(props.initialValue);
+    }
+  }, [props.initialValue]);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
