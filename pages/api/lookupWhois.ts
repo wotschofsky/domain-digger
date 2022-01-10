@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import isValidDomain from 'is-valid-domain';
 // @ts-ignore
 import whois from 'whois';
-import isFQDN from 'validator/lib/isFQDN';
 
 export type WhoisLookupResponse = {
   data: string;
@@ -16,7 +16,7 @@ export default function handler(
   if (
     !req.query.domain ||
     typeof req.query.domain === 'object' ||
-    !isFQDN(req.query.domain)
+    !isValidDomain(req.query.domain)
   ) {
     res.status(400).json({
       error: true,

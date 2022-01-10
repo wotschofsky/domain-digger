@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import axios from 'axios';
-import isFQDN from 'validator/lib/isFQDN';
+import isValidDomain from 'is-valid-domain';
 
 export type CertLookupResponse = {
   certificates: {
@@ -23,7 +23,7 @@ export default async function handler(
   if (
     !req.query.domain ||
     typeof req.query.domain === 'object' ||
-    !isFQDN(req.query.domain)
+    !isValidDomain(req.query.domain)
   ) {
     res.status(400).json({
       error: true,

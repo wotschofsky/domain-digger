@@ -19,6 +19,7 @@
     "@types/validator": "^13.6.3",
     "axios": "^0.21.1",
     "framer-motion": "^4",
+    "is-valid-domain": "^0.1.5",
     "leaflet": "^1.7.1",
     "leaflet-defaulticon-compatibility": "^0.1.1",
     "next": "^11.1.3",

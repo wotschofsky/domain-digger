@@ -2696,6 +2696,13 @@ is-typed-array@^1.1.3, is-typed-array@^1.1.7:
     foreach "^2.0.5"
     has-tostringtag "^1.0.0"
 
+is-valid-domain@^0.1.5:
+  version "0.1.5"
+  resolved "https://registry.yarnpkg.com/is-valid-domain/-/is-valid-domain-0.1.5.tgz#38b00f8fb70778b650c71356915a184321d22609"
+  integrity sha512-ilzfGo1kXzoVpSLplJWOexoiuAc6mRK+vPlNAeEPVJ29RagETpCz0izg6CZfY72DCuA+PCrEAEJeaecRLMNq5Q==
+  dependencies:
+    punycode "^2.1.1"
+
 isarray@^1.0.0, isarray@~1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/isarray/-/isarray-1.0.0.tgz#bb935d48582cba168c06834957a54a3e07124f11"

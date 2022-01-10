@@ -2,7 +2,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Stack, FormControl, Input, Button, Text } from '@chakra-ui/react';
 import { toASCII } from 'punycode';
 import { useRouter } from 'next/router';
-import isFQDN from 'validator/lib/isFQDN';
+import isValidDomain from 'is-valid-domain';
 
 enum FormStates {
   Initial,
@@ -33,7 +33,7 @@ const SearchForm = (props: SearchFormProps) => {
 
     const normalizedDomain = toASCII(domain.trim().toLowerCase());
 
-    if (!isFQDN(normalizedDomain)) {
+    if (!isValidDomain(normalizedDomain)) {
       setError(true);
       setState(FormStates.Initial);
       return;
