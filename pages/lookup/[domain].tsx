@@ -4,12 +4,14 @@ import type { GetServerSideProps, InferGetServerSidePropsType } from 'next';
 import {
   Container,
   Heading,
+  Link,
   Tab,
   TabList,
   TabPanel,
   TabPanels,
   Tabs,
 } from '@chakra-ui/react';
+import { ExternalLinkIcon } from '@chakra-ui/icons';
 
 import CertInfo from '@/components/CertInfo';
 import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
@@ -52,8 +54,11 @@ const LookupDomain = ({
   if (!records) {
     return (
       <Container maxW="container.xl">
-        <Heading as="h1" mb={5}>
-          Results for {router.query.domain}
+        <Heading as="h1" mb={2}>
+          Results for{' '}
+          <Link href={`https://${router.query.domain}`} isExternal>
+            {router.query.domain} <ExternalLinkIcon mx="2px" />
+          </Link>
         </Heading>
         <p>Failed loading</p>
       </Container>
@@ -72,7 +77,10 @@ const LookupDomain = ({
 
       <Container maxW="container.xl">
         <Heading as="h1" mb={2}>
-          Results for {router.query.domain}
+          Results for{' '}
+          <Link href={`https://${router.query.domain}`} isExternal>
+            {router.query.domain} <ExternalLinkIcon mx="2px" />
+          </Link>
         </Heading>
 
         <InvertedWWWLink domain={router.query.domain as string} />
