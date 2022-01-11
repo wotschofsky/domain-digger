@@ -1,13 +1,18 @@
+import { ExternalLinkIcon } from '@chakra-ui/icons';
 import {
   Flex,
+  IconButton,
+  Link,
   Spinner,
   Table,
   Tbody,
   Td,
   Th,
   Thead,
+  Tooltip,
   Tr,
 } from '@chakra-ui/react';
+import NextLink from 'next/link';
 import useSWR from 'swr';
 
 import type { CertLookupResponse } from '@/api/lookupCerts';
@@ -51,12 +56,47 @@ const CertInfo = ({ domain }: CertInfoProps) => {
             <Td pl={0}>{cert.loggedAt}</Td>
             <Td>{cert.notBefore}</Td>
             <Td>{cert.notAfter}</Td>
-            <Td>{cert.commonName}</Td>
-            <Td
-              dangerouslySetInnerHTML={{
-                __html: cert.matchingIdentities.replace(/\n/g, '<br>'),
-              }}
-            ></Td>
+            <Td>
+              <>
+                <span>{cert.commonName}</span>{' '}
+                <Tooltip label="View Domain Records">
+                  <NextLink href={`/lookup/${cert.commonName}`} passHref>
+                    <Link>
+                      <IconButton
+                        variant="link"
+                        size="sm"
+                        ml={-2.5}
+                        mr={-1.5}
+                        aria-label="View Domain Records"
+                        icon={<ExternalLinkIcon />}
+                      />
+                    </Link>
+                  </NextLink>
+                </Tooltip>
+              </>
+            </Td>
+            <Td>
+              {cert.matchingIdentities.split(/\n/g).map((value, index) => (
+                <>
+                  {index !== 0 && <br />}
+                  <span>{value}</span>{' '}
+                  <Tooltip label="View Domain Records">
+                    <NextLink href={`/lookup/${value}`} passHref>
+                      <Link>
+                        <IconButton
+                          variant="link"
+                          size="sm"
+                          ml={-2.5}
+                          mr={-1.5}
+                          aria-label="View Domain Records"
+                          icon={<ExternalLinkIcon />}
+                        />
+                      </Link>
+                    </NextLink>
+                  </Tooltip>
+                </>
+              ))}
+            </Td>
             <Td pr={0}>{cert.issuerName}</Td>
           </Tr>
         ))}
