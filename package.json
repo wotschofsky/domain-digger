@@ -19,7 +19,7 @@
     "@types/punycode": "^2.1.0",
     "@types/validator": "^13.6.3",
     "axios": "^0.26.0",
-    "framer-motion": "^4",
+    "framer-motion": "^6",
     "is-valid-domain": "^0.1.5",
     "leaflet": "^1.7.1",
     "leaflet-defaulticon-compatibility": "^0.1.1",

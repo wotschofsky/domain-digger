@@ -20,7 +20,7 @@ const Home = () => {
         rounded="lg"
         my={16}
         p={6}
-        direction="column"
+        flexDirection="column"
       >
         <Heading
           as="h2"
@@ -41,7 +41,7 @@ const Home = () => {
         rounded="lg"
         my={16}
         p={6}
-        direction="column"
+        flexDirection="column"
       >
         <Heading
           as="h2"

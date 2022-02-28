@@ -1,4 +1,3 @@
-import React from 'react';
 import NextLink from 'next/link';
 import { Link } from '@chakra-ui/react';
 
@@ -11,7 +10,7 @@ const InvertedWWWLink = ({ domain: original }: InvertedWWWLinkProps) => {
   const inverted = isWWW ? original.substring(4) : `www.${original}`;
 
   return (
-    <NextLink href={`/lookup/${inverted}`}>
+    <NextLink href={`/lookup/${inverted}`} passHref>
       <Link>Look up {inverted}</Link>
     </NextLink>
   );
