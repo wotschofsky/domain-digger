@@ -16,7 +16,7 @@ import { ExternalLinkIcon } from '@chakra-ui/icons';
 import CertInfo from '@/components/CertInfo';
 import DnsLookup, { ResolvedRecords } from '@/utils/DnsLookup';
 import DnsTable from '@/components/DnsTable';
-import InvertedWWWLink from '@/components/InvertedWWWLink';
+import RelatedDomains from '@/components/RelatedDomains';
 import SearchForm from '@/components/SearchForm';
 import WhoisInfo from '@/components/WhoisInfo';
 
@@ -83,7 +83,7 @@ const LookupDomain = ({
           </Link>
         </Heading>
 
-        <InvertedWWWLink domain={router.query.domain as string} />
+        <RelatedDomains domain={router.query.domain as string} />
 
         <Tabs isLazy mt={6}>
           <TabList>
