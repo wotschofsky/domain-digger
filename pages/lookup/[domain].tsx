@@ -10,6 +10,7 @@ import {
   TabPanel,
   TabPanels,
   Tabs,
+  Text,
 } from '@chakra-ui/react';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 
@@ -94,7 +95,15 @@ const LookupDomain = ({
 
           <TabPanels>
             <TabPanel>
-              <DnsTable records={records} />
+              {Object.values(records)
+                .map((r) => r.length)
+                .reduce((prev, curr) => prev + curr, 0) === 0 ? (
+                <Text textAlign="center" color="gray.500" mt={8}>
+                  No DNS records found!
+                </Text>
+              ) : (
+                <DnsTable records={records} />
+              )}
             </TabPanel>
 
             <TabPanel>

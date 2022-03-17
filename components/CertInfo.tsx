@@ -7,6 +7,7 @@ import {
   Table,
   Tbody,
   Td,
+  Text,
   Th,
   Thead,
   Tooltip,
@@ -36,6 +37,14 @@ const CertInfo = ({ domain }: CertInfoProps) => {
 
   if (error) {
     return <p>An error occurred!</p>;
+  }
+
+  if (!data.certificates.length) {
+    return (
+      <Text textAlign="center" color="gray.500" mt={8}>
+        No issued certificates found!
+      </Text>
+    );
   }
 
   return (
