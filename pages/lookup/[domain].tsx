@@ -69,7 +69,7 @@ const LookupDomain = ({
   return (
     <>
       <Head>
-        <title>Results for {router.query.domain} - Domain Digger</title>
+        <title>{`Results for ${router.query.domain} - Domain Digger`}</title>
       </Head>
 
       <Container maxW="container.sm" mb={8}>
