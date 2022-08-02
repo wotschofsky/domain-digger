@@ -19,11 +19,9 @@ export const config = {
 
 export default async function handler(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const domain = searchParams.get('domain');
 
-  if (
-    !searchParams.get('domain') ||
-    !isValidDomain(searchParams.get('domain') || '')
-  ) {
+  if (!domain || !isValidDomain(domain || '')) {
     return new Response(
       JSON.stringify({
         error: true,
@@ -41,7 +39,7 @@ export default async function handler(req: NextRequest) {
   const response = await fetch(
     'https://crt.sh?' +
       new URLSearchParams({
-        Identity: searchParams.get('domain') as string,
+        Identity: domain,
         output: 'json',
       })
   );
