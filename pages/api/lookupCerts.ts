@@ -1,6 +1,5 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+import type { NextRequest } from 'next/server';
 import isValidDomain from 'is-valid-domain';
-import fetch from 'node-fetch';
 
 export type CertLookupResponse = {
   certificates: {
@@ -14,28 +13,35 @@ export type CertLookupResponse = {
   }[];
 };
 
-export type CertsLookupErrorResponse = { error: true; message: string };
+export const config = {
+  runtime: 'experimental-edge',
+};
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<CertLookupResponse | CertsLookupErrorResponse>
-) {
+export default async function handler(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+
   if (
-    !req.query.domain ||
-    typeof req.query.domain === 'object' ||
-    !isValidDomain(req.query.domain)
+    !searchParams.get('domain') ||
+    !isValidDomain(searchParams.get('domain') || '')
   ) {
-    res.status(400).json({
-      error: true,
-      message: 'Bad Request',
-    });
-    return;
+    return new Response(
+      JSON.stringify({
+        error: true,
+        message: '"domain" param missing or invalid',
+      }),
+      {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
   }
 
   const response = await fetch(
     'https://crt.sh?' +
       new URLSearchParams({
-        Identity: req.query.domain,
+        Identity: searchParams.get('domain') as string,
         output: 'json',
       })
   );
@@ -51,15 +57,23 @@ export default async function handler(
     serial_number: string;
   }[];
 
-  res.json({
-    certificates: data.map((c) => ({
-      id: c.id,
-      loggedAt: c.entry_timestamp,
-      notBefore: c.not_before,
-      notAfter: c.not_after,
-      commonName: c.common_name,
-      matchingIdentities: c.name_value,
-      issuerName: c.issuer_name,
-    })),
-  });
+  return new Response(
+    JSON.stringify({
+      certificates: data.map((c) => ({
+        id: c.id,
+        loggedAt: c.entry_timestamp,
+        notBefore: c.not_before,
+        notAfter: c.not_after,
+        commonName: c.common_name,
+        matchingIdentities: c.name_value,
+        issuerName: c.issuer_name,
+      })),
+    }),
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
 }
