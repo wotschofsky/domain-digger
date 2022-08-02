@@ -1,10 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import axios from 'axios';
 import isValidDomain from 'is-valid-domain';
+import fetch from 'node-fetch';
 
 export type CertLookupResponse = {
   certificates: {
-    id: string;
+    id: number;
     issuerName: string;
     commonName: string;
     matchingIdentities: string;
@@ -32,15 +32,27 @@ export default async function handler(
     return;
   }
 
-  const response = await axios('https://crt.sh', {
-    params: {
-      Identity: req.query.domain,
-      output: 'json',
-    },
-  });
+  const response = await fetch(
+    'https://crt.sh?' +
+      new URLSearchParams({
+        Identity: req.query.domain,
+        output: 'json',
+      })
+  );
+  const data = (await response.json()) as {
+    issuer_ca_id: number;
+    issuer_name: string;
+    common_name: string;
+    name_value: string;
+    id: number;
+    entry_timestamp: string;
+    not_before: string;
+    not_after: string;
+    serial_number: string;
+  }[];
 
   res.json({
-    certificates: response.data.map((c: Record<string, string | number>) => ({
+    certificates: data.map((c) => ({
       id: c.id,
       loggedAt: c.entry_timestamp,
       notBefore: c.not_before,

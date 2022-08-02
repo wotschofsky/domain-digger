@@ -1,8 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { promisify } from 'util';
-import axios from 'axios';
 import dns from 'dns';
 import isIP from 'validator/lib/isIP';
+import fetch from 'node-fetch';
 
 export type IpLookupResponse = {
   city: string;
@@ -35,7 +35,8 @@ export default async function handler(
   }
 
   const url = `http://ip-api.com/json/${req.query.ip}`;
-  const response = await axios(url);
+  const response = await fetch(url);
+  const data = (await response.json()) as Record<string, any>;
 
   let reverse: string[] = [];
   try {
@@ -46,13 +47,13 @@ export default async function handler(
 
   res.json({
     reverse: reverse,
-    isp: response.data.isp,
-    org: response.data.org,
-    country: response.data.country,
-    region: response.data.regionName,
-    city: response.data.city,
-    timezone: response.data.timezone,
-    lat: response.data.lat,
-    lon: response.data.lon,
+    isp: data.isp,
+    org: data.org,
+    country: data.country,
+    region: data.regionName,
+    city: data.city,
+    timezone: data.timezone,
+    lat: data.lat,
+    lon: data.lon,
   });
 }

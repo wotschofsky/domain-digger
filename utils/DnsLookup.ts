@@ -1,4 +1,4 @@
-import axios from 'axios';
+import fetch from 'node-fetch';
 
 export type RecordTypes =
   | 'A'
@@ -51,8 +51,9 @@ class DnsLookup {
   ): Promise<RawRecord[]> {
     const url = `https://dns.google.com/resolve?name=${domain}&type=${record}`;
 
-    const response = await axios.get(url);
-    const records = response.data.Answer || [];
+    const response = await fetch(url);
+    const data = (await response.json()) as Record<string, any>;
+    const records = data.Answer || [];
 
     return records;
   }
