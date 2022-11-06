@@ -21,9 +21,22 @@ const Footer = () => (
     px={{ base: '4', md: '8' }}
   >
     <Divider mb={4} />
-    <Stack direction={{ base: 'column', sm: 'row' }} spacing="4" align="center" justify="space-between">
+    <Stack
+      direction={{ base: 'column', sm: 'row' }}
+      spacing="4"
+      align="center"
+      justify="space-between"
+    >
       <Text fontSize="sm">
-        Created with <Icon as={FaHeart} mx="2px" w={5} h={5} color="red.500" />{' '}
+        Created with{' '}
+        <Icon
+          as={FaHeart}
+          mx="2px"
+          w={5}
+          h={5}
+          translateY="0.35em"
+          color="red.500"
+        />{' '}
         by{' '}
         <Link href="https://felisk.io" isExternal>
           Felix Wotschofsky <ExternalLinkIcon mx="2px" />
