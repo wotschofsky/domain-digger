@@ -21,11 +21,11 @@ const RelatedDomains = ({ domain: original }: RelatedDomainsProps) => {
   return (
     <Stack spacing={4} direction="row" align="center">
       {domains.map((domain) => (
-        <NextLink key={domain} href={`/lookup/${domain}`}>
-          <a>
-            <Button size="xs">{domain}</Button>
-          </a>
-        </NextLink>
+        (<NextLink key={domain} href={`/lookup/${domain}`}>
+
+          <Button size="xs">{domain}</Button>
+
+        </NextLink>)
       ))}
     </Stack>
   );

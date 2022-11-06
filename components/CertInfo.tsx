@@ -69,7 +69,7 @@ const CertInfo = ({ domain }: CertInfoProps) => {
               <>
                 <span>{cert.commonName}</span>{' '}
                 <Tooltip label="View Domain Records">
-                  <NextLink href={`/lookup/${cert.commonName}`} passHref>
+                  <NextLink href={`/lookup/${cert.commonName}`} passHref legacyBehavior>
                     <Link>
                       <IconButton
                         variant="link"
@@ -90,7 +90,7 @@ const CertInfo = ({ domain }: CertInfoProps) => {
                   {index !== 0 && <br />}
                   <span>{value}</span>{' '}
                   <Tooltip label="View Domain Records">
-                    <NextLink href={`/lookup/${value}`} passHref>
+                    <NextLink href={`/lookup/${value}`} passHref legacyBehavior>
                       <Link>
                         <IconButton
                           variant="link"

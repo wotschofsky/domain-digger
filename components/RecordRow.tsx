@@ -64,25 +64,23 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
             );
           }
 
-          return (
-            <>
-              <span>{match}</span>{' '}
-              <Tooltip label="View Domain Records">
-                <NextLink href={`/lookup/${match}`} passHref>
-                  <Link>
-                    <IconButton
-                      variant="link"
-                      size="sm"
-                      ml={-2.5}
-                      mr={-1.5}
-                      aria-label="View Domain Records"
-                      icon={<ExternalLinkIcon />}
-                    />
-                  </Link>
-                </NextLink>
-              </Tooltip>
-            </>
-          );
+          return <>
+            <span>{match}</span>{' '}
+            <Tooltip label="View Domain Records">
+              <NextLink href={`/lookup/${match}`} passHref legacyBehavior>
+                <Link>
+                  <IconButton
+                    variant="link"
+                    size="sm"
+                    ml={-2.5}
+                    mr={-1.5}
+                    aria-label="View Domain Records"
+                    icon={<ExternalLinkIcon />}
+                  />
+                </Link>
+              </NextLink>
+            </Tooltip>
+          </>;
         }
       );
     }

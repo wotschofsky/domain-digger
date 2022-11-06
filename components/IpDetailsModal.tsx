@@ -120,7 +120,7 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
                           <span>{el.value}</span>{' '}
                           {el.type === EntryTypes.Reverse && (
                             <Tooltip label="View Domain Records">
-                              <NextLink href={`/lookup/${el.value}`} passHref>
+                              <NextLink href={`/lookup/${el.value}`} passHref legacyBehavior>
                                 <Link>
                                   <IconButton
                                     variant="link"
