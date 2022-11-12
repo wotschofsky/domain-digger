@@ -1,7 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Stack, FormControl, Input, Button, Text } from '@chakra-ui/react';
 import { toASCII } from 'punycode';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import isValidDomain from 'is-valid-domain';
 
 enum FormStates {
@@ -41,18 +41,6 @@ const SearchForm = (props: SearchFormProps) => {
 
     router.push(`/lookup/${normalizedDomain}`);
   };
-
-  useEffect(() => {
-    const resetForm = () => setState(FormStates.Initial);
-
-    router.events.on('routeChangeComplete', resetForm);
-    router.events.on('routeChangeError', resetForm);
-
-    return () => {
-      router.events.off('routeChangeComplete', resetForm);
-      router.events.off('routeChangeError', resetForm);
-    };
-  }, [router]);
 
   return (
     <>

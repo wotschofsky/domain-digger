@@ -1,4 +1,5 @@
-import Head from 'next/head';
+'use client';
+
 import { Container, Heading, Text, useColorModeValue } from '@chakra-ui/react';
 
 import BookmarkletLink from '@/components/BookmarkletLink';
@@ -9,9 +10,7 @@ import SearchForm from '@/components/SearchForm';
 const Home = () => {
   return (
     <>
-      <Head>
-        <title>Domain Digger</title>
-      </Head>
+      <title>Domain Digger</title>
 
       <Container
         maxW="lg"
