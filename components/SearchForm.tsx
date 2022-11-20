@@ -16,6 +16,7 @@ type SearchFormProps = {
 
 const SearchForm = (props: SearchFormProps) => {
   const router = useRouter();
+
   const [domain, setDomain] = useState('');
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [error, setError] = useState(false);

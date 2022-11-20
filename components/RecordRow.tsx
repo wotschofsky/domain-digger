@@ -8,7 +8,7 @@ import {
   Tr,
   useDisclosure,
 } from '@chakra-ui/react';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { ReactNodeArray, useEffect, useState } from 'react';
 import isIP from 'validator/lib/isIP';
 import NextLink from 'next/link';
@@ -21,17 +21,17 @@ const domainRegex =
   /(_)*(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/g;
 
 const RecordRow = ({ record }: { record: RawRecord }) => {
-  const router = useRouter();
+  // const router = useRouter();
   const [detailedIp, setDetailedIp] = useState<string | null>(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  useEffect(() => {
-    router.events.on('routeChangeStart', onClose);
+  // useEffect(() => {
+  //   router.events.on('routeChangeStart', onClose);
 
-    return () => {
-      router.events.off('routeChangeStart', onClose);
-    };
-  });
+  //   return () => {
+  //     router.events.off('routeChangeStart', onClose);
+  //   };
+  // });
 
   let interpolatedValue: ReactNodeArray | null = null;
 
