@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { promisify } from 'util';
 import dns from 'dns';
 import isIP from 'validator/lib/isIP';
-import fetch from 'node-fetch';
 
 export type IpLookupResponse = {
   city: string;

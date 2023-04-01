@@ -1,5 +1,3 @@
-import fetch from 'node-fetch';
-
 export type RecordTypes =
   | 'A'
   | 'AAAA'
