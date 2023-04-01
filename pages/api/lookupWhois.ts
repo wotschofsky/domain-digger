@@ -1,15 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import isValidDomain from 'is-valid-domain';
-// @ts-ignore
-import whois from 'whois';
+import whoiser, { type WhoisSearchResult } from 'whoiser';
 
 export type WhoisLookupResponse = {
-  data: string;
+  [domainName: string]: string;
 };
 
 export type WhoisLookupErrorResponse = { error: true; message: string };
 
-export default function handler(
+export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<WhoisLookupResponse | WhoisLookupErrorResponse>
 ) {
@@ -25,18 +24,12 @@ export default function handler(
     return;
   }
 
-  whois.lookup(req.query.domain, function (err: any, data: string) {
-    if (err) {
-      console.error(err);
-      res.status(500).json({
-        error: true,
-        message: 'Internal Server Error',
-      });
-      return;
-    }
+  const result = await whoiser(req.query.domain, { raw: true, timeout: 3000 });
 
-    res.json({
-      data,
-    });
-  });
+  const mappedResults: Record<string, string> = {};
+  for (const key in result) {
+    mappedResults[key] = (result[key] as WhoisSearchResult).__raw as string;
+  }
+
+  res.json(mappedResults);
 }

@@ -1,5 +1,6 @@
-import { chakra, Flex, Spinner } from '@chakra-ui/react';
+import { chakra, Flex, Heading, Spinner } from '@chakra-ui/react';
 import { css } from '@emotion/react';
+import { Fragment } from 'react';
 import useSWR from 'swr';
 
 import type { WhoisLookupResponse } from '@/api/lookupWhois';
@@ -26,13 +27,22 @@ const WhoisModal = (props: IpDetailsModalProps) => {
   }
 
   return (
-    <chakra.code
-      css={css`
-        white-space: pre-wrap;
-      `}
-    >
-      {data.data}
-    </chakra.code>
+    <>
+      {Object.keys(data).map((key) => (
+        <Fragment key={key}>
+          <Heading mt={8} mb={4}>
+            {key}
+          </Heading>
+          <chakra.code
+            css={css`
+              white-space: pre-wrap;
+            `}
+          >
+            {data[key]}
+          </chakra.code>
+        </Fragment>
+      ))}
+    </>
   );
 };
 
