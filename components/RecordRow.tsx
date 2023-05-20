@@ -1,18 +1,19 @@
-import { ExternalLinkIcon } from '@chakra-ui/icons';
-import {
-  IconButton,
-  Link,
-  Td,
-  Tooltip,
-  Tr,
-  useDisclosure,
-} from '@chakra-ui/react';
-import NextLink from 'next/link';
-import { useRouter } from 'next/navigation';
-import { ReactNodeArray, useEffect, useState } from 'react';
-import { FaInfoCircle } from 'react-icons/fa';
+'use client';
+
+import { ExternalLinkIcon, InfoIcon } from 'lucide-react';
+import Link from 'next/link';
+import { type ReactNodeArray, useState } from 'react';
 import reactStringReplace from 'react-string-replace';
+import { useDisclosure } from 'react-use-disclosure';
 import isIP from 'validator/lib/isIP';
+
+import { TableCell, TableRow } from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 import IpDetailsModal from '@/components/IpDetailsModal';
 import { RawRecord } from '@/utils/DnsLookup';
@@ -21,45 +22,39 @@ const domainRegex =
   /(_)*(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/g;
 
 const RecordRow = ({ record }: { record: RawRecord }) => {
-  // const router = useRouter();
   const [detailedIp, setDetailedIp] = useState<string | null>(null);
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen, open, close } = useDisclosure();
 
-  // useEffect(() => {
-  //   router.events.on('routeChangeStart', onClose);
-
-  //   return () => {
-  //     router.events.off('routeChangeStart', onClose);
-  //   };
-  // });
-
-  let interpolatedValue: ReactNodeArray | null = null;
+  let interpolatedValue: ReactNodeArray | string | null = record.data;
 
   const domainMatches = record.data.match(domainRegex);
   if (domainMatches) {
     for (const domain of domainMatches) {
       interpolatedValue = reactStringReplace(
-        interpolatedValue ? interpolatedValue : record.data,
+        interpolatedValue,
         domain,
         (match) => {
           if (isIP(match)) {
             return (
               <>
                 <span>{match}</span>{' '}
-                <Tooltip label="View IP Info">
-                  <IconButton
-                    variant="link"
-                    size="sm"
-                    ml={-2.5}
-                    mr={-1.5}
-                    aria-label="View IP Info"
-                    icon={<FaInfoCircle />}
-                    onClick={() => {
-                      setDetailedIp(match);
-                      onOpen();
-                    }}
-                  />
-                </Tooltip>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <InfoIcon
+                        role="button"
+                        className="mx-1 inline-block h-3 w-3 -translate-y-0.5 cursor-pointer"
+                        onClick={() => {
+                          setDetailedIp(match);
+                          open();
+                        }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>View IP Info</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </>
             );
           }
@@ -67,20 +62,18 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
           return (
             <>
               <span>{match}</span>{' '}
-              <Tooltip label="View Domain Records">
-                <NextLink href={`/lookup/${match}`} passHref legacyBehavior>
-                  <Link>
-                    <IconButton
-                      variant="link"
-                      size="sm"
-                      ml={-2.5}
-                      mr={-1.5}
-                      aria-label="View Domain Records"
-                      icon={<ExternalLinkIcon />}
-                    />
-                  </Link>
-                </NextLink>
-              </Tooltip>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Link href={`/lookup/${match}`}>
+                      <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View Domain Records</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </>
           );
         }
@@ -90,17 +83,13 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
 
   return (
     <>
-      <Tr>
-        <Td pl={0}>{record.name}</Td>
-        <Td>{record.TTL}</Td>
-        <Td pr={0}>{interpolatedValue ? interpolatedValue : record.data}</Td>
-      </Tr>
+      <TableRow>
+        <TableCell className="pl-0">{record.name}</TableCell>
+        <TableCell>{record.TTL}</TableCell>
+        <TableCell className="pr-0">{interpolatedValue}</TableCell>
+      </TableRow>
 
-      <IpDetailsModal
-        ip={detailedIp as string}
-        isOpen={isOpen}
-        onClose={onClose}
-      />
+      <IpDetailsModal ip={detailedIp!} isOpen={isOpen} onClose={close} />
     </>
   );
 };

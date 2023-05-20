@@ -1,6 +1,12 @@
-import { chakra, Heading, Table, Tbody, Th, Thead, Tr } from '@chakra-ui/react';
-import { css } from '@emotion/react';
 import { Fragment } from 'react';
+
+import {
+  Table,
+  TableBody,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 import RecordRow from '@/components/RecordRow';
 import { ResolvedRecords } from '@/utils/DnsLookup';
@@ -20,29 +26,26 @@ const DnsTable = ({ records }: DnsTableProps) => (
 
       return (
         <Fragment key={recordType}>
-          <Heading as="h2" fontSize={{ base: 'xl', sm: '2xl' }} mb={4} mt={8}>
+          <h2 className="mb-4 mb-5 mt-8 text-xl font-semibold tracking-tight sm:text-2xl">
             {recordType}
-          </Heading>
-          <chakra.div
-            css={css`
-              overflow-x: auto;
-            `}
-          >
+          </h2>
+
+          <div className="overflow-x-auto">
             <Table key={recordType}>
-              <Thead>
-                <Tr>
-                  <Th pl={0}>Name</Th>
-                  <Th>TTL</Th>
-                  <Th pr={0}>Value</Th>
-                </Tr>
-              </Thead>
-              <Tbody>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-0">Name</TableHead>
+                  <TableHead>TTL</TableHead>
+                  <TableHead className="pr-0">Value</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {value.map((v) => (
                   <RecordRow key={v.type + v.data} record={v} />
                 ))}
-              </Tbody>
+              </TableBody>
             </Table>
-          </chakra.div>
+          </div>
         </Fragment>
       );
     })}

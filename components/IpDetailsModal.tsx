@@ -1,29 +1,30 @@
-import { ExternalLinkIcon } from '@chakra-ui/icons';
-import {
-  chakra,
-  Flex,
-  IconButton,
-  Link,
-  Modal,
-  ModalBody,
-  ModalCloseButton,
-  ModalContent,
-  ModalHeader,
-  ModalOverlay,
-  Spinner,
-  Table,
-  Tbody,
-  Td,
-  Tooltip,
-  Tr,
-} from '@chakra-ui/react';
-import { css } from '@emotion/react';
 import type { LatLngExpression } from 'leaflet';
+import { ExternalLinkIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import NextLink from 'next/link';
+import Link from 'next/link';
+import { type FC, useCallback } from 'react';
 import useSWR from 'swr';
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+
 import type { IpLookupResponse } from '@/api/lookupIp';
+
+const LocationMap = dynamic(() => import('@/components/LocationMap'), {
+  ssr: false,
+});
 
 enum EntryTypes {
   IP,
@@ -41,9 +42,9 @@ type IpDetailsModalProps = {
   onClose: () => void;
 };
 
-const IpDetailsModal = (props: IpDetailsModalProps) => {
+const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
   const { data, error } = useSWR<IpLookupResponse>(
-    props.isOpen ? `/api/lookupIp?ip=${encodeURIComponent(props.ip)}` : null
+    isOpen ? `/api/lookupIp?ip=${encodeURIComponent(ip)}` : null
   );
 
   let mappedEntries: { label: string; value: string; type: EntryTypes }[] = [];
@@ -54,7 +55,7 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
       {
         type: EntryTypes.IP,
         label: 'IP',
-        value: props.ip,
+        value: ip,
       },
       ...data.reverse.map((address) => ({
         type: EntryTypes.Reverse,
@@ -91,76 +92,73 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
     location = [data.lat, data.lon];
   }
 
-  const LocationMap = dynamic(() => import('@/components/LocationMap'), {
-    ssr: false,
-  });
+  const onOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) {
+        onClose();
+      }
+    },
+    [onClose]
+  );
 
   return (
-    <Modal size="xl" isOpen={props.isOpen} onClose={props.onClose}>
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>IP Details for {props.ip}</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody>
-          {!data ? (
-            <Flex justify="center" align="center">
-              <Spinner size="xl" my={8} />
-            </Flex>
-          ) : error ? (
-            <p>An error occurred!</p>
-          ) : (
-            <>
-              <Table>
-                <Tbody>
-                  {mappedEntries.map((el) => (
-                    <Tr key={el.label + el.value}>
-                      <Td pl={0}>{el.label}</Td>
-                      <Td pr={0}>
-                        <>
-                          <span>{el.value}</span>{' '}
-                          {el.type === EntryTypes.Reverse && (
-                            <Tooltip label="View Domain Records">
-                              <NextLink
-                                href={`/lookup/${el.value}`}
-                                passHref
-                                legacyBehavior
-                              >
-                                <Link>
-                                  <IconButton
-                                    variant="link"
-                                    size="sm"
-                                    ml={-2.5}
-                                    mr={-1.5}
-                                    aria-label="View Domain Records"
-                                    icon={<ExternalLinkIcon />}
-                                  />
-                                </Link>
-                              </NextLink>
-                            </Tooltip>
-                          )}
-                        </>
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
+    <Dialog modal open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>IP Details for {ip}</DialogTitle>
+          <DialogDescription>
+            {!data ? (
+              <div className="flex items-center justify-center">
+                <div
+                  className="animate- my-8 inline-block h-9 w-9 animate-[spin_0.6s_linear_infinite] rounded-full border-[2px] border-current border-t-transparent text-gray-800"
+                  role="status"
+                  aria-label="loading"
+                >
+                  <span className="sr-only">Loading...</span>
+                </div>
+              </div>
+            ) : error ? (
+              <p>An error occurred!</p>
+            ) : (
+              <>
+                <Table>
+                  <TableBody>
+                    {mappedEntries.map((el) => (
+                      <TableRow key={el.label + el.value}>
+                        <TableCell className="pl-0">{el.label}</TableCell>
+                        <TableCell className="pr-0">
+                          <>
+                            <span>{el.value}</span>{' '}
+                            {el.type === EntryTypes.Reverse && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <Link href={`/lookup/${el.value}`}>
+                                      <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                                    </Link>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>View Domain Records</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
 
-              <chakra.div
-                css={css`
-                  .leaflet-container {
-                    width: 100%;
-                    height: 20rem;
-                  }
-                `}
-                my={4}
-              >
-                <LocationMap location={location} />
-              </chakra.div>
-            </>
-          )}
-        </ModalBody>
-      </ModalContent>
-    </Modal>
+                <div className="my-4 [&_.leaflet-container]:h-80 [&_.leaflet-container]:w-full">
+                  <LocationMap location={location} />
+                </div>
+              </>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+      </DialogContent>
+    </Dialog>
   );
 };
 
