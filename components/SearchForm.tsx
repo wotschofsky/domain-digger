@@ -1,8 +1,13 @@
+'use client';
+
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { Stack, FormControl, Input, Button, Text } from '@chakra-ui/react';
+import { Loader2 } from 'lucide-react';
 import { toASCII } from 'punycode';
 import { useRouter } from 'next/navigation';
 import isValidDomain from 'is-valid-domain';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 enum FormStates {
   Initial,
@@ -45,44 +50,44 @@ const SearchForm = (props: SearchFormProps) => {
 
   return (
     <>
-      <Stack
-        direction={{ base: 'column', md: 'row' }}
-        as="form"
-        spacing="12px"
-        onSubmit={handleSubmit}
-      >
-        <FormControl>
-          <Input
-            borderWidth={1}
-            id="email"
-            type="text"
-            required
-            placeholder="example.com"
-            aria-label="Domain"
-            value={domain}
-            disabled={state !== FormStates.Initial}
-            onInput={(event: ChangeEvent<HTMLInputElement>) =>
-              setDomain(event.target.value)
-            }
-          />
-        </FormControl>
-        <FormControl w={{ base: '100%', md: '40%' }}>
-          <Button
-            colorScheme="blue"
-            isLoading={state === FormStates.Submitting}
-            w="100%"
-            type="submit"
-          >
-            Lookup
-          </Button>
-        </FormControl>
-      </Stack>
+      <form className="flex gap-3" onSubmit={handleSubmit}>
+        <Input
+          style={{
+            flex: 3,
+          }}
+          type="text"
+          required
+          placeholder="example.com"
+          aria-label="Domain"
+          value={domain}
+          onInput={(event: ChangeEvent<HTMLInputElement>) =>
+            setDomain(event.target.value)
+          }
+          disabled={state !== FormStates.Initial}
+        />
+        <Button
+          style={{
+            flex: 1,
+          }}
+          type="submit"
+          disabled={state !== FormStates.Initial}
+        >
+          {state === FormStates.Submitting && (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          )}
+          Lookup
+        </Button>
+      </form>
 
-      <Text mt={2} textAlign="center" color={error ? 'red.500' : 'gray.500'}>
-        {error
-          ? 'An error occured! Please check your input or try again later.'
-          : 'It can be anything! An apex or subdomain.'}
-      </Text>
+      {error ? (
+        <p className="text-sm text-center text-red-600 mt-2">
+          An error occured! Please check your input or try again later.
+        </p>
+      ) : (
+        <p className="text-sm text-center text-muted-foreground mt-2">
+          It can be anything! An apex or subdomain.
+        </p>
+      )}
     </>
   );
 };

@@ -13,6 +13,7 @@
     "@chakra-ui/react": "^2.6.1",
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
+    "@radix-ui/react-slot": "^1.0.1",
     "@types/nprogress": "^0.2.0",
     "@types/punycode": "^2.1.0",
     "@types/validator": "^13.7.17",

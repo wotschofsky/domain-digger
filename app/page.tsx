@@ -1,62 +1,35 @@
-'use client';
-
-import { Container, Heading, Text, useColorModeValue } from '@chakra-ui/react';
-
 import BookmarkletLink from '@/components/BookmarkletLink';
 import SearchForm from '@/components/SearchForm';
 
-// Based on simple newsletter template from https://chakra-templates.dev
+import { Card } from '@/components/ui/card';
+
+export const metadata = {
+  title: 'Domain Digger',
+};
 
 const Home = () => {
   return (
     <>
-      <title>Domain Digger</title>
-
-      <Container
-        maxW="lg"
-        bg={useColorModeValue('white', 'whiteAlpha.100')}
-        boxShadow="xl"
-        rounded="lg"
-        my={16}
-        p={6}
-        flexDirection="column"
-      >
-        <Heading
-          as="h2"
-          fontSize={{ base: 'xl', sm: '2xl' }}
-          textAlign="center"
-          mb={5}
-        >
+      <Card className="max-w-lg mx-auto my-16 p-6">
+        <h2 className="text-center text-xl sm:text-2xl font-semibold tracking-tight mb-5">
           Get details about any Domain
-        </Heading>
+        </h2>
 
         <SearchForm />
-      </Container>
+      </Card>
 
-      <Container
-        maxW="lg"
-        bg={useColorModeValue('white', 'whiteAlpha.100')}
-        boxShadow="xl"
-        rounded="lg"
-        my={16}
-        p={6}
-        flexDirection="column"
-      >
-        <Heading
-          as="h2"
-          fontSize={{ base: 'xl', sm: '2xl' }}
-          textAlign="center"
-          mb={5}
-        >
+      <Card className="max-w-lg mx-auto my-16 p-6">
+        <h2 className="text-center text-xl sm:text-2xl font-semibold tracking-tight mb-5">
           Quickly inspect any Website
-        </Heading>
+        </h2>
 
-        <Text mt={2} mb={5} textAlign="center" color={'gray.500'}>
+        <p className="text-sm text-center text-muted-foreground mt-2 mb-5">
           Drag this link to your bookmarks bar to quickly go to the results page
           for the site you are currently on!
-        </Text>
+        </p>
+
         <BookmarkletLink />
-      </Container>
+      </Card>
     </>
   );
 };

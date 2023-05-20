@@ -1,4 +1,5 @@
-import { Center, Link, Progress } from '@chakra-ui/react';
+'use client';
+
 import { useEffect, useState } from 'react';
 
 const BookmarkletLink = () => {
@@ -22,14 +23,16 @@ const BookmarkletLink = () => {
     setTarget(`javascript:${minifiedScript}`);
   }, []);
 
-  if (!target) {
-    return <Progress size="xs" isIndeterminate />;
-  }
-
   return (
-    <Center>
-      <Link href={target}>Inspect Domain</Link>
-    </Center>
+    <div className="flex justify-center">
+      {target ? (
+        <a className="text-center" href={target}>
+          Inspect Domain
+        </a>
+      ) : (
+        <span className="text-center">Loading...</span>
+      )}
+    </div>
   );
 };
 
