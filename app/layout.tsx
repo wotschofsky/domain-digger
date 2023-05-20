@@ -10,11 +10,15 @@ import {
 } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
+import './globals.css';
+
+// export const metadata = {
+//   title: 'Domain Digger',
+// };
 
 const RootLayout = ({ children }: { children: ReactNode }) => {
   return (
-    <html>
-      <head />
+    <html lang="en">
       <body>
         <ColorModeScript initialColorMode="system" />
         <SWRConfig
