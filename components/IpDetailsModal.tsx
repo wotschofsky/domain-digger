@@ -1,5 +1,3 @@
-import dynamic from 'next/dynamic';
-import NextLink from 'next/link';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import {
   chakra,
@@ -20,8 +18,10 @@ import {
   Tr,
 } from '@chakra-ui/react';
 import { css } from '@emotion/react';
-import useSWR from 'swr';
 import type { LatLngExpression } from 'leaflet';
+import dynamic from 'next/dynamic';
+import NextLink from 'next/link';
+import useSWR from 'swr';
 
 import type { IpLookupResponse } from '@/api/lookupIp';
 
@@ -120,7 +120,11 @@ const IpDetailsModal = (props: IpDetailsModalProps) => {
                           <span>{el.value}</span>{' '}
                           {el.type === EntryTypes.Reverse && (
                             <Tooltip label="View Domain Records">
-                              <NextLink href={`/lookup/${el.value}`} passHref legacyBehavior>
+                              <NextLink
+                                href={`/lookup/${el.value}`}
+                                passHref
+                                legacyBehavior
+                              >
                                 <Link>
                                   <IconButton
                                     variant="link"

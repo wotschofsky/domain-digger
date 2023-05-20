@@ -1,5 +1,5 @@
-import NextLink from 'next/link';
 import { Button, Stack } from '@chakra-ui/react';
+import NextLink from 'next/link';
 
 type RelatedDomainsProps = {
   domain: string;
@@ -21,11 +21,9 @@ const RelatedDomains = ({ domain: original }: RelatedDomainsProps) => {
   return (
     <Stack spacing={4} direction="row" align="center">
       {domains.map((domain) => (
-        (<NextLink key={domain} href={`/lookup/${domain}`}>
-
+        <NextLink key={domain} href={`/lookup/${domain}`}>
           <Button size="xs">{domain}</Button>
-
-        </NextLink>)
+        </NextLink>
       ))}
     </Stack>
   );

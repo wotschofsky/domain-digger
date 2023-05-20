@@ -1,7 +1,5 @@
 'use client';
 
-import Footer from '@/components/Footer';
-import Header from '@/components/Header';
 import {
   chakra,
   ChakraProvider,
@@ -10,6 +8,10 @@ import {
 } from '@chakra-ui/react';
 import type { ReactNode } from 'react';
 import { SWRConfig } from 'swr';
+
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+
 import './globals.css';
 
 // export const metadata = {

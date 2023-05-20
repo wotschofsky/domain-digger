@@ -1,8 +1,8 @@
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import type { LatLngExpression } from 'leaflet';
 import 'leaflet-defaulticon-compatibility';
 import 'leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css';
 import 'leaflet/dist/leaflet.css';
+import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 
 const LocationMap = ({ location }: { location: LatLngExpression }) => (
   <MapContainer center={location} zoom={4}>

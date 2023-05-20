@@ -1,5 +1,5 @@
-import type { NextRequest } from 'next/server';
 import isValidDomain from 'is-valid-domain';
+import type { NextRequest } from 'next/server';
 
 export type CertLookupResponse = {
   certificates: {

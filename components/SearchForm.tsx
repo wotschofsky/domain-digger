@@ -1,10 +1,10 @@
 'use client';
 
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import { toASCII } from 'punycode';
-import { useRouter } from 'next/navigation';
 import isValidDomain from 'is-valid-domain';
+import { Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { toASCII } from 'punycode';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,11 +80,11 @@ const SearchForm = (props: SearchFormProps) => {
       </form>
 
       {error ? (
-        <p className="text-sm text-center text-red-600 mt-2">
+        <p className="mt-2 text-center text-sm text-red-600">
           An error occured! Please check your input or try again later.
         </p>
       ) : (
-        <p className="text-sm text-center text-muted-foreground mt-2">
+        <p className="mt-2 text-center text-sm text-muted-foreground">
           It can be anything! An apex or subdomain.
         </p>
       )}

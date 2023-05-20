@@ -1,7 +1,7 @@
+import { Card } from '@/components/ui/card';
+
 import BookmarkletLink from '@/components/BookmarkletLink';
 import SearchForm from '@/components/SearchForm';
-
-import { Card } from '@/components/ui/card';
 
 export const metadata = {
   title: 'Domain Digger',
@@ -10,20 +10,20 @@ export const metadata = {
 const Home = () => {
   return (
     <>
-      <Card className="max-w-lg mx-auto my-16 p-6">
-        <h2 className="text-center text-xl sm:text-2xl font-semibold tracking-tight mb-5">
+      <Card className="mx-auto my-16 max-w-lg p-6">
+        <h2 className="mb-5 text-center text-xl font-semibold tracking-tight sm:text-2xl">
           Get details about any Domain
         </h2>
 
         <SearchForm />
       </Card>
 
-      <Card className="max-w-lg mx-auto my-16 p-6">
-        <h2 className="text-center text-xl sm:text-2xl font-semibold tracking-tight mb-5">
+      <Card className="mx-auto my-16 max-w-lg p-6">
+        <h2 className="mb-5 text-center text-xl font-semibold tracking-tight sm:text-2xl">
           Quickly inspect any Website
         </h2>
 
-        <p className="text-sm text-center text-muted-foreground mt-2 mb-5">
+        <p className="mb-5 mt-2 text-center text-sm text-muted-foreground">
           Drag this link to your bookmarks bar to quickly go to the results page
           for the site you are currently on!
         </p>

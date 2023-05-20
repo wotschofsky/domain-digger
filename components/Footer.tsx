@@ -1,3 +1,4 @@
+import { ExternalLinkIcon } from '@chakra-ui/icons';
 import {
   Box,
   ButtonGroup,
@@ -8,7 +9,6 @@ import {
   Stack,
   Text,
 } from '@chakra-ui/react';
-import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { FaGithub, FaHeart } from 'react-icons/fa';
 
 const Footer = () => (

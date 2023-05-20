@@ -1,5 +1,5 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
 import isValidDomain from 'is-valid-domain';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import whoiser, { type WhoisSearchResult } from 'whoiser';
 
 export type WhoisLookupResponse = {

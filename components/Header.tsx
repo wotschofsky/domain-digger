@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import {
   Box,
   ButtonGroup,
@@ -7,7 +6,8 @@ import {
   Text,
   useColorMode,
 } from '@chakra-ui/react';
-import { FaSun, FaMoon } from 'react-icons/fa';
+import Link from 'next/link';
+import { FaMoon, FaSun } from 'react-icons/fa';
 
 const Header = () => {
   const { colorMode, toggleColorMode } = useColorMode();

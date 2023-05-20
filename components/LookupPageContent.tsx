@@ -1,5 +1,6 @@
 'use client';
 
+import { ExternalLinkIcon } from '@chakra-ui/icons';
 import {
   Container,
   Heading,
@@ -11,15 +12,14 @@ import {
   Tabs,
   Text,
 } from '@chakra-ui/react';
-import { ExternalLinkIcon } from '@chakra-ui/icons';
+import type { FC } from 'react';
 
 import CertInfo from '@/components/CertInfo';
 import DnsTable from '@/components/DnsTable';
 import RelatedDomains from '@/components/RelatedDomains';
 import SearchForm from '@/components/SearchForm';
-import type { FC } from 'react';
-import type { ResolvedRecords } from '@/utils/DnsLookup';
 import WhoisInfo from '@/components/WhoisInfo';
+import type { ResolvedRecords } from '@/utils/DnsLookup';
 
 type LookupPageContentProps = {
   domain: string;

@@ -1,9 +1,9 @@
-import { Fragment } from 'react';
 import { chakra, Heading, Table, Tbody, Th, Thead, Tr } from '@chakra-ui/react';
 import { css } from '@emotion/react';
+import { Fragment } from 'react';
 
-import { ResolvedRecords } from '@/utils/DnsLookup';
 import RecordRow from '@/components/RecordRow';
+import { ResolvedRecords } from '@/utils/DnsLookup';
 
 type DnsTableProps = {
   records: ResolvedRecords;

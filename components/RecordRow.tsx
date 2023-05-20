@@ -1,5 +1,4 @@
 import { ExternalLinkIcon } from '@chakra-ui/icons';
-import { FaInfoCircle } from 'react-icons/fa';
 import {
   IconButton,
   Link,
@@ -8,14 +7,15 @@ import {
   Tr,
   useDisclosure,
 } from '@chakra-ui/react';
+import NextLink from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ReactNodeArray, useEffect, useState } from 'react';
-import isIP from 'validator/lib/isIP';
-import NextLink from 'next/link';
+import { FaInfoCircle } from 'react-icons/fa';
 import reactStringReplace from 'react-string-replace';
+import isIP from 'validator/lib/isIP';
 
-import { RawRecord } from '@/utils/DnsLookup';
 import IpDetailsModal from '@/components/IpDetailsModal';
+import { RawRecord } from '@/utils/DnsLookup';
 
 const domainRegex =
   /(_)*(?:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|\[(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?|[a-z0-9-]*[a-z0-9]:(?:[\x01-\x08\x0b\x0c\x0e-\x1f\x21-\x5a\x53-\x7f]|\\[\x01-\x09\x0b\x0c\x0e-\x7f])+)\])/g;
@@ -64,23 +64,25 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
             );
           }
 
-          return <>
-            <span>{match}</span>{' '}
-            <Tooltip label="View Domain Records">
-              <NextLink href={`/lookup/${match}`} passHref legacyBehavior>
-                <Link>
-                  <IconButton
-                    variant="link"
-                    size="sm"
-                    ml={-2.5}
-                    mr={-1.5}
-                    aria-label="View Domain Records"
-                    icon={<ExternalLinkIcon />}
-                  />
-                </Link>
-              </NextLink>
-            </Tooltip>
-          </>;
+          return (
+            <>
+              <span>{match}</span>{' '}
+              <Tooltip label="View Domain Records">
+                <NextLink href={`/lookup/${match}`} passHref legacyBehavior>
+                  <Link>
+                    <IconButton
+                      variant="link"
+                      size="sm"
+                      ml={-2.5}
+                      mr={-1.5}
+                      aria-label="View Domain Records"
+                      icon={<ExternalLinkIcon />}
+                    />
+                  </Link>
+                </NextLink>
+              </Tooltip>
+            </>
+          );
         }
       );
     }

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "format": "yarn prettier --write \"**/*.{js,jsx,ts,tsx,json,css,scss,md,mdx}\""
   },
   "dependencies": {
     "@chakra-ui/icons": "^2.0.19",
@@ -42,12 +43,15 @@
     "whoiser": "^1.17.1"
   },
   "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^4.1.1",
     "@types/leaflet": "^1.9.3",
     "@types/node": "^20.2.1",
     "@types/react": "18.2.6",
     "@types/react-dom": "18.2.4",
     "eslint": "^8.41.0",
     "eslint-config-next": "^13.4.3",
+    "prettier": "^2.8.8",
+    "prettier-plugin-tailwindcss": "^0.3.0",
     "typescript": "^5.0.4"
   }
 }
