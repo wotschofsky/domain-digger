@@ -1,58 +1,23 @@
-import { ExternalLinkIcon } from '@chakra-ui/icons';
-import {
-  Box,
-  ButtonGroup,
-  Divider,
-  Icon,
-  IconButton,
-  Link,
-  Stack,
-  Text,
-} from '@chakra-ui/react';
 import { FaGithub, FaHeart } from 'react-icons/fa';
 
+import { Button } from '@/components/ui/button';
+
 const Footer = () => (
-  <Box
-    as="footer"
-    role="contentinfo"
-    w="100%"
-    maxW="7xl"
-    py={4}
-    px={{ base: '4', md: '8' }}
-  >
-    <Divider mb={4} />
-    <Stack
-      direction={{ base: 'column', sm: 'row' }}
-      spacing="4"
-      align="center"
-      justify="space-between"
-    >
-      <Text fontSize="sm">
+  <footer className="w-full p-4 md:px-8">
+    <div className="flex flex-col items-center justify-between border-t border-t-gray-200 pt-4 sm:flex-row">
+      <p className="text-sm">
         Created with{' '}
-        <Icon
-          as={FaHeart}
-          mx="2px"
-          w={5}
-          h={5}
-          translateY="0.35em"
-          color="red.500"
-        />{' '}
-        by{' '}
-        <Link href="https://felisk.io" isExternal>
-          Felix Wotschofsky <ExternalLinkIcon mx="2px" />
-        </Link>
-      </Text>
-      <ButtonGroup variant="ghost" color="gray.600">
-        <IconButton
-          as="a"
-          href="https://github.com/feliskio/domain-digger"
-          target="_blank"
-          aria-label="GitHub"
-          icon={<FaGithub fontSize="20px" />}
-        />
-      </ButtonGroup>
-    </Stack>
-  </Box>
+        <FaHeart className="inline text-red-500" fontSize="1.25rem" /> by{' '}
+        <a href="https://felisk.io">Felix Wotschofsky</a>
+      </p>
+
+      <Button variant="ghost" asChild>
+        <a href="https://github.com/feliskio/domain-digger" target="_blank">
+          <FaGithub className="h-6 w-6" />
+        </a>
+      </Button>
+    </div>
+  </footer>
 );
 
 export default Footer;
