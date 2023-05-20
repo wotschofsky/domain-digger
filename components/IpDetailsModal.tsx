@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import {
   Tooltip,
@@ -109,13 +110,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
           <DialogDescription>
             {!data ? (
               <div className="flex items-center justify-center">
-                <div
-                  className="animate- my-8 inline-block h-9 w-9 animate-[spin_0.6s_linear_infinite] rounded-full border-[2px] border-current border-t-transparent text-gray-800"
-                  role="status"
-                  aria-label="loading"
-                >
-                  <span className="sr-only">Loading...</span>
-                </div>
+                <Spinner />
               </div>
             ) : error ? (
               <p>An error occurred!</p>
