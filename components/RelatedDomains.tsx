@@ -1,11 +1,13 @@
-import { Button, Stack } from '@chakra-ui/react';
-import NextLink from 'next/link';
+import Link from 'next/link';
+import type { FC } from 'react';
+
+import { Button } from '@/components/ui/button';
 
 type RelatedDomainsProps = {
   domain: string;
 };
 
-const RelatedDomains = ({ domain: original }: RelatedDomainsProps) => {
+const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
   const domains = [];
 
   const splitOriginal = original.split('.');
@@ -19,13 +21,18 @@ const RelatedDomains = ({ domain: original }: RelatedDomainsProps) => {
   }
 
   return (
-    <Stack spacing={4} direction="row" align="center">
+    <div className="flex gap-4">
       {domains.map((domain) => (
-        <NextLink key={domain} href={`/lookup/${domain}`}>
-          <Button size="xs">{domain}</Button>
-        </NextLink>
+        <Button
+          key={domain}
+          asChild
+          variant="secondary"
+          className="h-6 p-2 text-xs"
+        >
+          <Link href={`/lookup/${domain}`}>{domain}</Link>
+        </Button>
       ))}
-    </Stack>
+    </div>
   );
 };
 

@@ -1,18 +1,9 @@
 'use client';
 
-import { ExternalLinkIcon } from '@chakra-ui/icons';
-import {
-  Container,
-  Heading,
-  Link,
-  Tab,
-  TabList,
-  TabPanel,
-  TabPanels,
-  Tabs,
-  Text,
-} from '@chakra-ui/react';
+import { ExternalLinkIcon } from 'lucide-react';
 import type { FC } from 'react';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import CertInfo from '@/components/CertInfo';
 import DnsTable from '@/components/DnsTable';
@@ -28,50 +19,48 @@ type LookupPageContentProps = {
 
 const LookupPageContent: FC<LookupPageContentProps> = ({ domain, records }) => (
   <>
-    <Container maxW="container.sm" mb={8}>
-      <SearchForm initialValue={domain as string} />
-    </Container>
+    <div className="container mb-8 max-w-xl">
+      <SearchForm initialValue={domain} />
+    </div>
 
-    <Container maxW="container.xl">
-      <Heading as="h1" mb={2}>
+    <div className="container">
+      <h1 className="mb-2 text-4xl font-bold">
         Results for{' '}
-        <Link href={`https://${domain}`} isExternal>
-          {domain} <ExternalLinkIcon mx="2px" />
-        </Link>
-      </Heading>
+        <a href={`https://${domain}`} target="_blank">
+          {domain} <ExternalLinkIcon className="inline-block" />
+        </a>
+      </h1>
 
       <RelatedDomains domain={domain} />
 
-      <Tabs isLazy mt={6}>
-        <TabList>
-          <Tab>DNS</Tab>
-          <Tab>Whois</Tab>
-          <Tab>Certs</Tab>
-        </TabList>
+      <Tabs defaultValue="dns" className="mt-6">
+        <TabsList>
+          <TabsTrigger value="dns">DNS</TabsTrigger>
+          <TabsTrigger value="whois">Whois</TabsTrigger>
+          <TabsTrigger value="certs">Certs</TabsTrigger>
+        </TabsList>
 
-        <TabPanels>
-          <TabPanel>
-            {Object.values(records)
-              .map((r) => r.length)
-              .reduce((prev, curr) => prev + curr, 0) === 0 ? (
-              <Text textAlign="center" color="gray.500" mt={8}>
-                No DNS records found!
-              </Text>
-            ) : (
-              <DnsTable records={records} />
-            )}
-          </TabPanel>
+        <TabsContent value="dns">
+          {Object.values(records)
+            .map((r) => r.length)
+            .reduce((prev, curr) => prev + curr, 0) === 0 ? (
+            <p className="mt-8 text-center text-muted-foreground">
+              No DNS records found!
+            </p>
+          ) : (
+            <DnsTable records={records} />
+          )}
+        </TabsContent>
 
-          <TabPanel>
-            <WhoisInfo domain={domain as string} />
-          </TabPanel>
+        <TabsContent value="whois">
+          <WhoisInfo domain={domain} />
+        </TabsContent>
 
-          <TabPanel>
-            <CertInfo domain={domain as string} />
-          </TabPanel>
-        </TabPanels>
+        <TabsContent value="certs">
+          <CertInfo domain={domain} />
+        </TabsContent>
       </Tabs>
-    </Container>
+    </div>
   </>
 );
 

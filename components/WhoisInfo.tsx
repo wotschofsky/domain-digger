@@ -1,7 +1,9 @@
-import { chakra, Flex, Heading, Spinner } from '@chakra-ui/react';
-import { css } from '@emotion/react';
-import { Fragment } from 'react';
+'use client';
+
+import { type FC, Fragment } from 'react';
 import useSWR from 'swr';
+
+import { Spinner } from '@/components/ui/spinner';
 
 import type { WhoisLookupResponse } from '@/api/lookupWhois';
 
@@ -9,16 +11,16 @@ type IpDetailsModalProps = {
   domain: string;
 };
 
-const WhoisModal = (props: IpDetailsModalProps) => {
+const WhoisModal: FC<IpDetailsModalProps> = ({ domain }) => {
   const { data, error } = useSWR<WhoisLookupResponse>(
-    `/api/lookupWhois?domain=${encodeURIComponent(props.domain)}`
+    `/api/lookupWhois?domain=${encodeURIComponent(domain)}`
   );
 
   if (!data) {
     return (
-      <Flex justify="center" align="center">
-        <Spinner size="xl" my={8} />
-      </Flex>
+      <div className="items-cen flex justify-center">
+        <Spinner className="my-8" />
+      </div>
     );
   }
 
@@ -30,16 +32,8 @@ const WhoisModal = (props: IpDetailsModalProps) => {
     <>
       {Object.keys(data).map((key) => (
         <Fragment key={key}>
-          <Heading mt={8} mb={4}>
-            {key}
-          </Heading>
-          <chakra.code
-            css={css`
-              white-space: pre-wrap;
-            `}
-          >
-            {data[key]}
-          </chakra.code>
+          <h2 className="mb-4 mt-8 text-3xl font-bold tracking-tight">{key}</h2>
+          <code className="whitespace-pre-wrap">{data[key]}</code>
         </Fragment>
       ))}
     </>

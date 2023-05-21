@@ -1,13 +1,9 @@
 'use client';
 
-import { Container } from '@chakra-ui/react';
-
-const LookupDomainError = () => {
-  return (
-    <Container maxW="container.xl">
-      <p>Failed loading results!</p>
-    </Container>
-  );
-};
+const LookupDomainError = () => (
+  <div className="flex justify-center">
+    <p>Failed loading results!</p>
+  </div>
+);
 
 export default LookupDomainError;

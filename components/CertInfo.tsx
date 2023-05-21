@@ -1,20 +1,24 @@
-import { ExternalLinkIcon } from '@chakra-ui/icons';
-import {
-  Flex,
-  IconButton,
-  Link,
-  Spinner,
-  Table,
-  Tbody,
-  Td,
-  Text,
-  Th,
-  Thead,
-  Tooltip,
-  Tr,
-} from '@chakra-ui/react';
-import NextLink from 'next/link';
+'use client';
+
+import { ExternalLinkIcon } from 'lucide-react';
+import Link from 'next/link';
+import type { FC } from 'react';
 import useSWR from 'swr';
+
+import { Spinner } from '@/components/ui/spinner';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 import type { CertLookupResponse } from '@/api/lookupCerts';
 
@@ -22,16 +26,16 @@ type CertInfoProps = {
   domain: string;
 };
 
-const CertInfo = ({ domain }: CertInfoProps) => {
+const CertInfo: FC<CertInfoProps> = ({ domain }) => {
   const { data, error } = useSWR<CertLookupResponse>(
     `/api/lookupCerts?domain=${encodeURIComponent(domain)}`
   );
 
   if (!data) {
     return (
-      <Flex justify="center" align="center">
-        <Spinner size="xl" my={8} />
-      </Flex>
+      <div className="flex items-center justify-center">
+        <Spinner className="my-8" />
+      </div>
     );
   }
 
@@ -41,79 +45,71 @@ const CertInfo = ({ domain }: CertInfoProps) => {
 
   if (!data.certificates.length) {
     return (
-      <Text textAlign="center" color="gray.500" mt={8}>
+      <p className="mt-8 text-center text-muted-foreground">
         No issued certificates found!
-      </Text>
+      </p>
     );
   }
 
   return (
     <Table>
-      <Thead>
-        <Tr>
-          <Th pl={0}>Logged At</Th>
-          <Th>Not Before</Th>
-          <Th>Not After</Th>
-          <Th>Common Name</Th>
-          <Th>Matching Identities</Th>
-          <Th pr={0}>Issuer Name</Th>
-        </Tr>
-      </Thead>
-      <Tbody>
+      <TableHead>
+        <TableRow>
+          <TableHead className="pl-0">Logged At</TableHead>
+          <TableHead>Not Before</TableHead>
+          <TableHead>Not After</TableHead>
+          <TableHead>Common Name</TableHead>
+          <TableHead>Matching Identities</TableHead>
+          <TableHead className="pr-0">Issuer Name</TableHead>
+        </TableRow>
+      </TableHead>
+      <TableBody>
         {data.certificates.map((cert) => (
-          <Tr key={cert.id}>
-            <Td pl={0}>{cert.loggedAt}</Td>
-            <Td>{cert.notBefore}</Td>
-            <Td>{cert.notAfter}</Td>
-            <Td>
+          <TableRow key={cert.id}>
+            <TableCell className="pl-0">{cert.loggedAt}</TableCell>
+            <TableCell>{cert.notBefore}</TableCell>
+            <TableCell>{cert.notAfter}</TableCell>
+            <TableCell>
               <>
                 <span>{cert.commonName}</span>{' '}
-                <Tooltip label="View Domain Records">
-                  <NextLink
-                    href={`/lookup/${cert.commonName}`}
-                    passHref
-                    legacyBehavior
-                  >
-                    <Link>
-                      <IconButton
-                        variant="link"
-                        size="sm"
-                        ml={-2.5}
-                        mr={-1.5}
-                        aria-label="View Domain Records"
-                        icon={<ExternalLinkIcon />}
-                      />
-                    </Link>
-                  </NextLink>
-                </Tooltip>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <Link href={`/lookup/${cert.commonName}`}>
+                        <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                      </Link>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>View Domain Records</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </>
-            </Td>
-            <Td>
+            </TableCell>
+            <TableCell>
               {cert.matchingIdentities.split(/\n/g).map((value, index) => (
                 <>
                   {index !== 0 && <br />}
                   <span>{value}</span>{' '}
-                  <Tooltip label="View Domain Records">
-                    <NextLink href={`/lookup/${value}`} passHref legacyBehavior>
-                      <Link>
-                        <IconButton
-                          variant="link"
-                          size="sm"
-                          ml={-2.5}
-                          mr={-1.5}
-                          aria-label="View Domain Records"
-                          icon={<ExternalLinkIcon />}
-                        />
-                      </Link>
-                    </NextLink>
-                  </Tooltip>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <Link href={`/lookup/${value}`}>
+                          <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>View Domain Records</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </>
               ))}
-            </Td>
-            <Td pr={0}>{cert.issuerName}</Td>
-          </Tr>
+            </TableCell>
+            <TableCell className="pr-0">{cert.issuerName}</TableCell>
+          </TableRow>
         ))}
-      </Tbody>
+      </TableBody>
     </Table>
   );
 };
