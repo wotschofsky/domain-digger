@@ -52,9 +52,7 @@ const SearchForm = (props: SearchFormProps) => {
     <>
       <form className="flex gap-3" onSubmit={handleSubmit}>
         <Input
-          style={{
-            flex: 3,
-          }}
+          className="flex-[3]"
           type="text"
           required
           placeholder="example.com"
@@ -66,9 +64,7 @@ const SearchForm = (props: SearchFormProps) => {
           disabled={state !== FormStates.Initial}
         />
         <Button
-          style={{
-            flex: 1,
-          }}
+          className="flex-[1]"
           type="submit"
           disabled={state !== FormStates.Initial}
         >
