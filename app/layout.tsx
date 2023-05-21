@@ -8,11 +8,11 @@ import Header from '@/components/Header';
 
 import './globals.css';
 
-// export const metadata = {
-//   title: 'Domain Digger',
-// };
+type RootLayoutProps = {
+  children: ReactNode;
+};
 
-const RootLayout = ({ children }: { children: ReactNode }) => {
+const RootLayout = ({ children }: RootLayoutProps) => {
   return (
     <html lang="en">
       <body>

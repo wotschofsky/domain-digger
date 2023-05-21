@@ -1,19 +1,24 @@
-import LookupPageContent from '@/components/LookupPageContent';
+import DnsTable from '@/components/DnsTable';
 import DnsLookup from '@/utils/DnsLookup';
 
-const LookupDomain = async ({
-  params: { domain },
-}: {
+type LookupDomainProps = {
   params: { domain: string };
-}) => {
+};
+
+const LookupDomain = async ({ params: { domain } }: LookupDomainProps) => {
   const records = await DnsLookup.resolveAllRecords(domain);
 
   return (
     <>
-      <title>{`Results for ${domain} - Domain Digger`}</title>
-
-      {/* Temporary workaround until Chakra hopefully supports server components */}
-      <LookupPageContent domain={domain} records={records} />
+      {Object.values(records)
+        .map((r) => r.length)
+        .reduce((prev, curr) => prev + curr, 0) === 0 ? (
+        <p className="mt-8 text-center text-muted-foreground">
+          No DNS records found!
+        </p>
+      ) : (
+        <DnsTable records={records} />
+      )}
     </>
   );
 };

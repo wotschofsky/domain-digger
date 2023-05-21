@@ -1,11 +1,6 @@
-'use client';
-
 import { ExternalLinkIcon } from 'lucide-react';
 import Link from 'next/link';
-import type { FC } from 'react';
-import useSWR from 'swr';
 
-import { Spinner } from '@/components/ui/spinner';
 import {
   Table,
   TableBody,
@@ -20,30 +15,54 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import type { CertLookupResponse } from '@/app/api/lookupCerts/route';
-
-type CertInfoProps = {
-  domain: string;
-};
-
-const CertInfo: FC<CertInfoProps> = ({ domain }) => {
-  const { data, error } = useSWR<CertLookupResponse>(
-    `/api/lookupCerts?domain=${encodeURIComponent(domain)}`
+const lookupCerts = async (domain: string) => {
+  const response = await fetch(
+    'https://crt.sh?' +
+      new URLSearchParams({
+        Identity: domain,
+        output: 'json',
+      })
   );
 
-  if (!data) {
-    return (
-      <div className="flex items-center justify-center">
-        <Spinner className="my-8" />
-      </div>
-    );
+  if (!response.ok) {
+    throw new Error('Failed to fetch certs');
   }
 
-  if (error) {
-    return <p>An error occurred!</p>;
-  }
+  const data = (await response.json()) as {
+    issuer_ca_id: number;
+    issuer_name: string;
+    common_name: string;
+    name_value: string;
+    id: number;
+    entry_timestamp: string;
+    not_before: string;
+    not_after: string;
+    serial_number: string;
+  }[];
 
-  if (!data.certificates.length) {
+  return data.map((c) => ({
+    id: c.id,
+    loggedAt: c.entry_timestamp,
+    notBefore: c.not_before,
+    notAfter: c.not_after,
+    commonName: c.common_name,
+    matchingIdentities: c.name_value,
+    issuerName: c.issuer_name,
+  }));
+};
+
+type CertsResultsPageProps = {
+  params: { domain: string };
+};
+
+export const runtime = 'edge';
+
+const CertsResultsPage = async ({
+  params: { domain },
+}: CertsResultsPageProps) => {
+  const certs = await lookupCerts(domain);
+
+  if (!certs.length) {
     return (
       <p className="mt-8 text-center text-muted-foreground">
         No issued certificates found!
@@ -64,7 +83,7 @@ const CertInfo: FC<CertInfoProps> = ({ domain }) => {
         </TableRow>
       </TableHead>
       <TableBody>
-        {data.certificates.map((cert) => (
+        {certs.map((cert) => (
           <TableRow key={cert.id}>
             <TableCell className="pl-0">{cert.loggedAt}</TableCell>
             <TableCell>{cert.notBefore}</TableCell>
@@ -114,4 +133,4 @@ const CertInfo: FC<CertInfoProps> = ({ domain }) => {
   );
 };
 
-export default CertInfo;
+export default CertsResultsPage;
