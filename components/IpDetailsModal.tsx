@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import type { IpLookupResponse } from '@/api/lookupIp';
+import type { IpLookupResponse } from '@/app/api/lookupIp/route';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,

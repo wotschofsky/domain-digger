@@ -5,7 +5,7 @@ import useSWR from 'swr';
 
 import { Spinner } from '@/components/ui/spinner';
 
-import type { WhoisLookupResponse } from '@/api/lookupWhois';
+import type { WhoisLookupResponse } from '@/app/api/lookupWhois/route';
 
 type IpDetailsModalProps = {
   domain: string;

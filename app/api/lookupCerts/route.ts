@@ -1,5 +1,4 @@
 import isValidDomain from 'is-valid-domain';
-import type { NextRequest } from 'next/server';
 
 export type CertLookupResponse = {
   certificates: {
@@ -13,12 +12,10 @@ export type CertLookupResponse = {
   }[];
 };
 
-export const config = {
-  runtime: 'edge',
-};
+export const runtime = 'edge';
 
-export default async function handler(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
   const domain = searchParams.get('domain');
 
   if (!domain || !isValidDomain(domain || '')) {

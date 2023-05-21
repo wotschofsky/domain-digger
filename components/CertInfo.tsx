@@ -20,7 +20,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import type { CertLookupResponse } from '@/api/lookupCerts';
+import type { CertLookupResponse } from '@/app/api/lookupCerts/route';
 
 type CertInfoProps = {
   domain: string;
