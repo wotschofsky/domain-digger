@@ -26,7 +26,7 @@ const DnsTable = ({ records }: DnsTableProps) => (
 
       return (
         <Fragment key={recordType}>
-          <h2 className="mb-4 mb-5 mt-8 text-xl font-semibold tracking-tight sm:text-2xl">
+          <h2 className="mb-4 mt-8 text-xl font-semibold tracking-tight sm:text-2xl">
             {recordType}
           </h2>
 
