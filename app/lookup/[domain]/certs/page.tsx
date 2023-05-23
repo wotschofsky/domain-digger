@@ -6,6 +6,7 @@ import {
   TableBody,
   TableCell,
   TableHead,
+  TableHeader,
   TableRow,
 } from '@/components/ui/table';
 import {
@@ -72,7 +73,7 @@ const CertsResultsPage = async ({
 
   return (
     <Table>
-      <TableHead>
+      <TableHeader>
         <TableRow>
           <TableHead className="pl-0">Logged At</TableHead>
           <TableHead>Not Before</TableHead>
@@ -81,7 +82,7 @@ const CertsResultsPage = async ({
           <TableHead>Matching Identities</TableHead>
           <TableHead className="pr-0">Issuer Name</TableHead>
         </TableRow>
-      </TableHead>
+      </TableHeader>
       <TableBody>
         {certs.map((cert) => (
           <TableRow key={cert.id}>
