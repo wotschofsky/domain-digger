@@ -1,12 +1,10 @@
-'use client';
-
 import type { ReactNode } from 'react';
-import { SWRConfig } from 'swr';
 
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 
 import './globals.css';
+import Providers from './providers';
 
 type RootLayoutProps = {
   children: ReactNode;
@@ -16,9 +14,7 @@ const RootLayout = ({ children }: RootLayoutProps) => {
   return (
     <html lang="en">
       <body>
-        <SWRConfig
-          value={{ fetcher: (url) => fetch(url).then((res) => res.json()) }}
-        >
+        <Providers>
           <div className="flex min-h-screen flex-col items-center justify-center">
             <Header />
 
@@ -26,7 +22,7 @@ const RootLayout = ({ children }: RootLayoutProps) => {
 
             <Footer />
           </div>
-        </SWRConfig>
+        </Providers>
       </body>
     </html>
   );
