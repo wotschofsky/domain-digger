@@ -91,7 +91,6 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
   }
 
   const ipv6Matches = record.data.match(IPV6_REGEX);
-  console.log(ipv6Matches);
   for (const domain of ipv6Matches ?? []) {
     interpolatedValue = reactStringReplace(
       interpolatedValue,
