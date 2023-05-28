@@ -18,7 +18,7 @@ const RootLayout = ({ children }: RootLayoutProps) => {
           <div className="flex min-h-screen flex-col items-center justify-center">
             <Header />
 
-            <div className="w-full flex-1">{children}</div>
+            <main className="w-full flex-1">{children}</main>
 
             <Footer />
           </div>
