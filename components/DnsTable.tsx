@@ -40,9 +40,12 @@ const DnsTable = ({ records }: DnsTableProps) => (
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {value.map((v) => (
-                  <RecordRow key={v.type + v.data} record={v} />
-                ))}
+                {value
+                  .slice()
+                  .sort((a, b) => a.data.localeCompare(b.data))
+                  .map((v) => (
+                    <RecordRow key={v.type + v.data} record={v} />
+                  ))}
               </TableBody>
             </Table>
           </div>
