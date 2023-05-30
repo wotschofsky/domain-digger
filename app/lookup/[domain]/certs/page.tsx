@@ -91,7 +91,7 @@ const CertsResultsPage = async ({
             <TableCell>{cert.notAfter}</TableCell>
             <TableCell>
               <>
-                <span>{cert.commonName}</span>{' '}
+                <span>{cert.commonName}</span>
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger>
@@ -110,7 +110,7 @@ const CertsResultsPage = async ({
               {cert.matchingIdentities.split(/\n/g).map((value, index) => (
                 <>
                   {index !== 0 && <br />}
-                  <span>{value}</span>{' '}
+                  <span>{value}</span>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>

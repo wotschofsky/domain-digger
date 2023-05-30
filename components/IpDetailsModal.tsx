@@ -123,7 +123,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
                         <TableCell className="pl-0">{el.label}</TableCell>
                         <TableCell className="pr-0">
                           <>
-                            <span>{el.value}</span>{' '}
+                            <span>{el.value}</span>
                             {el.type === EntryTypes.Reverse && (
                               <TooltipProvider>
                                 <Tooltip>

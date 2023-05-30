@@ -39,7 +39,7 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
           : match;
         return (
           <>
-            <span>{match}</span>{' '}
+            <span>{match}</span>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
@@ -66,7 +66,7 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
       (match) => {
         return (
           <>
-            <span>{match}</span>{' '}
+            <span>{match}</span>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
@@ -98,7 +98,7 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
       (match) => {
         return (
           <>
-            <span>{match}</span>{' '}
+            <span>{match}</span>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
