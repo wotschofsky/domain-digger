@@ -2,7 +2,7 @@
 
 import isValidDomain from 'is-valid-domain';
 import { Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 
@@ -21,6 +21,7 @@ type SearchFormProps = {
 
 const SearchForm = (props: SearchFormProps) => {
   const router = useRouter();
+  const pathname = usePathname();
 
   const [domain, setDomain] = useState('');
   const [state, setState] = useState<FormStates>(FormStates.Initial);
@@ -45,7 +46,17 @@ const SearchForm = (props: SearchFormProps) => {
       return;
     }
 
-    router.push(`/lookup/${normalizedDomain}`);
+    const target = `/lookup/${normalizedDomain}`;
+
+    if (pathname === target) {
+      router.refresh();
+      setTimeout(() => {
+        setState(FormStates.Initial);
+      }, 150);
+      return;
+    }
+
+    router.push(target);
   };
 
   return (
