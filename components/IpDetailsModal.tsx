@@ -58,11 +58,14 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
         label: 'IP',
         value: ip,
       },
-      ...data.reverse.map((address) => ({
-        type: EntryTypes.Reverse,
-        label: 'Reverse',
-        value: address,
-      })),
+      ...data.reverse
+        .slice()
+        .sort()
+        .map((address) => ({
+          type: EntryTypes.Reverse,
+          label: 'Reverse',
+          value: address,
+        })),
       {
         type: EntryTypes.Organization,
         label: 'Organization',
