@@ -110,7 +110,7 @@ const CertsResultsPage = async ({
                       </Link>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Vsit Website</p>
+                      <p>Visit Website</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -139,7 +139,7 @@ const CertsResultsPage = async ({
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Vsit Website</p>
+                        <p>Visit Website</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
