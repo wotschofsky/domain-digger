@@ -105,7 +105,7 @@ const CertsResultsPage = async ({
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger>
-                      <Link href={`https://${cert.commonName}`}>
+                      <Link href={`https://${cert.commonName}`} target="_blank">
                         <ChromeIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
                       </Link>
                     </TooltipTrigger>
@@ -134,7 +134,7 @@ const CertsResultsPage = async ({
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger>
-                        <Link href={`https://${value}`}>
+                        <Link href={`https://${value}`} target="_blank">
                           <ChromeIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
                         </Link>
                       </TooltipTrigger>
