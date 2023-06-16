@@ -38,7 +38,12 @@ const SearchForm = (props: SearchFormProps) => {
     setError(false);
     setState(FormStates.Submitting);
 
-    const normalizedDomain = toASCII(domain.trim().toLowerCase());
+    let tempDomain = domain.trim().toLowerCase();
+    tempDomain = tempDomain.replace('https://','');
+    tempDomain = tempDomain.replace('http://','');
+    tempDomain = tempDomain.replace('/','');
+
+    const normalizedDomain = toASCII(tempDomain);
 
     if (!isValidDomain(normalizedDomain)) {
       setError(true);
