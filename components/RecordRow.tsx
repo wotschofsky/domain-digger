@@ -44,7 +44,7 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
               <Tooltip>
                 <TooltipTrigger>
                   <Link href={`/lookup/${normalizedMatch}`}>
-                    <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                    <ExternalLinkIcon className="mx-1 inline-block h-4 w-4 -translate-y-0.5" />
                   </Link>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -72,7 +72,7 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
                 <TooltipTrigger>
                   <InfoIcon
                     role="button"
-                    className="mx-1 inline-block h-3 w-3 -translate-y-0.5 cursor-pointer"
+                    className="mx-1 inline-block h-4 w-4 -translate-y-0.5 cursor-pointer"
                     onClick={() => {
                       setDetailedIp(match);
                       open();
