@@ -1,4 +1,4 @@
-import { ExternalLinkIcon, ChromeIcon } from 'lucide-react';
+import { ExternalLinkIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import {
@@ -103,16 +103,6 @@ const CertsResultsPage = async ({
                       <p>View Domain Records</p>
                     </TooltipContent>
                   </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Link href={`https://${cert.commonName}`} target="_blank">
-                        <ChromeIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Visit Website</p>
-                    </TooltipContent>
-                  </Tooltip>
                 </TooltipProvider>
               </>
             </TableCell>
@@ -130,16 +120,6 @@ const CertsResultsPage = async ({
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>View Domain Records</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Link href={`https://${value}`} target="_blank">
-                          <ChromeIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Visit Website</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
