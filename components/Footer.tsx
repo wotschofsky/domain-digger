@@ -6,12 +6,12 @@ import { Button } from '@/components/ui/button';
 
 const Footer = () => (
   <footer className="w-full p-4 md:px-8">
-    <div className="flex flex-col items-center justify-between border-t border-t-gray-200 pt-4 sm:flex-row">
-      <p className="text-sm">
+    <div className="flex flex-col items-center justify-between border-t border-t-gray-200 dark:border-t-gray-700 pt-4 sm:flex-row">
+      <p className="text-xs">
         Created with
         <>
           {' '}
-          <FaHeart className="inline text-red-500" fontSize="1.25rem" />
+          <FaHeart className="inline text-red-500" fontSize=".75rem" />
           <span className="sr-only">love</span>{' '}
         </>
         by{' '}
@@ -26,7 +26,7 @@ const Footer = () => (
           target="_blank"
           rel="noopener"
         >
-          <FaGithub className="h-6 w-6" />
+          <FaGithub className="h-4 w-4" />
         </a>
       </Button>
     </div>
