@@ -48,7 +48,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
     isOpen ? `/api/lookupIp?ip=${encodeURIComponent(ip)}` : null
   );
 
-  let mappedEntries: { label: string; value: string; type: EntryTypes, green: boolean; }[] = [];
+  let mappedEntries: { label: string; value: string; type: EntryTypes }[] = [];
   let location: LatLngExpression = [0, 0];
 
   if (data) {
@@ -57,7 +57,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
         type: EntryTypes.IP,
         label: 'IP',
         value: ip,
-        green: data.greenHosted,
+        ...(data.greenHosted && { green: true }),
       },
       ...data.reverse
         .slice()
