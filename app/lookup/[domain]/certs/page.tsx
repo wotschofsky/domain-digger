@@ -1,4 +1,4 @@
-import { SearchIcon, ExternalLinkIcon } from 'lucide-react';
+import { ExternalLinkIcon, SearchIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import {

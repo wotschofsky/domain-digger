@@ -47,7 +47,6 @@ export async function GET(request: Request) {
     console.error(error);
   }
 
-
   //GREEN ENERGY CHECK
   const greenUrl = `https://api.thegreenwebfoundation.org/greencheck/${ip}`;
   const greenResponse = await fetch(greenUrl);
