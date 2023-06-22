@@ -41,7 +41,7 @@ const SearchForm = (props: SearchFormProps) => {
     let tDomain;
     try {
       tDomain = new URL(domain.trim().toLowerCase()).hostname;
-    } catch(err) {
+    } catch (err) {
       tDomain = domain.trim().toLowerCase();
     }
 
