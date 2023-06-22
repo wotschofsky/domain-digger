@@ -1,4 +1,4 @@
-import { ChromeIcon, ExternalLinkIcon } from 'lucide-react';
+import { ExternalLinkIcon, SearchIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import {
@@ -96,7 +96,7 @@ const CertsResultsPage = async ({
                   <Tooltip>
                     <TooltipTrigger>
                       <Link href={`/lookup/${cert.commonName}`}>
-                        <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                        <SearchIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
                       </Link>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -106,7 +106,7 @@ const CertsResultsPage = async ({
                   <Tooltip>
                     <TooltipTrigger>
                       <Link href={`https://${cert.commonName}`} target="_blank">
-                        <ChromeIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                        <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
                       </Link>
                     </TooltipTrigger>
                     <TooltipContent>
@@ -125,7 +125,7 @@ const CertsResultsPage = async ({
                     <Tooltip>
                       <TooltipTrigger>
                         <Link href={`/lookup/${value}`}>
-                          <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                          <SearchIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -135,7 +135,7 @@ const CertsResultsPage = async ({
                     <Tooltip>
                       <TooltipTrigger>
                         <Link href={`https://${value}`} target="_blank">
-                          <ChromeIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+                          <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
                         </Link>
                       </TooltipTrigger>
                       <TooltipContent>

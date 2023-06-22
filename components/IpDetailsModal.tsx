@@ -1,5 +1,5 @@
 import type { LatLngExpression } from 'leaflet';
-import { ExternalLinkIcon } from 'lucide-react';
+import { ExternalLinkIcon, LeafIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { type FC, useCallback } from 'react';
@@ -48,7 +48,12 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
     isOpen ? `/api/lookupIp?ip=${encodeURIComponent(ip)}` : null
   );
 
-  let mappedEntries: { label: string; value: string; type: EntryTypes }[] = [];
+  let mappedEntries: {
+    label: string;
+    value: string;
+    type: EntryTypes;
+    green?: boolean;
+  }[] = [];
   let location: LatLngExpression = [0, 0];
 
   if (data) {
@@ -57,6 +62,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
         type: EntryTypes.IP,
         label: 'IP',
         value: ip,
+        ...(data.greenHosted && { green: true }),
       },
       ...data.reverse
         .slice()
@@ -137,6 +143,18 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     <p>View Domain Records</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            {el.type === EntryTypes.IP && el.green && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger>
+                                    <LeafIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5 text-green-500" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>Green Hosted</p>
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>

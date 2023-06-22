@@ -12,6 +12,7 @@ export type IpLookupResponse = {
   region: string;
   reverse: string[];
   timezone: string;
+  greenHosted: boolean;
 };
 
 export type IpLookupErrorResponse = { error: true; message: string };
@@ -46,6 +47,11 @@ export async function GET(request: Request) {
     console.error(error);
   }
 
+  //GREEN ENERGY CHECK
+  const greenUrl = `https://api.thegreenwebfoundation.org/greencheck/${ip}`;
+  const greenResponse = await fetch(greenUrl);
+  const greenData = (await greenResponse.json()) as Record<string, any>;
+
   return new Response(
     JSON.stringify({
       reverse: reverse,
@@ -57,6 +63,7 @@ export async function GET(request: Request) {
       timezone: data.timezone,
       lat: data.lat,
       lon: data.lon,
+      greenHosted: greenData.green,
     }),
     {
       status: 200,
