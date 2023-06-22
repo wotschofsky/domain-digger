@@ -7,7 +7,7 @@ import { MapContainer, Marker, TileLayer } from 'react-leaflet';
 const LocationMap = ({ location }: { location: LatLngExpression }) => (
   <MapContainer center={location} zoom={4}>
     <TileLayer
-      attribution='&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+      attribution='&copy; <a href="http://osm.org/copyright" rel="noreferrer">OpenStreetMap</a> contributors'
       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
     />
     <Marker position={location} />

@@ -14,11 +14,18 @@ const Footer = () => (
           <FaHeart className="inline text-red-500" fontSize="1.25rem" />
           <span className="sr-only">love</span>{' '}
         </>
-        by <a href="https://felisk.io">Felix Wotschofsky</a>
+        by{' '}
+        <a href="https://felisk.io" rel="noopener">
+          Felix Wotschofsky
+        </a>
       </p>
 
       <Button variant="ghost" asChild>
-        <a href="https://github.com/feliskio/domain-digger" target="_blank">
+        <a
+          href="https://github.com/feliskio/domain-digger"
+          target="_blank"
+          rel="noopener"
+        >
           <FaGithub className="h-6 w-6" />
         </a>
       </Button>

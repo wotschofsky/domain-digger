@@ -38,12 +38,14 @@ const SearchForm = (props: SearchFormProps) => {
     setError(false);
     setState(FormStates.Submitting);
 
-    let tempDomain = domain.trim().toLowerCase();
-    tempDomain = tempDomain.replace('https://','');
-    tempDomain = tempDomain.replace('http://','');
-    tempDomain = tempDomain.replace('/','');
+    let tDomain;
+    try {
+      tDomain = new URL(domain.trim().toLowerCase()).hostname;
+    } catch (err) {
+      tDomain = domain.trim().toLowerCase();
+    }
 
-    const normalizedDomain = toASCII(tempDomain);
+    const normalizedDomain = toASCII(tDomain);
 
     if (!isValidDomain(normalizedDomain)) {
       setError(true);
@@ -97,7 +99,7 @@ const SearchForm = (props: SearchFormProps) => {
         </p>
       ) : (
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          It can be anything! An apex or subdomain.
+          It can be anything! An apex, subdomain or even an URL.
         </p>
       )}
     </>
