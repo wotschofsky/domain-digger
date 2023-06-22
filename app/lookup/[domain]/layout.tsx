@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from 'lucide-react';
-import { FC, ReactNode, useEffect, useState } from 'react';
+import type { FC, ReactNode } from 'react';
+import { headers } from 'next/headers';
 
 import RelatedDomains from '@/components/RelatedDomains';
 import ResultsTabs from '@/components/ResultsTabs';
@@ -16,11 +17,11 @@ const LookupLayout: FC<LookupLayoutProps> = ({
   children,
   params: { domain },
 }) => {
-  const [isStandalone, setIsStandalone] = useState(false);
 
-  useEffect(() => {
-    setIsStandalone(new URLSearchParams(window.location.search).has('light'));
-  }, []);
+  const headersList = headers();
+  const url = headersList.get('next-url') || '';
+  
+  const isStandalone = new URLSearchParams(url).has('standalone');
 
   return (
     <>
