@@ -27,7 +27,12 @@ const LookupLayout: FC<LookupLayoutProps> = ({
       <div className="container">
         <h1 className="mb-2 text-4xl font-bold">
           Results for{' '}
-          <a href={`https://${domain}`} target="_blank" className="font-extrabold hover:underline underline-offset-2" rel="noreferrer">
+          <a
+            href={`https://${domain}`}
+            target="_blank"
+            className="font-extrabold underline-offset-2 hover:underline"
+            rel="noreferrer"
+          >
             {domain} <ExternalLinkIcon className="inline-block no-underline" />
           </a>
         </h1>

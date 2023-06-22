@@ -1,4 +1,4 @@
-import { ExternalLinkIcon, ChromeIcon } from 'lucide-react';
+import { ChromeIcon, ExternalLinkIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import {
