@@ -16,11 +16,17 @@ const LookupLayout: FC<LookupLayoutProps> = ({
   children,
   params: { domain },
 }) => {
+  const isStandalone = new URLSearchParams(window.location.search).has(
+    'standalone'
+  );
+
   return (
     <>
       <title>{`Results for ${domain} - Domain Digger`}</title>
 
-      <div className="container mb-8 max-w-xl">
+      <div
+        className={`container mb-8 max-w-xl ${isStandalone ? 'hidden' : null}`}
+      >
         <SearchForm initialValue={domain} />
       </div>
 
