@@ -1,6 +1,6 @@
 import { ExternalLinkIcon } from 'lucide-react';
-import type { FC, ReactNode } from 'react';
 import { headers } from 'next/headers';
+import type { FC, ReactNode } from 'react';
 
 import RelatedDomains from '@/components/RelatedDomains';
 import ResultsTabs from '@/components/ResultsTabs';
@@ -17,10 +17,9 @@ const LookupLayout: FC<LookupLayoutProps> = ({
   children,
   params: { domain },
 }) => {
-
   const headersList = headers();
   const url = headersList.get('next-url') || '';
-  
+
   const isStandalone = new URLSearchParams(url).has('standalone');
 
   return (
