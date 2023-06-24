@@ -1,0 +1,499 @@
+{
+    "algolia": {
+        "name": "Algolia",
+        "group": 5,
+        "category": 29,
+        "description": "Algolia is a hosted search engine capable of delivering realtime results from the first keystroke.",
+        "keywords": [
+            "algolia",
+            "search"
+        ],
+        "website": "https://www.algolia.com/",
+        "hints": {
+            "regex": [
+                "href=\"https:\/\/([A-Z0-9]+)-dsn.algolia.net\""
+            ]
+        },
+        "saas": true,
+        "paid": true
+    },
+    "amazon-web-services": {
+        "name": "Amazon Web Services",
+        "group": 7,
+        "category": 88,
+        "description": "Amazon Web Services offers reliable, scalable, and inexpensive cloud computing services.",
+        "keywords": [
+            "amazon",
+            "aws"
+        ],
+        "website": "https://aws.amazon.com/",
+        "hints": {
+            "regex": [
+                "awsstatic\\.com"
+            ]
+        },
+        "saas": true,
+        "paid": true
+    },
+    "buysellads": {
+        "name": "BuySellAds",
+        "group": 2,
+        "category": 36,
+        "description": "BuySellAds is an online advertising network.",
+        "keywords": [
+            "buysellads",
+            "ads"
+        ],
+        "website": "https://www.buysellads.com/",
+        "hints": {
+            "regex": [
+                "buysellads\\.com\\/served\\.bsa\\.cmd\\.push\\(",
+                "buysellads\\.com\\/s\\/show\\.js",
+                "servedby-buysellads\\.com"
+            ]
+        },
+        "saas": true,
+        "paid": true
+    },
+    "cdnjs": {
+        "name": "cdnjs",
+        "group": 5,
+        "category": 31,
+        "description": "CDNJS is a free and open-source CDN service trusted by over 10% of websites, powered by Cloudflare.",
+        "keywords": [
+            "cdnjs",
+            "cdn"
+        ],
+        "website": "https://cdnjs.com/",
+        "hints": {
+            "regex": [
+                "cdnjs\\.cloudflare\\.com"
+            ]
+        },
+        "saas": true,
+        "paid": false
+    },
+    "cloudflare": {
+        "name": "Cloudflare",
+        "group": 11,
+        "category": 16,
+        "description": "Cloudflare is a service that offers CDN and DNS hosting.",
+        "keywords": [
+            "cloudflare"
+        ],
+        "website": "https://www.cloudflare.com/",
+        "hints": {
+            "dns": {
+                "SOA": ".ns.cloudflare.com"
+            }
+        },
+        "saas": true,
+        "paid": true
+    },
+    "fontawesome": {
+        "name": "Font Awesome",
+        "group": 9,
+        "category": 17,
+        "description": "Font Awesome is a font and icon toolkit based on CSS and LESS.",
+        "keywords": [
+            "fontawesome",
+            "font",
+            "icon"
+        ],
+        "website": "http://fontawesome.com/",
+        "hints": {
+            "regex": [
+                "font-awesome\\.css",
+                "fontawesome\\.css",
+                "fontawesome-webfont",
+                "fa-",
+                "use.fortawesome.com"
+            ]
+        },
+        "saas": false,
+        "paid": true
+    },
+    "google-analytics": {
+        "name": "Google Analytics",
+        "group": 2,
+        "category": 54,
+        "description": "Google Analytics is a free service offered by Google that generates detailed statistics about the visitors to a website.",
+        "keywords": [
+            "google",
+            "analytics"
+        ],
+        "website": "http://www.google.com/analytics/",
+        "hints": {
+            "regex": [
+                "<link rel=\"dns-prefetch\" href=\"https://www.google-analytics.com/\">",
+                "<script async src=\"https://www.google-analytics.com/analytics.js\">",
+                "gaCookiesAsAnalytical"
+            ]
+        },
+        "saas": true,
+        "paid": false
+    },
+    "google-tagmanager": {
+        "name": "Google Tag Manager",
+        "group": 2,
+        "category": 54,
+        "description": "Google Analytics is a free service offered by Google that generates detailed statistics about the visitors to a website.",
+        "keywords": [
+            "google",
+            "analytics"
+        ],
+        "website": "http://www.google.com/analytics/",
+        "hints": {
+            "regex": [
+                "<link rel=\"dns-prefetch\" href=\"https://www.google-analytics.com/\">",
+                "<script async src=\"https://www.google-analytics.com/analytics.js\">",
+                "gaCookiesAsAnalytical",
+                "googletagmanager\\.com/gtm\\.js",
+                "gtag"
+            ]
+        },
+        "saas": true,
+        "paid": false
+    },
+    "lazysizes": {
+        "name": "LazySizes",
+        "group": 9,
+        "category": 14,
+        "description": "lazysizes is a fast lazyloader for images (responsive and normal), iframes and scripts/widgets without any dependency.",
+        "keywords": [
+            "lazysizes",
+            "lazyload",
+            "lazyloader"
+        ],
+        "website": "https://afarkas.github.io/lazysizes/index.html",
+        "hints": {
+            "regex": [
+                "lazysizes\\.js",
+                "lazyload",
+                "lazyloader"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "matomo": {
+        "name": "Matomo",
+        "group": 2,
+        "category": 54,
+        "description": "Matomo is a free and open source web analytics application.",
+        "keywords": [
+            "matomo",
+            "analytics"
+        ],
+        "website": "https://matomo.org/",
+        "hints": {
+            "regex": [
+                "matomo\\.js",
+                "piwik\\.js",
+                "piwik\\.php",
+                "MatomoConfig",
+                "matomoHost"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "mediaelement": {
+        "name": "MediaElement.js",
+        "group": 9,
+        "category": 14,
+        "description": "MediaElement.js is a HTML5 video and audio player with Flash fallback.",
+        "keywords": [
+            "mediaelement",
+            "video",
+            "audio",
+            "player"
+        ],
+        "website": "http://mediaelementjs.com/",
+        "github": "https://github.com/mediaelement/mediaelement-plugins",
+        "hints": {
+            "regex": [
+                "mediaelement-and-player(\\.min)?\\.js",
+                "mejs-mediaelement",
+                "mediaelementplayer-legacy",
+                "mediaelement",
+                "mejs.video-player"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "opengraph": {
+        "name": "Open Graph",
+        "group": 2,
+        "category": 54,
+        "description": "Open Graph protocol allows web pages to become rich objects in a social graph.",
+        "keywords": [
+            "opengraph"
+        ],
+        "website": "http://ogp.me/",
+        "hints": {
+            "regex": [
+                "<meta property=\"og:",
+                "<meta content=\"og:",
+                "<meta name=\"og:",
+                "<meta id=\"og:",
+                "<meta property=\"og-",
+                "<meta content=\"og-",
+                "<meta name=\"og-",
+                "<meta id=\"og-"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "php": {
+        "name": "PHP",
+        "group": 1,
+        "category": 27,
+        "description": "PHP is a server-side scripting language designed for web development.",
+        "keywords": [
+            "php"
+        ],
+        "website": "http://php.net/",
+        "hints": {
+            "regex": [
+                "<link rel=\"dns-prefetch\" href=\"https://secure.php.net/\">",
+                "<link rel=\"dns-prefetch\" href=\"https://www.php.net/\">",
+                "<link rel=\"dns-prefetch\" href=\"https://php.net/\">",
+                ".php\""
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "jQuery": {
+        "name": "jQuery",
+        "group": 9,
+        "category": 12,
+        "description": "jQuery is a fast, small, and feature-rich JavaScript library.",
+        "keywords": [
+            "jquery"
+        ],
+        "website": "http://jquery.com/",
+        "github": "https://github.com/jquery/jquery",
+        "hints": {
+            "regex": [
+                "jquery-\\d+\\.\\d+\\.\\d+(?:\\.min)?\\.js",
+                "jquery-mobile-js",
+                "factory(jQuery);"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "nextjs": {
+        "name": "Next.js",
+        "group": 9,
+        "category": 12,
+        "description": "Next.js is a minimalistic framework for server-rendered React applications.",
+        "keywords": [
+            "next",
+            "nextjs"
+        ],
+        "website": "https://nextjs.org/",
+        "github": "https://github.com/vercel/next.js",
+        "hints": {
+            "regex": [
+                "next(\\.min)?\\.js",
+                "data-reactroot",
+                "_next/static/"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "react": {
+        "name": "React",
+        "group": 9,
+        "category": 12,
+        "description": "React is a JavaScript library for building user interfaces.",
+        "keywords": [
+            "react",
+            "reactjs"
+        ],
+        "website": "https://react.dev/",
+        "github": "https://github.com/facebook/react",
+        "hints": {
+            "regex": [
+                "react(\\.min)?\\.js",
+                "data-reactroot",
+                "_next/static/"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "rss": {
+        "name": "RSS",
+        "group": 6,
+        "category": 19,
+        "description": "RSS is a type of web feed which allows users to access updates to online content.",
+        "keywords": [
+            "rss"
+        ],
+        "website": "https://en.wikipedia.org/wiki/RSS",
+        "hints": {
+            "regex": [
+                "application/rss+xml",
+                "rss+xml",
+                "rss",
+                "<link rel=\"alternate\" type=\"application/rss+xml\""
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "stripe": {
+        "name": "Stripe",
+        "group": 1,
+        "category": 41,
+        "description": "Stripe is a suite of APIs that powers commerce for businesses of all sizes.",
+        "keywords": [
+            "stripe"
+        ],
+        "website": "https://stripe.com/",
+        "hints": {
+            "regex": [
+                "js.stripe.com/v\\d+",
+                "m.stripe.network/inner.html"
+            ]
+        },
+        "saas": true,
+        "paid": true
+    },
+    "twitter": {
+        "name": "Twitter SEO",
+        "group": 2,
+        "category": 54,
+        "description": "Twitter SEO helps you optimize your Website for Twitter.",
+        "keywords": [
+            "twitter",
+            "seo"
+        ],
+        "website": "https://developer.twitter.com/en/docs/twitter-for-websites/cards/guides/getting-started",
+        "hints": {
+            "regex": [
+                "twitter:card",
+                "twitter:site",
+                "twitter:creator",
+                "twitter:title",
+                "twitter:description",
+                "twitter:image"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "tailwindcss": {
+        "name": "Tailwind CSS",
+        "group": 9,
+        "category": 66,
+        "description": "Tailwind CSS is a utility-first CSS framework for rapidly building custom user interfaces.",
+        "keywords": [
+            "tailwind",
+            "tailwindcss"
+        ],
+        "website": "https://tailwindcss.com/",
+        "github": "https://github.com/tailwindlabs/tailwindcss",
+        "hints": {
+            "regex": [
+                "tailwind\\.min\\.css",
+                "--tw-",
+                "cdn.tailwindcss.com",
+                "h-full",
+                "w-full"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "vercel": {
+        "name": "Vercel",
+        "group": 7,
+        "category": 88,
+        "description": "Vercel is a cloud platform for static sites and Serverless Functions that fits perfectly with your workflow.",
+        "keywords": [
+            "vercel"
+        ],
+        "website": "https://vercel.com/",
+        "github": "https://github.com/vercel/vercel",
+        "hints": {
+            "dns": {
+                "SOA": ".vercel-dns.com"
+            }
+        },
+        "saas": true,
+        "paid": true
+    },
+    "vue": {
+        "name": "vue.js",
+        "group": 9,
+        "category": 12,
+        "description": "Vue.js is a library for building interactive web interfaces. It provides data-reactive components with a simple and flexible API.",
+        "keywords": [
+            "vue",
+            "vuejs"
+        ],
+        "website": "https://vuejs.org/",
+        "github": "https://github.com/vuejs/core",
+        "hints": {
+            "regex": [
+                "/<([a-z]+)\\s+v-data=\"([^\"]*)\"\\s*>[^<]*<\/\\1>/gm",
+                "vue(\\.min)?\\.js",
+                "data-v-[a-zA-Z0-9]+",
+                "data-vue2",
+                "vue-container"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "webpack": {
+        "name": "Webpack",
+        "group": 9,
+        "category": 19,
+        "description": "webpack is a module bundler for modern JavaScript applications.",
+        "keywords": [
+            "webpack"
+        ],
+        "website": "https://webpack.js.org/",
+        "github": "https://github.com/webpack/webpack",
+        "hints": {
+            "regex": [
+                "webpack(\\.min)?\\.js",
+                "webpackJsonp",
+                "webpackBootstrap",
+                "data-webpack"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    },
+    "wordpress": {
+        "name": "WordPress",
+        "group": 5,
+        "category": 45,
+        "description": "WordPress is a free and open-source content management system written in PHP and paired with a MySQL or MariaDB database.",
+        "keywords": [
+            "wordpress"
+        ],
+        "website": "https://wordpress.org/",
+        "hints": {
+            "regex": [
+                "wp-content",
+                "wp-includes",
+                "wp-embed",
+                "wp-json",
+                "wp-emoji-release"
+            ]
+        },
+        "saas": false,
+        "paid": false
+    }
+}
