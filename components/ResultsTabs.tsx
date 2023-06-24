@@ -62,7 +62,7 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
             }
             aria-current="page"
           >
-            <span className='sr-only'>Used</span> Technologies
+            <span className="sr-only">Used</span> Technologies
           </Link>
         </li>
       </ul>
