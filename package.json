@@ -42,7 +42,6 @@
     "tailwindcss": "^3.3.2",
     "tailwindcss-animate": "^1.0.5",
     "validator": "^13.9.0",
-    "website-analysis-api": "github:duckystudios/website-analysis-api",
     "whoiser": "^1.17.1"
   },
   "devDependencies": {
