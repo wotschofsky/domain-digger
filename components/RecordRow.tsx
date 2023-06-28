@@ -1,7 +1,6 @@
 'use client';
 
-import { ExternalLinkIcon, InfoIcon } from 'lucide-react';
-import Link from 'next/link';
+import { InfoIcon } from 'lucide-react';
 import { type ReactNodeArray, useState } from 'react';
 import reactStringReplace from 'react-string-replace';
 import { useDisclosure } from 'react-use-disclosure';
@@ -14,6 +13,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+import DomainLink from '@/components/DomainLink';
 import IpDetailsModal from '@/components/IpDetailsModal';
 import { RawRecord } from '@/utils/DnsLookup';
 
@@ -37,23 +37,7 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
         const normalizedMatch = match.endsWith('.')
           ? match.slice(0, -1)
           : match;
-        return (
-          <>
-            <span>{match}</span>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Link href={`/lookup/${normalizedMatch}`}>
-                    <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>View Domain Records</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </>
-        );
+        return <DomainLink domain={normalizedMatch} />;
       }
     );
   }

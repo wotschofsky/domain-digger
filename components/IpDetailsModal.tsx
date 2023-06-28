@@ -1,7 +1,5 @@
 import type { LatLngExpression } from 'leaflet';
-import { ExternalLinkIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
 import { type FC, useCallback } from 'react';
 import useSWR from 'swr';
 
@@ -14,14 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 import type { IpLookupResponse } from '@/app/api/lookupIp/route';
+import DomainLink from '@/components/DomainLink';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -125,23 +118,11 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
                       <TableRow key={el.label + el.value}>
                         <TableCell className="pl-0">{el.label}</TableCell>
                         <TableCell className="pr-0">
-                          <>
+                          {el.type === EntryTypes.Reverse ? (
+                            <DomainLink domain={el.value} />
+                          ) : (
                             <span>{el.value}</span>
-                            {el.type === EntryTypes.Reverse && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Link href={`/lookup/${el.value}`}>
-                                      <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                                    </Link>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>View Domain Records</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
