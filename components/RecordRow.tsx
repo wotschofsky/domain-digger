@@ -1,7 +1,7 @@
 'use client';
 
 import { InfoIcon } from 'lucide-react';
-import { type ReactNodeArray, useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import reactStringReplace from 'react-string-replace';
 import { useDisclosure } from 'react-use-disclosure';
 
@@ -26,7 +26,7 @@ const RecordRow = ({ record }: { record: RawRecord }) => {
   const [detailedIp, setDetailedIp] = useState<string | null>(null);
   const { isOpen, open, close } = useDisclosure();
 
-  let interpolatedValue: ReactNodeArray | string | null = record.data;
+  let interpolatedValue: ReactNode[] | string | null = record.data;
 
   const domainMatches = record.data.match(DOMAIN_REGEX);
   for (const domain of domainMatches ?? []) {
