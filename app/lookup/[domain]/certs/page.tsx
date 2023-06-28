@@ -57,6 +57,8 @@ type CertsResultsPageProps = {
 };
 
 export const runtime = 'edge';
+// crt.sh located in GB, always use LHR1 for lowest latency
+export const preferredRegion = 'lhr1';
 
 const CertsResultsPage = async ({
   params: { domain },
