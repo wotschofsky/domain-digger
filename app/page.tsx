@@ -20,7 +20,7 @@ const Home = () => {
 
       <Card className="mx-auto my-16 max-w-lg p-6">
         <h2 className="mb-5 text-center text-xl font-semibold tracking-tight sm:text-2xl">
-          Quickly inspect any Website
+          Quick Inspect Bookmarklet
         </h2>
 
         <p className="mb-5 mt-2 text-center text-sm text-muted-foreground">
