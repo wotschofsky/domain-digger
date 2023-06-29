@@ -1,6 +1,7 @@
+import type { DialogProps } from '@radix-ui/react-dialog';
 import type { LatLngExpression } from 'leaflet';
 import dynamic from 'next/dynamic';
-import { type FC, useCallback } from 'react';
+import { type FC } from 'react';
 import useSWR from 'swr';
 
 import {
@@ -32,13 +33,17 @@ enum EntryTypes {
 
 type IpDetailsModalProps = {
   ip: string;
-  isOpen: boolean;
-  onClose: () => void;
+  open: DialogProps['open'];
+  onOpenChange: DialogProps['onOpenChange'];
 };
 
-const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
+const IpDetailsModal: FC<IpDetailsModalProps> = ({
+  ip,
+  open,
+  onOpenChange,
+}) => {
   const { data, error } = useSWR<IpLookupResponse>(
-    isOpen ? `/api/lookupIp?ip=${encodeURIComponent(ip)}` : null
+    open ? `/api/lookupIp?ip=${encodeURIComponent(ip)}` : null
   );
 
   let mappedEntries: { label: string; value: string; type: EntryTypes }[] = [];
@@ -89,17 +94,8 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, isOpen, onClose }) => {
     location = [data.lat, data.lon];
   }
 
-  const onOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open) {
-        onClose();
-      }
-    },
-    [onClose]
-  );
-
   return (
-    <Dialog modal open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog modal open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>IP Details for {ip}</DialogTitle>

@@ -2679,11 +2679,6 @@ react-style-singleton@^2.2.1:
     invariant "^2.2.4"
     tslib "^2.0.0"
 
-react-use-disclosure@^6.1.0:
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/react-use-disclosure/-/react-use-disclosure-6.1.0.tgz#f1d8cfca5a52b9a7320622ef4f2002819d81e73f"
-  integrity sha512-ti5hvlbgsIgnFVBY5kVIDiQmfiVDVWsKuJhlr++gocWNAun9UwprmuBUWm1GMAm5hZEXCxJszaYLM80Y43WwDA==
-
 react@18.2.0:
   version "18.2.0"
   resolved "https://registry.yarnpkg.com/react/-/react-18.2.0.tgz#555bd98592883255fa00de14f1151a917b5d77d5"
