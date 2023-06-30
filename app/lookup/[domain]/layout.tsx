@@ -1,5 +1,4 @@
 import { ExternalLinkIcon } from 'lucide-react';
-import { headers } from 'next/headers';
 import type { FC, ReactNode } from 'react';
 
 import RelatedDomains from '@/components/RelatedDomains';
@@ -17,16 +16,15 @@ const LookupLayout: FC<LookupLayoutProps> = ({
   children,
   params: { domain },
 }) => {
-  const headersList = headers();
-  const url = headersList.get('next-url') || '';
-
-  const isStandalone = new URLSearchParams(url).has('standalone');
+  let isStandalone = false;
 
   return (
     <>
       <title>{`Results for ${domain} - Domain Digger`}</title>
 
-      <div className="container mb-8 max-w-xl">
+      <div
+        className={`container mb-8 max-w-xl ${isStandalone ? 'hidden' : null}`}
+      >
         <SearchForm initialValue={domain} autofocus={false} />
       </div>
 
