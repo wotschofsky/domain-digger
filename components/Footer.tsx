@@ -15,7 +15,7 @@ const Footer = () => (
           <span className="sr-only">love</span>{' '}
         </>
         by{' '}
-        <a href="https://felisk.io" rel="noopener">
+        <a href="https://felisk.io" target="_blank" rel="noopener">
           Felix Wotschofsky
         </a>
       </p>
