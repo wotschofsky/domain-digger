@@ -12,14 +12,7 @@ export const fetchCache = 'default-no-store';
 const LookupDomain = async ({ params: { domain } }: LookupDomainProps) => {
   const records = await DnsLookup.resolveAllRecords(domain);
 
-  let tDomain;
-  try {
-    tDomain = new URL('https://' + domain.trim().toLowerCase()).hostname;
-  } catch (err) {
-    tDomain = domain.trim().toLowerCase();
-  }
-
-  if ((await isAvailable(tDomain)) != 'registered') {
+  if ((await isAvailable(domain)) != 'registered') {
     return <DomainNotRegistered />;
   }
 
