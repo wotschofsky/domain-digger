@@ -17,6 +17,7 @@ enum FormStates {
 
 type SearchFormProps = {
   initialValue?: string;
+  autofocus?: boolean;
 };
 
 const SearchForm = (props: SearchFormProps) => {
@@ -80,6 +81,7 @@ const SearchForm = (props: SearchFormProps) => {
             setDomain(event.target.value)
           }
           disabled={state !== FormStates.Initial}
+          autoFocus={props.autofocus}
         />
         <Button
           className="flex-[1]"
