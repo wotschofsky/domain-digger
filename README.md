@@ -2,7 +2,7 @@
 
 _Simple Next.js app that allows you to view various details related to a domain name._
 
-[Try it now!](https://domain-digger.felisk.io)
+[Try it now!](https://digger.tools)
 
 ## Features
 
