@@ -1,5 +1,5 @@
 import DnsTable from '@/components/DnsTable';
-import DomainNotRegistered from '@/components/domain-not-registered';
+import DomainNotRegistered from '@/components/DomainNotRegistered';
 import { isAvailable } from '@/lib/whois';
 import DnsLookup from '@/utils/DnsLookup';
 
@@ -12,7 +12,14 @@ export const fetchCache = 'default-no-store';
 const LookupDomain = async ({ params: { domain } }: LookupDomainProps) => {
   const records = await DnsLookup.resolveAllRecords(domain);
 
-  if ((await isAvailable(domain)) != 'registered') {
+  let tDomain;
+  try {
+    tDomain = new URL(domain.trim().toLowerCase()).hostname;
+  } catch (err) {
+    tDomain = domain.trim().toLowerCase();
+  }
+
+  if ((await isAvailable(tDomain)) != 'registered') {
     return <DomainNotRegistered />;
   }
 
