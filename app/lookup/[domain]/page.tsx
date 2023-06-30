@@ -14,7 +14,7 @@ const LookupDomain = async ({ params: { domain } }: LookupDomainProps) => {
 
   let tDomain;
   try {
-    tDomain = new URL(domain.trim().toLowerCase()).hostname;
+    tDomain = new URL('https://' + domain.trim().toLowerCase()).hostname;
   } catch (err) {
     tDomain = domain.trim().toLowerCase();
   }
