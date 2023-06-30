@@ -9,12 +9,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+
+import DomainLink from '@/components/DomainLink';
 
 const lookupCerts = async (domain: string) => {
   const response = await fetch(
@@ -92,59 +88,14 @@ const CertsResultsPage = async ({
             <TableCell>{cert.notBefore}</TableCell>
             <TableCell>{cert.notAfter}</TableCell>
             <TableCell>
-              <>
-                <span>{cert.commonName}</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Link href={`/lookup/${cert.commonName}`}>
-                        <SearchIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>View Domain Records</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Link href={`https://${cert.commonName}`} target="_blank">
-                        <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                      </Link>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Visit Website</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </>
+              <DomainLink domain={cert.commonName} />
             </TableCell>
+
             <TableCell>
               {cert.matchingIdentities.split(/\n/g).map((value, index) => (
                 <>
                   {index !== 0 && <br />}
-                  <span>{value}</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Link href={`/lookup/${value}`}>
-                          <SearchIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>View Domain Records</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Link href={`https://${value}`} target="_blank">
-                          <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
-                        </Link>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Visit Website</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <DomainLink domain={value} />
                 </>
               ))}
             </TableCell>
