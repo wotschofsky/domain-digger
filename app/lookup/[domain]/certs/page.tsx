@@ -1,3 +1,5 @@
+import type { FC } from 'react';
+
 import {
   Table,
   TableBody,
@@ -46,16 +48,18 @@ const lookupCerts = async (domain: string) => {
 };
 
 type CertsResultsPageProps = {
-  params: { domain: string };
+  params: {
+    domain: string;
+  };
 };
 
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
 export const preferredRegion = 'lhr1';
 
-const CertsResultsPage = async ({
+const CertsResultsPage: FC<CertsResultsPageProps> = async ({
   params: { domain },
-}: CertsResultsPageProps) => {
+}) => {
   const certs = await lookupCerts(domain);
 
   if (!certs.length) {

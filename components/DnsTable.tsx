@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { type FC, Fragment } from 'react';
 
 import {
   Table,
@@ -15,7 +15,7 @@ type DnsTableProps = {
   records: ResolvedRecords;
 };
 
-const DnsTable = ({ records }: DnsTableProps) => (
+const DnsTable: FC<DnsTableProps> = ({ records }) => (
   <>
     {Object.keys(records).map((recordType) => {
       const value = records[recordType];
