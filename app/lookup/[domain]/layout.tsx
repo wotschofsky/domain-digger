@@ -21,7 +21,7 @@ const LookupLayout: FC<LookupLayoutProps> = ({
       <title>{`Results for ${domain} - Domain Digger`}</title>
 
       <div className="container mb-8 max-w-xl">
-        <SearchForm initialValue={domain} />
+        <SearchForm initialValue={domain} autofocus={false} />
       </div>
 
       <div className="container">
