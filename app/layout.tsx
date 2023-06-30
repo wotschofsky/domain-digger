@@ -6,6 +6,12 @@ import Header from '@/components/Header';
 import './globals.css';
 import Providers from './providers';
 
+export const metadata = {
+  title: 'Domain Digger: DNS, WHOIS lookup & more',
+  description:
+    'Domain Digger is the easy but incredibly powerful tool for looking up and quickly inspecting DNS records, WHOIS data, SSL/TLS certificate history and other domain related data. No installation required!',
+};
+
 type RootLayoutProps = {
   children: ReactNode;
 };
