@@ -15,7 +15,7 @@ const Home = () => {
           Get details about any Domain
         </h2>
 
-        <SearchForm />
+        <SearchForm autofocus={true} />
       </Card>
 
       <Card className="mx-auto my-16 max-w-lg p-6">
