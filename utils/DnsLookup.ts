@@ -1,17 +1,20 @@
-export type RecordTypes =
-  | 'A'
-  | 'AAAA'
-  | 'CAA'
-  | 'CNAME'
-  | 'DNSKEY'
-  | 'DS'
-  | 'MX'
-  | 'NAPTR'
-  | 'NS'
-  | 'PTR'
-  | 'SOA'
-  | 'SRV'
-  | 'TXT';
+const RECORD_TYPES = [
+  'A',
+  'AAAA',
+  'CAA',
+  'CNAME',
+  'DNSKEY',
+  'DS',
+  'MX',
+  'NAPTR',
+  'NS',
+  'PTR',
+  'SOA',
+  'SRV',
+  'TXT',
+] as const;
+
+export type RecordType = (typeof RECORD_TYPES)[number];
 
 export type RawRecord = {
   name: string;
@@ -27,25 +30,9 @@ export type ResolvedRecords = {
 const trimPeriods = (input: string) => input.replace(/^\.+|\.+$/g, '');
 
 class DnsLookup {
-  static recordTypes: RecordTypes[] = [
-    'A',
-    'AAAA',
-    'CAA',
-    'CNAME',
-    'DNSKEY',
-    'DS',
-    'MX',
-    'NAPTR',
-    'NS',
-    'PTR',
-    'SOA',
-    'SRV',
-    'TXT',
-  ];
-
   static async fetchRecords(
     domain: string,
-    record: RecordTypes
+    record: RecordType
   ): Promise<RawRecord[]> {
     const url = `https://dns.google.com/resolve?name=${domain}&type=${record}`;
 
@@ -75,12 +62,12 @@ class DnsLookup {
 
   static async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
     const results = await Promise.allSettled(
-      DnsLookup.recordTypes.map((type) => DnsLookup.fetchRecords(domain, type))
+      RECORD_TYPES.map((type) => DnsLookup.fetchRecords(domain, type))
     );
 
     const records: ResolvedRecords = {};
-    for (let i = 0; i < DnsLookup.recordTypes.length; i++) {
-      const type = DnsLookup.recordTypes[i];
+    for (let i = 0; i < RECORD_TYPES.length; i++) {
+      const type = RECORD_TYPES[i];
       records[type] = DnsLookup.filterRecords(
         domain,
         DnsLookup.extractRecords(results[i])
