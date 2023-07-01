@@ -5,7 +5,7 @@ import { FaHeart } from 'react-icons/fa';
 const Footer = () => (
   <footer className="w-full p-4 md:px-8">
     <div className="flex flex-col items-center justify-between border-t pt-4 sm:flex-row">
-      <p className="text-sm">
+      <p className="text-xs">
         Originally created with
         <>
           {' '}

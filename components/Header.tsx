@@ -4,7 +4,7 @@ import ThemeMenu from '@/components/ThemeMenu';
 
 const Header = () => (
   <header className="w-full p-4 md:px-8">
-    <div className="flex flex-col items-center justify-between pb-4 sm:flex-row">
+    <div className="flex items-center justify-between pb-4 flex-row">
       <Link href="/">
         <svg
           xmlns="http://www.w3.org/2000/svg"
