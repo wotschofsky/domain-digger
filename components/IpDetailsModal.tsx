@@ -98,7 +98,9 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
     <Dialog modal open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>IP Details for {ip}</DialogTitle>
+          <DialogTitle>
+            IP Details for <span className="font-extrabold">{ip}</span>
+          </DialogTitle>
           <DialogDescription>
             {!data ? (
               <div className="flex items-center justify-center">

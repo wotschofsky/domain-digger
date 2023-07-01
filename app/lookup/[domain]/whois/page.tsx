@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { type FC, Fragment } from 'react';
 import whoiser, { type WhoisSearchResult } from 'whoiser';
 
 const lookupWhois = async (domain: string) => {
@@ -16,12 +16,14 @@ const lookupWhois = async (domain: string) => {
 };
 
 type WhoisResultsPageProps = {
-  params: { domain: string };
+  params: {
+    domain: string;
+  };
 };
 
-const WhoisResultsPage = async ({
+const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   params: { domain },
-}: WhoisResultsPageProps) => {
+}) => {
   const data = await lookupWhois(domain);
 
   return (

@@ -3,10 +3,6 @@ import { Card } from '@/components/ui/card';
 import BookmarkletLink from '@/components/BookmarkletLink';
 import SearchForm from '@/components/SearchForm';
 
-export const metadata = {
-  title: 'Domain Digger',
-};
-
 const Home = () => {
   return (
     <>

@@ -1,4 +1,5 @@
 import { ExternalLinkIcon } from 'lucide-react';
+import type { Metadata } from 'next';
 import type { FC, ReactNode } from 'react';
 
 import RelatedDomains from '@/components/RelatedDomains';
@@ -12,6 +13,12 @@ type LookupLayoutProps = {
   };
 };
 
+export const generateMetadata = ({
+  params: { domain },
+}: LookupLayoutProps): Metadata => ({
+  title: `Results for ${domain} - digga`,
+});
+
 const LookupLayout: FC<LookupLayoutProps> = ({
   children,
   params: { domain },
@@ -20,8 +27,6 @@ const LookupLayout: FC<LookupLayoutProps> = ({
 
   return (
     <>
-      <title>{`Results for ${domain} - Domain Digger`}</title>
-
       <div
         className={`container mb-8 max-w-xl ${isStandalone ? 'hidden' : null}`}
       >
