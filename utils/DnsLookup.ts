@@ -43,15 +43,6 @@ class DnsLookup {
     return records;
   }
 
-  static extractRecords(
-    records: PromiseSettledResult<RawRecord[]>
-  ): RawRecord[] {
-    if (records.status === 'fulfilled') {
-      return records.value;
-    }
-    return [];
-  }
-
   // Filter records to prevent results from recursive CNAME lookups showing up
   static filterRecords(domain: string, records: RawRecord[]): RawRecord[] {
     const trimmedDomain = trimPeriods(domain);
@@ -65,16 +56,14 @@ class DnsLookup {
       RECORD_TYPES.map((type) => DnsLookup.fetchRecords(domain, type))
     );
 
-    const records: ResolvedRecords = {};
-    for (let i = 0; i < RECORD_TYPES.length; i++) {
-      const type = RECORD_TYPES[i];
-      records[type] = DnsLookup.filterRecords(
+    return RECORD_TYPES.reduce((res, type, index) => {
+      const result = results[index];
+      res[type] = DnsLookup.filterRecords(
         domain,
-        DnsLookup.extractRecords(results[i])
+        result.status === 'fulfilled' ? result.value : []
       );
-    }
-
-    return records;
+      return res;
+    }, {} as ResolvedRecords);
   }
 }
 
