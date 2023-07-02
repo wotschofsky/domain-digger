@@ -7,9 +7,9 @@ const Home = () => {
   return (
     <>
       <Card className="mx-auto my-16 max-w-lg p-6">
-        <h2 className="mb-5 text-center text-xl font-semibold tracking-tight sm:text-2xl">
+        <h1 className="mb-5 text-center text-xl font-semibold tracking-tight sm:text-2xl">
           Get details about any Domain
-        </h2>
+        </h1>
 
         <SearchForm autofocus={true} />
       </Card>
