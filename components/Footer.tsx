@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 
 const Footer = () => (
   <footer className="w-full p-4 md:px-8">
-    <div className="flex flex-col items-center justify-between border-t pt-4 sm:flex-row">
+    <div className="flex items-center justify-between border-t pt-4">
       <p className="text-sm">
         Created with
         <>
