@@ -82,10 +82,9 @@ class DnsLookup {
     }
   }
 
-  static async resolveNameservers(
-    domain: string,
-    fromParent = false
-  ): Promise<string[]> {
+  static async fetchRecords(domain: string, recordType: RecordType) {
+    // TODO Reduce duplicate NS lookups
+
     let nameservers: string[] = [];
     let nsDomain = domain;
     while (true) {
@@ -105,25 +104,13 @@ class DnsLookup {
       }
     }
 
-    if (fromParent) {
+    if (recordType === 'DS') {
       // DS records are stored at the parent domain
       nsDomain = nsDomain.replace(/^[^.]+\./, '');
       nameservers = await dns.resolveNs(nsDomain);
     }
 
     const addresses = await dns.resolve4(nameservers[0]);
-    if (addresses.length === 0) {
-      throw new Error('No addresses found for nameserver');
-    }
-
-    return addresses;
-  }
-
-  static async fetchRecords(
-    domain: string,
-    recordType: RecordType,
-    nameservers: string[]
-  ) {
     const packetBuffer = dnsPacket.encode({
       type: 'query',
       id: 1,
@@ -132,7 +119,7 @@ class DnsLookup {
     });
 
     const socket = dgram.createSocket('udp4');
-    socket.send(packetBuffer, 0, packetBuffer.length, 53, nameservers[0]);
+    socket.send(packetBuffer, 0, packetBuffer.length, 53, addresses[0]);
 
     return await new Promise<RawRecord[]>((resolve, reject) => {
       socket.on('message', (message: Buffer) => {
@@ -166,19 +153,8 @@ class DnsLookup {
   }
 
   static async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
-    const [nameservers, parentNameservers] = await Promise.all([
-      DnsLookup.resolveNameservers(domain),
-      DnsLookup.resolveNameservers(domain, true),
-    ]);
-
     const results = await Promise.all(
-      RECORD_TYPES.map((type) =>
-        DnsLookup.fetchRecords(
-          domain,
-          type,
-          type === 'DS' ? parentNameservers : nameservers
-        )
-      )
+      RECORD_TYPES.map((type) => DnsLookup.fetchRecords(domain, type))
     );
 
     return RECORD_TYPES.reduce(

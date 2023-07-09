@@ -33,7 +33,9 @@ const LookupDomain = async ({ params: { domain } }) => {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-4">
-        {whoisResult['Created Date'] || whoisResult['Updated Date'] || whoisResult['Expiry Date'] ? (
+        {whoisResult['Created Date'] ||
+        whoisResult['Updated Date'] ||
+        whoisResult['Expiry Date'] ? (
           <div className="h-full md:col-span-2">
             <div className="h-full rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950 md:flex">
               <div>
