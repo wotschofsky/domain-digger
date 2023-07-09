@@ -33,95 +33,97 @@ const LookupDomain = async ({ params: { domain } }) => {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="h-full md:col-span-2">
-          <div className="h-full rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950 md:flex">
-            <div>
-              <span className="rounded-lg bg-slate-200 px-2 py-1 text-sm font-extrabold uppercase text-slate-950 dark:bg-slate-900 dark:text-slate-50">
-                Dates
-              </span>
-            </div>
-            <div className="grid gap-4 md:m-auto md:grid-cols-3">
-              {whoisResult['Created Date'] ? (
-                <div className="flex flex-col text-center">
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {new Date(whoisResult['Created Date']).toLocaleDateString(
-                      'en-US',
-                      {
-                        month: 'numeric',
-                        day: 'numeric',
-                        year: 'numeric',
-                      }
-                    )}
-                  </p>
-                  <p className="text-lg font-light text-slate-900 dark:text-slate-100">
-                    {new Date(whoisResult['Created Date']).toLocaleTimeString(
-                      'en-US',
-                      {
-                        hour: 'numeric',
-                        minute: 'numeric',
-                      }
-                    )}
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-200">
-                    Domain registered
-                  </p>
-                </div>
-              ) : null}
-              {whoisResult['Updated Date'] ? (
-                <div className="flex flex-col text-center">
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {new Date(whoisResult['Updated Date']).toLocaleDateString(
-                      'en-US',
-                      {
-                        month: 'numeric',
-                        day: 'numeric',
-                        year: 'numeric',
-                      }
-                    )}
-                  </p>
-                  <p className="text-lg font-light text-slate-900 dark:text-slate-100">
-                    {new Date(whoisResult['Updated Date']).toLocaleTimeString(
-                      'en-US',
-                      {
-                        hour: 'numeric',
-                        minute: 'numeric',
-                      }
-                    )}
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-200">
-                    Updated
-                  </p>
-                </div>
-              ) : null}
-              {whoisResult['Expiry Date'] ? (
-                <div className="flex flex-col text-center">
-                  <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {new Date(whoisResult['Expiry Date']).toLocaleDateString(
-                      'en-US',
-                      {
-                        month: 'numeric',
-                        day: 'numeric',
-                        year: 'numeric',
-                      }
-                    )}
-                  </p>
-                  <p className="text-lg font-light text-slate-900 dark:text-slate-100">
-                    {new Date(whoisResult['Expiry Date']).toLocaleTimeString(
-                      'en-US',
-                      {
-                        hour: 'numeric',
-                        minute: 'numeric',
-                      }
-                    )}
-                  </p>
-                  <p className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-200">
-                    Domain expiration
-                  </p>
-                </div>
-              ) : null}
+        {whoisResult['Created Date'] || whoisResult['Updated Date'] || whoisResult['Expiry Date'] ? (
+          <div className="h-full md:col-span-2">
+            <div className="h-full rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950 md:flex">
+              <div>
+                <span className="rounded-lg bg-slate-200 px-2 py-1 text-sm font-extrabold uppercase text-slate-950 dark:bg-slate-900 dark:text-slate-50">
+                  Dates
+                </span>
+              </div>
+              <div className="grid gap-4 md:m-auto md:grid-cols-3">
+                {whoisResult['Created Date'] ? (
+                  <div className="flex flex-col text-center">
+                    <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                      {new Date(whoisResult['Created Date']).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'numeric',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )}
+                    </p>
+                    <p className="text-lg font-light text-slate-900 dark:text-slate-100">
+                      {new Date(whoisResult['Created Date']).toLocaleTimeString(
+                        'en-US',
+                        {
+                          hour: 'numeric',
+                          minute: 'numeric',
+                        }
+                      )}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-200">
+                      Domain registered
+                    </p>
+                  </div>
+                ) : null}
+                {whoisResult['Updated Date'] ? (
+                  <div className="flex flex-col text-center">
+                    <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                      {new Date(whoisResult['Updated Date']).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'numeric',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )}
+                    </p>
+                    <p className="text-lg font-light text-slate-900 dark:text-slate-100">
+                      {new Date(whoisResult['Updated Date']).toLocaleTimeString(
+                        'en-US',
+                        {
+                          hour: 'numeric',
+                          minute: 'numeric',
+                        }
+                      )}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-200">
+                      Updated
+                    </p>
+                  </div>
+                ) : null}
+                {whoisResult['Expiry Date'] ? (
+                  <div className="flex flex-col text-center">
+                    <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                      {new Date(whoisResult['Expiry Date']).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'numeric',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )}
+                    </p>
+                    <p className="text-lg font-light text-slate-900 dark:text-slate-100">
+                      {new Date(whoisResult['Expiry Date']).toLocaleTimeString(
+                        'en-US',
+                        {
+                          hour: 'numeric',
+                          minute: 'numeric',
+                        }
+                      )}
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-slate-800 dark:text-slate-200">
+                      Domain expiration
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
         <div className="col-span-1 flex flex-col gap-2">
           {whoisResult['Registrant Organization'] ? (
             <div
@@ -205,7 +207,7 @@ const LookupDomain = async ({ params: { domain } }) => {
             </div>
           ) : null}
         </div>
-        <div className={`rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950`}>
+        <div className="col-span-1 rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950">
           <div className="flex flex-row justify-between">
             <span className="rounded-lg bg-slate-200 px-2 py-1 text-sm font-extrabold uppercase text-slate-950 dark:bg-slate-900 dark:text-slate-50">
               Security
@@ -243,7 +245,7 @@ const LookupDomain = async ({ params: { domain } }) => {
             />
           </button>
         </div>**/}
-        <div className={`rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950`}>
+        <div className="col-span-1 rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950">
           <div className="flex flex-row justify-between">
             <span className="rounded-lg bg-slate-200 px-2 py-1 text-sm font-extrabold uppercase text-slate-950 dark:bg-slate-900 dark:text-slate-50">
               Domainlabel
@@ -268,7 +270,7 @@ const LookupDomain = async ({ params: { domain } }) => {
             </p>
           </div>
         </div>
-        <div className={`rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950`}>
+        <div className="col-span-1 rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950">
           <div className="flex flex-row justify-between">
             <span className="rounded-lg bg-slate-200 px-2 py-1 text-sm font-extrabold uppercase text-slate-950 dark:bg-slate-900 dark:text-slate-50">
               Nameserver
@@ -291,7 +293,7 @@ const LookupDomain = async ({ params: { domain } }) => {
             </ul>
           </div>
         </div>
-        <div className={`rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950`}>
+        <div className="col-span-1 rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950">
           <div className="flex flex-row justify-between">
             <span className="rounded-lg bg-slate-200 px-2 py-1 text-sm font-extrabold uppercase text-slate-950 dark:bg-slate-900 dark:text-slate-50">
               Mailserver
@@ -324,7 +326,7 @@ const LookupDomain = async ({ params: { domain } }) => {
             )}
           </div>
         </div>
-        <div className={`rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950`}>
+        <div className="col-span-1 rounded-xl bg-slate-100 px-8 py-5 dark:bg-slate-950">
           <div className="flex flex-row justify-between">
             <span className="rounded-lg bg-slate-200 px-2 py-1 text-sm font-extrabold uppercase text-slate-950 dark:bg-slate-900 dark:text-slate-50">
               A-Records
