@@ -23,7 +23,7 @@ const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
   }
 
   return (
-    <div className="mb-4 mt-2 flex gap-4">
+    <div className="my-4 flex gap-4">
       {domains.map((domain) => (
         <Button
           key={domain}
