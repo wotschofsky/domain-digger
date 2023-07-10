@@ -36,6 +36,7 @@
     "punycode": "^2.3.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-hotkeys-hook": "^4.4.1",
     "react-icons": "^4.10.1",
     "react-leaflet": "^4.2.1",
     "react-string-replace": "^1.1.1",
