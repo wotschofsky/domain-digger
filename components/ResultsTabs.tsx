@@ -6,6 +6,12 @@ import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
 import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
+const isAppleDevice = () => {
+  if (!window) return false;
+  const userAgent = window.navigator.userAgent;
+  return /Mac|iPad|iPhone|iPod/.test(userAgent);
+};
+
 type ResultsTabsProps = {
   domain: string;
 };
@@ -31,10 +37,19 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
             }
           >
             DNS
-            <div className="pointer-events-none absolute bottom-0 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
-              <OptionIcon className="inline-block h-3 w-3" strokeWidth={3} />
-              {' + 1'}
-            </div>
+            <span className="pointer-events-none absolute bottom-0 block translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
+              {isAppleDevice() ? (
+                <>
+                  <OptionIcon
+                    className="inline-block h-3 w-3"
+                    strokeWidth={3}
+                  />
+                  {' + 1'}
+                </>
+              ) : (
+                'alt+1'
+              )}
+            </span>
           </Link>
         </li>
         <li className="mr-2">
@@ -48,10 +63,19 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
             aria-current="page"
           >
             Whois
-            <div className="pointer-events-none absolute bottom-0 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
-              <OptionIcon className="inline-block h-3 w-3" strokeWidth={3} />
-              {' + 2'}
-            </div>
+            <span className="pointer-events-none absolute bottom-0 block translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
+              {isAppleDevice() ? (
+                <>
+                  <OptionIcon
+                    className="inline-block h-3 w-3"
+                    strokeWidth={3}
+                  />
+                  {' + 2'}
+                </>
+              ) : (
+                'alt+2'
+              )}
+            </span>
           </Link>
         </li>
         <li className="mr-2">
@@ -65,10 +89,19 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
             aria-current="page"
           >
             Certs
-            <div className="pointer-events-none absolute bottom-0 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
-              <OptionIcon className="inline-block h-3 w-3" strokeWidth={3} />
-              {' + 3'}
-            </div>
+            <span className="pointer-events-none absolute bottom-0 block translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
+              {isAppleDevice() ? (
+                <>
+                  <OptionIcon
+                    className="inline-block h-3 w-3"
+                    strokeWidth={3}
+                  />
+                  {' + 3'}
+                </>
+              ) : (
+                'alt+3'
+              )}
+            </span>
           </Link>
         </li>
       </ul>
