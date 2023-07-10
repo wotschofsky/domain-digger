@@ -33,7 +33,7 @@ const DnsTable: FC<DnsTableProps> = ({ records }) => (
           <div className="overflow-x-auto">
             <Table key={recordType}>
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-0">Name</TableHead>
                   <TableHead>TTL</TableHead>
                   <TableHead className="pr-0">Value</TableHead>
