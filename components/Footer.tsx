@@ -15,14 +15,14 @@ const Footer = () => (
           <span className="sr-only">love</span>{' '}
         </>
         by{' '}
-        <a href="https://felisk.io" target="_blank" rel="noopener">
+        <a href="https://wotschofsky.com" target="_blank" rel="noopener">
           Felix Wotschofsky
         </a>
       </p>
 
       <Button variant="ghost" asChild>
         <a
-          href="https://github.com/feliskio/domain-digger"
+          href="https://github.com/wotschofsky/domain-digger"
           target="_blank"
           rel="noopener"
         >

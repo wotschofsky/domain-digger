@@ -41,7 +41,7 @@ const Home = () => {
           Domain Digger is entirely free and{' '}
           <a
             className="underline"
-            href="https://github.com/feliskio/domain-digger"
+            href="https://github.com/wotschofsky/domain-digger"
             target="_blank"
             rel="noopener"
           >
