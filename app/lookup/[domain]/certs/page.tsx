@@ -65,7 +65,7 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async ({
   return (
     <Table>
       <TableHeader>
-        <TableRow>
+        <TableRow className="hover:bg-transparent">
           <TableHead className="pl-0">Logged At</TableHead>
           <TableHead>Not Before</TableHead>
           <TableHead>Not After</TableHead>
@@ -76,7 +76,7 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async ({
       </TableHeader>
       <TableBody>
         {certs.map((cert) => (
-          <TableRow key={cert.id}>
+          <TableRow key={cert.id} className="hover:bg-transparent">
             <TableCell className="pl-0">{cert.entry_timestamp}</TableCell>
             <TableCell>{cert.not_before}</TableCell>
             <TableCell>{cert.not_after}</TableCell>

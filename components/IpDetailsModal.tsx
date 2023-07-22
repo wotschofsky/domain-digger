@@ -111,7 +111,10 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
                 <Table>
                   <TableBody>
                     {mappedEntries.map((el) => (
-                      <TableRow key={el.label + el.value}>
+                      <TableRow
+                        key={el.label + el.value}
+                        className="hover:bg-transparent"
+                      >
                         <TableCell className="pl-0">{el.label}</TableCell>
                         <TableCell className="pr-0">
                           {el.type === EntryTypes.Reverse ? (
