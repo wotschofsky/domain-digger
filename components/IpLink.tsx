@@ -25,7 +25,9 @@ const IpLink: FC<IpLinkProps> = ({ value }) => {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger onClick={open}>
-            <span>{value}</span>
+            <span className="underline decoration-dotted underline-offset-4">
+              {value}
+            </span>
             <InfoIcon
               role="button"
               className="mx-1 inline-block h-3 w-3 -translate-y-0.5 cursor-pointer"

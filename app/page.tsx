@@ -40,7 +40,7 @@ const Home = () => {
         <p className="mb-5 mt-2 text-center text-sm text-muted-foreground">
           Domain Digger is entirely free and{' '}
           <a
-            className="underline"
+            className="underline decoration-dotted underline-offset-4"
             href="https://github.com/wotschofsky/domain-digger"
             target="_blank"
             rel="noopener"

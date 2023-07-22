@@ -15,7 +15,12 @@ const Footer = () => (
           <span className="sr-only">love</span>{' '}
         </>
         by{' '}
-        <a href="https://wotschofsky.com" target="_blank" rel="noopener">
+        <a
+          className="underline decoration-dotted underline-offset-4"
+          href="https://wotschofsky.com"
+          target="_blank"
+          rel="noopener"
+        >
           Felix Wotschofsky
         </a>
       </p>
