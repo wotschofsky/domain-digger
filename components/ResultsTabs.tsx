@@ -7,7 +7,7 @@ import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 const isAppleDevice = () => {
-  if (!window) return false;
+  if (typeof window === 'undefined') return false;
   const userAgent = window.navigator.userAgent;
   return /Mac|iPad|iPhone|iPod/.test(userAgent);
 };
