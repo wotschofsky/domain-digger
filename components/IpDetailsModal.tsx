@@ -15,6 +15,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/lookupIp/route';
+import CopyButton from '@/components/CopyButton';
 import DomainLink from '@/components/DomainLink';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
@@ -120,7 +121,12 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
                           {el.type === EntryTypes.Reverse ? (
                             <DomainLink domain={el.value} />
                           ) : (
-                            <span>{el.value}</span>
+                            <>
+                              <span>{el.value}</span>
+                              {el.type === EntryTypes.IP && (
+                                <CopyButton value={el.value} />
+                              )}
+                            </>
                           )}
                         </TableCell>
                       </TableRow>
