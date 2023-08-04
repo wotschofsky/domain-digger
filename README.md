@@ -1,4 +1,4 @@
-# Domain Digger
+![Domain Digger](docs/logo.svg)
 
 _Simple Next.js app that allows you to view various details related to a domain name._
 
@@ -14,8 +14,8 @@ _Simple Next.js app that allows you to view various details related to a domain 
 
 ## Screenshots
 
-![alt text](screenshots/dns-records.png 'Screenshot of DNS Records')
+![Screenshot of DNS Records](docs/dns-records.png)
 _DNS Records_
 
-![alt text](screenshots/ip-details.png 'Screenshot of IP Details')
+![Screenshot of IP Details](docs/ip-details.png)
 _IP Details_
