@@ -1,6 +1,10 @@
-import dnsPacket, { type Answer, Packet, Question } from 'dns-packet';
+import dnsPacket, {
+  type Answer,
+  type Packet,
+  type Question,
+  type StringAnswer,
+} from 'dns-packet';
 import dgram from 'node:dgram';
-import dns from 'node:dns/promises';
 
 const RECORD_TYPES = [
   'A',
@@ -82,103 +86,102 @@ class DnsLookup {
     }
   }
 
-  static async resolveNameservers(
-    domain: string,
-    fromParent = false
-  ): Promise<string[]> {
-    let nameservers: string[] = [];
-    let nsDomain = domain;
-    while (true) {
-      try {
-        nameservers = await dns.resolveNs(nsDomain);
-        break;
-      } catch (err: any) {
-        if (err.code === 'ENODATA') {
-          // No NS records found, try the parent domain
-          nsDomain = nsDomain.replace(/^[^.]+\./, '');
-          if (nsDomain.length === 0) {
-            throw err;
-          }
-        } else {
-          throw err;
-        }
-      }
-    }
-
-    if (fromParent) {
-      // DS records are stored at the parent domain
-      nsDomain = nsDomain.replace(/^[^.]+\./, '');
-      nameservers = await dns.resolveNs(nsDomain);
-    }
-
-    const addresses = await dns.resolve4(nameservers[0]);
-    if (addresses.length === 0) {
-      throw new Error('No addresses found for nameserver');
-    }
-
-    return addresses;
-  }
-
-  static async fetchRecords(
+  static async sendRequest(
     domain: string,
     recordType: RecordType,
-    nameservers: string[]
+    nameserver: string
   ) {
     const packetBuffer = dnsPacket.encode({
       type: 'query',
       id: 1,
-      flags: dnsPacket.RECURSION_DESIRED,
       questions: [{ type: recordType, name: domain } as Question],
     });
 
     const socket = dgram.createSocket('udp4');
-    socket.send(packetBuffer, 0, packetBuffer.length, 53, nameservers[0]);
+    socket.send(packetBuffer, 0, packetBuffer.length, 53, nameserver);
 
-    return await new Promise<RawRecord[]>((resolve, reject) => {
+    return await new Promise<Packet>((resolve, reject) => {
       socket.on('message', (message: Buffer) => {
         socket.close();
 
         const response: Packet = dnsPacket.decode(message);
 
-        if (!response.answers) {
-          resolve([]);
-          return;
-        }
-
-        const filteredAnswers = response.answers.filter(
-          (answer) =>
-            // @ts-expect-error
-            RECORD_TYPES.includes(answer.type) && answer.type === recordType
-        ) as Extract<Answer, { type: RecordType }>[];
-
-        const recordData: RawRecord[] =
-          filteredAnswers?.map((answer) => ({
-            name: answer.name,
-            type: answer.type,
-            TTL: 'ttl' in answer ? answer.ttl || 0 : 0,
-            data: DnsLookup.recordToString(answer),
-          })) || [];
-
-        resolve(recordData);
+        resolve(response);
       });
       socket.on('error', reject);
     });
   }
 
-  static async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
-    const [nameservers, parentNameservers] = await Promise.all([
-      DnsLookup.resolveNameservers(domain),
-      DnsLookup.resolveNameservers(domain, true),
-    ]);
+  static async fetchRecords(
+    domain: string,
+    recordType: RecordType,
+    nameserver?: string
+  ): Promise<RawRecord[]> {
+    const response = await this.sendRequest(
+      domain,
+      recordType,
+      nameserver || '198.41.0.4' // TODO Add fallback nameservers
+    );
 
+    if (response.answers?.length) {
+      const filteredAnswers = response.answers.filter(
+        (answer) =>
+          // @ts-expect-error
+          RECORD_TYPES.includes(answer.type) && answer.type === recordType
+      ) as Extract<Answer, { type: RecordType }>[];
+
+      const recordData: RawRecord[] =
+        filteredAnswers?.map((answer) => ({
+          name: answer.name,
+          type: answer.type,
+          TTL: 'ttl' in answer ? answer.ttl || 0 : 0,
+          data: this.recordToString(answer),
+        })) || [];
+
+      return recordData;
+    }
+
+    // TODO Support IPv6
+    const redirects = Object.assign(
+      [] as Answer[],
+      response.authorities,
+      response.additionals
+    ).filter((answer) => answer.type === 'A' || answer.type === 'NS');
+
+    if (redirects.length) {
+      const ipValue = (
+        redirects.find((redirect) => redirect.type === 'A') as
+          | StringAnswer
+          | undefined
+      )?.data;
+      if (ipValue) {
+        return this.fetchRecords(domain, recordType, ipValue);
+      }
+
+      const nsValue = (
+        redirects.find((redirect) => redirect.type === 'NS') as
+          | StringAnswer
+          | undefined
+      )?.data;
+      if (!nsValue) {
+        throw new Error(`Bad redirects for ${domain}`);
+      }
+
+      const records = await this.fetchRecords(nsValue, 'A');
+
+      if (!records.length) {
+        throw new Error(`Bad redirects for ${domain}`);
+      }
+
+      return this.fetchRecords(domain, recordType, records[0].data);
+    }
+
+    return [];
+  }
+
+  static async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
     const results = await Promise.all(
-      RECORD_TYPES.map((type) =>
-        DnsLookup.fetchRecords(
-          domain,
-          type,
-          type === 'DS' ? parentNameservers : nameservers
-        )
-      )
+      RECORD_TYPES.map((type) => this.fetchRecords(domain, type))
     );
 
     return RECORD_TYPES.reduce(
