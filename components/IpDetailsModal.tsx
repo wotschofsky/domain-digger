@@ -1,5 +1,6 @@
 import type { DialogProps } from '@radix-ui/react-dialog';
 import type { LatLngExpression } from 'leaflet';
+import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
 import { type FC } from 'react';
 import useSWR from 'swr';
@@ -59,7 +60,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
       },
       ...data.reverse
         .slice()
-        .sort()
+        .sort(naturalCompare)
         .map((address) => ({
           type: EntryTypes.Reverse,
           label: 'Reverse',
