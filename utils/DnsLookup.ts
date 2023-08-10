@@ -1,3 +1,4 @@
+import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
   type Packet,
@@ -34,7 +35,7 @@ export type RawRecord = {
 export type ResolvedRecords = Record<string, RawRecord[]>;
 
 class DnsLookup {
-  static recordToString(record: Answer): string {
+  private recordToString(record: Answer): string {
     // TODO Submit upstream PR to fix record types
 
     switch (record.type) {
@@ -86,7 +87,7 @@ class DnsLookup {
     }
   }
 
-  static async sendRequest(
+  private async sendRequest(
     domain: string,
     recordType: RecordType,
     nameserver: string
@@ -112,16 +113,36 @@ class DnsLookup {
     });
   }
 
-  static async fetchRecords(
+  private requestLoader = new DataLoader<
+    {
+      domain: string;
+      type: RecordType;
+      nameserver: string;
+    },
+    Packet,
+    string
+  >(
+    async (keys) =>
+      Promise.all(
+        keys.map(async ({ domain, type, nameserver }) =>
+          this.sendRequest(domain, type, nameserver)
+        )
+      ),
+    {
+      cacheKeyFn: (key) => JSON.stringify(key),
+    }
+  );
+
+  private async fetchRecords(
     domain: string,
     recordType: RecordType,
     nameserver?: string
   ): Promise<RawRecord[]> {
-    const response = await this.sendRequest(
+    const response = await this.requestLoader.load({
       domain,
-      recordType,
-      nameserver || '198.41.0.4' // TODO Add fallback nameservers
-    );
+      type: recordType,
+      nameserver: nameserver || '198.41.0.4', // TODO Add fallback nameservers
+    });
 
     if (response.answers?.length) {
       const filteredAnswers = response.answers.filter(
@@ -179,7 +200,7 @@ class DnsLookup {
     return [];
   }
 
-  static async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
+  public async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
     const results = await Promise.all(
       RECORD_TYPES.map((type) => this.fetchRecords(domain, type))
     );

@@ -12,7 +12,8 @@ type LookupDomainProps = {
 export const fetchCache = 'default-no-store';
 
 const LookupDomain: FC<LookupDomainProps> = async ({ params: { domain } }) => {
-  const records = await DnsLookup.resolveAllRecords(domain);
+  const lookup = new DnsLookup();
+  const records = await lookup.resolveAllRecords(domain);
 
   return (
     <>

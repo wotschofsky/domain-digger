@@ -25,6 +25,7 @@
     "autoprefixer": "^10.4.14",
     "class-variance-authority": "^0.6.1",
     "clsx": "^1.2.1",
+    "dataloader": "^2.2.2",
     "dns-packet": "^5.6.0",
     "is-valid-domain": "^0.1.5",
     "leaflet": "^1.9.4",
