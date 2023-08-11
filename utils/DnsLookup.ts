@@ -35,6 +35,28 @@ export type RawRecord = {
 export type ResolvedRecords = Record<string, RawRecord[]>;
 
 class DnsLookup {
+  private async getRootServers() {
+    const response = await fetch('https://www.internic.net/domain/named.root', {
+      next: {
+        revalidate: 7 * 24 * 60 * 60,
+      },
+    });
+    const body = await response.text();
+
+    // TODO Support IPv6
+    const aRecords = body.match(/IN\s+A\s+(.+)/g);
+
+    if (!aRecords) {
+      throw new Error('Failed to fetch root servers');
+    }
+
+    const ipAddresses = aRecords?.map(
+      (l) => l.replaceAll(/\s+/g, ' ').split(' ')[2]
+    );
+
+    return ipAddresses;
+  }
+
   private recordToString(record: Answer): string {
     // TODO Submit upstream PR to fix record types
 
@@ -138,10 +160,12 @@ class DnsLookup {
     recordType: RecordType,
     nameserver?: string
   ): Promise<RawRecord[]> {
+    const rootServers = await this.getRootServers();
+
     const response = await this.requestLoader.load({
       domain,
       type: recordType,
-      nameserver: nameserver || '198.41.0.4', // TODO Add fallback nameservers
+      nameserver: nameserver || rootServers[0], // TODO Use fallback nameservers
     });
 
     if (response.answers?.length) {
