@@ -19,7 +19,7 @@ const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
       <Tooltip>
         <TooltipTrigger>
           <Link
-            className="underline decoration-dotted underline-offset-4"
+            className="select-all underline decoration-dotted underline-offset-4"
             href={`/lookup/${domain}`}
           >
             <span>{domain}</span>
