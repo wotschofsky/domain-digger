@@ -25,6 +25,7 @@ const Analytics: FC = () => {
         var _paq = window._paq = window._paq || [];
         _paq.push(['trackPageView']);
         _paq.push(['enableLinkTracking']);
+        _paq.push(['enableHeartBeatTimer', 5]);
         (function() {
           var u="https://analytics.felisk.io/";
           _paq.push(['setTrackerUrl', u + 'accumulator.php']);
