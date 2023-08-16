@@ -17,6 +17,7 @@ export const generateMetadata = ({
   params: { domain },
 }: LookupLayoutProps): Metadata => ({
   title: `Results for ${domain} - Domain Digger`,
+  description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain}`,
 });
 
 const LookupLayout: FC<LookupLayoutProps> = ({
