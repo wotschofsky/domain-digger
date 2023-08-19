@@ -1,7 +1,21 @@
+import Link from 'next/link';
+
 import { Card } from '@/components/ui/card';
 
 import BookmarkletLink from '@/components/BookmarkletLink';
 import SearchForm from '@/components/SearchForm';
+
+const EXAMPLE_DOMAINS = [
+  'digger.tools',
+  'google.com',
+  'wikipedia.org',
+  'microsoft.com',
+  'tiktok.com',
+  'reddit.com',
+  'baidu.com',
+  'twitter.com',
+  'discord.com',
+];
 
 const Home = () => {
   return (
@@ -12,6 +26,18 @@ const Home = () => {
         </h1>
 
         <SearchForm autofocus={true} />
+
+        <div className="mt-6 flex flex-wrap justify-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          {EXAMPLE_DOMAINS.map((domain) => (
+            <Link
+              key={domain}
+              className="underline decoration-dotted underline-offset-4"
+              href={`/lookup/${domain}`}
+            >
+              {domain}
+            </Link>
+          ))}
+        </div>
       </Card>
 
       <Card className="mx-auto my-16 max-w-lg p-6">
