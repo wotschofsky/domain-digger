@@ -58,8 +58,6 @@ class DnsLookup {
   }
 
   private recordToString(record: Answer): string {
-    // TODO Submit upstream PR to fix record types
-
     switch (record.type) {
       case 'A':
       case 'AAAA':
@@ -80,23 +78,16 @@ class DnsLookup {
       case 'CAA':
         return `${record.data.flags} ${record.data.tag} "${record.data.value}"`;
       case 'DNSKEY':
-        // @ts-ignore
         return `${record.data.flags} ${
-          // @ts-ignore
           record.data.algorithm
-          // @ts-ignore
         } ${record.data.key.toString('hex')}`;
       case 'DS':
-        // @ts-ignore
         return `${record.data.keyTag} ${record.data.algorithm} ${
-          // @ts-ignore
           record.data.digestType
-          // @ts-ignore
         } ${record.data.digest.toString('hex')}`;
       case 'MX':
         return `${record.data.preference} ${record.data.exchange}`;
       case 'NAPTR':
-        // @ts-ignore
         return `${record.data.order} ${record.data.preference} "${record.data.flags}" "${record.data.services}" "${record.data.regexp}" ${record.data.replacement}`;
       case 'NS':
         return record.data;
