@@ -17,7 +17,7 @@ const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
   <>
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger>
+        <TooltipTrigger asChild>
           <Link
             className="select-all underline decoration-dotted underline-offset-4"
             href={`/lookup/${domain}`}
@@ -33,7 +33,7 @@ const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
     {!domain.startsWith('*.') && (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger>
+          <TooltipTrigger asChild>
             <a href={`https://${domain}`} target="_blank" rel="noreferrer">
               <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
             </a>
