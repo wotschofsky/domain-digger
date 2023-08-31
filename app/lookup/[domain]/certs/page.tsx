@@ -52,7 +52,23 @@ export const preferredRegion = 'lhr1';
 const CertsResultsPage: FC<CertsResultsPageProps> = async ({
   params: { domain },
 }) => {
-  const certs = await lookupCerts(domain);
+  const certRequests = [lookupCerts(domain)];
+
+  const hasParentDomain = domain.split('.').filter(Boolean).length > 2;
+  if (hasParentDomain) {
+    const parentDomain = domain.split('.').slice(1).join('.');
+    certRequests.push(lookupCerts(`*.${parentDomain}`));
+  }
+
+  const certs = await Promise.all(certRequests).then((responses) =>
+    responses
+      .flat()
+      .sort(
+        (a, b) =>
+          new Date(b.entry_timestamp).getTime() -
+          new Date(a.entry_timestamp).getTime()
+      )
+  );
 
   if (!certs.length) {
     return (
