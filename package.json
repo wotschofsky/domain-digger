@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:format": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,scss,md,mdx}\"",
-    "format": "yarn prettier --write \"**/*.{js,jsx,ts,tsx,json,css,scss,md,mdx}\""
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,scss,md,mdx}\""
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.0.4",
