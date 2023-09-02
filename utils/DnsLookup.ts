@@ -161,9 +161,7 @@ class DnsLookup {
 
     if (response.answers?.length) {
       const filteredAnswers = response.answers.filter(
-        (answer) =>
-          // @ts-expect-error
-          RECORD_TYPES.includes(answer.type) && answer.type === recordType
+        (answer) => answer.name === domain && answer.type === recordType
       ) as Extract<Answer, { type: RecordType }>[];
 
       const recordData: RawRecord[] =
