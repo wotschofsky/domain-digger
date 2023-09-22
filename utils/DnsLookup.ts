@@ -44,7 +44,7 @@ class DnsLookup {
     const body = await response.text();
 
     // TODO Support IPv6
-    const aRecords = body.match(/IN\s+A\s+(.+)/g);
+    const aRecords = body.match(/\sA\s+(.+)/g);
 
     if (!aRecords) {
       throw new Error('Failed to fetch root servers');
