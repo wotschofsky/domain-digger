@@ -18,6 +18,15 @@ export const generateMetadata = ({
 }: LookupLayoutProps): Metadata => ({
   title: `Results for ${domain} - Domain Digger`,
   description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain}`,
+  openGraph: {
+    title: `Results for ${domain} - Domain Digger`,
+    description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain}`,
+    url: process.env.SITE_URL && `${process.env.SITE_URL}/lookup/${domain}`,
+  },
+  alternates: {
+    canonical:
+      process.env.SITE_URL && `${process.env.SITE_URL}/lookup/${domain}`,
+  },
 });
 
 const LookupLayout: FC<LookupLayoutProps> = ({
