@@ -10,8 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:format": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,scss,md,mdx}\"",
-    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,css,scss,md,mdx}\""
+    "test:format": "prettier --check .",
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.0.4",
