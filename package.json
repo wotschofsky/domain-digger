@@ -23,6 +23,7 @@
     "@types/punycode": "^2.1.0",
     "@types/validator": "^13.11.1",
     "autoprefixer": "^10.4.15",
+    "bottleneck": "^2.19.5",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "dataloader": "^2.2.2",

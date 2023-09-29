@@ -1,3 +1,4 @@
+import Bottleneck from 'bottleneck';
 import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
@@ -115,16 +116,31 @@ class DnsLookup {
     socket.send(packetBuffer, 0, packetBuffer.length, 53, nameserver);
 
     return await new Promise<Packet>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        socket.close();
+        reject(
+          new Error(
+            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out`
+          )
+        );
+      }, 2500);
+
       socket.on('message', (message: Buffer) => {
         socket.close();
 
         const response: Packet = dnsPacket.decode(message);
 
+        clearTimeout(timeout);
         resolve(response);
       });
       socket.on('error', reject);
     });
   }
+
+  private limiter = new Bottleneck({
+    maxConcurrent: 10,
+    minTime: 160,
+  });
 
   private requestLoader = new DataLoader<
     {
@@ -138,7 +154,9 @@ class DnsLookup {
     async (keys) =>
       Promise.all(
         keys.map(async ({ domain, type, nameserver }) =>
-          this.sendRequest(domain, type, nameserver)
+          this.limiter.schedule(() =>
+            this.sendRequest(domain, type, nameserver)
+          )
         )
       ),
     {
