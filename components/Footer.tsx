@@ -32,6 +32,7 @@ const Footer = () => (
           rel="noopener"
         >
           <FaGithub className="h-6 w-6" />
+          <span className="sr-only">GitHub Repository</span>
         </a>
       </Button>
     </div>
