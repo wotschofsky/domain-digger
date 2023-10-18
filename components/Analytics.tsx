@@ -27,7 +27,7 @@ const Analytics: FC = () => {
         _paq.push(['enableLinkTracking']);
         _paq.push(['enableHeartBeatTimer', 5]);
         (function() {
-          var u="https://analytics.felisk.io/";
+          var u="https://analytics.wsky.dev/";
           _paq.push(['setTrackerUrl', u + 'accumulator.php']);
           _paq.push(['setSiteId', '13']);
           var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
