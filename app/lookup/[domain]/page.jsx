@@ -17,8 +17,9 @@ import DnsLookup from '@/utils/DnsLookup';
 export const fetchCache = 'default-no-store';
 
 const LookupDomain = async ({ params: { domain } }) => {
-  const mxRecords = await DnsLookup.fetchRecords(domain, 'MX');
-  const aRecords = await DnsLookup.fetchRecords(domain, 'A');
+  const lookup = new DnsLookup();
+  const mxRecords = await lookup.fetchRecords(domain, 'MX');
+  const aRecords = await lookup.fetchRecords(domain, 'A');
 
   const whoisResult = whoiser.firstResult(
     await whoiser(domain, {

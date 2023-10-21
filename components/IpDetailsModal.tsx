@@ -1,5 +1,6 @@
 import type { DialogProps } from '@radix-ui/react-dialog';
 import type { LatLngExpression } from 'leaflet';
+import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
 import { type FC } from 'react';
 import useSWR from 'swr';
@@ -15,6 +16,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/lookupIp/route';
+import CopyButton from '@/components/CopyButton';
 import DomainLink from '@/components/DomainLink';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
@@ -58,7 +60,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
       },
       ...data.reverse
         .slice()
-        .sort()
+        .sort(naturalCompare)
         .map((address) => ({
           type: EntryTypes.Reverse,
           label: 'Reverse',
@@ -113,13 +115,21 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
                 <Table>
                   <TableBody>
                     {mappedEntries.map((el) => (
-                      <TableRow key={el.label + el.value}>
+                      <TableRow
+                        key={el.label + el.value}
+                        className="hover:bg-transparent"
+                      >
                         <TableCell className="pl-0">{el.label}</TableCell>
                         <TableCell className="pr-0">
                           {el.type === EntryTypes.Reverse ? (
                             <DomainLink domain={el.value} />
                           ) : (
-                            <span>{el.value}</span>
+                            <>
+                              <span>{el.value}</span>
+                              {el.type === EntryTypes.IP && (
+                                <CopyButton value={el.value} />
+                              )}
+                            </>
                           )}
                         </TableCell>
                       </TableRow>

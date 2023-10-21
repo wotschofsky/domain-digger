@@ -24,12 +24,14 @@ const IpLink: FC<IpLinkProps> = ({ value }) => {
     <>
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger onClick={open}>
-            <span>{value}</span>
-            <InfoIcon
-              role="button"
-              className="mx-1 inline-block h-3 w-3 -translate-y-0.5 cursor-pointer"
-            />
+          <TooltipTrigger asChild onClick={open}>
+            <a className="cursor-pointer select-none underline decoration-dotted underline-offset-4 hover:decoration-dashed">
+              <span className="select-all">{value}</span>
+              <InfoIcon
+                role="button"
+                className="mx-1 inline-block h-3 w-3 -translate-y-0.5"
+              />
+            </a>
           </TooltipTrigger>
           <TooltipContent>
             <p>View IP Info</p>

@@ -52,7 +52,7 @@ const RecordRow: FC<RecordRowProps> = ({ record }) => {
   }
 
   return (
-    <TableRow>
+    <TableRow className="hover:bg-transparent">
       <TableCell className="pl-0">{record.name}</TableCell>
       <TableCell>{record.TTL}</TableCell>
       <TableCell className="pr-0">{interpolatedValue}</TableCell>

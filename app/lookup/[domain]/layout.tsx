@@ -17,6 +17,16 @@ export const generateMetadata = ({
   params: { domain },
 }: LookupLayoutProps): Metadata => ({
   title: `Results for ${domain} - digga`,
+  openGraph: {
+    type: 'website',
+    title: `Results for ${domain} - digga`,
+    description: `Find DNS records, WHOIS data, SSL/TLS certificate history and more for ${domain}`,
+    url: process.env.SITE_URL && `${process.env.SITE_URL}/lookup/${domain}`,
+  },
+  alternates: {
+    canonical:
+      process.env.SITE_URL && `${process.env.SITE_URL}/lookup/${domain}`,
+  },
 });
 
 const LookupLayout: FC<LookupLayoutProps> = ({
@@ -34,15 +44,15 @@ const LookupLayout: FC<LookupLayoutProps> = ({
       </div>
 
       <div className="container">
-        <h1 className="mb-2 text-4xl font-bold">
-          Results for{' '}
+        <h1 className="mb-2">
+          <span className="block text-muted-foreground">Results for</span>
           <a
+            className="block text-4xl font-bold"
             href={`https://${domain}`}
             target="_blank"
-            className="font-extrabold underline-offset-2 hover:underline"
             rel="noreferrer"
           >
-            {domain} <ExternalLinkIcon className="inline-block no-underline" />
+            {domain} <ExternalLinkIcon className="inline-block" />
           </a>
         </h1>
 

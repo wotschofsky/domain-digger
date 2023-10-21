@@ -1,3 +1,4 @@
+import naturalCompare from 'natural-compare-lite';
 import { type FC, Fragment } from 'react';
 
 import {
@@ -33,7 +34,7 @@ const DnsTable: FC<DnsTableProps> = ({ records }) => (
           <div className="overflow-x-auto">
             <Table key={recordType}>
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-0">Name</TableHead>
                   <TableHead>TTL</TableHead>
                   <TableHead className="pr-0">Value</TableHead>
@@ -42,7 +43,7 @@ const DnsTable: FC<DnsTableProps> = ({ records }) => (
               <TableBody>
                 {value
                   .slice()
-                  .sort((a, b) => a.data.localeCompare(b.data))
+                  .sort((a, b) => naturalCompare(a.data, b.data))
                   .map((v) => (
                     <RecordRow key={v.type + v.data} record={v} />
                   ))}

@@ -101,7 +101,7 @@ const SearchForm = (props: SearchFormProps) => {
         </p>
       ) : (
         <p className="mt-2 text-center text-sm text-muted-foreground">
-          It can be anything! An apex, subdomain or even an URL.
+          It can be anything! An apex, subdomain, or even a URL.
         </p>
       )}
     </>
