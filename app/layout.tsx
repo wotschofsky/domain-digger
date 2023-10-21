@@ -7,6 +7,7 @@ import './globals.css';
 import Providers from './providers';
 
 export const metadata = {
+  metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : null,
   title: 'Domain Digger: DNS, WHOIS lookup & more',
   description:
     'Domain Digger is the easy but incredibly powerful tool for looking up and quickly inspecting DNS records, WHOIS data, SSL/TLS certificate history and other domain related data. No installation required!',
@@ -15,10 +16,10 @@ export const metadata = {
     title: 'Domain Digger: DNS, WHOIS lookup & more',
     description:
       'Domain Digger is the easy but incredibly powerful tool for looking up and quickly inspecting DNS records, WHOIS data, SSL/TLS certificate history and other domain related data. No installation required!',
-    url: process.env.SITE_URL,
+    url: '/',
   },
   alternates: {
-    canonical: process.env.SITE_URL,
+    canonical: '/',
   },
 };
 
