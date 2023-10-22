@@ -8,13 +8,9 @@ const Footer = () => (
   <footer className="w-full p-4 md:px-8">
     <div className="flex items-center justify-between border-t pt-4">
       <p className="text-sm">
-        Created with
-        <>
-          {' '}
-          <FaHeart className="inline text-red-500" fontSize="1.25rem" />
-          <span className="sr-only">love</span>{' '}
-        </>
-        by{' '}
+        Created with{' '}
+        <FaHeart className="inline text-red-500" fontSize="1.25rem" />
+        <span className="sr-only">love</span> by{' '}
         <a
           className="underline decoration-dotted underline-offset-4"
           href="https://wotschofsky.com"
