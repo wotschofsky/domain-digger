@@ -265,6 +265,7 @@ const LookupDomain = async ({ params: { domain } }) => {
                     href={label.split(' ')[1]}
                     target="_blank"
                     rel="noreferrer"
+                    key={label}
                   >
                     <Badge variant="outline">{label.split(' ')[0]}</Badge>
                   </a>
@@ -283,7 +284,7 @@ const LookupDomain = async ({ params: { domain } }) => {
             <ul className="list-inside list-disc text-lg font-medium text-slate-900 dark:text-slate-100">
               {Object.values(whoisResult['Name Server']).map((ns) => {
                 return (
-                  <li>
+                  <li key={ns}>
                     <a
                       className="cursor-pointer decoration-slate-700 decoration-dotted underline-offset-4 hover:underline dark:decoration-slate-300"
                       href={`/lookup/${ns}`}
@@ -315,7 +316,7 @@ const LookupDomain = async ({ params: { domain } }) => {
               <ul className="list-inside list-disc text-lg font-medium text-slate-900 dark:text-slate-100">
                 {Object.values(mxRecords).map((record) => {
                   return (
-                    <li>
+                    <li key={record.data.split(' ')[1]}>
                       <a
                         className="cursor-pointer decoration-slate-700 decoration-dotted underline-offset-4 hover:underline dark:decoration-slate-300"
                         href={`/lookup/${record.data.split(' ')[1]}`}
@@ -348,7 +349,7 @@ const LookupDomain = async ({ params: { domain } }) => {
               <ul className="list-inside list-disc text-lg font-medium text-slate-900 dark:text-slate-100">
                 {Object.values(aRecords).map((record) => {
                   return (
-                    <li>
+                    <li key={record}>
                       <OverviewRecordList record={record.data} />
                     </li>
                   );

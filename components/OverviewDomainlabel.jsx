@@ -20,6 +20,7 @@ export default async function OverviewDomainlabel({ domain }) {
             href={label.split(' ')[1]}
             target="_blank"
             rel="noreferrer"
+            key={label}
           >
             <Badge variant="outline">{label.split(' ')[0]}</Badge>
           </a>
