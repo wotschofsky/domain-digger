@@ -123,7 +123,7 @@ class DnsLookup {
             `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out`
           )
         );
-      }, 2500);
+      }, 4000);
 
       socket.on('message', (message: Buffer) => {
         socket.close();

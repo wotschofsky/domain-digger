@@ -13,9 +13,20 @@ const rubik = Rubik({
 });
 
 export const metadata = {
+  metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : null,
   title: 'digga: Domain- & Infrastructure research',
   description:
     'digga is the easy but incredibly powerful tool for full domain and infrastructure research.',
+  openGraph: {
+    type: 'website',
+    title: 'digga: Infrastructure research',
+    description:
+      'Effortlessly gather and analyze DNS records, WHOIS data, SSL/TLS certificate history, and more with digga – a powerful tool that requires no installation for swift access and insights into domain-related information.',
+    url: '/',
+  },
+  alternates: {
+    canonical: '/',
+  },
 };
 
 type RootLayoutProps = {
