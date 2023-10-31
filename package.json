@@ -33,7 +33,7 @@
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "lucide-react": "^0.288.0",
     "natural-compare-lite": "^1.4.0",
-    "next": "13.5.6",
+    "next": "14.0.1",
     "next-themes": "^0.2.1",
     "postcss": "^8.4.31",
     "punycode": "^2.3.0",
@@ -60,7 +60,7 @@
     "@types/react": "18.2.31",
     "@types/react-dom": "18.2.14",
     "eslint": "^8.52.0",
-    "eslint-config-next": "^13.5.6",
+    "eslint-config-next": "^14.0.1",
     "prettier": "^3.0.3",
     "prettier-plugin-tailwindcss": "^0.5.6",
     "typescript": "^5.2.2"
