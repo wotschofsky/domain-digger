@@ -4,7 +4,7 @@ import whoiser, { type WhoisSearchResult } from 'whoiser';
 const lookupWhois = async (domain: string) => {
   const result = await whoiser(domain, {
     raw: true,
-    timeout: 3000,
+    timeout: 5000,
   });
 
   const mappedResults: Record<string, string> = {};
@@ -24,15 +24,22 @@ type WhoisResultsPageProps = {
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   params: { domain },
 }) => {
-  const data = await lookupWhois(domain);
+  const results = await lookupWhois(domain);
+  const filteredResults = Object.entries(results).filter(([_key, value]) =>
+    Boolean(value)
+  );
+
+  if (filteredResults.length === 0) {
+    throw new Error('No results found');
+  }
 
   return (
     <>
-      {Object.keys(data).map((key) => (
+      {filteredResults.map(([key, value]) => (
         <Fragment key={key}>
           <h2 className="mb-4 mt-8 text-3xl font-bold tracking-tight">{key}</h2>
           <code>
-            {data[key].split('\n').map((line, index) => (
+            {value.split('\n').map((line, index) => (
               <p key={index}>{line}</p>
             ))}
           </code>
