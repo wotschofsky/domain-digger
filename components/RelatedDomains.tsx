@@ -23,13 +23,13 @@ const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
   }
 
   return (
-    <div className="my-4 flex gap-4">
+    <div className="my-4 flex flex-wrap gap-4">
       {domains.map((domain) => (
         <Button
           key={domain}
           asChild
           variant="secondary"
-          className="h-6 p-2 text-xs"
+          className="h-6 whitespace-nowrap p-2 text-xs"
         >
           <Link href={`/lookup/${domain}`}>{domain}</Link>
         </Button>
