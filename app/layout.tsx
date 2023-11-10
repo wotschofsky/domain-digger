@@ -21,6 +21,7 @@ export const metadata = {
   alternates: {
     canonical: '/',
   },
+  robots: 'index, follow',
 };
 
 type RootLayoutProps = {
