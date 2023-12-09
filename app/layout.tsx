@@ -1,3 +1,4 @@
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { FC, ReactNode } from 'react';
 
 import Footer from '@/components/Footer';
@@ -41,6 +42,8 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
             <Footer />
           </div>
         </Providers>
+
+        <SpeedInsights />
       </body>
     </html>
   );
