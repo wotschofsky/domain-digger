@@ -20,6 +20,7 @@ import {
 const BookmarkletLink = () => {
   const [target, setTarget] = useState('');
   const [isOpen, setOpen] = useState(false);
+  const [isActivated, setActivated] = useState(false);
 
   useEffect(() => {
     const rawScript = `
@@ -47,12 +48,37 @@ const BookmarkletLink = () => {
     [setOpen]
   );
 
+  const mouseDownHandler = useCallback<
+    MouseEventHandler<HTMLAnchorElement>
+  >(() => {
+    setActivated(true);
+  }, [setActivated]);
+
+  useEffect(() => {
+    const handler = () => {
+      setActivated(false);
+    };
+
+    window.addEventListener('mouseup', handler);
+    window.addEventListener('dragend', handler);
+
+    return () => {
+      window.removeEventListener('mouseup', handler);
+      window.removeEventListener('dragend', handler);
+    };
+  });
+
   return (
     <>
       <div className="flex justify-center">
         {target ? (
-          <a className="text-center" href={target} onClick={clickHandler}>
-            Inspect Domain
+          <a
+            className="text-center"
+            href={target}
+            onClick={clickHandler}
+            onMouseDown={mouseDownHandler}
+          >
+            {isActivated ? 'Inspect Domain' : 'Bookmarklet'}
           </a>
         ) : (
           <span className="text-center">Loading...</span>

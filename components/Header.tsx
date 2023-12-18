@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import LogoDark from '@/assets/logo-dark.svg';
 import LogoLight from '@/assets/logo-light.svg';
+import BookmarkletLink from '@/components/BookmarkletLink';
 import ThemeMenu from '@/components/ThemeMenu';
 
 const Header = () => (
@@ -12,7 +13,11 @@ const Header = () => (
         <LogoLight className="hidden h-6 dark:inline" />
         Domain Digger
       </Link>
-      <ThemeMenu />
+
+      <div className="flex items-center justify-between gap-4">
+        <BookmarkletLink />
+        <ThemeMenu />
+      </div>
     </div>
   </header>
 );
