@@ -9,6 +9,8 @@ import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+import { cn } from '@/lib/utils';
+
 enum FormStates {
   Initial,
   Submitting,
@@ -16,6 +18,7 @@ enum FormStates {
 }
 
 type SearchFormProps = {
+  textAlignment: 'left' | 'center';
   initialValue?: string;
   autofocus?: boolean;
 };
@@ -96,11 +99,19 @@ const SearchForm = (props: SearchFormProps) => {
       </form>
 
       {error ? (
-        <p className="mt-2 text-center text-sm text-red-600">
-          An error occured! Please check your input or try again later.
+        <p
+          className={cn('mt-2 text-sm text-red-600', {
+            'text-center': props.textAlignment === 'center',
+          })}
+        >
+          An error occurred! Please check your input or try again later.
         </p>
       ) : (
-        <p className="mt-2 text-center text-sm text-muted-foreground">
+        <p
+          className={cn('mt-2 text-sm text-muted-foreground', {
+            'text-center': props.textAlignment === 'center',
+          })}
+        >
           It can be anything! An apex, subdomain, or even a URL.
         </p>
       )}
