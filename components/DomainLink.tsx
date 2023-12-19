@@ -34,7 +34,11 @@ const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <a href={`https://${domain}`} target="_blank" rel="noreferrer">
+            <a
+              href={`https://${domain}`}
+              target="_blank"
+              rel="noreferrer nofollow"
+            >
               <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
             </a>
           </TooltipTrigger>

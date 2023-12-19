@@ -54,7 +54,7 @@ const LookupLayout: FC<LookupLayoutProps> = ({
             className="block text-4xl font-bold"
             href={`https://${domain}`}
             target="_blank"
-            rel="noreferrer"
+            rel="noreferrer nofollow"
           >
             {domain} <ExternalLinkIcon className="inline-block" />
           </a>
