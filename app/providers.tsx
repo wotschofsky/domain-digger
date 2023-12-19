@@ -1,7 +1,7 @@
 'use client';
 
 import { ThemeProvider } from 'next-themes';
-import type { FC, ReactNode } from 'react';
+import { type FC, type ReactNode, Suspense } from 'react';
 import { SWRConfig } from 'swr';
 
 import Analytics from '@/components/Analytics';
@@ -15,7 +15,10 @@ const Providers: FC<ProvidersProps> = ({ children }) => (
     <SWRConfig
       value={{ fetcher: (url) => fetch(url).then((res) => res.json()) }}
     >
-      <Analytics />
+      <Suspense>
+        <Analytics />
+      </Suspense>
+
       {children}
     </SWRConfig>
   </ThemeProvider>
