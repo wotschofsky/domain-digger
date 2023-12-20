@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { type FC, type ReactNode, Suspense } from 'react';
 
 import RelatedDomains from '@/components/RelatedDomains';
@@ -8,6 +9,7 @@ import SearchForm from '@/components/SearchForm';
 import WhoisQuickInfo, {
   WhoisQuickInfoPlaceholder,
 } from '@/components/WhoisQuickInfo';
+import isValidDomain from '@/utils/isValidDomain';
 
 type LookupLayoutProps = {
   children: ReactNode;
@@ -37,6 +39,10 @@ const LookupLayout: FC<LookupLayoutProps> = ({
   children,
   params: { domain },
 }) => {
+  if (!isValidDomain(domain)) {
+    return notFound();
+  }
+
   return (
     <>
       <div className="container mb-8 max-w-xl">
