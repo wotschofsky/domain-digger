@@ -1,6 +1,7 @@
-import isValidDomain from 'is-valid-domain';
 import { FC } from 'react';
 import whoiser, { type WhoisSearchResult } from 'whoiser';
+
+import isValidDomain from '@/utils/isValidDomain';
 
 import { Skeleton } from './ui/skeleton';
 

@@ -29,7 +29,6 @@
     "clsx": "^2.0.0",
     "dataloader": "^2.2.2",
     "dns-packet": "^5.6.1",
-    "is-valid-domain": "^0.1.6",
     "leaflet": "^1.9.4",
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "lucide-react": "^0.294.0",

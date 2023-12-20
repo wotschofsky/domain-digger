@@ -9,18 +9,25 @@ type RelatedDomainsProps = {
   domain: string;
 };
 
-const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
+const getRecommendations = (original: string) => {
   const domains = [];
 
   const splitOriginal = original.split('.');
-  for (let i = 1; i < splitOriginal.length - 1; i++) {
+  for (let i = 0; i < splitOriginal.length; i++) {
     const domain = splitOriginal.slice(i).join('.');
+    if (domain === original) continue;
     domains.push(domain);
   }
 
-  if (!original.startsWith('www.')) {
+  if (!original.startsWith('www.') && splitOriginal.length >= 2) {
     domains.unshift(`www.${original}`);
   }
+
+  return domains;
+};
+
+const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
+  const domains = getRecommendations(original);
 
   return (
     <div className="my-4 flex flex-wrap gap-4">

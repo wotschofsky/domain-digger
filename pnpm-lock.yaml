@@ -50,9 +50,6 @@ dependencies:
   dns-packet:
     specifier: ^5.6.1
     version: 5.6.1
-  is-valid-domain:
-    specifier: ^0.1.6
-    version: 0.1.6
   leaflet:
     specifier: ^1.9.4
     version: 1.9.4
@@ -4082,12 +4079,6 @@ packages:
     dependencies:
       which-typed-array: 1.1.13
     dev: true
-
-  /is-valid-domain@0.1.6:
-    resolution: {integrity: sha512-ZKtq737eFkZr71At8NxOFcP9O1K89gW3DkdrGMpp1upr/ueWjj+Weh4l9AI4rN0Gt8W2M1w7jrG2b/Yv83Ljpg==}
-    dependencies:
-      punycode: 2.3.1
-    dev: false
 
   /is-weakmap@2.0.1:
     resolution: {integrity: sha512-NSBR4kH5oVj1Uwvv970ruUkCV7O1mzgVFO4/rev2cLRda9Tm9HrL70ZPut4rOHgY0FNrUu9BCbXA2sdQ+x0chA==}
