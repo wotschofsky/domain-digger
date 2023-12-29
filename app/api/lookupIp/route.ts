@@ -1,6 +1,6 @@
-import dns from 'dns';
-import { promisify } from 'util';
 import isIP from 'validator/lib/isIP';
+
+export const runtime = 'edge';
 
 export type IpLookupResponse = {
   city: string;
@@ -15,6 +15,64 @@ export type IpLookupResponse = {
 };
 
 export type IpLookupErrorResponse = { error: true; message: string };
+
+const getIpDetails = async (ip: string) => {
+  const response = await fetch(`http://ip-api.com/json/${ip}`);
+
+  if (!response.ok)
+    throw new Error(`Error fetching IP details: ${response.statusText}`);
+
+  const data = (await response.json()) as Record<string, any>;
+  delete data.status;
+
+  return data;
+};
+
+const ipv4ToDnsName = (ipv4: string) =>
+  ipv4.split('.').reverse().join('.') + '.in-addr.arpa';
+
+const ipv6ToDnsName = (ipv6: string) => {
+  const segments = ipv6.split(':');
+  const missingSegments = 8 - segments.length + (ipv6.includes('::') ? 1 : 0);
+  const expandedSegments = segments.map((segment) => segment.padStart(4, '0'));
+  for (let i = 0; i < missingSegments; i++) {
+    expandedSegments.splice(segments.indexOf(''), 0, '0000');
+  }
+  const fullAddress = expandedSegments.join('');
+
+  return (
+    fullAddress
+      .split('')
+      .reverse()
+      .join('.')
+      .replace(/:/g, '')
+      .split('.')
+      .filter((x) => x)
+      .join('.') + '.ip6.arpa'
+  );
+};
+
+const lookupReverse = async (ip: string): Promise<string[]> => {
+  const reverseDnsName = ip.includes(':')
+    ? ipv6ToDnsName(ip)
+    : ipv4ToDnsName(ip);
+
+  const response = await fetch(
+    `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
+    {
+      headers: { Accept: 'application/dns-json' },
+    }
+  );
+
+  if (!response.ok)
+    throw new Error(`Error fetching DNS records: ${response.statusText}`);
+
+  const data = await response.json();
+
+  return data.Answer
+    ? data.Answer.map((record: { data: string }) => record.data)
+    : [];
+};
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -35,16 +93,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const url = `http://ip-api.com/json/${ip}`;
-  const response = await fetch(url);
-  const data = (await response.json()) as Record<string, any>;
-
-  let reverse: string[] = [];
-  try {
-    reverse = await promisify(dns.reverse)(ip);
-  } catch (error) {
-    console.error(error);
-  }
+  const [data, reverse] = await Promise.all([
+    getIpDetails(ip),
+    lookupReverse(ip),
+  ]);
 
   return new Response(
     JSON.stringify({
