@@ -23,6 +23,10 @@ type CertsData = {
   serial_number: string;
 }[];
 
+export const runtime = 'edge';
+// crt.sh located in GB, always use LHR1 for lowest latency
+export const preferredRegion = 'lhr1';
+
 const lookupCerts = async (domain: string): Promise<CertsData> => {
   const response = await fetch(
     'https://crt.sh?' +

@@ -1,14 +1,12 @@
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { type FC, type ReactNode, Suspense } from 'react';
+import { type FC, type ReactNode } from 'react';
 
 import RelatedDomains from '@/components/RelatedDomains';
 import ResultsTabs from '@/components/ResultsTabs';
 import SearchForm from '@/components/SearchForm';
-import WhoisQuickInfo, {
-  WhoisQuickInfoPlaceholder,
-} from '@/components/WhoisQuickInfo';
+import WhoisQuickInfo from '@/components/WhoisQuickInfo';
 import isValidDomain from '@/utils/isValidDomain';
 
 type LookupLayoutProps = {
@@ -67,10 +65,7 @@ const LookupLayout: FC<LookupLayoutProps> = ({
         </h1>
 
         <RelatedDomains domain={domain} />
-        <Suspense fallback={<WhoisQuickInfoPlaceholder />}>
-          {/* TODO Add error boundary */}
-          <WhoisQuickInfo domain={domain} />
-        </Suspense>
+        <WhoisQuickInfo domain={domain} />
         <ResultsTabs domain={domain} />
 
         {children}
