@@ -70,7 +70,7 @@ const lookupReverse = async (ip: string): Promise<string[]> => {
   const data = await response.json();
 
   return data.Answer
-    ? data.Answer.map((record: { data: string }) => record.data)
+    ? data.Answer.map((record: { data: string }) => record.data.slice(0, -1))
     : [];
 };
 
