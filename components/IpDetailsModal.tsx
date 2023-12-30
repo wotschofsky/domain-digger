@@ -3,7 +3,7 @@ import type { LatLngExpression } from 'leaflet';
 import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
 import { type FC } from 'react';
-import useSWR from 'swr';
+import useSWRImmutable from 'swr/immutable';
 
 import {
   Dialog,
@@ -44,7 +44,7 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
   open,
   onOpenChange,
 }) => {
-  const { data, error } = useSWR<IpLookupResponse>(
+  const { data, error } = useSWRImmutable<IpLookupResponse>(
     open ? `/api/lookupIp?ip=${encodeURIComponent(ip)}` : null
   );
 

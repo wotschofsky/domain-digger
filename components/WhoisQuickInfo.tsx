@@ -1,7 +1,7 @@
 'use client';
 
 import type { FC } from 'react';
-import useSWR from 'swr';
+import useSWRImmutable from 'swr/immutable';
 
 import { WhoisSummaryResponse } from '@/app/lookup/[domain]/whois-summary/route';
 
@@ -12,7 +12,7 @@ type WhoisQuickInfoProps = {
 };
 
 const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
-  const { data, isLoading } = useSWR<WhoisSummaryResponse>(
+  const { data, isLoading } = useSWRImmutable<WhoisSummaryResponse>(
     `/lookup/${domain}/whois-summary`
   );
 
