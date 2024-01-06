@@ -36,15 +36,18 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
 }) => {
   const markers = await Promise.all(
     Object.entries(regions).map(async ([code, data]) => {
-      const response = await fetch(
-        `${
-          process.env.SITE_URL ||
-          process.env.VERCEL_URL ||
-          'http://localhost:3000'
-        }/lookup/${domain}/map/resolve/${code}?type=A&domain=${domain}`
-      );
+      const url = `${
+        process.env.SITE_URL ||
+        (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+        'http://localhost:3000'
+      }/lookup/${domain}/map/resolve/${code}?type=A&domain=${domain}`;
+      const response = await fetch(url);
       if (!response.ok)
-        throw new Error(`Failed to fetch ${code}, ${await response.text()}`);
+        throw new Error(
+          `Failed to fetch ${url}, Status: ${
+            response.status
+          },\n\nResponse:\n${await response.text()}`
+        );
       const results = await response.json();
 
       return {
