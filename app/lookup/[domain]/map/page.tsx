@@ -2,6 +2,8 @@ import type { FC } from 'react';
 
 import ResultsGlobe from '@/components/ResultsGlobe';
 
+import './styles.css';
+
 export const runtime = 'edge';
 
 const regions: Record<string, { name: string; lat: number; lng: number }> = {

@@ -1,0 +1,9 @@
+.scene-container,
+.scene-container > canvas {
+  width: 100% !important;
+  height: auto !important;
+}
+
+.scene-container > div:not([class]) {
+  width: 100% !important;
+}
