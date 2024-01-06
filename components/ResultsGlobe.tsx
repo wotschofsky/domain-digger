@@ -1,7 +1,9 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import type { FC } from 'react';
-import Globe from 'react-globe.gl';
+
+const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
 export const runtime = 'edge';
 
