@@ -16,7 +16,7 @@ const regions: Record<string, { name: string; lat: number; lng: number }> = {
   gru: { lat: -23.435556, lng: -46.473056, name: 'São Paulo, Brazil' },
   hkg: { lat: 22.308046, lng: 113.91848, name: 'Hong Kong, China' },
   hnd: { lat: 35.553333, lng: 139.781111, name: 'Tokyo, Japan' },
-  iad: { lat: 38.944, lng: -77.456, name: 'Dulles, USA' },
+  iad: { lat: 38.944, lng: -77.456, name: 'Washington, USA' },
   icn: { lat: 37.4625, lng: 126.439167, name: 'Seoul, South Korea' },
   kix: { lat: 34.434167, lng: 135.232778, name: 'Osaka, Japan' },
   lhr: { lat: 51.477, lng: -0.461, name: 'London, UK' },

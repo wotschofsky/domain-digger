@@ -26,7 +26,7 @@ type ResultsGlobeProps = {
 };
 
 const ResultsGlobe: FC<ResultsGlobeProps> = ({ markers }) => {
-  const { theme } = useTheme();
+  const { resolvedTheme } = useTheme();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number | undefined>(undefined);
 
@@ -50,7 +50,9 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ markers }) => {
       <Globe
         // Map from https://github.com/vasturiano/three-globe
         globeImageUrl={
-          theme === 'dark' ? '/assets/earth-night.jpg' : '/assets/earth-day.jpg'
+          resolvedTheme === 'dark'
+            ? '/assets/earth-night.jpg'
+            : '/assets/earth-day.jpg'
         }
         backgroundColor="rgba(0,0,0,0)"
         width={width}
@@ -59,7 +61,7 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ markers }) => {
         htmlElement={(d: ResultsGlobeProps['markers'][number]) => {
           const el = document.createElement('div');
           el.classList.add('marker-wrapper');
-          el.innerHTML = `<div class="bg-background p-2 rounded-lg shadow-md flex flex-col gap-2">
+          el.innerHTML = `<div class="flex flex-col gap-2 rounded-lg bg-background p-2 shadow-md">
             <h3 class="text-sm font-bold">${d.name}</h3>
             <div>
               ${d.results.A.slice(0, 4)

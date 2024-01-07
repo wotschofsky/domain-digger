@@ -63,7 +63,7 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
             }
             aria-current="page"
           >
-            Global DNS
+            DNS Map
             <span className="pointer-events-none absolute bottom-0 left-1/2 block w-full -translate-x-1/2 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
               {isAppleDevice() ? (
                 <>
