@@ -19,6 +19,8 @@ type ResultsGlobeProps = {
     lng: number;
     results: {
       A: string[];
+      AAAA: string[];
+      CNAME: string[];
     };
   }[];
 };
@@ -57,11 +59,56 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ markers }) => {
         htmlElement={(d: ResultsGlobeProps['markers'][number]) => {
           const el = document.createElement('div');
           el.classList.add('marker-wrapper');
-          el.innerHTML = `<div class="bg-background p-2 rounded-lg shadow-md">
-            <h3 class="text-sm font-bold mb-2">${d.name}</h3>
-            ${d.results.A.map(
-              (ip) => `<p class="text-xs text-muted-foreground">${ip}</p>`
-            ).join('')}
+          el.innerHTML = `<div class="bg-background p-2 rounded-lg shadow-md flex flex-col gap-2">
+            <h3 class="text-sm font-bold">${d.name}</h3>
+            <div>
+              ${d.results.A.slice(0, 4)
+                .map(
+                  (value) =>
+                    `<p class="text-xs text-muted-foreground">${value}</p>`
+                )
+                .join('')}
+              ${
+                d.results.A.length > 4
+                  ? `<p class="text-xs text-muted-foreground italic">and ${
+                      d.results.A.length - 4
+                    } more</p>`
+                  : ''
+              }
+            </div>
+
+            <div>
+              ${d.results.AAAA.slice(0, 4)
+                .map(
+                  (value) =>
+                    `<p class="text-xs text-muted-foreground">${value}</p>`
+                )
+                .join('')}
+              ${
+                d.results.AAAA.length > 4
+                  ? `<p class="text-xs text-muted-foreground italic">and ${
+                      d.results.AAAA.length - 4
+                    } more</p>`
+                  : ''
+              }
+            </div>
+
+
+            <div>
+              ${d.results.CNAME.slice(0, 4)
+                .map(
+                  (value) =>
+                    `<p class="text-xs text-muted-foreground">${value}</p>`
+                )
+                .join('')}
+              ${
+                d.results.CNAME.length > 4
+                  ? `<p class="text-xs text-muted-foreground italic">and ${
+                      d.results.CNAME.length - 4
+                    } more</p>`
+                  : ''
+              }
+            </div>
           </div>`;
           return el;
         }}

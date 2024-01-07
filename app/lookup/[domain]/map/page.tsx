@@ -41,18 +41,24 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
         process.env.SITE_URL ||
         (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
         'http://localhost:3000'
-      }/api/internal/resolve/${code}?type=A&domain=${domain}`;
+      }/api/internal/resolve/${code}?type=A&type=AAAA&type=CNAME&domain=${domain}`;
       const response = await fetch(url);
       if (!response.ok)
         throw new Error(
           `Failed to fetch results for ${code} from ${url}: ${response.status} ${response.statusText}`
         );
-      const results = (await response.json()) as RawRecord[];
+      const results = (await response.json()) as {
+        A: RawRecord[];
+        AAAA: RawRecord[];
+        CNAME: RawRecord[];
+      };
 
       return {
         ...data,
         results: {
-          A: results.map((r) => r.data),
+          A: results.A.map((r) => r.data),
+          AAAA: results.AAAA.map((r) => r.data),
+          CNAME: results.CNAME.map((r) => r.data),
         },
       };
     })
