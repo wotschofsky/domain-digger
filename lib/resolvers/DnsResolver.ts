@@ -1,4 +1,4 @@
-const RECORD_TYPES = [
+export const RECORD_TYPES = [
   'A',
   'AAAA',
   'CAA',
@@ -13,6 +13,22 @@ const RECORD_TYPES = [
   'SRV',
   'TXT',
 ] as const;
+
+export const RECORD_TYPES_BY_DECIMAL = {
+  1: 'A',
+  28: 'AAAA',
+  257: 'CAA',
+  5: 'CNAME',
+  48: 'DNSKEY',
+  43: 'DS',
+  15: 'MX',
+  35: 'NAPTR',
+  2: 'NS',
+  12: 'PTR',
+  6: 'SOA',
+  33: 'SRV',
+  16: 'TXT',
+} as const;
 
 export type RecordType = (typeof RECORD_TYPES)[number];
 
