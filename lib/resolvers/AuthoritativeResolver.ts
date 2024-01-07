@@ -7,34 +7,9 @@ import dnsPacket, {
 } from 'dns-packet';
 import dgram from 'node:dgram';
 
-const RECORD_TYPES = [
-  'A',
-  'AAAA',
-  'CAA',
-  'CNAME',
-  'DNSKEY',
-  'DS',
-  'MX',
-  'NAPTR',
-  'NS',
-  'PTR',
-  'SOA',
-  'SRV',
-  'TXT',
-] as const;
+import DnsResolver, { type RawRecord, type RecordType } from './DnsResolver';
 
-export type RecordType = (typeof RECORD_TYPES)[number];
-
-export type RawRecord = {
-  name: string;
-  type: RecordType;
-  TTL: number;
-  data: string;
-};
-
-export type ResolvedRecords = Record<string, RawRecord[]>;
-
-class DnsLookup {
+class AuthoritativeResolver extends DnsResolver {
   private async getRootServers() {
     const response = await fetch('https://www.internic.net/domain/named.root', {
       next: {
@@ -223,19 +198,12 @@ class DnsLookup {
     return [];
   }
 
-  public async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
-    const results = await Promise.all(
-      RECORD_TYPES.map((type) => this.fetchRecords(domain, type))
-    );
-
-    return RECORD_TYPES.reduce(
-      (res, type, index) => ({
-        ...res,
-        [type]: results[index],
-      }),
-      {} as ResolvedRecords
-    );
+  public async resolveRecordType(
+    domain: string,
+    type: RecordType
+  ): Promise<RawRecord[]> {
+    return this.fetchRecords(domain, type);
   }
 }
 
-export default DnsLookup;
+export default AuthoritativeResolver;

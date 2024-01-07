@@ -5,7 +5,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 
 import DomainLink from '@/components/DomainLink';
 import IpLink from '@/components/IpLink';
-import { RawRecord } from '@/utils/DnsLookup';
+import type { RawRecord } from '@/lib/resolvers/DnsResolver';
 
 const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const IPV4_REGEX = /(\d{1,3}\.){3}\d{1,3}/g;

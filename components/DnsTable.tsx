@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 
 import RecordRow from '@/components/RecordRow';
-import { ResolvedRecords } from '@/utils/DnsLookup';
+import type { ResolvedRecords } from '@/lib/resolvers/DnsResolver';
 
 type DnsTableProps = {
   records: ResolvedRecords;

@@ -1,7 +1,7 @@
 import type { FC } from 'react';
 
 import DnsTable from '@/components/DnsTable';
-import DnsLookup from '@/utils/DnsLookup';
+import AuthoritativeResolver from '@/lib/resolvers/AuthoritativeResolver';
 
 type LookupDomainProps = {
   params: {
@@ -12,7 +12,7 @@ type LookupDomainProps = {
 export const fetchCache = 'default-no-store';
 
 const LookupDomain: FC<LookupDomainProps> = async ({ params: { domain } }) => {
-  const lookup = new DnsLookup();
+  const lookup = new AuthoritativeResolver();
   const records = await lookup.resolveAllRecords(domain);
 
   return (
