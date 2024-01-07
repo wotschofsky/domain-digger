@@ -111,6 +111,16 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ markers }) => {
                   : ''
               }
             </div>
+
+            ${
+              d.results.A.length === 0 &&
+              d.results.AAAA.length === 0 &&
+              d.results.CNAME.length === 0
+                ? `
+                  <p class="text-xs text-muted-foreground italic">No records found!</p>
+                `
+                : ''
+            }
           </div>`;
           return el;
         }}
