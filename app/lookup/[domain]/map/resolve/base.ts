@@ -1,3 +1,5 @@
+import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
+
 export const handler = async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
@@ -18,13 +20,8 @@ export const handler = async (request: Request) => {
     );
   }
 
-  const response = await fetch(
-    `https://cloudflare-dns.com/dns-query?name=${domain}&type=${type}`,
-    {
-      headers: { Accept: 'application/dns-json' },
-    }
-  );
-  const results = await response.json();
+  const lookup = new CloudflareDoHResolver();
+  const records = await lookup.resolveRecordType(domain, 'A');
 
-  return Response.json(results.Answer.map((a: { data: string }) => a.data));
+  return Response.json(records);
 };

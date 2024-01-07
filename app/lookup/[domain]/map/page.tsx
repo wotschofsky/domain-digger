@@ -1,6 +1,7 @@
 import type { FC } from 'react';
 
 import ResultsGlobe from '@/components/ResultsGlobe';
+import { RawRecord } from '@/lib/resolvers/DnsResolver';
 
 import './styles.css';
 
@@ -46,16 +47,14 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
       const response = await fetch(url);
       if (!response.ok)
         throw new Error(
-          `Failed to fetch ${url}, Status: ${
-            response.status
-          },\n\nResponse:\n${await response.text()}`
+          `Failed to fetch results for ${code} from ${url}: ${response.status} ${response.statusText}`
         );
-      const results = await response.json();
+      const results = (await response.json()) as RawRecord[];
 
       return {
         ...data,
         results: {
-          A: results as string[],
+          A: results.map((r) => r.data),
         },
       };
     })
