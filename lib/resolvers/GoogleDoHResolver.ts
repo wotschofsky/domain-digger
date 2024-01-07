@@ -45,17 +45,22 @@ export default class GoogleDoHResolver extends DnsResolver {
       throw new Error(`Bad response from Google: ${response.statusText}`);
     const results = (await response.json()) as DoHResponse;
 
-    return (
-      results.Answer?.map((answer) => ({
-        name: answer.name,
-        type:
-          answer.type in RECORD_TYPES_BY_DECIMAL
-            ? // @ts-expect-error
-              RECORD_TYPES_BY_DECIMAL[answer.type]
-            : 'UNKNOWN',
-        TTL: answer.TTL,
-        data: answer.data,
-      })) || []
+    if (!results.Answer) {
+      return [];
+    }
+
+    const filteredAnswers = results.Answer.filter(
+      (answer) =>
+        answer.type in RECORD_TYPES_BY_DECIMAL &&
+        // @ts-expect-error
+        RECORD_TYPES_BY_DECIMAL[answer.type] === type
     );
+
+    return filteredAnswers.map((answer) => ({
+      name: answer.name,
+      type,
+      TTL: answer.TTL,
+      data: answer.data,
+    }));
   }
 }
