@@ -41,7 +41,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
         process.env.SITE_URL ||
         (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
         'http://localhost:3000'
-      }/lookup/${domain}/map/resolve/${code}?type=A&domain=${domain}`;
+      }/api/internal/resolve/${code}?type=A&domain=${domain}`;
       const response = await fetch(url);
       if (!response.ok)
         throw new Error(
