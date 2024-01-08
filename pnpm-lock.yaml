@@ -53,6 +53,9 @@ dependencies:
   dns-packet:
     specifier: ^5.6.1
     version: 5.6.1
+  hyperscript:
+    specifier: ^2.0.2
+    version: 2.0.2
   leaflet:
     specifier: ^1.9.4
     version: 1.9.4
@@ -130,6 +133,9 @@ devDependencies:
   '@types/dns-packet':
     specifier: ^5.6.4
     version: 5.6.4
+  '@types/hyperscript':
+    specifier: ^0.0.7
+    version: 0.0.7
   '@types/leaflet':
     specifier: ^1.9.8
     version: 1.9.8
@@ -2602,6 +2608,10 @@ packages:
     resolution: {integrity: sha512-bmrNrgKMOhM3WsafmbGmC+6dsF2Z308vLFsQ3a/bT8X8Sv5clVYpPars/UPq+sAaJP+5OoLAYgwbkS5QEJdLUQ==}
     dev: true
 
+  /@types/hyperscript@0.0.7:
+    resolution: {integrity: sha512-lkaeD+u14AQFB0kmVZk53lJHIGVtEnnXSsQuPsTSmxZ/A3Oey1Bj5j5shdNmmDBsBG+EL4YmtvCcBS9scs1eBg==}
+    dev: true
+
   /@types/json5@0.0.29:
     resolution: {integrity: sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==}
     dev: true
@@ -2982,6 +2992,10 @@ packages:
     dependencies:
       fill-range: 7.0.1
 
+  /browser-split@0.0.0:
+    resolution: {integrity: sha512-CNXO3AXAS1H/kOGQkPjucm1161/XoF3aVkMfujqwk85XN/D/MkQMvoB81lXyX/2rerZS+hPAYYRR3mAW05awjQ==}
+    dev: false
+
   /browserslist@4.22.2:
     resolution: {integrity: sha512-0UgcrvQmBDvZHFGdYUehrCNIazki7/lUP3kkoi/r3YB2amZbFM9J43ZRkJTXBUZK4gmx56+Sqk9+Vs9mwZx9+A==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
@@ -3054,6 +3068,12 @@ packages:
       readdirp: 3.6.0
     optionalDependencies:
       fsevents: 2.3.3
+    dev: false
+
+  /class-list@0.1.1:
+    resolution: {integrity: sha512-zqR0uW+VsLtyQhixBhkdQ+z6B8+Y8HTh28kdSVjJ4zTTKM7Xz2asAQSya9VI6m/34F6N6Ktm0mrchKB+E5a8Xw==}
+    dependencies:
+      indexof: 0.0.1
     dev: false
 
   /class-variance-authority@0.7.0:
@@ -4120,6 +4140,21 @@ packages:
     dependencies:
       function-bind: 1.1.2
 
+  /html-element@2.3.1:
+    resolution: {integrity: sha512-xnFt2ZkbFcjc+JoAtg3Hl89VeEZDjododu4VCPkRvFmBTHHA9U1Nt6hLUWfW2O+6Sl/rT1hHK/PivleX3PdBJQ==}
+    engines: {node: '>=4.2'}
+    dependencies:
+      class-list: 0.1.1
+    dev: false
+
+  /hyperscript@2.0.2:
+    resolution: {integrity: sha512-uggBAYfHFC5WyZQXlJ61BNZbPmJbschcvfYNhYdZWCp+0J8KYb5Du8nQuk8Ru+ThoCNb01B0tPtnTRqnrFBkVg==}
+    dependencies:
+      browser-split: 0.0.0
+      class-list: 0.1.1
+      html-element: 2.3.1
+    dev: false
+
   /ignore@5.3.0:
     resolution: {integrity: sha512-g7dmpshy+gD7mh88OC9NwSGTKoc3kyLAZQRU1mt53Aw/vnvfXnbC+F/7F7QoYVKbV+KNvJx8wArewKy1vXMtlg==}
     engines: {node: '>= 4'}
@@ -4141,6 +4176,10 @@ packages:
   /index-array-by@1.4.1:
     resolution: {integrity: sha512-Zu6THdrxQdyTuT2uA5FjUoBEsFHPzHcPIj18FszN6yXKHxSfGcR4TPLabfuT//E25q1Igyx9xta2WMvD/x9P/g==}
     engines: {node: '>=12'}
+    dev: false
+
+  /indexof@0.0.1:
+    resolution: {integrity: sha512-i0G7hLJ1z0DE8dsqJa2rycj9dBmNKgXBvotXtZYXakU9oivfB9Uj2ZBC27qqef2U58/ZLwalxa1X/RDCdkHtVg==}
     dev: false
 
   /inflight@1.0.6:
