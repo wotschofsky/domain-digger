@@ -37,6 +37,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
 
       return {
         ...data,
+        code,
         results: {
           A: results.A.map((r) => r.data),
           AAAA: results.AAAA.map((r) => r.data),
@@ -46,7 +47,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
     })
   );
 
-  return <ResultsGlobe markers={markers} />;
+  return <ResultsGlobe domain={domain} markers={markers} />;
 };
 
 export default MapResultsPage;
