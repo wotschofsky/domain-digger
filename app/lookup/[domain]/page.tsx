@@ -37,22 +37,24 @@ const LookupDomain: FC<LookupDomainProps> = async ({
   const lookup = new Resolver();
   const records = await lookup.resolveAllRecords(domain);
 
+  const hasResults =
+    Object.values(records)
+      .map((r) => r.length)
+      .reduce((prev, curr) => prev + curr, 0) > 0;
+
   return (
     <>
-      {Object.values(records)
-        .map((r) => r.length)
-        .reduce((prev, curr) => prev + curr, 0) === 0 ? (
-        <p className="mt-8 text-center text-muted-foreground">
+      <div className="flex flex-col gap-1">
+        <span className="text-sm text-muted-foreground">Resolver</span>
+        <ResolverSelector initialValue={resolverName} />
+      </div>
+
+      {hasResults ? (
+        <DnsTable records={records} />
+      ) : (
+        <p className="mt-24 text-center text-muted-foreground">
           No DNS records found!
         </p>
-      ) : (
-        <div>
-          <div className="flex flex-col gap-1">
-            <span className="text-sm text-muted-foreground">Resolver</span>
-            <ResolverSelector initialValue={resolverName} />
-          </div>
-          <DnsTable records={records} />
-        </div>
       )}
     </>
   );
