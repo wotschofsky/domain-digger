@@ -11,11 +11,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-type ResolverSelectorProps = {
+import { REGIONS } from '@/lib/data';
+
+type LocationSelectorProps = {
   initialValue?: string;
+  disabled?: boolean;
 };
 
-const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
+const LocationSelector: FC<LocationSelectorProps> = ({
+  initialValue,
+  disabled,
+}) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -24,10 +30,10 @@ const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
     (value: string) => {
       const current = new URLSearchParams(Array.from(searchParams.entries()));
 
-      if (!value || value === 'authoritative') {
-        current.delete('resolver');
+      if (!value || value === 'auto') {
+        current.delete('location');
       } else {
-        current.set('resolver', value);
+        current.set('location', value);
       }
 
       const search = current.toString();
@@ -38,23 +44,27 @@ const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-sm text-muted-foreground">Resolver</span>
+      <span className="text-sm text-muted-foreground">Location</span>
 
       <Select
-        defaultValue={initialValue || 'authoritative'}
+        defaultValue={initialValue || 'auto'}
         onValueChange={onValueChange}
+        disabled={disabled}
       >
         <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Resolver" />
+          <SelectValue placeholder="Location" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="authoritative">Authoritative</SelectItem>
-          <SelectItem value="google">Google</SelectItem>
-          <SelectItem value="cloudflare">Cloudflare</SelectItem>
+          <SelectItem value="auto">Auto</SelectItem>
+          {Object.entries(REGIONS).map(([id, details]) => (
+            <SelectItem key={id} value={id}>
+              {details.name}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
     </div>
   );
 };
 
-export default ResolverSelector;
+export default LocationSelector;
