@@ -1,6 +1,7 @@
 'use client';
 
 import h from 'hyperscript';
+import naturalCompare from 'natural-compare-lite';
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
@@ -74,10 +75,12 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
               d.results.A.length
                 ? h(
                     'div',
-                    d.results.A.slice(0, 4).map((value) =>
-                      h('p.text-xs.text-muted-foreground', value)
-                    ),
-                    d.results.A.length > 4
+                    d.results.A.sort(naturalCompare)
+                      .slice(0, d.results.A.length > 5 ? 4 : 5)
+                      .map((value) =>
+                        h('p.text-xs.text-muted-foreground', value)
+                      ),
+                    d.results.A.length > 5
                       ? h(
                           'p.text-xs.text-muted-foreground.italic',
                           `and ${d.results.A.length - 4} more`
@@ -89,10 +92,12 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
               d.results.AAAA.length
                 ? h(
                     'div',
-                    d.results.AAAA.slice(0, 4).map((value) =>
-                      h('p.text-xs.text-muted-foreground', value)
-                    ),
-                    d.results.AAAA.length > 4
+                    d.results.AAAA.sort(naturalCompare)
+                      .slice(0, d.results.AAAA.length > 5 ? 4 : 5)
+                      .map((value) =>
+                        h('p.text-xs.text-muted-foreground', value)
+                      ),
+                    d.results.AAAA.length > 5
                       ? h(
                           'p.text-xs.text-muted-foreground.italic',
                           `and ${d.results.AAAA.length - 4} more`
@@ -104,10 +109,12 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
               d.results.CNAME.length
                 ? h(
                     'div',
-                    d.results.CNAME.slice(0, 4).map((value) =>
-                      h('p.text-xs.text-muted-foreground', value)
-                    ),
-                    d.results.CNAME.length > 4
+                    d.results.CNAME.sort(naturalCompare)
+                      .slice(0, d.results.CNAME.length > 5 ? 4 : 5)
+                      .map((value) =>
+                        h('p.text-xs.text-muted-foreground', value)
+                      ),
+                    d.results.CNAME.length > 5
                       ? h(
                           'p.text-xs.text-muted-foreground.italic',
                           `and ${d.results.CNAME.length - 4} more`
