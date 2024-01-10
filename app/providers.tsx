@@ -1,10 +1,9 @@
 'use client';
 
+import PlausibleProvider from 'next-plausible';
 import { ThemeProvider } from 'next-themes';
-import { type FC, type ReactNode, Suspense } from 'react';
+import { type FC, type ReactNode } from 'react';
 import { SWRConfig } from 'swr';
-
-import Analytics from '@/components/Analytics';
 
 type ProvidersProps = {
   children: ReactNode;
@@ -15,11 +14,12 @@ const Providers: FC<ProvidersProps> = ({ children }) => (
     <SWRConfig
       value={{ fetcher: (url) => fetch(url).then((res) => res.json()) }}
     >
-      <Suspense>
-        <Analytics />
-      </Suspense>
-
-      {children}
+      <PlausibleProvider
+        customDomain="https://insights.wsky.dev"
+        domain="digger.tools"
+      >
+        {children}
+      </PlausibleProvider>
     </SWRConfig>
   </ThemeProvider>
 );
