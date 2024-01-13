@@ -1,4 +1,5 @@
 import type { DialogProps } from '@radix-ui/react-dialog';
+import { useWindowSize } from '@uidotdev/usehooks';
 import type { LatLngExpression } from 'leaflet';
 import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
@@ -12,12 +13,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from '@/components/ui/drawer';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/lookupIp/route';
 import CopyButton from '@/components/CopyButton';
 import DomainLink from '@/components/DomainLink';
+
+import { Button } from './ui/button';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,
@@ -44,6 +57,8 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
   open,
   onOpenChange,
 }) => {
+  const { width: windowWidth } = useWindowSize();
+
   const { data, error } = useSWRImmutable<IpLookupResponse>(
     open ? `/api/lookupIp?ip=${encodeURIComponent(ip)}` : null
   );
@@ -96,51 +111,65 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
     location = [data.lat, data.lon];
   }
 
+  const title = `IP Details for ${ip}`;
+  const content = !data ? (
+    <div className="flex items-center justify-center">
+      <Spinner />
+    </div>
+  ) : error ? (
+    <p>An error occurred!</p>
+  ) : (
+    <>
+      <Table>
+        <TableBody>
+          {mappedEntries.map((el) => (
+            <TableRow
+              key={el.label + el.value}
+              className="hover:bg-transparent"
+            >
+              <TableCell className="pl-0">{el.label}</TableCell>
+              <TableCell className="pr-0">
+                {el.type === EntryTypes.Reverse ? (
+                  <DomainLink domain={el.value} />
+                ) : (
+                  <>
+                    <span>{el.value}</span>
+                    {el.type === EntryTypes.IP && (
+                      <CopyButton value={el.value} />
+                    )}
+                  </>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <div className="my-4 [&_.leaflet-container]:h-80 [&_.leaflet-container]:w-full">
+        <LocationMap location={location} />
+      </div>
+    </>
+  );
+
+  if (windowWidth && windowWidth < 640) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>{title}</DrawerTitle>
+            <DrawerDescription>{content}</DrawerDescription>
+          </DrawerHeader>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
   return (
     <Dialog modal open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>IP Details for {ip}</DialogTitle>
-          <DialogDescription>
-            {!data ? (
-              <div className="flex items-center justify-center">
-                <Spinner />
-              </div>
-            ) : error ? (
-              <p>An error occurred!</p>
-            ) : (
-              <>
-                <Table>
-                  <TableBody>
-                    {mappedEntries.map((el) => (
-                      <TableRow
-                        key={el.label + el.value}
-                        className="hover:bg-transparent"
-                      >
-                        <TableCell className="pl-0">{el.label}</TableCell>
-                        <TableCell className="pr-0">
-                          {el.type === EntryTypes.Reverse ? (
-                            <DomainLink domain={el.value} />
-                          ) : (
-                            <>
-                              <span>{el.value}</span>
-                              {el.type === EntryTypes.IP && (
-                                <CopyButton value={el.value} />
-                              )}
-                            </>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                <div className="my-4 [&_.leaflet-container]:h-80 [&_.leaflet-container]:w-full">
-                  <LocationMap location={location} />
-                </div>
-              </>
-            )}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{content}</DialogDescription>
         </DialogHeader>
       </DialogContent>
     </Dialog>
