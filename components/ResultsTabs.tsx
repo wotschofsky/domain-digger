@@ -54,6 +54,9 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   useHotkeys('alt+2', () => router.push(`/lookup/${domain}/map`), [router]);
   useHotkeys('alt+3', () => router.push(`/lookup/${domain}/whois`), [router]);
   useHotkeys('alt+4', () => router.push(`/lookup/${domain}/certs`), [router]);
+  useHotkeys('alt+5', () => router.push(`/lookup/${domain}/subdomains`), [
+    router,
+  ]);
 
   return (
     <div className="group mb-6 mt-6 border-b border-gray-200 text-center text-sm font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400">
@@ -81,6 +84,12 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           href={`/lookup/${domain}/certs`}
           selected={selectedSegment === 'certs'}
           shortcutNumber={4}
+        />
+        <SingleTab
+          label="Subdomains"
+          href={`/lookup/${domain}/subdomains`}
+          selected={selectedSegment === 'subdomains'}
+          shortcutNumber={5}
         />
       </ul>
     </div>
