@@ -97,7 +97,7 @@ class AuthoritativeResolver extends DnsResolver {
             `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out`
           )
         );
-      }, 4000);
+      }, 5000);
 
       socket.on('message', (message: Buffer) => {
         socket.close();
