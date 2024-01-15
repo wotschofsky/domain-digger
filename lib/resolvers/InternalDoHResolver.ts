@@ -38,17 +38,25 @@ export default class InternalDoHResolver extends DnsResolver {
     super();
   }
 
+  private getBaseUrl(location: string) {
+    const baseUrl = new URL(
+      process.env.SITE_URL ||
+        (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+        'http://localhost:3000'
+    );
+    baseUrl.pathname = `/api/internal/resolve/${location}`;
+    return baseUrl;
+  }
+
   public async resolveRecordType(
     domain: string,
     type: RecordType
   ): Promise<RawRecord[]> {
-    const url = `${
-      process.env.SITE_URL ||
-      (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
-      'http://localhost:3000'
-    }/api/internal/resolve/${this.location}?resolver=${
-      this.resolver
-    }&type=${type}&domain=${encodeURIComponent(domain)}`;
+    const url = this.getBaseUrl(this.location);
+    url.searchParams.set('resolver', this.resolver);
+    url.searchParams.set('type', type);
+    url.searchParams.set('domain', domain);
+
     const response = await fetch(url);
     if (!response.ok)
       throw new Error(
@@ -61,14 +69,11 @@ export default class InternalDoHResolver extends DnsResolver {
   }
 
   public async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
-    const typesParam = RECORD_TYPES.map((type) => `type=${type}`).join('&');
-    const url = `${
-      process.env.SITE_URL ||
-      (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
-      'http://localhost:3000'
-    }/api/internal/resolve/${this.location}?resolver=${
-      this.resolver
-    }&${typesParam}&domain=${encodeURIComponent(domain)}`;
+    const url = this.getBaseUrl(this.location);
+    url.searchParams.set('resolver', this.resolver);
+    RECORD_TYPES.forEach((type) => url.searchParams.append('type', type));
+    url.searchParams.set('domain', domain);
+
     const response = await fetch(url);
     if (!response.ok)
       throw new Error(
