@@ -2,7 +2,29 @@ import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
 import { RECORD_TYPES, type RecordType } from '@/lib/resolvers/DnsResolver';
 import GoogleDoHResolver from '@/lib/resolvers/GoogleDoHResolver';
 
+if (process.env.NODE_ENV === 'production' && !process.env.INTERNAL_API_SECRET) {
+  throw new Error('INTERNAL_API_SECRET is required in production');
+}
+
 export const handler = async (request: Request) => {
+  if (
+    process.env.INTERNAL_API_SECRET &&
+    process.env.INTERNAL_API_SECRET !== request.headers.get('authorization')
+  ) {
+    return Response.json(
+      {
+        error: true,
+        message: 'Unauthorized',
+      },
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const resolverName = searchParams.get('resolver');
   const types = searchParams.getAll('type');
@@ -12,7 +34,7 @@ export const handler = async (request: Request) => {
     return Response.json(
       {
         error: true,
-        message: '"type" and "domain" params are required',
+        message: '"resolver", "type" and "domain" params are required',
       },
       {
         status: 400,

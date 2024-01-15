@@ -5,31 +5,6 @@ import DnsResolver, {
   type ResolvedRecords,
 } from './DnsResolver';
 
-type DoHResponse = {
-  Status: number;
-  TC: boolean;
-  RD: boolean;
-  RA: boolean;
-  AD: boolean;
-  CD: boolean;
-  Question: {
-    name: string;
-    type: number;
-  }[];
-  Answer?: {
-    name: string;
-    type: number;
-    TTL: number;
-    data: string;
-  }[];
-  Authority?: {
-    name: string;
-    type: number;
-    TTL: number;
-    data: string;
-  }[];
-};
-
 export default class InternalDoHResolver extends DnsResolver {
   constructor(
     private readonly location: string,
@@ -48,6 +23,18 @@ export default class InternalDoHResolver extends DnsResolver {
     return baseUrl;
   }
 
+  private get requestInit() {
+    if (!process.env.INTERNAL_API_SECRET) {
+      return {};
+    }
+
+    return {
+      headers: {
+        Authorization: process.env.INTERNAL_API_SECRET,
+      },
+    };
+  }
+
   public async resolveRecordType(
     domain: string,
     type: RecordType
@@ -57,7 +44,7 @@ export default class InternalDoHResolver extends DnsResolver {
     url.searchParams.set('type', type);
     url.searchParams.set('domain', domain);
 
-    const response = await fetch(url);
+    const response = await fetch(url, this.requestInit);
     if (!response.ok)
       throw new Error(
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`
@@ -74,7 +61,7 @@ export default class InternalDoHResolver extends DnsResolver {
     RECORD_TYPES.forEach((type) => url.searchParams.append('type', type));
     url.searchParams.set('domain', domain);
 
-    const response = await fetch(url);
+    const response = await fetch(url, this.requestInit);
     if (!response.ok)
       throw new Error(
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`

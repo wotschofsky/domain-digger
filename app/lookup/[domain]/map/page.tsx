@@ -2,7 +2,7 @@ import type { FC } from 'react';
 
 import ResultsGlobe from '@/components/ResultsGlobe';
 import { REGIONS } from '@/lib/data';
-import { RawRecord } from '@/lib/resolvers/DnsResolver';
+import InternalDoHResolver from '@/lib/resolvers/InternalDoHResolver';
 
 export const runtime = 'edge';
 
@@ -17,23 +17,9 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
 }) => {
   const markers = await Promise.all(
     Object.entries(REGIONS).map(async ([code, data]) => {
-      const url = `${
-        process.env.SITE_URL ||
-        (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
-        'http://localhost:3000'
-      }/api/internal/resolve/${code}?resolver=cloudflare&type=A&type=AAAA&type=CNAME&domain=${encodeURIComponent(
-        domain
-      )}`;
-      const response = await fetch(url);
-      if (!response.ok)
-        throw new Error(
-          `Failed to fetch results for ${code} from ${url}: ${response.status} ${response.statusText}`
-        );
-      const results = (await response.json()) as {
-        A: RawRecord[];
-        AAAA: RawRecord[];
-        CNAME: RawRecord[];
-      };
+      const resolver = new InternalDoHResolver(code, 'cloudflare');
+      // TODO Optimize this to only required records
+      const results = await resolver.resolveAllRecords(domain);
 
       return {
         ...data,
