@@ -25,7 +25,7 @@ const BookmarkletLink = () => {
   useEffect(() => {
     const rawScript = `
       (function(){
-        var tab = window.open('${location.origin}/lookup/'+location.hostname, '_blank');
+        var tab = window.open('${location.origin}/lookup/'+location.hostname+'?ref=bookmarklet', '_blank');
         if (!tab) {
           alert('Could not open results in new tab!');
           return;
