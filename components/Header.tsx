@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { FaGithub } from 'react-icons/fa';
+
+import { Button } from '@/components/ui/button';
 
 import LogoDark from '@/assets/logo-dark.svg';
 import LogoLight from '@/assets/logo-light.svg';
@@ -15,6 +18,17 @@ const Header = () => (
       </Link>
 
       <div className="flex items-center justify-between gap-4">
+        <Button variant="ghost" asChild>
+          <a
+            href="https://github.com/wotschofsky/domain-digger"
+            target="_blank"
+            rel="noopener"
+          >
+            <FaGithub className="mr-1 h-6 w-4" />
+            <span>Star</span>
+            <span className="sr-only">on GitHub</span>
+          </a>
+        </Button>
         <BookmarkletLink />
         <ThemeMenu />
       </div>
