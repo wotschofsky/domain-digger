@@ -75,7 +75,7 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
               d.results.A.length
                 ? h(
                     'div',
-                    d.results.A.toSorted(naturalCompare)
+                    d.results.A.sort(naturalCompare)
                       .slice(0, d.results.A.length > 5 ? 4 : 5)
                       .map((value) =>
                         h('p.text-xs.text-muted-foreground', value)
@@ -92,7 +92,7 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
               d.results.AAAA.length
                 ? h(
                     'div',
-                    d.results.AAAA.toSorted(naturalCompare)
+                    d.results.AAAA.sort(naturalCompare)
                       .slice(0, d.results.AAAA.length > 5 ? 4 : 5)
                       .map((value) =>
                         h('p.text-xs.text-muted-foreground', value)
@@ -109,7 +109,7 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
               d.results.CNAME.length
                 ? h(
                     'div',
-                    d.results.CNAME.toSorted(naturalCompare)
+                    d.results.CNAME.sort(naturalCompare)
                       .slice(0, d.results.CNAME.length > 5 ? 4 : 5)
                       .map((value) =>
                         h('p.text-xs.text-muted-foreground', value)

@@ -42,7 +42,8 @@ const DnsTable: FC<DnsTableProps> = ({ records }) => (
               </TableHeader>
               <TableBody>
                 {value
-                  .toSorted((a, b) => naturalCompare(a.data, b.data))
+                  .slice()
+                  .sort((a, b) => naturalCompare(a.data, b.data))
                   .map((v) => (
                     <RecordRow key={v.type + v.data} record={v} />
                   ))}

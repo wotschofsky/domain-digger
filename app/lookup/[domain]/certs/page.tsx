@@ -36,7 +36,7 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async ({
   const certs = await Promise.all(certRequests).then((responses) =>
     responses
       .flat()
-      .toSorted(
+      .sort(
         (a, b) =>
           new Date(b.entry_timestamp).getTime() -
           new Date(a.entry_timestamp).getTime()
