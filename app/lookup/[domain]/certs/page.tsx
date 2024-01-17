@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import {
@@ -21,6 +22,17 @@ type CertsResultsPageProps = {
     domain: string;
   };
 };
+
+export const generateMetadata = ({
+  params: { domain },
+}: CertsResultsPageProps): Metadata => ({
+  openGraph: {
+    url: `/lookup/${domain}/certs`,
+  },
+  alternates: {
+    canonical: `/lookup/${domain}/certs`,
+  },
+});
 
 const CertsResultsPage: FC<CertsResultsPageProps> = async ({
   params: { domain },

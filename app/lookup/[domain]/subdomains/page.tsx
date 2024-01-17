@@ -1,4 +1,5 @@
 import { CheckIcon, XIcon } from 'lucide-react';
+import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import {
@@ -23,6 +24,17 @@ type SubdomainsResultsPageProps = {
     domain: string;
   };
 };
+
+export const generateMetadata = ({
+  params: { domain },
+}: SubdomainsResultsPageProps): Metadata => ({
+  openGraph: {
+    url: `/lookup/${domain}/subdomains`,
+  },
+  alternates: {
+    canonical: `/lookup/${domain}/subdomains`,
+  },
+});
 
 const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   params: { domain },

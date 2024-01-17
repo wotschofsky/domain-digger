@@ -15,6 +15,15 @@ const EXAMPLE_DOMAINS = [
   'discord.com',
 ];
 
+export const metadata = {
+  openGraph: {
+    url: '/',
+  },
+  alternates: {
+    canonical: '/',
+  },
+};
+
 const Home = () => {
   return (
     <div className="container">

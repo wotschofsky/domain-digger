@@ -1,5 +1,6 @@
 import { isbot } from 'isbot';
 import { CheckCircleIcon, InfoIcon, ShieldAlertIcon } from 'lucide-react';
+import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import type { FC } from 'react';
 
@@ -16,6 +17,17 @@ type MapResultsPageProps = {
     domain: string;
   };
 };
+
+export const generateMetadata = ({
+  params: { domain },
+}: MapResultsPageProps): Metadata => ({
+  openGraph: {
+    url: `/lookup/${domain}/map`,
+  },
+  alternates: {
+    canonical: `/lookup/${domain}/map`,
+  },
+});
 
 const MapResultsPage: FC<MapResultsPageProps> = async ({
   params: { domain },

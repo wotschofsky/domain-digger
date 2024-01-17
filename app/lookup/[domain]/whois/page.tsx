@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { type FC, Fragment } from 'react';
 import whoiser, { type WhoisSearchResult } from 'whoiser';
 
@@ -20,6 +21,17 @@ type WhoisResultsPageProps = {
     domain: string;
   };
 };
+
+export const generateMetadata = ({
+  params: { domain },
+}: WhoisResultsPageProps): Metadata => ({
+  openGraph: {
+    url: `/lookup/${domain}/whois`,
+  },
+  alternates: {
+    canonical: `/lookup/${domain}/whois`,
+  },
+});
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   params: { domain },
