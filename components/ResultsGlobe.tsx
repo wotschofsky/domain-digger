@@ -5,7 +5,7 @@ import naturalCompare from 'natural-compare-lite';
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { type FC, useEffect, useId, useRef, useState } from 'react';
+import { type FC, useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 

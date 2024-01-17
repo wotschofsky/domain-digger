@@ -30,8 +30,8 @@ const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
         current.set('resolver', value);
       }
 
-      const search = current.toString();
-      router.push(`${pathname}${search ? `?${search}` : ''}`);
+      const search = current.size ? `?${current.toString()}` : '';
+      router.push(`${pathname}${search}`);
     },
     [router, pathname, searchParams]
   );

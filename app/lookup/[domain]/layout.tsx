@@ -7,7 +7,7 @@ import RelatedDomains from '@/components/RelatedDomains';
 import ResultsTabs from '@/components/ResultsTabs';
 import SearchForm from '@/components/SearchForm';
 import WhoisQuickInfo from '@/components/WhoisQuickInfo';
-import isValidDomain from '@/utils/isValidDomain';
+import { isValidDomain } from '@/lib/utils';
 
 type LookupLayoutProps = {
   children: ReactNode;

@@ -68,7 +68,6 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
       previous.CNAME.toSorted().toString() !==
         current.CNAME.toSorted().toString()
     ) {
-      console.log(previous, current);
       hasDifferentRecords = true;
       break;
     }

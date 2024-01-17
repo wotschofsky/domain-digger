@@ -15,13 +15,10 @@ import {
 } from '@/components/ui/dialog';
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
-  DrawerTrigger,
 } from '@/components/ui/drawer';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
@@ -29,8 +26,6 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import type { IpLookupResponse } from '@/app/api/lookupIp/route';
 import CopyButton from '@/components/CopyButton';
 import DomainLink from '@/components/DomainLink';
-
-import { Button } from './ui/button';
 
 const LocationMap = dynamic(() => import('@/components/LocationMap'), {
   ssr: false,

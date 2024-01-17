@@ -19,8 +19,8 @@ import {
 
 const BookmarkletLink = () => {
   const [target, setTarget] = useState('');
-  const [isOpen, setOpen] = useState(false);
-  const [isActivated, setActivated] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [activated, setActivated] = useState(false);
 
   useEffect(() => {
     const rawScript = `
@@ -43,9 +43,9 @@ const BookmarkletLink = () => {
   const clickHandler = useCallback<MouseEventHandler<HTMLAnchorElement>>(
     (event) => {
       event.preventDefault();
-      setOpen(true);
+      setIsOpen(true);
     },
-    [setOpen]
+    [setIsOpen]
   );
 
   const mouseDownHandler = useCallback<
@@ -78,14 +78,14 @@ const BookmarkletLink = () => {
             onClick={clickHandler}
             onMouseDown={mouseDownHandler}
           >
-            {isActivated ? 'Inspect Domain' : 'Bookmarklet'}
+            {activated ? 'Inspect Domain' : 'Bookmarklet'}
           </a>
         ) : (
           <span className="text-center">Loading...</span>
         )}
       </div>
 
-      <AlertDialog open={isOpen} onOpenChange={setOpen}>
+      <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Installation required</AlertDialogTitle>

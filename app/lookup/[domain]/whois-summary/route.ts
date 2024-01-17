@@ -1,6 +1,6 @@
 import whoiser, { WhoisSearchResult } from 'whoiser';
 
-import isValidDomain from '@/utils/isValidDomain';
+import { isValidDomain } from '@/lib/utils';
 
 export type WhoisSummaryResponse = {
   registrar: string | null;

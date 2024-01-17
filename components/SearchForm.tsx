@@ -8,8 +8,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-import { cn } from '@/lib/utils';
-import isValidDomain from '@/utils/isValidDomain';
+import { cn, isValidDomain } from '@/lib/utils';
 
 enum FormStates {
   Initial,
