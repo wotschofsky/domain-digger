@@ -76,12 +76,12 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
         domain,
         firstSeen: issuedCerts
           .filter((c) => c.domains.includes(domain))
-          .sort((a, b) => a.date.getTime() - b.date.getTime())[0].date,
+          .toSorted((a, b) => a.date.getTime() - b.date.getTime())[0].date,
         stillExists: hasRecords,
       };
     })
   );
-  const sortedResults = results.sort(
+  const sortedResults = results.toSorted(
     (a, b) => b.firstSeen.getTime() - a.firstSeen.getTime()
   );
 
