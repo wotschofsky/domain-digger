@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
@@ -23,6 +24,8 @@ type SearchFormProps = {
 };
 
 const SearchForm = (props: SearchFormProps) => {
+  const plausible = usePlausible();
+
   const router = useRouter();
   const pathname = usePathname();
 
@@ -67,6 +70,10 @@ const SearchForm = (props: SearchFormProps) => {
     }
 
     router.push(target);
+
+    plausible('Search Form: Submit', {
+      props: { domain: normalizedDomain },
+    });
   };
 
   return (

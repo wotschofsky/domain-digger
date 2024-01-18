@@ -1,5 +1,6 @@
 'use client';
 
+import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FC, useCallback } from 'react';
 
@@ -22,6 +23,8 @@ const LocationSelector: FC<LocationSelectorProps> = ({
   initialValue,
   disabled,
 }) => {
+  const plausible = usePlausible();
+
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -38,8 +41,12 @@ const LocationSelector: FC<LocationSelectorProps> = ({
 
       const search = current.size ? `?${current.toString()}` : '';
       router.push(`${pathname}${search}`);
+
+      plausible('Location Selector: Change', {
+        props: { location: value },
+      });
     },
-    [router, pathname, searchParams]
+    [router, pathname, searchParams, plausible]
   );
 
   return (

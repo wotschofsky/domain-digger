@@ -16,6 +16,7 @@ const Providers: FC<ProvidersProps> = ({ children }) => (
     >
       <PlausibleProvider
         customDomain="https://insights.wsky.dev"
+        trackOutboundLinks
         domain="digger.tools"
       >
         {children}

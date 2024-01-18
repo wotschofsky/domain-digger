@@ -1,6 +1,7 @@
 'use client';
 
 import { CheckIcon, ClipboardIcon } from 'lucide-react';
+import { usePlausible } from 'next-plausible';
 import { type FC, useCallback, useState } from 'react';
 
 import {
@@ -15,12 +16,16 @@ type CopyButton = {
 };
 
 const CopyButton: FC<CopyButton> = ({ value }) => {
+  const plausible = usePlausible();
+
   const [wasCopied, setWasCopied] = useState(false);
   const copy = useCallback(() => {
     setWasCopied(true);
     navigator.clipboard.writeText(value);
     setTimeout(() => setWasCopied(false), 2000);
-  }, [value, setWasCopied]);
+
+    plausible('Copy Button: Click', { props: { value } });
+  }, [value, setWasCopied, plausible]);
 
   if (wasCopied) {
     return <CheckIcon className="mx-1 inline-block h-4 w-4 -translate-y-0.5" />;

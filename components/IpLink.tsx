@@ -1,6 +1,7 @@
 'use client';
 
 import { InfoIcon } from 'lucide-react';
+import { usePlausible } from 'next-plausible';
 import { type FC, useCallback, useState } from 'react';
 
 import {
@@ -17,8 +18,13 @@ type IpLinkProps = {
 };
 
 const IpLink: FC<IpLinkProps> = ({ value }) => {
+  const plausible = usePlausible();
+
   const [isOpen, setOpen] = useState(false);
-  const open = useCallback(() => setOpen(true), [setOpen]);
+  const open = useCallback(() => {
+    setOpen(true);
+    plausible('IP Details: Open', { props: { ip: value } });
+  }, [setOpen, plausible, value]);
 
   return (
     <>
