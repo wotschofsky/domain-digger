@@ -19,7 +19,11 @@ const getRecommendations = (original: string) => {
     domains.push(domain);
   }
 
-  if (!original.startsWith('www.') && splitOriginal.length >= 2) {
+  if (
+    !original.startsWith('www.') &&
+    !original.startsWith('*.') &&
+    splitOriginal.length >= 2
+  ) {
     domains.unshift(`www.${original}`);
   }
 
