@@ -53,7 +53,9 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   ).filter((d) => d.endsWith(`.${domain}`));
 
   const results = await Promise.all(
-    uniqueDomains.map(async (domain, i) => {
+    // Limited to avoid subrequest limit from Cloudflare Workers of 1000
+    // https://developers.cloudflare.com/workers/platform/limits#subrequests
+    uniqueDomains.slice(0, 500).map(async (domain) => {
       const records = await resolver.resolveRecordType(domain, 'A');
       const hasRecords = records.length > 0;
 
@@ -79,32 +81,40 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent">
-          <TableHead className="pl-0">Domain Name</TableHead>
-          <TableHead>First seen</TableHead>
-          <TableHead className="pr-0">Still exists</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sortedResults.map((result) => (
-          <TableRow key={result.domain} className="hover:bg-transparent">
-            <TableCell className="pl-0">
-              <DomainLink domain={result.domain} />
-            </TableCell>
-            <TableCell>{result.firstSeen.toISOString()}</TableCell>
-            <TableCell className="pr-0">
-              {result.stillExists ? (
-                <CheckIcon size="1.25rem" />
-              ) : (
-                <XIcon size="1.25rem" />
-              )}
-            </TableCell>
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="pl-0">Domain Name</TableHead>
+            <TableHead>First seen</TableHead>
+            <TableHead className="pr-0">Still exists</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {sortedResults.map((result) => (
+            <TableRow key={result.domain} className="hover:bg-transparent">
+              <TableCell className="pl-0">
+                <DomainLink domain={result.domain} />
+              </TableCell>
+              <TableCell>{result.firstSeen.toISOString()}</TableCell>
+              <TableCell className="pr-0">
+                {result.stillExists ? (
+                  <CheckIcon size="1.25rem" />
+                ) : (
+                  <XIcon size="1.25rem" />
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {uniqueDomains.length > 500 && (
+        <p className="mt-8 text-center text-muted-foreground">
+          Results limited to 500 subdomains.
+        </p>
+      )}
+    </>
   );
 };
 
