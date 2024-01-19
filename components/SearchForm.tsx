@@ -4,12 +4,13 @@ import { Loader2 } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import { useHotkeys } from 'react-hotkeys-hook';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
-import { cn, isValidDomain } from '@/lib/utils';
+import { cn, isAppleDevice, isValidDomain } from '@/lib/utils';
 
 enum FormStates {
   Initial,
@@ -32,6 +33,14 @@ const SearchForm = (props: SearchFormProps) => {
   const [domain, setDomain] = useState('');
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [error, setError] = useState(false);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  useHotkeys(
+    isAppleDevice() ? 'alt+k' : 'ctrl+k',
+    () => inputRef.current?.focus(),
+    { preventDefault: true },
+    [inputRef.current]
+  );
 
   useEffect(() => {
     if (props.initialValue) {
@@ -79,19 +88,32 @@ const SearchForm = (props: SearchFormProps) => {
   return (
     <>
       <form className="flex gap-3" onSubmit={handleSubmit}>
-        <Input
-          className="flex-[3]"
-          type="text"
-          required
-          placeholder="example.com"
-          aria-label="Domain"
-          value={domain}
-          onInput={(event: ChangeEvent<HTMLInputElement>) =>
-            setDomain(event.target.value)
-          }
-          disabled={state !== FormStates.Initial}
-          autoFocus={props.autofocus}
-        />
+        <div className="relative flex-[3]">
+          <Input
+            ref={inputRef}
+            className="w-full"
+            type="text"
+            required
+            placeholder="example.com"
+            aria-label="Domain"
+            value={domain}
+            onInput={(event: ChangeEvent<HTMLInputElement>) =>
+              setDomain(event.target.value)
+            }
+            disabled={state !== FormStates.Initial}
+            autoFocus={props.autofocus}
+          />
+
+          <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+            {isAppleDevice() ? (
+              <>
+                <span className="text-xs">⌘</span>K
+              </>
+            ) : (
+              'ctrl+k'
+            )}
+          </kbd>
+        </div>
         <Button
           className="flex-[1]"
           type="submit"

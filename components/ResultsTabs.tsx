@@ -6,11 +6,7 @@ import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
 import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
-const isAppleDevice = () => {
-  if (typeof window === 'undefined') return false;
-  const userAgent = window.navigator.userAgent;
-  return /Mac|iPad|iPhone|iPod/.test(userAgent);
-};
+import { isAppleDevice } from '@/lib/utils';
 
 const SingleTab: FC<{
   label: string;
