@@ -14,6 +14,7 @@ import {
 import DomainLink from '@/components/results/DomainLink';
 import { lookupCerts } from '@/lib/certs';
 import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
+import { isValidDomain } from '@/lib/utils';
 
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
@@ -50,7 +51,9 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 
   const uniqueDomains = Array.from(
     new Set<string>(issuedCerts.flatMap((r) => r.domains))
-  ).filter((d) => d.endsWith(`.${domain}`));
+  )
+    .filter(isValidDomain)
+    .filter((d) => d.endsWith(`.${domain}`));
 
   const results = await Promise.all(
     // Limited to avoid subrequest limit from Cloudflare Workers of 1000

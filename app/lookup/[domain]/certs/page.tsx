@@ -12,6 +12,7 @@ import {
 
 import DomainLink from '@/components/results/DomainLink';
 import { lookupCerts } from '@/lib/certs';
+import { isValidDomain } from '@/lib/utils';
 
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
@@ -82,14 +83,22 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async ({
             <TableCell>{cert.not_before}</TableCell>
             <TableCell>{cert.not_after}</TableCell>
             <TableCell>
-              <DomainLink domain={cert.common_name} />
+              {isValidDomain(cert.common_name) ? (
+                <DomainLink domain={cert.common_name} />
+              ) : (
+                <span>{cert.common_name}</span>
+              )}
             </TableCell>
 
             <TableCell>
               {cert.name_value.split(/\n/g).map((value, index) => (
                 <>
                   {index !== 0 && <br />}
-                  <DomainLink domain={value} />
+                  {isValidDomain(value) ? (
+                    <DomainLink domain={value} />
+                  ) : (
+                    <span>{value}</span>
+                  )}
                 </>
               ))}
             </TableCell>
