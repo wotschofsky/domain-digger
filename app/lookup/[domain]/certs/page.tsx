@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import DomainLink from '@/components/DomainLink';
+import DomainLink from '@/components/results/DomainLink';
 import { lookupCerts } from '@/lib/certs';
 
 export const runtime = 'edge';

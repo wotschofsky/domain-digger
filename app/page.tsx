@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Balancer from 'react-wrap-balancer';
 
-import SearchForm from '@/components/SearchForm';
+import SearchForm from '@/components/general/SearchForm';
 
 const EXAMPLE_DOMAINS = [
   'digger.tools',

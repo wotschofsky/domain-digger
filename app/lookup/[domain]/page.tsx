@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import { redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
-import DnsTable from '@/components/DnsTable';
-import LocationSelector from '@/components/LocationSelector';
-import ResolverSelector from '@/components/ResolverSelector';
+import DnsTable from '@/components/results/dns/DnsTable';
+import LocationSelector from '@/components/results/dns/LocationSelector';
+import ResolverSelector from '@/components/results/dns/ResolverSelector';
 import AuthoritativeResolver from '@/lib/resolvers/AuthoritativeResolver';
 import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
 import GoogleDoHResolver from '@/lib/resolvers/GoogleDoHResolver';

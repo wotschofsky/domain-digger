@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import DomainLink from '@/components/DomainLink';
+import DomainLink from '@/components/results/DomainLink';
 import { lookupCerts } from '@/lib/certs';
 import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
 

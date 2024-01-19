@@ -3,11 +3,11 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 
-import RelatedDomains from '@/components/RelatedDomains';
-import ResultsTabs from '@/components/ResultsTabs';
-import SearchForm from '@/components/SearchForm';
-import ShareButton from '@/components/ShareButton';
-import WhoisQuickInfo from '@/components/WhoisQuickInfo';
+import SearchForm from '@/components/general/SearchForm';
+import RelatedDomains from '@/components/results/RelatedDomains';
+import ResultsTabs from '@/components/results/ResultsTabs';
+import ShareButton from '@/components/results/ShareButton';
+import WhoisQuickInfo from '@/components/results/WhoisQuickInfo';
 import { isValidDomain } from '@/lib/utils';
 
 type LookupLayoutProps = {

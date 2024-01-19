@@ -24,12 +24,15 @@ import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/lookupIp/route';
-import CopyButton from '@/components/CopyButton';
-import DomainLink from '@/components/DomainLink';
+import CopyButton from '@/components/misc/CopyButton';
+import DomainLink from '@/components/results/DomainLink';
 
-const LocationMap = dynamic(() => import('@/components/LocationMap'), {
-  ssr: false,
-});
+const LocationMap = dynamic(
+  () => import('@/components/results/ip/LocationMap'),
+  {
+    ssr: false,
+  }
+);
 
 enum EntryTypes {
   IP,

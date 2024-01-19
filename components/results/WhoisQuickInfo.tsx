@@ -5,7 +5,7 @@ import useSWRImmutable from 'swr/immutable';
 
 import { WhoisSummaryResponse } from '@/app/lookup/[domain]/whois-summary/route';
 
-import { Skeleton } from './ui/skeleton';
+import { Skeleton } from '../ui/skeleton';
 
 type WhoisQuickInfoProps = {
   domain: string;
