@@ -3,7 +3,7 @@
 import type { FC } from 'react';
 import useSWRImmutable from 'swr/immutable';
 
-import { WhoisSummaryResponse } from '@/app/lookup/[domain]/whois-summary/route';
+import { WhoisSummaryResponse } from '@/app/api/whois-summary/route';
 
 import { Skeleton } from '../ui/skeleton';
 
@@ -13,7 +13,7 @@ type WhoisQuickInfoProps = {
 
 const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
   const { data, isLoading } = useSWRImmutable<WhoisSummaryResponse>(
-    `/lookup/${domain}/whois-summary`
+    `/api/whois-summary?domain=${encodeURIComponent(domain)}`
   );
 
   return (

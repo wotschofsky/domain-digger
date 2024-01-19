@@ -54,11 +54,11 @@ const getSummary = async (domain: string): Promise<WhoisSummaryResponse> => {
   }
 };
 
-export async function GET(
-  _request: Request,
-  { params }: { params: { domain: string } }
-) {
-  if (!params.domain) {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const domain = searchParams.get('domain');
+
+  if (!domain) {
     return Response.json(
       { error: true, message: 'No domain provided' },
       {
@@ -71,7 +71,7 @@ export async function GET(
   }
 
   try {
-    const summary = await getSummary(params.domain);
+    const summary = await getSummary(domain);
     return Response.json(summary);
   } catch (error) {
     return Response.json(
