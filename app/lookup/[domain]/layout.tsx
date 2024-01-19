@@ -7,6 +7,7 @@ import SearchForm from '@/components/general/SearchForm';
 import RelatedDomains from '@/components/results/RelatedDomains';
 import ResultsTabs from '@/components/results/ResultsTabs';
 import ShareButton from '@/components/results/ShareButton';
+import StarReminder from '@/components/results/StarReminder';
 import WhoisQuickInfo from '@/components/results/WhoisQuickInfo';
 import { isValidDomain } from '@/lib/utils';
 
@@ -70,6 +71,8 @@ const LookupLayout: FC<LookupLayoutProps> = ({
 
         {children}
       </div>
+
+      <StarReminder />
     </>
   );
 };
