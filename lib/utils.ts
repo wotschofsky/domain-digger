@@ -5,6 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// From https://stackoverflow.com/a/30471209/12475254
+export const retry = <T extends Function>(fn: T, maxRetries: number) =>
+  fn().catch((err: Error) => {
+    if (maxRetries <= 0) {
+      throw err;
+    }
+    console.warn(err.message);
+    return retry(fn, maxRetries - 1);
+  });
+
 export const isValidDomain = (domain: string) =>
   /^(\*\.)?(((?!-))(xn--|_)?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*(xn--)?([a-z0-9][a-z0-9\-]{0,60}|[a-z0-9-]{1,30}\.[a-z]{2,})$/.test(
     domain

@@ -7,6 +7,8 @@ import dnsPacket, {
 } from 'dns-packet';
 import dgram from 'node:dgram';
 
+import { retry } from '@/lib/utils';
+
 import DnsResolver, { type RawRecord, type RecordType } from './DnsResolver';
 
 class AuthoritativeResolver extends DnsResolver {
@@ -94,10 +96,10 @@ class AuthoritativeResolver extends DnsResolver {
         socket.close();
         reject(
           new Error(
-            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out`
+            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 2000ms`
           )
         );
-      }, 5000);
+      }, 2000);
 
       socket.on('message', (message: Buffer) => {
         socket.close();
@@ -123,7 +125,7 @@ class AuthoritativeResolver extends DnsResolver {
     async (keys) =>
       Promise.all(
         keys.map(async ({ domain, type, nameserver }) =>
-          this.sendRequest(domain, type, nameserver)
+          retry(() => this.sendRequest(domain, type, nameserver), 3)
         )
       ),
     {
