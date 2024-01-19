@@ -3,6 +3,7 @@
 import { CheckIcon, ClipboardIcon } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
 import { type FC, useCallback, useState } from 'react';
+import { toast } from 'sonner';
 
 import {
   Tooltip,
@@ -23,6 +24,8 @@ const CopyButton: FC<CopyButton> = ({ value }) => {
     setWasCopied(true);
     navigator.clipboard.writeText(value);
     setTimeout(() => setWasCopied(false), 2000);
+
+    toast('Copied to clipboard');
 
     plausible('Copy Button: Click', { props: { value } });
   }, [value, setWasCopied, plausible]);

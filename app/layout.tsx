@@ -1,6 +1,8 @@
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { FC, ReactNode } from 'react';
 
+import { Toaster } from '@/components/ui/sonner';
+
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 
@@ -43,6 +45,7 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
           </div>
         </Providers>
 
+        <Toaster />
         <SpeedInsights />
       </body>
     </html>

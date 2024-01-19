@@ -6,6 +6,7 @@ import { type FC, type ReactNode } from 'react';
 import RelatedDomains from '@/components/RelatedDomains';
 import ResultsTabs from '@/components/ResultsTabs';
 import SearchForm from '@/components/SearchForm';
+import ShareButton from '@/components/ShareButton';
 import WhoisQuickInfo from '@/components/WhoisQuickInfo';
 import { isValidDomain } from '@/lib/utils';
 
@@ -47,17 +48,21 @@ const LookupLayout: FC<LookupLayoutProps> = ({
       </div>
 
       <div className="container">
-        <h1 className="mb-2">
-          <span className="block text-muted-foreground">Results for</span>
-          <a
-            className="block text-4xl font-bold"
-            href={`https://${domain}`}
-            target="_blank"
-            rel="noreferrer nofollow"
-          >
-            {domain} <ExternalLinkIcon className="inline-block" />
-          </a>
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="mb-2 flex-1">
+            <span className="block text-muted-foreground">Results for</span>
+            <a
+              className="block text-4xl font-bold"
+              href={`https://${domain}`}
+              target="_blank"
+              rel="noreferrer nofollow"
+            >
+              {domain} <ExternalLinkIcon className="inline-block" />
+            </a>
+          </h1>
+
+          <ShareButton />
+        </div>
 
         <RelatedDomains domain={domain} />
         <WhoisQuickInfo domain={domain} />
