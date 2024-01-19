@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
+import dynamic from 'next/dynamic';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 
@@ -7,9 +8,13 @@ import SearchForm from '@/components/general/SearchForm';
 import RelatedDomains from '@/components/results/RelatedDomains';
 import ResultsTabs from '@/components/results/ResultsTabs';
 import ShareButton from '@/components/results/ShareButton';
-import StarReminder from '@/components/results/StarReminder';
 import WhoisQuickInfo from '@/components/results/WhoisQuickInfo';
 import { isValidDomain } from '@/lib/utils';
+
+const StarReminder = dynamic(
+  () => import('@/components/results/StarReminder'),
+  { ssr: false }
+);
 
 type LookupLayoutProps = {
   children: ReactNode;
