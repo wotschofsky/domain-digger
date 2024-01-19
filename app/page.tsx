@@ -2,18 +2,7 @@ import Link from 'next/link';
 import Balancer from 'react-wrap-balancer';
 
 import SearchForm from '@/components/general/SearchForm';
-
-const EXAMPLE_DOMAINS = [
-  'digger.tools',
-  'google.com',
-  'wikipedia.org',
-  'microsoft.com',
-  'tiktok.com',
-  'reddit.com',
-  'baidu.com',
-  'twitter.com',
-  'discord.com',
-];
+import { EXAMPLE_DOMAINS } from '@/lib/data';
 
 export const metadata = {
   openGraph: {
