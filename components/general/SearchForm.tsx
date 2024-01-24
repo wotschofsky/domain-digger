@@ -60,7 +60,10 @@ const SearchForm = (props: SearchFormProps) => {
       tDomain = domain.trim().toLowerCase();
     }
 
-    const normalizedDomain = toASCII(tDomain);
+    let normalizedDomain = tDomain.endsWith('.')
+      ? tDomain.slice(0, -1)
+      : tDomain;
+    normalizedDomain = toASCII(normalizedDomain);
 
     if (!isValidDomain(normalizedDomain)) {
       setError(true);
