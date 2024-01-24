@@ -5,6 +5,7 @@ import type { FC } from 'react';
 import DnsTable from '@/components/results/dns/DnsTable';
 import LocationSelector from '@/components/results/dns/LocationSelector';
 import ResolverSelector from '@/components/results/dns/ResolverSelector';
+import { hostLookupLoader } from '@/lib/ips';
 import AuthoritativeResolver from '@/lib/resolvers/AuthoritativeResolver';
 import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
 import GoogleDoHResolver from '@/lib/resolvers/GoogleDoHResolver';
@@ -33,6 +34,15 @@ const getResolver = (
     default:
       return new AuthoritativeResolver();
   }
+};
+
+const getIpsInfo = async (ips: string[]): Promise<Record<string, string>> => {
+  const hosts = await hostLookupLoader.loadMany(ips);
+  return Object.fromEntries(
+    ips
+      .map((ip, index) => [ip, hosts[index]])
+      .filter(([, host]) => typeof host === 'string')
+  );
 };
 
 type LookupDomainProps = {
@@ -79,6 +89,9 @@ const LookupDomain: FC<LookupDomainProps> = async ({
 
   const resolver = getResolver(resolverName, locationName);
   const records = await resolver.resolveAllRecords(domain);
+  const ipsInfo = await getIpsInfo(
+    records.A.map((r) => r.data).concat(records.AAAA.map((r) => r.data))
+  );
 
   const hasResults =
     Object.values(records)
@@ -96,7 +109,7 @@ const LookupDomain: FC<LookupDomainProps> = async ({
       </div>
 
       {hasResults ? (
-        <DnsTable records={records} />
+        <DnsTable records={records} ipsInfo={ipsInfo} />
       ) : (
         <p className="mt-24 text-center text-muted-foreground">
           No DNS records found!

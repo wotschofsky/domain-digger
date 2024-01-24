@@ -14,9 +14,10 @@ import type { ResolvedRecords } from '@/lib/resolvers/DnsResolver';
 
 type DnsTableProps = {
   records: ResolvedRecords;
+  ipsInfo: Record<string, string>;
 };
 
-const DnsTable: FC<DnsTableProps> = ({ records }) => (
+const DnsTable: FC<DnsTableProps> = ({ records, ipsInfo }) => (
   <>
     {Object.keys(records).map((recordType) => {
       const value = records[recordType];
@@ -45,7 +46,13 @@ const DnsTable: FC<DnsTableProps> = ({ records }) => (
                   .slice()
                   .sort((a, b) => naturalCompare(a.data, b.data))
                   .map((v) => (
-                    <RecordRow key={v.type + v.data} record={v} />
+                    <RecordRow
+                      key={v.type + v.data}
+                      name={v.name}
+                      TTL={v.TTL}
+                      value={v.data}
+                      subvalue={ipsInfo[v.data]}
+                    />
                   ))}
               </TableBody>
             </Table>

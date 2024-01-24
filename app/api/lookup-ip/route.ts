@@ -1,5 +1,7 @@
 import isIP from 'validator/lib/isIP';
 
+import { getIpDetails } from '@/lib/ips';
+
 export const runtime = 'edge';
 
 export type IpLookupResponse = {
@@ -12,20 +14,6 @@ export type IpLookupResponse = {
   region: string;
   reverse: string[];
   timezone: string;
-};
-
-export type IpLookupErrorResponse = { error: true; message: string };
-
-const getIpDetails = async (ip: string) => {
-  const response = await fetch(`http://ip-api.com/json/${ip}`);
-
-  if (!response.ok)
-    throw new Error(`Error fetching IP details: ${response.statusText}`);
-
-  const data = (await response.json()) as Record<string, any>;
-  delete data.status;
-
-  return data;
 };
 
 const ipv4ToDnsName = (ipv4: string) =>
