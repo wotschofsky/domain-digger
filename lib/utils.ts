@@ -11,7 +11,7 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
     if (maxRetries <= 0) {
       throw err;
     }
-    console.warn(err.message);
+    console.warn(err.message?.toString());
     return retry(fn, maxRetries - 1);
   });
 
