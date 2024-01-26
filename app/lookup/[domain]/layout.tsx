@@ -27,11 +27,11 @@ export const generateMetadata = ({
   params: { domain },
 }: LookupLayoutProps): Metadata => ({
   title: `Results for ${domain} - Domain Digger`,
-  description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain}`,
+  description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain} using Domain Digger, the full open-source toolkit for next-level domain analysis.`,
   openGraph: {
     type: 'website',
     title: `Results for ${domain} - Domain Digger`,
-    description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain}`,
+    description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain} using Domain Digger, the full open-source toolkit for next-level domain analysis.`,
   },
 });
 

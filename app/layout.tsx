@@ -13,12 +13,12 @@ export const metadata = {
   metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : null,
   title: 'Domain Digger: DNS, WHOIS lookup & more',
   description:
-    'Domain Digger is the easy but incredibly powerful tool for looking up and quickly inspecting DNS records, WHOIS data, SSL/TLS certificate history and other domain related data. No installation required!',
+    'Domain Digger is the full open-source toolkit for next-level domain analysis, providing detailed DNS, IP, WHOIS data, and SSL/TLS history in a user-friendly, no-install interface.',
   openGraph: {
     type: 'website',
     title: 'Domain Digger: DNS, WHOIS lookup & more',
     description:
-      'Domain Digger is the easy but incredibly powerful tool for looking up and quickly inspecting DNS records, WHOIS data, SSL/TLS certificate history and other domain related data. No installation required!',
+      'Domain Digger is the full open-source toolkit for next-level domain analysis, providing detailed DNS, IP, WHOIS data, and SSL/TLS history in a user-friendly, no-install interface.',
     url: '/',
   },
   alternates: {
