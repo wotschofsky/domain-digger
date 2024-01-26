@@ -96,10 +96,10 @@ class AuthoritativeResolver extends DnsResolver {
         socket.close();
         reject(
           new Error(
-            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 2000ms`
+            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`
           )
         );
-      }, 2000);
+      }, 3000);
 
       socket.on('message', (message: Buffer) => {
         socket.close();
