@@ -70,20 +70,18 @@ const BookmarkletLink = () => {
 
   return (
     <>
-      <div className="flex justify-center">
-        {target ? (
-          <a
-            className="text-center"
-            href={target}
-            onClick={clickHandler}
-            onMouseDown={mouseDownHandler}
-          >
-            {activated ? 'Inspect Domain' : 'Bookmarklet'}
-          </a>
-        ) : (
-          <span className="text-center">Loading...</span>
-        )}
-      </div>
+      {target ? (
+        <a
+          className="text-center"
+          href={target}
+          onClick={clickHandler}
+          onMouseDown={mouseDownHandler}
+        >
+          {activated ? 'Inspect Domain' : 'Bookmarklet'}
+        </a>
+      ) : (
+        <span className="text-center">Loading...</span>
+      )}
 
       <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
         <AlertDialogContent>

@@ -19,12 +19,12 @@ const SingleTab: FC<{
       href={href}
       className={
         selected
-          ? 'relative inline-block rounded-t-lg border-b-2 border-primary p-4 text-primary'
-          : 'relative inline-block rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300'
+          ? 'relative inline-block w-max rounded-t-lg border-b-2 border-primary p-4 text-primary'
+          : 'relative inline-block w-max rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300'
       }
     >
       {label}
-      <span className="pointer-events-none absolute bottom-0 left-1/2 block w-full -translate-x-1/2 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100">
+      <span className="pointer-events-none absolute bottom-0 left-1/2 hidden w-full -translate-x-1/2 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100 sm:block">
         {isAppleDevice() ? (
           <>
             <OptionIcon className="inline-block h-3 w-3" strokeWidth={3} />

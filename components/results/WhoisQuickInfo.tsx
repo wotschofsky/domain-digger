@@ -17,7 +17,7 @@ const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
   );
 
   return (
-    <div className="my-8 flex gap-8">
+    <div className="my-8 flex flex-wrap gap-8">
       <div>
         <h3 className="text-xs text-muted-foreground">Registrar</h3>
         {isLoading ? (

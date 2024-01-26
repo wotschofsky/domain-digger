@@ -38,7 +38,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
   if (shouldBlockRequest) {
     console.log('Bot detected, blocking request, UA:', userAgent);
     return (
-      <Alert className="mx-auto mt-24 w-max">
+      <Alert className="mx-auto mt-24 max-w-max">
         <ShieldAlertIcon className="h-4 w-4" />
         <AlertTitle>Bot or crawler detected!</AlertTitle>
         <AlertDescription>
@@ -87,7 +87,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
 
   return (
     <>
-      <Alert className="mx-auto mt-16 w-max">
+      <Alert className="mx-auto mt-16 max-w-max">
         {hasDifferentRecords ? (
           <>
             <InfoIcon className="h-4 w-4" />

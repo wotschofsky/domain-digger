@@ -29,7 +29,9 @@ const Header = () => (
             <span className="sr-only">on GitHub</span>
           </a>
         </Button>
-        <BookmarkletLink />
+        <div className="hidden sm:block">
+          <BookmarkletLink />
+        </div>
         <ThemeMenu />
       </div>
     </div>

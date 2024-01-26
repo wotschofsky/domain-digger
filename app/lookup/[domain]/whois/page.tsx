@@ -50,7 +50,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
       {filteredResults.map(([key, value]) => (
         <Fragment key={key}>
           <h2 className="mb-4 mt-8 text-3xl font-bold tracking-tight">{key}</h2>
-          <code>
+          <code className="break-words">
             {value.split('\n').map((line, index) => (
               <p key={index}>{line}</p>
             ))}
