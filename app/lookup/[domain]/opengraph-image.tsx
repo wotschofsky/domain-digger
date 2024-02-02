@@ -35,7 +35,7 @@ export const handler = async ({ params }: { params: { domain: string } }) => {
           gap: 16,
           backgroundColor: '#fff',
           backgroundImage:
-            'radial-gradient(circle at 25px 25px, rgba(0, 0, 0, 0.2) 5%, transparent 0%)',
+            'radial-gradient(circle at 25px 25px, rgba(0, 0, 0, 0.15) 5%, transparent 0%)',
           backgroundSize: '50px 50px',
           padding: 48,
           paddingBottom: 200,
