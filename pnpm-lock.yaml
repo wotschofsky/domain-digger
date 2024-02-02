@@ -128,6 +128,9 @@ dependencies:
   tailwindcss-animate:
     specifier: ^1.0.7
     version: 1.0.7(tailwindcss@3.3.6)
+  tldts:
+    specifier: ^6.1.4
+    version: 6.1.4
   validator:
     specifier: ^13.11.0
     version: 13.11.0
@@ -5730,6 +5733,17 @@ packages:
 
   /tinycolor2@1.6.0:
     resolution: {integrity: sha512-XPaBkWQJdsf3pLKJV9p4qN/S+fm2Oj8AIPo1BTUhg5oxkvm9+SVEGFdhyOz7tTdUTfvxMiAs4sp6/eZO2Ew+pw==}
+    dev: false
+
+  /tldts-core@6.1.4:
+    resolution: {integrity: sha512-9rlteMsuqWQaWlLhnqCOeAXW1jqahlBHXOhCHu1GkkNBbjitbEqhDQC1Br6W/2PZJTTh8f+QIk5GstyZFC26Bg==}
+    dev: false
+
+  /tldts@6.1.4:
+    resolution: {integrity: sha512-eplXjucWEMwmGd8PSI/cjwGid0dVRdLZwO+x8cUTzfgA/u9wP9D5C6qcg42MMBgBeEcgDiUTqH7wBlTYLIODWQ==}
+    hasBin: true
+    dependencies:
+      tldts-core: 6.1.4
     dev: false
 
   /to-fast-properties@2.0.0:

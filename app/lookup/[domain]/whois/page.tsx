@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { type FC, Fragment } from 'react';
+import { getDomain } from 'tldts';
 import whoiser, { type WhoisSearchResult } from 'whoiser';
 
 const lookupWhois = async (domain: string) => {
@@ -20,23 +22,34 @@ type WhoisResultsPageProps = {
   params: {
     domain: string;
   };
+  searchParams: {
+    force?: string;
+  };
 };
 
 export const generateMetadata = ({
   params: { domain },
-}: WhoisResultsPageProps): Metadata => ({
-  openGraph: {
-    url: `/lookup/${domain}/whois`,
-  },
-  alternates: {
-    canonical: `/lookup/${domain}/whois`,
-  },
-});
+  searchParams: { force },
+}: WhoisResultsPageProps): Metadata => {
+  const search = force !== undefined ? '?force' : '';
+
+  return {
+    openGraph: {
+      url: `/lookup/${domain}/whois${search}`,
+    },
+    alternates: {
+      canonical: `/lookup/${domain}/whois${search}`,
+    },
+  };
+};
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   params: { domain },
+  searchParams: { force },
 }) => {
-  const results = await lookupWhois(domain);
+  const rawDomain = getDomain(domain) || domain;
+
+  const results = await lookupWhois(force !== undefined ? domain : rawDomain);
   const filteredResults = Object.entries(results).filter(([_key, value]) =>
     Boolean(value)
   );
@@ -47,6 +60,39 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
 
   return (
     <>
+      {rawDomain !== domain &&
+        (force !== undefined ? (
+          <>
+            <p className="mt-8 text-muted-foreground">
+              Forcing lookup for {domain}
+            </p>
+            <p className="text-muted-foreground">
+              Lookup{' '}
+              <Link
+                className="underline decoration-dotted underline-offset-4"
+                href={`/lookup/${domain}/whois`}
+              >
+                {rawDomain} instead
+              </Link>
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-8 text-muted-foreground">
+              Showing results for {rawDomain}
+            </p>
+            <p className="text-muted-foreground">
+              Force lookup for{' '}
+              <Link
+                className="underline decoration-dotted underline-offset-4"
+                href={`/lookup/${domain}/whois?force`}
+              >
+                {domain} instead
+              </Link>
+            </p>
+          </>
+        ))}
+
       {filteredResults.map(([key, value]) => (
         <Fragment key={key}>
           <h2 className="mb-4 mt-8 text-3xl font-bold tracking-tight">{key}</h2>
