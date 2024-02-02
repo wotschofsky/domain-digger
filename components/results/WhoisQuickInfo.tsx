@@ -3,9 +3,36 @@
 import type { FC } from 'react';
 import useSWRImmutable from 'swr/immutable';
 
+import { Skeleton } from '@/components/ui/skeleton';
+
 import { WhoisSummaryResponse } from '@/app/api/whois-summary/route';
 
-import { Skeleton } from '../ui/skeleton';
+type WhoisQuickInfoTileProps =
+  | {
+      title: string;
+      loading: true;
+      value?: string;
+    }
+  | {
+      title: string;
+      loading?: false;
+      value: string;
+    };
+
+const WhoisQuickInfoTile: FC<WhoisQuickInfoTileProps> = ({
+  title,
+  loading,
+  value,
+}) => (
+  <div>
+    <h3 className="text-xs text-muted-foreground">{title}</h3>
+    {loading ? (
+      <Skeleton className="mt-1 h-4 w-24 rounded-sm" />
+    ) : (
+      <p className="text-sm">{value}</p>
+    )}
+  </div>
+);
 
 type WhoisQuickInfoProps = {
   domain: string;
@@ -16,32 +43,38 @@ const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
     `/api/whois-summary?domain=${encodeURIComponent(domain)}`
   );
 
+  if (isLoading || !data) {
+    return (
+      <div className="my-8 flex flex-wrap gap-8">
+        <WhoisQuickInfoTile title="Registar" loading />
+        <WhoisQuickInfoTile title="Creation Date" loading />
+        <WhoisQuickInfoTile title="DNSSEC" loading />
+      </div>
+    );
+  }
+
+  if (!data.registered) {
+    return (
+      <div className="my-8 flex flex-wrap gap-8">
+        <WhoisQuickInfoTile title="Status" value="Not registered" />
+      </div>
+    );
+  }
+
   return (
     <div className="my-8 flex flex-wrap gap-8">
-      <div>
-        <h3 className="text-xs text-muted-foreground">Registrar</h3>
-        {isLoading ? (
-          <Skeleton className="mt-1 h-4 w-24 rounded-sm" />
-        ) : (
-          <p className="text-sm">{data?.registrar || 'Unavailable'}</p>
-        )}
-      </div>
-      <div>
-        <h3 className="text-xs text-muted-foreground">Creation Date</h3>
-        {isLoading ? (
-          <Skeleton className="w-18 mt-1 h-4 rounded-sm" />
-        ) : (
-          <p className="text-sm">{data?.createdAt || 'Unavailable'}</p>
-        )}
-      </div>
-      <div>
-        <h3 className="text-xs text-muted-foreground">DNSSEC</h3>
-        {isLoading ? (
-          <Skeleton className="mt-1 h-4 w-16 rounded-sm" />
-        ) : (
-          <p className="text-sm">{data?.dnssec || 'Unavailable'}</p>
-        )}
-      </div>
+      <WhoisQuickInfoTile
+        title="Registar"
+        value={data?.registrar || 'Unavailable'}
+      />
+      <WhoisQuickInfoTile
+        title="Creation Date"
+        value={data?.createdAt || 'Unavailable'}
+      />
+      <WhoisQuickInfoTile
+        title="DNSSEC"
+        value={data?.dnssec || 'Unavailable'}
+      />
     </div>
   );
 };

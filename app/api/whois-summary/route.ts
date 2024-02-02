@@ -1,12 +1,27 @@
+import { getDomain } from 'tldts';
 import whoiser, { WhoisSearchResult } from 'whoiser';
 
 import { isValidDomain } from '@/lib/utils';
 
-export type WhoisSummaryResponse = {
-  registrar: string | null;
-  createdAt: string | null;
-  dnssec: string | null;
-};
+const UNREGISTERED_INDICATORS = [
+  'no data found',
+  'no match',
+  'no object found',
+  'not been registered',
+  'not found',
+  'status: free',
+];
+
+export type WhoisSummaryResponse =
+  | {
+      registered: false;
+    }
+  | {
+      registered: true;
+      registrar: string | null;
+      createdAt: string | null;
+      dnssec: string | null;
+    };
 
 export type WhoisSummaryErrorResponse = { error: true; message: string };
 
@@ -14,15 +29,19 @@ const getSummary = async (domain: string): Promise<WhoisSummaryResponse> => {
   // TODO Allow resolving for TLDs
   if (!isValidDomain(domain)) {
     return {
+      registered: true,
       registrar: null,
       createdAt: null,
       dnssec: null,
     };
   }
 
+  const rawDomain = getDomain(domain) || domain;
+
   try {
-    const results = await whoiser(domain, {
+    const results = await whoiser(rawDomain, {
       timeout: 5000,
+      raw: true,
     });
 
     const resultsKey = Object.keys(results).find(
@@ -34,7 +53,18 @@ const getSummary = async (domain: string): Promise<WhoisSummaryResponse> => {
     }
     const firstResult = results[resultsKey] as WhoisSearchResult;
 
+    if (
+      UNREGISTERED_INDICATORS.some((indicator) =>
+        firstResult['__raw'].toString().toLowerCase().includes(indicator)
+      )
+    ) {
+      return {
+        registered: false,
+      };
+    }
+
     return {
+      registered: true,
       registrar: firstResult['Registrar']?.toString(),
       createdAt:
         firstResult && 'Created Date' in firstResult
@@ -47,6 +77,7 @@ const getSummary = async (domain: string): Promise<WhoisSummaryResponse> => {
   } catch (error) {
     console.error(error);
     return {
+      registered: true,
       registrar: null,
       createdAt: null,
       dnssec: null,
