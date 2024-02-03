@@ -46,7 +46,7 @@ const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
   if (isLoading || !data) {
     return (
       <div className="my-8 flex flex-wrap gap-8">
-        <WhoisQuickInfoTile title="Registar" loading />
+        <WhoisQuickInfoTile title="Registrar" loading />
         <WhoisQuickInfoTile title="Creation Date" loading />
         <WhoisQuickInfoTile title="DNSSEC" loading />
       </div>
@@ -64,7 +64,7 @@ const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
   return (
     <div className="my-8 flex flex-wrap gap-8">
       <WhoisQuickInfoTile
-        title="Registar"
+        title="Registrar"
         value={data?.registrar || 'Unavailable'}
       />
       <WhoisQuickInfoTile
