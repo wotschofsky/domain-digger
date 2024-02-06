@@ -2,6 +2,7 @@ import Link from 'next/link';
 import Balancer from 'react-wrap-balancer';
 
 import SearchForm from '@/components/general/SearchForm';
+import TrustedByLogos from '@/components/marketing/TrustedByLogos';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 
 export const metadata = {
@@ -45,6 +46,13 @@ const Home = () => {
               ))}
             </Balancer>
           </div>
+        </div>
+
+        <div className="max-w-xl">
+          <h2 className="mb-8 text-xl font-semibold tracking-tight sm:text-2xl">
+            Trusted by experts at
+          </h2>
+          <TrustedByLogos />
         </div>
       </div>
 
