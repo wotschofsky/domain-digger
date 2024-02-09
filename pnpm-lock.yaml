@@ -137,6 +137,9 @@ dependencies:
   vaul:
     specifier: ^0.8.0
     version: 0.8.0(@types/react-dom@18.2.17)(@types/react@18.2.43)(react-dom@18.2.0)(react@18.2.0)
+  web-auth-library:
+    specifier: ^1.0.3
+    version: 1.0.3
   whoiser:
     specifier: ^1.17.1
     version: 1.17.1
@@ -4438,6 +4441,10 @@ packages:
     hasBin: true
     dev: false
 
+  /jose@4.15.4:
+    resolution: {integrity: sha512-W+oqK4H+r5sITxfxpSU+MMdr/YSWGvgZMQDIsNoBDGGy4i7GBPTtvFKibQzW06n3U3TqHjhvBJsirShsEJ6eeQ==}
+    dev: false
+
   /js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
 
@@ -5319,6 +5326,10 @@ packages:
     resolution: {integrity: sha512-U9nH88a3fc/ekCF1l0/UP1IosiuIjyTh7hBvXVMHYgVcfGvt897Xguj2UOLDeI5BG2m7/uwyaLVT6fbtCwTyzw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
 
+  /rfc4648@1.5.3:
+    resolution: {integrity: sha512-MjOWxM065+WswwnmNONOT+bD1nXzY9Km6u3kzvnx8F8/HXGZdz3T6e6vZJ8Q/RIMUSp/nxqjH3GwvJDy8ijeQQ==}
+    dev: false
+
   /rimraf@3.0.2:
     resolution: {integrity: sha512-JZkJMZkAGFFPP2YqXZXPbMlMBgsxzE8ILs4lMIX/2o0L9UBw9O/Y3o6wFw/i9YLapcUJWwqbi3kdxIPdC62TIA==}
     hasBin: true
@@ -5957,6 +5968,13 @@ packages:
     dependencies:
       glob-to-regexp: 0.4.1
       graceful-fs: 4.2.11
+    dev: false
+
+  /web-auth-library@1.0.3:
+    resolution: {integrity: sha512-fBmEjJSrbmbD9EREwVlewyfSVkb3IzgTXEF0fzXo3miDywsxES1vwG4aJGNpuSSUorZAGBJNyyz5VFq2VFgudw==}
+    dependencies:
+      jose: 4.15.4
+      rfc4648: 1.5.3
     dev: false
 
   /which-boxed-primitive@1.0.2:

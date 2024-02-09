@@ -58,6 +58,7 @@
     "tldts": "^6.1.4",
     "validator": "^13.11.0",
     "vaul": "^0.8.0",
+    "web-auth-library": "^1.0.3",
     "whoiser": "^1.17.1"
   },
   "devDependencies": {
