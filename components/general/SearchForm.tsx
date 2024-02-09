@@ -37,7 +37,10 @@ const SearchForm = (props: SearchFormProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
   useHotkeys(
     isAppleDevice() ? 'meta+k' : 'ctrl+k',
-    () => inputRef.current?.focus(),
+    () => {
+      setDomain('');
+      inputRef.current?.focus();
+    },
     { preventDefault: true },
     [inputRef.current]
   );
