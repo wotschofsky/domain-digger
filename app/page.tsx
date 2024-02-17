@@ -17,8 +17,8 @@ export const metadata = {
 const Home = () => {
   return (
     <div className="container">
-      <div className="flex min-h-[80vh] flex-col justify-center gap-36 py-24 lg:w-3/4 xl:w-1/2">
-        <div>
+      <div className="flex min-h-[80vh] flex-col justify-center gap-36 py-24">
+        <div className="lg:w-3/4 xl:w-1/2">
           <h1 className="mb-16 text-2xl font-semibold tracking-tight sm:text-5xl">
             Get details about any Domain
           </h1>
@@ -48,7 +48,7 @@ const Home = () => {
           </div>
         </div>
 
-        <div className="max-w-xl">
+        <div>
           <h2 className="mb-8 text-xl font-semibold tracking-tight sm:text-2xl">
             Trusted by experts at
           </h2>
