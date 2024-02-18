@@ -1,16 +1,51 @@
 'use client';
 
+import { useDebounce } from '@uidotdev/usehooks';
 import { Loader2 } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
+import {
+  ChangeEvent,
+  FormEvent,
+  KeyboardEventHandler,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
+import useSWR from 'swr';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 import { cn, isAppleDevice, isValidDomain } from '@/lib/utils';
+
+const normalizeDomain = (input: string) => {
+  let tDomain;
+  try {
+    tDomain = new URL(input.trim().toLowerCase()).hostname;
+  } catch (err) {
+    tDomain = input.trim().toLowerCase();
+  }
+
+  let normalizedDomain = tDomain.endsWith('.') ? tDomain.slice(0, -1) : tDomain;
+  return toASCII(normalizedDomain);
+};
+
+const useSuggestions = (domain: string) => {
+  const debouncedDomain = useDebounce(domain, 200);
+
+  const { data: suggestions } = useSWR<string[]>(
+    domain
+      ? `/api/search-suggestions?q=${encodeURIComponent(debouncedDomain)}`
+      : null,
+    { keepPreviousData: true }
+  );
+
+  return { suggestions };
+};
 
 enum FormStates {
   Initial,
@@ -30,9 +65,10 @@ const SearchForm = (props: SearchFormProps) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [domain, setDomain] = useState('');
+  const [domain, setDomain] = useState(props.initialValue ?? '');
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [error, setError] = useState(false);
+  const [suggestionsVisible, setSuggestionsVisible] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   useHotkeys(
@@ -45,56 +81,120 @@ const SearchForm = (props: SearchFormProps) => {
     [inputRef.current]
   );
 
+  const redirectUser = useCallback(
+    (domain: string) => {
+      setState(FormStates.Submitting);
+
+      const target = `/lookup/${domain}`;
+
+      if (pathname === target) {
+        router.refresh();
+        setTimeout(() => {
+          setState(FormStates.Initial);
+        }, 150);
+        return;
+      }
+
+      router.push(target);
+    },
+    [setState, router, pathname]
+  );
+
+  const handleSubmit = useCallback(
+    (event: FormEvent) => {
+      event.preventDefault();
+
+      const normalizedDomain = normalizeDomain(domain);
+      if (!isValidDomain(normalizedDomain)) {
+        setError(true);
+        return;
+      }
+
+      setError(false);
+      redirectUser(normalizedDomain);
+
+      plausible('Search Form: Submit', {
+        props: { domain: normalizedDomain },
+      });
+    },
+    [setError, domain, redirectUser, plausible]
+  );
+
+  const { suggestions } = useSuggestions(domain);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(
+    null
+  );
   useEffect(() => {
-    if (props.initialValue) {
-      setDomain(props.initialValue);
-    }
-  }, [props.initialValue]);
+    setSelectedSuggestion(null);
+  }, [suggestions]);
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    setError(false);
-    setState(FormStates.Submitting);
+  const handleSelectSuggestion = useCallback(
+    (value: string) => {
+      setError(false);
 
-    let tDomain;
-    try {
-      tDomain = new URL(domain.trim().toLowerCase()).hostname;
-    } catch (err) {
-      tDomain = domain.trim().toLowerCase();
-    }
+      setDomain(value);
+      setSuggestionsVisible(false);
+      redirectUser(value);
 
-    let normalizedDomain = tDomain.endsWith('.')
-      ? tDomain.slice(0, -1)
-      : tDomain;
-    normalizedDomain = toASCII(normalizedDomain);
+      plausible('Search Form: Click Suggestion', {
+        props: { domain: value },
+      });
+    },
+    [setDomain, redirectUser, plausible]
+  );
 
-    if (!isValidDomain(normalizedDomain)) {
-      setError(true);
-      setState(FormStates.Initial);
-      return;
-    }
+  const handleKeyDown = useCallback<KeyboardEventHandler<HTMLFormElement>>(
+    (event) => {
+      console.log(event.key);
 
-    const target = `/lookup/${normalizedDomain}`;
+      if (
+        !(suggestionsVisible && domain && suggestions && suggestions.length > 0)
+      ) {
+        return;
+      }
 
-    if (pathname === target) {
-      router.refresh();
-      setTimeout(() => {
-        setState(FormStates.Initial);
-      }, 150);
-      return;
-    }
-
-    router.push(target);
-
-    plausible('Search Form: Submit', {
-      props: { domain: normalizedDomain },
-    });
-  };
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault();
+          setSelectedSuggestion((prev) => {
+            if (prev === null) return 0;
+            if (prev === suggestions?.length - 1) return 0;
+            return prev + 1;
+          });
+          break;
+        case 'ArrowUp':
+          event.preventDefault();
+          setSelectedSuggestion((prev) => {
+            if (prev === null) return suggestions?.length - 1;
+            if (prev === 0) return suggestions?.length - 1;
+            return prev - 1;
+          });
+          break;
+        case 'Enter':
+          if (selectedSuggestion !== null) {
+            event.preventDefault();
+            handleSelectSuggestion(suggestions[selectedSuggestion]);
+          }
+          break;
+      }
+    },
+    [
+      suggestionsVisible,
+      domain,
+      suggestions,
+      selectedSuggestion,
+      handleSelectSuggestion,
+    ]
+  );
 
   return (
     <>
-      <form className="flex gap-3" onSubmit={handleSubmit}>
-        <div className="relative flex-[3]">
+      <form
+        className="flex gap-3"
+        onSubmit={handleSubmit}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="group relative flex-[3]">
           <Input
             ref={inputRef}
             className="w-full"
@@ -106,6 +206,12 @@ const SearchForm = (props: SearchFormProps) => {
             onInput={(event: ChangeEvent<HTMLInputElement>) =>
               setDomain(event.target.value)
             }
+            onFocus={() => setSuggestionsVisible(true)}
+            onBlur={() => {
+              setTimeout(() => {
+                setSuggestionsVisible(false);
+              }, 100);
+            }}
             disabled={state !== FormStates.Initial}
             autoFocus={props.autofocus}
           />
@@ -119,6 +225,26 @@ const SearchForm = (props: SearchFormProps) => {
               'ctrl+k'
             )}
           </kbd>
+
+          {suggestionsVisible &&
+            domain &&
+            suggestions &&
+            suggestions.length > 0 && (
+              <ul className="absolute left-0 top-full w-full rounded-xl border bg-card p-1 text-card-foreground shadow">
+                {suggestions.map((value, index) => (
+                  <li
+                    key={value}
+                    className={cn(
+                      'cursor-pointer rounded-lg px-2 py-1 hover:bg-muted/50',
+                      { 'bg-muted/50': selectedSuggestion === index }
+                    )}
+                    onClick={() => handleSelectSuggestion(value)}
+                  >
+                    {value}
+                  </li>
+                ))}
+              </ul>
+            )}
         </div>
         <Button
           className="flex-[1]"
