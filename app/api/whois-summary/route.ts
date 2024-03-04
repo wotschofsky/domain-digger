@@ -103,7 +103,11 @@ export async function GET(request: Request) {
 
   try {
     const summary = await getSummary(domain);
-    return Response.json(summary);
+    return Response.json(summary, {
+      headers: {
+        'Cache-Control': 'public, max-age=600, s-maxage=1800',
+      },
+    });
   } catch (error) {
     return Response.json(
       { error: true, message: 'Error fetching whois summary' },
