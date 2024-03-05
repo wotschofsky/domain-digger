@@ -32,6 +32,13 @@ const nextConfig = {
 
     return config;
   },
+  redirects: async () => [
+    {
+      source: '/lookup',
+      destination: '/',
+      permanent: true,
+    },
+  ],
   experimental: {
     webpackBuildWorker: true,
   },
