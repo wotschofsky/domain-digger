@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import bigquery from '@/lib/bigquery';
+import { ratelimit } from '@/lib/upstash';
 
 export const runtime = 'edge';
 export const preferredRegion = 'home';
@@ -18,6 +19,17 @@ export const GET = async (request: Request) => {
   if (query.includes('%')) {
     return new Response('Invalid query', {
       status: 400,
+    });
+  }
+
+  const identifier = [
+    'search-suggestions',
+    request.headers.get('x-forwarded-for') ?? '',
+  ].join(':');
+  const { success } = await ratelimit.limit(identifier);
+  if (!success) {
+    return new Response('Too many requests', {
+      status: 429,
     });
   }
 

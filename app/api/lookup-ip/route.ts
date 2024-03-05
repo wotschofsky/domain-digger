@@ -1,6 +1,7 @@
 import isIP from 'validator/lib/isIP';
 
 import { getIpDetails } from '@/lib/ips';
+import { ratelimit } from '@/lib/upstash';
 
 export const runtime = 'edge';
 
@@ -79,6 +80,17 @@ export async function GET(request: Request) {
         },
       }
     );
+  }
+
+  const identifier = [
+    'lookup-ip',
+    request.headers.get('x-forwarded-for') ?? '',
+  ].join(':');
+  const { success } = await ratelimit.limit(identifier);
+  if (!success) {
+    return new Response('Too many requests', {
+      status: 429,
+    });
   }
 
   const [data, reverse] = await Promise.all([

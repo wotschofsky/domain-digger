@@ -1,6 +1,7 @@
 import { getDomain } from 'tldts';
 import whoiser, { WhoisSearchResult } from 'whoiser';
 
+import { ratelimit } from '@/lib/upstash';
 import { isValidDomain } from '@/lib/utils';
 
 const UNREGISTERED_INDICATORS = [
@@ -99,6 +100,17 @@ export async function GET(request: Request) {
         },
       }
     );
+  }
+
+  const identifier = [
+    'whois-summary',
+    request.headers.get('x-forwarded-for') ?? '',
+  ].join(':');
+  const { success } = await ratelimit.limit(identifier);
+  if (!success) {
+    return new Response('Too many requests', {
+      status: 429,
+    });
   }
 
   try {
