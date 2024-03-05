@@ -143,10 +143,8 @@ const SearchForm = (props: SearchFormProps) => {
     [setDomain, redirectUser, plausible]
   );
 
-  const handleKeyDown = useCallback<KeyboardEventHandler<HTMLFormElement>>(
+  const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
     (event) => {
-      console.log(event.key);
-
       if (
         !(suggestionsVisible && domain && suggestions && suggestions.length > 0)
       ) {
@@ -189,11 +187,7 @@ const SearchForm = (props: SearchFormProps) => {
 
   return (
     <>
-      <form
-        className="flex gap-3"
-        onSubmit={handleSubmit}
-        onKeyDown={handleKeyDown}
-      >
+      <form className="flex gap-3" onSubmit={handleSubmit}>
         <div className="group relative flex-[3]">
           <Input
             ref={inputRef}
@@ -206,6 +200,7 @@ const SearchForm = (props: SearchFormProps) => {
             onInput={(event: ChangeEvent<HTMLInputElement>) =>
               setDomain(event.target.value)
             }
+            onKeyDown={handleKeyDown}
             onFocus={() => setSuggestionsVisible(true)}
             onBlur={() => {
               setTimeout(() => {
