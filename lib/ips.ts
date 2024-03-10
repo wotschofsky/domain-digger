@@ -28,15 +28,17 @@ export const getIpDetails = async (ip: string) => {
   return data as IpDetails;
 };
 
-const normalizeIp = (ip: string) =>
+// Standardize last segment of IP address to reduce the number of requests and avoid rate limiting
+// 1st Regex is for IPv4
+// 2nd Regex is for IPv6
+export const normalizeIpEnding = (ip: string) =>
   ip.replace(/\.[0-9]+$/, '.0').replace(/:([0-9a-fA-F]+)$/, ':');
 
-// Normalize IPs to their CIDR ranges to reduce the number of requests and avoid rate limiting
 export const hostLookupLoader = new DataLoader(
   async (keys: readonly string[]) =>
     Promise.all(
       keys.map(async (ip) => {
-        const normalIp = normalizeIp(ip);
+        const normalIp = normalizeIpEnding(ip);
         const data = await getIpDetails(normalIp);
 
         if (data.org === data.isp) {
@@ -47,6 +49,6 @@ export const hostLookupLoader = new DataLoader(
       })
     ),
   {
-    cacheKeyFn: normalizeIp,
+    cacheKeyFn: normalizeIpEnding,
   }
 );

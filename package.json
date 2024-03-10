@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest",
     "test:format": "prettier --cache --check .",
     "format": "prettier --cache --write ."
   },
@@ -76,8 +77,10 @@
     "@types/react-dom": "18.2.17",
     "eslint": "^8.55.0",
     "eslint-config-next": "^14.0.4",
+    "happy-dom": "^13.7.3",
     "prettier": "^3.1.1",
     "prettier-plugin-tailwindcss": "^0.5.9",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^1.3.1"
   }
 }
