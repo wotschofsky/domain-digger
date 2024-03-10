@@ -79,11 +79,7 @@ const LookupLayout: FC<LookupLayoutProps> = ({
   return (
     <>
       <div className="container mb-8 max-w-xl">
-        <SearchForm
-          textAlignment="center"
-          initialValue={domain}
-          autofocus={false}
-        />
+        <SearchForm initialValue={domain} autofocus={false} />
       </div>
 
       <div className="container">

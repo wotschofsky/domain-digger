@@ -54,7 +54,6 @@ enum FormStates {
 }
 
 type SearchFormProps = {
-  textAlignment: 'left' | 'center';
   initialValue?: string;
   autofocus?: boolean;
 };
@@ -186,7 +185,7 @@ const SearchForm = (props: SearchFormProps) => {
   );
 
   return (
-    <>
+    <div>
       <form className="flex gap-3" onSubmit={handleSubmit}>
         <div className="group relative flex-[3]">
           <Input
@@ -254,23 +253,15 @@ const SearchForm = (props: SearchFormProps) => {
       </form>
 
       {error ? (
-        <p
-          className={cn('mt-2 text-sm text-red-600', {
-            'text-center': props.textAlignment === 'center',
-          })}
-        >
+        <p className="mt-2 text-center text-sm text-red-600">
           An error occurred! Please check your input or try again later.
         </p>
       ) : (
-        <p
-          className={cn('mt-2 text-sm text-muted-foreground', {
-            'text-center': props.textAlignment === 'center',
-          })}
-        >
+        <p className="mt-2 text-center text-sm text-muted-foreground">
           It can be anything! An apex, subdomain, or even a URL.
         </p>
       )}
-    </>
+    </div>
   );
 };
 
