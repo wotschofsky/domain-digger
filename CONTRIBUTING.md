@@ -1,0 +1,75 @@
+# Contributing to Domain Digger
+
+## About the project
+
+Domain Digger is built with the Next.js App Router and relies on some Vercel-exclusive features (namely, regional edge functions) for full functionality. The app is styled with Tailwind and shadcn/ui.
+
+Dependencies are managed by [pnpm](https://pnpm.io/installation) and can be installed by running `pnpm i`.
+
+Development mode can be initiated using `pnpm dev`. For production, the app should be deployed on Vercel to ensure all features function as expected.
+
+The codebase can/should be formatted with Prettier using `pnpm format`.
+
+## Configuring the project
+
+For full functionality, Domain Digger relies on Upstash Redis and Google BigQuery.
+
+Credentials are provided through environment variables. Using [a .env file as per the Next.js docs](https://nextjs.org/docs/app/building-your-application/configuring/environment-variables#loading-environment-variables) is recommended. All required variables are documented in the [example env file](./.env.example).
+
+### Upstash
+
+Head to the [Upstash Console](https://console.upstash.com) and create a Redis database from there. Retrieve credentials for `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+
+### Google Cloud
+
+Configuring Google Cloud _is not_ required to run the codebase.
+
+#### Creating the BigQuery dataset
+
+Use the following schema for creating the dataset:
+
+```json
+[
+  {
+    "name": "domain",
+    "mode": "NULLABLE",
+    "type": "STRING",
+    "description": null,
+    "fields": []
+  },
+  {
+    "name": "baseDomain",
+    "mode": "NULLABLE",
+    "type": "STRING",
+    "description": null,
+    "fields": []
+  },
+  {
+    "name": "timestamp",
+    "mode": "NULLABLE",
+    "type": "TIMESTAMP",
+    "description": null,
+    "fields": []
+  },
+  {
+    "name": "ip",
+    "mode": "NULLABLE",
+    "type": "STRING",
+    "description": null,
+    "fields": []
+  }
+]
+```
+
+#### Creating a service account
+
+When creating a service account, ensure that the following permissions are granted:
+
+- `bigquery.datasets.get`
+- `bigquery.datasets.getIamPolicy`
+- `bigquery.jobs.create`
+- `bigquery.tables.get`
+- `bigquery.tables.getData`
+- `bigquery.tables.updateData`
+
+In order to only grant the minimal required permissions, a custom role needs to be created.
