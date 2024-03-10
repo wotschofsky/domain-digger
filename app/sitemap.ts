@@ -1,4 +1,4 @@
-import { MetadataRoute } from 'next';
+import type { MetadataRoute } from 'next';
 
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 

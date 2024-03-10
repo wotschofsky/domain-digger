@@ -6,9 +6,9 @@ import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import {
-  ChangeEvent,
-  FormEvent,
-  KeyboardEventHandler,
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEventHandler,
   useCallback,
   useEffect,
   useRef,

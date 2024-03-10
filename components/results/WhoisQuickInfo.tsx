@@ -5,7 +5,7 @@ import useSWRImmutable from 'swr/immutable';
 
 import { Skeleton } from '@/components/ui/skeleton';
 
-import { WhoisSummaryResponse } from '@/app/api/whois-summary/route';
+import type { WhoisSummaryResponse } from '@/app/api/whois-summary/route';
 
 type WhoisQuickInfoTileProps =
   | {

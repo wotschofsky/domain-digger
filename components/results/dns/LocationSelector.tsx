@@ -3,7 +3,7 @@
 import { Label } from '@radix-ui/react-label';
 import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FC, useCallback } from 'react';
+import { type FC, useCallback } from 'react';
 
 import {
   Select,

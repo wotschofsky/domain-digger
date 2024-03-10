@@ -1,5 +1,5 @@
 import { getDomain } from 'tldts';
-import whoiser, { WhoisSearchResult } from 'whoiser';
+import whoiser, { type WhoisSearchResult } from 'whoiser';
 
 import { ratelimit } from '@/lib/upstash';
 import { isValidDomain } from '@/lib/utils';
