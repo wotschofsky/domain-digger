@@ -1,5 +1,6 @@
 'use client';
 
+import { Label } from '@radix-ui/react-label';
 import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FC, useCallback } from 'react';
@@ -44,7 +45,7 @@ const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
   );
 
   return (
-    <div className="flex flex-col gap-1">
+    <Label className="flex flex-col gap-1">
       <span className="text-sm text-muted-foreground">Resolver</span>
 
       <Select
@@ -60,7 +61,7 @@ const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
           <SelectItem value="cloudflare">Cloudflare</SelectItem>
         </SelectContent>
       </Select>
-    </div>
+    </Label>
   );
 };
 

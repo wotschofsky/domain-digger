@@ -16,6 +16,7 @@ const Footer = () => (
           href="https://wotschofsky.com"
           target="_blank"
           rel="noopener"
+          aria-label="Felix Wotschofsky (Site Creator)"
         >
           Felix Wotschofsky
         </a>

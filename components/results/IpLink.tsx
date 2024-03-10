@@ -31,7 +31,11 @@ const IpLink: FC<IpLinkProps> = ({ value }) => {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild onClick={open}>
-            <a className="cursor-pointer underline decoration-dotted underline-offset-4">
+            <a
+              className="cursor-pointer underline decoration-dotted underline-offset-4"
+              aria-label={`Details for IP ${value}`}
+              tabIndex={0}
+            >
               <span className="select-all">{value}</span>
               <InfoIcon
                 role="button"

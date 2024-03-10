@@ -76,6 +76,7 @@ const BookmarkletLink = () => {
           href={target}
           onClick={clickHandler}
           onMouseDown={mouseDownHandler}
+          tabIndex={-1}
         >
           {activated ? 'Inspect Domain' : 'Bookmarklet'}
         </a>

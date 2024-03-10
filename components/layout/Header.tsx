@@ -11,7 +11,7 @@ import ThemeMenu from '@/components/layout/header/ThemeMenu';
 const Header = () => (
   <header className="w-full p-4 md:px-8">
     <div className="flex items-center justify-between pb-4">
-      <Link className="flex items-center gap-2" href="/">
+      <Link className="flex items-center gap-2" href="/" aria-label="Home Page">
         <LogoDark className="inline h-6 dark:hidden" />
         <LogoLight className="hidden h-6 dark:inline" />
         Domain Digger

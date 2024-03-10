@@ -21,6 +21,7 @@ const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
           <Link
             className="select-all underline decoration-dotted underline-offset-4"
             href={`/lookup/${domain}`}
+            aria-label={`Results for ${domain}`}
           >
             <span>{domain}</span>
           </Link>
@@ -38,6 +39,7 @@ const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
               href={`https://${domain}`}
               target="_blank"
               rel="noreferrer nofollow"
+              aria-label={`Visit for ${domain}`}
             >
               <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
             </a>

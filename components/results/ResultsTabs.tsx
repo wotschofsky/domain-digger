@@ -24,7 +24,10 @@ const SingleTab: FC<{
       }
     >
       {label}
-      <span className="pointer-events-none absolute bottom-0 left-1/2 hidden w-full -translate-x-1/2 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100 sm:block">
+      <span
+        className="pointer-events-none absolute bottom-0 left-1/2 hidden w-full -translate-x-1/2 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100 sm:block"
+        aria-hidden
+      >
         {isAppleDevice() ? (
           <>
             <OptionIcon className="inline-block h-3 w-3" strokeWidth={3} />

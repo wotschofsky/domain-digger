@@ -41,6 +41,7 @@ const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
           asChild
           variant="secondary"
           className="h-6 whitespace-nowrap p-2 text-xs"
+          aria-label={`Results for ${domain}`}
         >
           <Link href={`/lookup/${domain}`}>{domain}</Link>
         </Button>

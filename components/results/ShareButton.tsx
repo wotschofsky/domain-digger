@@ -28,7 +28,13 @@ const ShareButton: FC = () => {
   }, [plausible]);
 
   return (
-    <Button className="px-3" variant="outline" size="lg" onClick={onClick}>
+    <Button
+      className="px-3"
+      variant="outline"
+      size="lg"
+      onClick={onClick}
+      aria-label="Share"
+    >
       <ShareIcon />
     </Button>
   );
