@@ -3,9 +3,8 @@ import type { FC, ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
 
-import Footer from '@/components/layout/Footer';
-import Header from '@/components/layout/Header';
-
+import Footer from './_components/Footer';
+import Header from './_components/Header';
 import './globals.css';
 import Providers from './providers';
 

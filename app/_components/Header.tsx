@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 
 import LogoDark from '@/assets/logo-dark.svg';
 import LogoLight from '@/assets/logo-light.svg';
-import BookmarkletLink from '@/components/layout/header/BookmarkletLink';
-import ThemeMenu from '@/components/layout/header/ThemeMenu';
+
+import BookmarkletLink from './BookmarkletLink';
+import ThemeMenu from './ThemeMenu';
 
 const Header = () => (
   <header className="w-full p-4 md:px-8">

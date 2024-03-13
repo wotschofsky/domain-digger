@@ -5,9 +5,10 @@ import { Card } from '@/components/ui/card';
 
 import LogoDark from '@/assets/logo-dark.svg';
 import LogoLight from '@/assets/logo-light.svg';
-import SearchForm from '@/components/general/SearchForm';
-import TrustedByLogos from '@/components/marketing/TrustedByLogos';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
+
+import SearchForm from '../_components/SearchForm';
+import TrustedByLogos from './_components/TrustedByLogos';
 
 export const metadata = {
   openGraph: {

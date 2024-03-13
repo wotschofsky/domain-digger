@@ -6,9 +6,10 @@ import type { FC } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-import ResultsGlobe from '@/components/results/map/ResultsGlobe';
 import { REGIONS } from '@/lib/data';
 import InternalDoHResolver from '@/lib/resolvers/InternalDoHResolver';
+
+import ResultsGlobe from './_components/ResultsGlobe';
 
 export const runtime = 'edge';
 

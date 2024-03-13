@@ -6,18 +6,18 @@ import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 import { getDomain } from 'tldts';
 
-import SearchForm from '@/components/general/SearchForm';
-import RelatedDomains from '@/components/results/RelatedDomains';
-import ResultsTabs from '@/components/results/ResultsTabs';
-import ShareButton from '@/components/results/ShareButton';
-import WhoisQuickInfo from '@/components/results/WhoisQuickInfo';
 import bigquery from '@/lib/bigquery';
 import { isValidDomain } from '@/lib/utils';
 
-const StarReminder = dynamic(
-  () => import('@/components/results/StarReminder'),
-  { ssr: false }
-);
+import SearchForm from '../../_components/SearchForm';
+import RelatedDomains from './_components/RelatedDomains';
+import ResultsTabs from './_components/ResultsTabs';
+import ShareButton from './_components/ShareButton';
+import WhoisQuickInfo from './_components/WhoisQuickInfo';
+
+const StarReminder = dynamic(() => import('./_components/StarReminder'), {
+  ssr: false,
+});
 
 type LookupLayoutProps = {
   children: ReactNode;

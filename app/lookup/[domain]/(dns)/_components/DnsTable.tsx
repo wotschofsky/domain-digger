@@ -9,9 +9,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import RecordRow from '@/components/results/dns/RecordRow';
-import StackedRecord from '@/components/results/dns/StackedRecord';
 import type { ResolvedRecords } from '@/lib/resolvers/DnsResolver';
+
+import RecordRow from './RecordRow';
+import StackedRecord from './StackedRecord';
 
 type DnsTableProps = {
   records: ResolvedRecords;

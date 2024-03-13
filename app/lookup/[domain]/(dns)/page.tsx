@@ -2,14 +2,15 @@ import type { Metadata } from 'next';
 import { redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
-import DnsTable from '@/components/results/dns/DnsTable';
-import LocationSelector from '@/components/results/dns/LocationSelector';
-import ResolverSelector from '@/components/results/dns/ResolverSelector';
 import { hostLookupLoader } from '@/lib/ips';
 import AuthoritativeResolver from '@/lib/resolvers/AuthoritativeResolver';
 import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
 import GoogleDoHResolver from '@/lib/resolvers/GoogleDoHResolver';
 import InternalDoHResolver from '@/lib/resolvers/InternalDoHResolver';
+
+import DnsTable from './_components/DnsTable';
+import LocationSelector from './_components/LocationSelector';
+import ResolverSelector from './_components/ResolverSelector';
 
 const getResolver = (
   resolverName: string | undefined,

@@ -10,9 +10,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import DomainLink from '@/components/results/DomainLink';
 import { lookupCerts } from '@/lib/certs';
 import { isValidDomain } from '@/lib/utils';
+
+import DomainLink from '../_components/DomainLink';
 
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency

@@ -1,8 +1,8 @@
 import type { FC, ReactNode } from 'react';
 import reactStringReplace from 'react-string-replace';
 
-import DomainLink from '@/components/results/DomainLink';
-import IpLink from '@/components/results/IpLink';
+import DomainLink from '../../_components/DomainLink';
+import IpLink from '../../_components/IpLink';
 
 const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const IPV4_REGEX = /(\d{1,3}\.){3}\d{1,3}/g;

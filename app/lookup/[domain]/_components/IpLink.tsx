@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import IpDetailsModal from '@/components/results/ip/IpDetailsModal';
+import IpDetailsModal from './IpDetailsModal';
 
 type IpLinkProps = {
   value: string;
