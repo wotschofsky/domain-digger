@@ -10,7 +10,7 @@ export const REGIONS: Record<
   dub: { lat: 53.421333, lng: -6.270075, name: '🇮🇪 Dublin, Ireland' },
   fra: { lat: 50.033333, lng: 8.570556, name: '🇩🇪 Frankfurt, Germany' },
   gru: { lat: -23.435556, lng: -46.473056, name: '🇧🇷 São Paulo, Brazil' },
-  hkg: { lat: 22.308046, lng: 113.91848, name: '🇭🇰 Hong Kong, China' },
+  hkg: { lat: 22.308046, lng: 113.91848, name: '🇭🇰 Hong Kong' },
   hnd: { lat: 35.553333, lng: 139.781111, name: '🇯🇵 Tokyo, Japan' },
   iad: { lat: 38.944, lng: -77.456, name: '🇺🇸 Washington, USA' },
   icn: { lat: 37.4625, lng: 126.439167, name: '🇰🇷 Seoul, South Korea' },
