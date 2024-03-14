@@ -1,7 +1,7 @@
 import isIP from 'validator/lib/isIP';
 
+import { applyRateLimit } from '@/lib/api';
 import { getIpDetails } from '@/lib/ips';
-import { ratelimit } from '@/lib/upstash';
 
 export const runtime = 'edge';
 
@@ -82,12 +82,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const identifier = [
-    'lookup-ip',
-    request.headers.get('x-forwarded-for') ?? '',
-  ].join(':');
-  const { success } = await ratelimit.limit(identifier);
-  if (!success) {
+  const visitorIp = request.headers.get('x-forwarded-for') ?? '';
+  const identifier = ['lookup-ip', visitorIp].join(':');
+  const isAllowed = await applyRateLimit(identifier, 10, '60s');
+  if (!isAllowed) {
     return new Response('Too many requests', {
       status: 429,
     });

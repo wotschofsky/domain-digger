@@ -1,7 +1,7 @@
 import { getDomain } from 'tldts';
 import whoiser, { type WhoisSearchResult } from 'whoiser';
 
-import { ratelimit } from '@/lib/upstash';
+import { applyRateLimit } from '@/lib/api';
 import { isValidDomain } from '@/lib/utils';
 
 const UNREGISTERED_INDICATORS = [
@@ -102,12 +102,10 @@ export async function GET(request: Request) {
     );
   }
 
-  const identifier = [
-    'whois-summary',
-    request.headers.get('x-forwarded-for') ?? '',
-  ].join(':');
-  const { success } = await ratelimit.limit(identifier);
-  if (!success) {
+  const visitorIp = request.headers.get('x-forwarded-for') ?? '';
+  const identifier = ['whois-summary', visitorIp].join(':');
+  const isAllowed = await applyRateLimit(identifier, 5, '60s');
+  if (!isAllowed) {
     return new Response('Too many requests', {
       status: 429,
     });

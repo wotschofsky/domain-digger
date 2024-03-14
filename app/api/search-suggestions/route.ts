@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { applyRateLimit } from '@/lib/api';
 import bigquery from '@/lib/bigquery';
-import { ratelimit } from '@/lib/upstash';
 
 export const runtime = 'edge';
 export const preferredRegion = 'home';
@@ -22,12 +22,10 @@ export const GET = async (request: Request) => {
     });
   }
 
-  const identifier = [
-    'search-suggestions',
-    request.headers.get('x-forwarded-for') ?? '',
-  ].join(':');
-  const { success } = await ratelimit.limit(identifier);
-  if (!success) {
+  const visitorIp = request.headers.get('x-forwarded-for') ?? '';
+  const identifier = ['search-suggestions', visitorIp].join(':');
+  const isAllowed = await applyRateLimit(identifier, 15, '60s');
+  if (!isAllowed) {
     return new Response('Too many requests', {
       status: 429,
     });
@@ -54,5 +52,9 @@ export const GET = async (request: Request) => {
 
   const suggestions = results.map((row: any) => row.baseDomain) as string[];
 
-  return NextResponse.json(suggestions);
+  return NextResponse.json(suggestions, {
+    headers: {
+      'Cache-Control': 'public, s-maxage=600',
+    },
+  });
 };
