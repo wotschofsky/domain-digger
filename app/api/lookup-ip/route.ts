@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server';
 import isIP from 'validator/lib/isIP';
 
 import { applyRateLimit } from '@/lib/api';
@@ -68,11 +69,11 @@ export async function GET(request: Request) {
   const ip = searchParams.get('ip');
 
   if (!ip || !isIP(ip)) {
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         error: true,
         message: '"ip" param missing or invalid',
-      }),
+      },
       {
         status: 400,
         headers: {
@@ -96,8 +97,8 @@ export async function GET(request: Request) {
     lookupReverse(ip),
   ]);
 
-  return new Response(
-    JSON.stringify({
+  return NextResponse.json(
+    {
       reverse: reverse,
       isp: data.isp,
       org: data.org,
@@ -107,7 +108,7 @@ export async function GET(request: Request) {
       timezone: data.timezone,
       lat: data.lat,
       lon: data.lon,
-    }),
+    },
     {
       status: 200,
       headers: {
