@@ -1,6 +1,63 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest';
 
-import { isAppleDevice, isValidDomain } from './utils';
+import { isAppleDevice, isValidDomain, retry } from './utils';
+
+describe('retry', () => {
+  let warnSpy: MockInstance;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it('should succeed without retrying if the function does not throw', async () => {
+    const mockFn = vi.fn().mockResolvedValue('success');
+    const result = await retry(mockFn, 2);
+    expect(result).toBe('success');
+    expect(mockFn).toHaveBeenCalledTimes(1);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('should retry the specified number of times on failure, then succeed', async () => {
+    const error = new Error('Test error');
+    const mockFn = vi
+      .fn()
+      .mockRejectedValueOnce(error)
+      .mockRejectedValueOnce(error)
+      .mockResolvedValue('success');
+    const result = await retry(mockFn, 2);
+    expect(result).toBe('success');
+    expect(mockFn).toHaveBeenCalledTimes(3);
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith(error.message.toString());
+  });
+
+  it('should throw the last error after exhausting all retries', async () => {
+    const error = new Error('Test error');
+    const mockFn = vi.fn().mockRejectedValue(error);
+    try {
+      await retry(mockFn, 2);
+      throw new Error(
+        'This should not execute if retry throws the expected error'
+      );
+    } catch (err) {
+      expect(err).toBe(error);
+      expect(mockFn).toHaveBeenCalledTimes(3);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+    }
+  });
+});
 
 describe('isValidDomain', () => {
   it('validates typical domains', () => {
