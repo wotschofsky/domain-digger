@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { applyRateLimit } from '@/lib/api';
-import bigquery from '@/lib/bigquery';
+import { getSearchSuggestions } from '@/lib/search';
 
 export const runtime = 'edge';
 export const preferredRegion = 'home';
@@ -31,26 +31,7 @@ export const GET = async (request: Request) => {
     });
   }
 
-  if (!bigquery) {
-    return NextResponse.json([]);
-  }
-
-  const tableName = `\`${bigquery.projectId}.${process.env.BIGQUERY_DATASET}.lookups\``;
-  const results = await bigquery.query({
-    query: `
-      SELECT baseDomain
-      FROM ${tableName}
-      WHERE baseDomain LIKE @query
-      GROUP BY baseDomain
-      ORDER BY COUNT(*) ASC
-      LIMIT 5
-    `,
-    params: {
-      query: `${query}%`,
-    },
-  });
-
-  const suggestions = results.map((row: any) => row.baseDomain) as string[];
+  const suggestions = await getSearchSuggestions(query);
 
   return NextResponse.json(suggestions, {
     headers: {

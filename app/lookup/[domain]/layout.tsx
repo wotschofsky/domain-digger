@@ -1,12 +1,10 @@
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
-import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
-import { getDomain } from 'tldts';
 
-import bigquery from '@/lib/bigquery';
+import { recordLookup } from '@/lib/search';
 import { isValidDomain } from '@/lib/utils';
 
 import SearchForm from '../../_components/SearchForm';
@@ -46,35 +44,7 @@ const LookupLayout: FC<LookupLayoutProps> = ({
     return notFound();
   }
 
-  if (bigquery) {
-    const baseDomain = getDomain(domain);
-
-    const forwardedFor = headers().get('x-forwarded-for');
-    const ip = (forwardedFor ?? '127.0.0.1').split(',')[0];
-
-    bigquery
-      .insertRows({
-        datasetName: process.env.BIGQUERY_DATASET!,
-        tableName: 'lookups',
-        rows: [
-          {
-            domain,
-            baseDomain,
-            timestamp: Math.floor(new Date().getTime() / 1000),
-            ip,
-          },
-        ],
-      })
-      .catch((error) => {
-        if ('errors' in error) {
-          for (const err of error.errors) {
-            console.error(err);
-          }
-        } else {
-          console.error(error);
-        }
-      });
-  }
+  recordLookup(domain);
 
   return (
     <>
