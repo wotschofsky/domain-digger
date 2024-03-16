@@ -63,7 +63,7 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
         <SingleTab
           label="DNS"
           href={`/lookup/${domain}`}
-          selected={selectedSegment === null}
+          selected={selectedSegment === '(dns)'}
           shortcutNumber={1}
         />
         <SingleTab
