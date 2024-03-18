@@ -44,3 +44,5 @@ Discover in-depth details of any domain with just a few clicks.
 ---
 
 > **🤝 Contributing:** Any pull requests and contributions are very welcome. Your ideas and suggestions are greatly appreciated!
+>
+> **[How to run the app](./CONTRIBUTING.md)**
