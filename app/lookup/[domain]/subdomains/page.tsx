@@ -11,9 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { lookupCerts } from '@/lib/certs';
 import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
-import { isValidDomain } from '@/lib/utils';
+import { findSubdomains } from '@/lib/subdomains';
 
 import DomainLink from '../_components/DomainLink';
 
@@ -41,42 +40,12 @@ export const generateMetadata = ({
 const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   params: { domain },
 }) => {
-  const resolver = new CloudflareDoHResolver();
-
-  const certs = await lookupCerts(domain);
-
-  const issuedCerts = certs.map((cert) => ({
-    date: new Date(cert.entry_timestamp),
-    domains: [cert.common_name, ...cert.name_value.split(/\n/g)],
-  }));
-
-  const uniqueDomains = Array.from(
-    new Set<string>(issuedCerts.flatMap((r) => r.domains))
-  )
-    .filter(isValidDomain)
-    .filter((d) => d.endsWith(`.${domain}`));
-
-  const results = await Promise.all(
-    // Limited to avoid subrequest limit from Cloudflare Workers of 1000
-    // https://developers.cloudflare.com/workers/platform/limits#subrequests
-    uniqueDomains.slice(0, 500).map(async (domain) => {
-      const records = await resolver.resolveRecordType(domain, 'A');
-      const hasRecords = records.length > 0;
-
-      return {
-        domain,
-        firstSeen: issuedCerts
-          .filter((c) => c.domains.includes(domain))
-          .sort((a, b) => a.date.getTime() - b.date.getTime())[0].date,
-        stillExists: hasRecords,
-      };
-    })
-  );
-  const sortedResults = results.sort(
-    (a, b) => b.firstSeen.getTime() - a.firstSeen.getTime()
+  const { results, isTruncated, RESULTS_LIMIT } = await findSubdomains(
+    domain,
+    new CloudflareDoHResolver()
   );
 
-  if (!sortedResults.length) {
+  if (!results.length) {
     return (
       <p className="mt-8 text-center text-muted-foreground">
         Could not find any subdomains for this domain.
@@ -95,7 +64,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {sortedResults.map((result) => (
+          {results.map((result) => (
             <TableRow key={result.domain} className="hover:bg-transparent">
               <TableCell className="pl-0">
                 <DomainLink domain={result.domain} />
@@ -113,9 +82,9 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
         </TableBody>
       </Table>
 
-      {uniqueDomains.length > 500 && (
+      {isTruncated && (
         <p className="mt-8 text-center text-muted-foreground">
-          Results limited to 500 subdomains.
+          Results limited to {RESULTS_LIMIT} subdomains.
         </p>
       )}
     </>
