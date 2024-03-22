@@ -9,9 +9,9 @@ import dgram from 'node:dgram';
 
 import { retry } from '@/lib/utils';
 
-import DnsResolver, { type RawRecord, type RecordType } from './DnsResolver';
+import { DnsResolver, type RawRecord, type RecordType } from './base';
 
-class AuthoritativeResolver extends DnsResolver {
+export class AuthoritativeResolver extends DnsResolver {
   private async getRootServers() {
     const response = await fetch('https://www.internic.net/domain/named.root', {
       next: {
@@ -207,5 +207,3 @@ class AuthoritativeResolver extends DnsResolver {
     return this.fetchRecords(domain, type);
   }
 }
-
-export default AuthoritativeResolver;

@@ -5,10 +5,10 @@ import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
 import { REGIONS } from '@/lib/data';
-import InternalDoHResolver from '@/lib/resolvers/InternalDoHResolver';
+import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
-import BaseAlert from './_components/BaseAlert';
-import ResultsGlobe from './_components/ResultsGlobe';
+import { BaseAlert } from './_components/base-alert';
+import { ResultsGlobe } from './_components/results-globe';
 
 export const runtime = 'edge';
 

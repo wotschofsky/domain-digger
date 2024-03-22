@@ -9,7 +9,7 @@ import { type FC, useCallback, useEffect, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
-import styles from './ResultsGlobe.module.css';
+import styles from './results-globe.module.css';
 
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
@@ -94,7 +94,7 @@ type ResultsGlobeProps = {
   }[];
 };
 
-const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
+export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -142,5 +142,3 @@ const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
     </div>
   );
 };
-
-export default ResultsGlobe;

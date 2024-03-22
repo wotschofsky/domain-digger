@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 
-const ShareButton: FC = () => {
+export const ShareButton: FC = () => {
   const plausible = usePlausible();
 
   const onClick = useCallback(() => {
@@ -39,5 +39,3 @@ const ShareButton: FC = () => {
     </Button>
   );
 };
-
-export default ShareButton;

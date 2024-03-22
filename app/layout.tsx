@@ -3,10 +3,10 @@ import type { FC, ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
 
-import Footer from './_components/Footer';
-import Header from './_components/Header';
+import { Footer } from './_components/footer';
+import { Header } from './_components/header';
 import './globals.css';
-import Providers from './providers';
+import { Providers } from './providers';
 
 export const metadata = {
   metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : null,

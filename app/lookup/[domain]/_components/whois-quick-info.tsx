@@ -38,7 +38,7 @@ type WhoisQuickInfoProps = {
   domain: string;
 };
 
-const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
+export const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
   const { data, isLoading } = useSWRImmutable<WhoisSummaryResponse>(
     `/api/whois-summary?domain=${encodeURIComponent(domain)}`
   );
@@ -78,5 +78,3 @@ const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
     </div>
   );
 };
-
-export default WhoisQuickInfo;

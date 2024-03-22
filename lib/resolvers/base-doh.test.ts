@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import BaseDoHResolver, { type DoHResponse } from './BaseDoHResolver';
+import { BaseDoHResolver, type DoHResponse } from './base-doh';
 
 describe('BaseDoHResolver', () => {
   const mockSendRequest = vi.fn();

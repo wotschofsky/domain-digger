@@ -13,7 +13,7 @@ type DomainLinkProps = {
   domain: string;
 };
 
-const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
+export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
   <>
     <TooltipProvider>
       <Tooltip>
@@ -52,5 +52,3 @@ const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
     )}
   </>
 );
-
-export default DomainLink;

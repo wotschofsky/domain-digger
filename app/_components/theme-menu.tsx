@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const ThemeMenu: FC<Record<string, never>> = () => {
+export const ThemeMenu: FC<Record<string, never>> = () => {
   const { setTheme } = useTheme();
 
   return (
@@ -41,5 +41,3 @@ const ThemeMenu: FC<Record<string, never>> = () => {
     </DropdownMenu>
   );
 };
-
-export default ThemeMenu;

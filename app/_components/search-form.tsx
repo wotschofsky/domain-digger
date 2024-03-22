@@ -58,7 +58,7 @@ type SearchFormProps = {
   autofocus?: boolean;
 };
 
-const SearchForm = (props: SearchFormProps) => {
+export const SearchForm = (props: SearchFormProps) => {
   const plausible = usePlausible();
 
   const router = useRouter();
@@ -264,5 +264,3 @@ const SearchForm = (props: SearchFormProps) => {
     </div>
   );
 };
-
-export default SearchForm;

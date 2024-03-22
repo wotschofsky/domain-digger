@@ -9,17 +9,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import type { ResolvedRecords } from '@/lib/resolvers/DnsResolver';
+import type { ResolvedRecords } from '@/lib/resolvers/base';
 
-import RecordRow from './RecordRow';
-import StackedRecord from './StackedRecord';
+import { RecordRow } from './record-row';
+import { StackedRecord } from './stacked-record';
 
 type DnsTableProps = {
   records: ResolvedRecords;
   ipsInfo: Record<string, string>;
 };
 
-const DnsTable: FC<DnsTableProps> = ({ records, ipsInfo }) => (
+export const DnsTable: FC<DnsTableProps> = ({ records, ipsInfo }) => (
   <>
     {Object.keys(records).map((recordType) => {
       const value = records[recordType];
@@ -81,5 +81,3 @@ const DnsTable: FC<DnsTableProps> = ({ records, ipsInfo }) => (
     })}
   </>
 );
-
-export default DnsTable;

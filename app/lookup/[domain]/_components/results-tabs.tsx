@@ -45,7 +45,7 @@ type ResultsTabsProps = {
   domain: string;
 };
 
-const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
+export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   const router = useRouter();
   const selectedSegment = useSelectedLayoutSegment();
 
@@ -94,5 +94,3 @@ const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
     </div>
   );
 };
-
-export default ResultsTabs;

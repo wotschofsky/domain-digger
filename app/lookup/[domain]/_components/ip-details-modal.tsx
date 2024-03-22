@@ -25,12 +25,15 @@ import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/lookup-ip/route';
 
-import CopyButton from './CopyButton';
-import DomainLink from './DomainLink';
+import { CopyButton } from './copy-button';
+import { DomainLink } from './domain-link';
 
-const LocationMap = dynamic(() => import('./LocationMap'), {
-  ssr: false,
-});
+const LocationMap = dynamic(
+  () => import('./location-map').then((m) => m.LocationMap),
+  {
+    ssr: false,
+  }
+);
 
 enum EntryTypes {
   IP,
@@ -48,7 +51,7 @@ type IpDetailsModalProps = {
   onOpenChange: DialogProps['onOpenChange'];
 };
 
-const IpDetailsModal: FC<IpDetailsModalProps> = ({
+export const IpDetailsModal: FC<IpDetailsModalProps> = ({
   ip,
   open,
   onOpenChange,
@@ -171,5 +174,3 @@ const IpDetailsModal: FC<IpDetailsModalProps> = ({
     </Dialog>
   );
 };
-
-export default IpDetailsModal;

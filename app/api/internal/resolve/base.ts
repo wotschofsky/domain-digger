@@ -1,6 +1,6 @@
-import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
-import { RECORD_TYPES, type RecordType } from '@/lib/resolvers/DnsResolver';
-import GoogleDoHResolver from '@/lib/resolvers/GoogleDoHResolver';
+import { RECORD_TYPES, type RecordType } from '@/lib/resolvers/base';
+import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
+import { GoogleDoHResolver } from '@/lib/resolvers/google';
 
 if (process.env.NODE_ENV === 'production' && !process.env.INTERNAL_API_SECRET) {
   throw new Error('INTERNAL_API_SECRET is required in production');

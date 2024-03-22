@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-const TrustedByLogos = () => (
+export const TrustedByLogos = () => (
   <div className="flex flex-wrap justify-center gap-8 [&_*]:h-7 [&_*]:w-auto">
     <Link href="/lookup/cloudflare.com">
       <svg
@@ -124,5 +124,3 @@ const TrustedByLogos = () => (
     </Link>
   </div>
 );
-
-export default TrustedByLogos;

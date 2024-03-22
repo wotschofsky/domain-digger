@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 
-const StarReminder: FC = () => {
+export const StarReminder: FC = () => {
   const plausible = usePlausible();
 
   const [visitsCount, setVisitsCount] = useLocalStorage(
@@ -99,4 +99,5 @@ const StarReminder: FC = () => {
   );
 };
 
+// TODO Remove once https://github.com/vercel/next.js/issues/60698 is fixed
 export default StarReminder;

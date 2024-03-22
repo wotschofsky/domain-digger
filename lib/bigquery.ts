@@ -116,7 +116,7 @@ export const query = async ({
   );
 };
 
-export default credentials && {
+export const bigquery = credentials && {
   projectId: credentials.project_id,
   insertRows,
   query,

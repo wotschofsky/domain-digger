@@ -3,14 +3,14 @@ import { redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
 import { hostLookupLoader } from '@/lib/ips';
-import AuthoritativeResolver from '@/lib/resolvers/AuthoritativeResolver';
-import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
-import GoogleDoHResolver from '@/lib/resolvers/GoogleDoHResolver';
-import InternalDoHResolver from '@/lib/resolvers/InternalDoHResolver';
+import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
+import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
+import { GoogleDoHResolver } from '@/lib/resolvers/google';
+import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
-import DnsTable from './_components/DnsTable';
-import LocationSelector from './_components/LocationSelector';
-import ResolverSelector from './_components/ResolverSelector';
+import { DnsTable } from './_components/dns-table';
+import { LocationSelector } from './_components/location-selector';
+import { ResolverSelector } from './_components/resolver-selector';
 
 const getResolver = (
   resolverName: string | undefined,

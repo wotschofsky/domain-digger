@@ -13,7 +13,7 @@ import {
 import { lookupCerts } from '@/lib/certs';
 import { isValidDomain } from '@/lib/utils';
 
-import DomainLink from '../_components/DomainLink';
+import { DomainLink } from '../_components/domain-link';
 
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency

@@ -5,8 +5,8 @@ import { TableCell, TableRow } from '@/components/ui/table';
 
 import { cn } from '@/lib/utils';
 
-import DomainLink from '../../_components/DomainLink';
-import IpLink from '../../_components/IpLink';
+import { DomainLink } from '../../_components/domain-link';
+import { IpLink } from '../../_components/ip-link';
 
 const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const IPV4_REGEX = /(\d{1,3}\.){3}\d{1,3}/g;
@@ -20,7 +20,7 @@ type RecordRowProps = {
   subvalue?: string;
 };
 
-const RecordRow: FC<RecordRowProps> = async ({
+export const RecordRow: FC<RecordRowProps> = async ({
   name,
   TTL,
   value,
@@ -75,5 +75,3 @@ const RecordRow: FC<RecordRowProps> = async ({
     </TableRow>
   );
 };
-
-export default RecordRow;

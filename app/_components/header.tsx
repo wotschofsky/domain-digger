@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import LogoDark from '@/assets/logo-dark.svg';
 import LogoLight from '@/assets/logo-light.svg';
 
-import BookmarkletLink from './BookmarkletLink';
-import ThemeMenu from './ThemeMenu';
+import { BookmarkletLink } from './bookmarklet-link';
+import { ThemeMenu } from './theme-menu';
 
-const Header = () => (
+export const Header = () => (
   <header className="w-full p-4 md:px-8">
     <div className="flex items-center justify-between pb-4">
       <Link className="flex items-center gap-2" href="/" aria-label="Home Page">
@@ -38,5 +38,3 @@ const Header = () => (
     </div>
   </header>
 );
-
-export default Header;

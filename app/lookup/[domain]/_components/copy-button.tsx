@@ -16,7 +16,7 @@ type CopyButton = {
   value: string;
 };
 
-const CopyButton: FC<CopyButton> = ({ value }) => {
+export const CopyButton: FC<CopyButton> = ({ value }) => {
   const plausible = usePlausible();
 
   const [wasCopied, setWasCopied] = useState(false);
@@ -51,5 +51,3 @@ const CopyButton: FC<CopyButton> = ({ value }) => {
     </TooltipProvider>
   );
 };
-
-export default CopyButton;

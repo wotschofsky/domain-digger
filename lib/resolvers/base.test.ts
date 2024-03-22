@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import DnsResolver, {
+import {
+  DnsResolver,
   type RawRecord,
   RECORD_TYPES,
   type RecordType,
-} from './DnsResolver';
+} from './base';
 
 class MockResolver extends DnsResolver {
   public async resolveRecordType(

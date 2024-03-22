@@ -9,7 +9,7 @@ type LocationMapProps = {
   location: LatLngExpression;
 };
 
-const LocationMap: FC<LocationMapProps> = ({ location }) => (
+export const LocationMap: FC<LocationMapProps> = ({ location }) => (
   <MapContainer center={location} zoom={4}>
     <TileLayer
       attribution='&copy; <a href="http://osm.org/copyright" rel="noreferrer">OpenStreetMap</a> contributors'
@@ -18,5 +18,3 @@ const LocationMap: FC<LocationMapProps> = ({ location }) => (
     <Marker position={location} />
   </MapContainer>
 );
-
-export default LocationMap;

@@ -1,6 +1,6 @@
-import BaseDoHResolver from './BaseDoHResolver';
+import { BaseDoHResolver } from './base-doh';
 
-export default class GoogleDoHResolver extends BaseDoHResolver {
+export class GoogleDoHResolver extends BaseDoHResolver {
   constructor() {
     super((domain, type) =>
       fetch(`https://dns.google/resolve?name=${domain}&type=${type}`, {

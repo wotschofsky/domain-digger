@@ -17,7 +17,9 @@ type ResolverSelectorProps = {
   initialValue?: string;
 };
 
-const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
+export const ResolverSelector: FC<ResolverSelectorProps> = ({
+  initialValue,
+}) => {
   const plausible = usePlausible();
 
   const router = useRouter();
@@ -64,5 +66,3 @@ const ResolverSelector: FC<ResolverSelectorProps> = ({ initialValue }) => {
     </Label>
   );
 };
-
-export default ResolverSelector;

@@ -4,7 +4,7 @@ import { FaGithub, FaHeart } from 'react-icons/fa';
 
 import { Button } from '@/components/ui/button';
 
-const Footer = () => (
+export const Footer = () => (
   <footer className="w-full p-4 md:px-8">
     <div className="flex items-center justify-between border-t pt-4">
       <p className="text-sm">
@@ -35,5 +35,3 @@ const Footer = () => (
     </div>
   </footer>
 );
-
-export default Footer;

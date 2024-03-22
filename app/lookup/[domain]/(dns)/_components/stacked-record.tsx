@@ -1,8 +1,8 @@
 import type { FC, ReactNode } from 'react';
 import reactStringReplace from 'react-string-replace';
 
-import DomainLink from '../../_components/DomainLink';
-import IpLink from '../../_components/IpLink';
+import { DomainLink } from '../../_components/domain-link';
+import { IpLink } from '../../_components/ip-link';
 
 const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const IPV4_REGEX = /(\d{1,3}\.){3}\d{1,3}/g;
@@ -16,7 +16,7 @@ type StackedRecordProps = {
   subvalue?: string;
 };
 
-const StackedRecord: FC<StackedRecordProps> = async ({
+export const StackedRecord: FC<StackedRecordProps> = async ({
   name,
   TTL,
   value,
@@ -71,5 +71,3 @@ const StackedRecord: FC<StackedRecordProps> = async ({
     </div>
   );
 };
-
-export default StackedRecord;

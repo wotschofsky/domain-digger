@@ -1,6 +1,6 @@
-import BaseDoHResolver from './BaseDoHResolver';
+import { BaseDoHResolver } from './base-doh';
 
-export default class CloudflareDoHResolver extends BaseDoHResolver {
+export class CloudflareDoHResolver extends BaseDoHResolver {
   constructor() {
     super((domain, type) =>
       fetch(

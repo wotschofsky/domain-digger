@@ -1,5 +1,5 @@
 import { lookupCerts } from './certs';
-import type DnsResolver from './resolvers/DnsResolver';
+import type { DnsResolver } from './resolvers/base';
 import { isValidDomain } from './utils';
 
 const RESULTS_LIMIT = 500;

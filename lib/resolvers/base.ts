@@ -41,7 +41,7 @@ export type RawRecord = {
 
 export type ResolvedRecords = Record<string, RawRecord[]>;
 
-export default abstract class DnsResolver {
+export abstract class DnsResolver {
   public abstract resolveRecordType(
     domain: string,
     type: RecordType

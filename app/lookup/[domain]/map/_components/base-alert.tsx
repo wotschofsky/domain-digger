@@ -9,12 +9,14 @@ type BaseAlertProps = {
   children: React.ReactNode;
 };
 
-const BaseAlert: FC<BaseAlertProps> = ({ icon: Icon, title, children }) => (
+export const BaseAlert: FC<BaseAlertProps> = ({
+  icon: Icon,
+  title,
+  children,
+}) => (
   <Alert className="mx-auto mt-24 max-w-max">
     <Icon className="h-4 w-4" />
     <AlertTitle>{title}</AlertTitle>
     <AlertDescription>{children}</AlertDescription>
   </Alert>
 );
-
-export default BaseAlert;

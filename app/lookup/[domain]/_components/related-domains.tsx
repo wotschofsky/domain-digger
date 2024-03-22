@@ -30,7 +30,9 @@ const getRecommendations = (original: string) => {
   return domains;
 };
 
-const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
+export const RelatedDomains: FC<RelatedDomainsProps> = ({
+  domain: original,
+}) => {
   const domains = getRecommendations(original);
 
   return (
@@ -49,5 +51,3 @@ const RelatedDomains: FC<RelatedDomainsProps> = ({ domain: original }) => {
     </div>
   );
 };
-
-export default RelatedDomains;

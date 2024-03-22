@@ -20,7 +20,7 @@ type LocationSelectorProps = {
   disabled?: boolean;
 };
 
-const LocationSelector: FC<LocationSelectorProps> = ({
+export const LocationSelector: FC<LocationSelectorProps> = ({
   initialValue,
   disabled,
 }) => {
@@ -74,5 +74,3 @@ const LocationSelector: FC<LocationSelectorProps> = ({
     </Label>
   );
 };
-
-export default LocationSelector;

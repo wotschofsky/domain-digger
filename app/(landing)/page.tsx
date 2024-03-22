@@ -7,8 +7,8 @@ import LogoDark from '@/assets/logo-dark.svg';
 import LogoLight from '@/assets/logo-light.svg';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 
-import SearchForm from '../_components/SearchForm';
-import TrustedByLogos from './_components/TrustedByLogos';
+import { SearchForm } from '../_components/search-form';
+import { TrustedByLogos } from './_components/trusted-by-logos';
 
 export const metadata = {
   openGraph: {

@@ -1,8 +1,9 @@
-import DnsResolver, {
+import {
+  DnsResolver,
   type RawRecord,
   RECORD_TYPES_BY_DECIMAL,
   type RecordType,
-} from './DnsResolver';
+} from './base';
 
 type DoHResponse = {
   Status: number;
@@ -29,7 +30,7 @@ type DoHResponse = {
   }[];
 };
 
-export default class BaseDoHResolver extends DnsResolver {
+export class BaseDoHResolver extends DnsResolver {
   constructor(
     private sendRequest: (domain: string, type: RecordType) => Promise<Response>
   ) {

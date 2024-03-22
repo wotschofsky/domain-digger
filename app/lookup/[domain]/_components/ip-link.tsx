@@ -11,13 +11,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import IpDetailsModal from './IpDetailsModal';
+import { IpDetailsModal } from './ip-details-modal';
 
 type IpLinkProps = {
   value: string;
 };
 
-const IpLink: FC<IpLinkProps> = ({ value }) => {
+export const IpLink: FC<IpLinkProps> = ({ value }) => {
   const plausible = usePlausible();
 
   const [isOpen, setOpen] = useState(false);
@@ -53,5 +53,3 @@ const IpLink: FC<IpLinkProps> = ({ value }) => {
     </>
   );
 };
-
-export default IpLink;

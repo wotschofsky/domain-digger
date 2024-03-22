@@ -7,13 +7,13 @@ import { type FC, type ReactNode } from 'react';
 import { recordLookup } from '@/lib/search';
 import { isValidDomain } from '@/lib/utils';
 
-import SearchForm from '../../_components/SearchForm';
-import RelatedDomains from './_components/RelatedDomains';
-import ResultsTabs from './_components/ResultsTabs';
-import ShareButton from './_components/ShareButton';
-import WhoisQuickInfo from './_components/WhoisQuickInfo';
+import { SearchForm } from '../../_components/search-form';
+import { RelatedDomains } from './_components/related-domains';
+import { ResultsTabs } from './_components/results-tabs';
+import { ShareButton } from './_components/share-button';
+import { WhoisQuickInfo } from './_components/whois-quick-info';
 
-const StarReminder = dynamic(() => import('./_components/StarReminder'), {
+const StarReminder = dynamic(() => import('./_components/star-reminder'), {
   ssr: false,
 });
 

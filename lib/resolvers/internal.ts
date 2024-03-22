@@ -1,11 +1,12 @@
-import DnsResolver, {
+import {
+  DnsResolver,
   type RawRecord,
   RECORD_TYPES,
   type RecordType,
   type ResolvedRecords,
-} from './DnsResolver';
+} from './base';
 
-export default class InternalDoHResolver extends DnsResolver {
+export class InternalDoHResolver extends DnsResolver {
   constructor(
     private readonly location: string,
     private readonly resolver: 'cloudflare' | 'google'

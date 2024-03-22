@@ -17,7 +17,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-const BookmarkletLink = () => {
+export const BookmarkletLink = () => {
   const [target, setTarget] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [activated, setActivated] = useState(false);
@@ -102,5 +102,3 @@ const BookmarkletLink = () => {
     </>
   );
 };
-
-export default BookmarkletLink;

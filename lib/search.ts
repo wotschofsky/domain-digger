@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { getDomain } from 'tldts';
 
-import bigquery from '@/lib/bigquery';
+import { bigquery } from '@/lib/bigquery';
 
 export const recordLookup = (domain: string) => {
   if (!bigquery) {

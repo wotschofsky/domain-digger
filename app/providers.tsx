@@ -9,7 +9,7 @@ type ProvidersProps = {
   children: ReactNode;
 };
 
-const Providers: FC<ProvidersProps> = ({ children }) => (
+export const Providers: FC<ProvidersProps> = ({ children }) => (
   <ThemeProvider attribute="class">
     <SWRConfig
       value={{ fetcher: (url) => fetch(url).then((res) => res.json()) }}
@@ -24,5 +24,3 @@ const Providers: FC<ProvidersProps> = ({ children }) => (
     </SWRConfig>
   </ThemeProvider>
 );
-
-export default Providers;

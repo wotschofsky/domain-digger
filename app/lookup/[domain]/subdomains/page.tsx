@@ -11,10 +11,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import CloudflareDoHResolver from '@/lib/resolvers/CloudflareDoHResolver';
+import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { findSubdomains } from '@/lib/subdomains';
 
-import DomainLink from '../_components/DomainLink';
+import { DomainLink } from '../_components/domain-link';
 
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
