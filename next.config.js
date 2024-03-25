@@ -32,6 +32,15 @@ const nextConfig = {
 
     return config;
   },
+  images: {
+    remotePatterns: [
+      {
+        hostname: 'static.wsky.dev',
+        pathname: '/branding/**',
+      },
+    ],
+    formats: ['image/avif', 'image/webp'],
+  },
   redirects: async () => [
     {
       source: '/lookup',

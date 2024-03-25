@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import Balancer from 'react-wrap-balancer';
 
@@ -22,14 +23,14 @@ export const metadata = {
 const Home = () => {
   return (
     <div className="container">
-      <section className="py-24 sm:py-48">
+      <section className="py-24 sm:py-32">
         <div className="flex items-center justify-center gap-4 sm:gap-6">
           <LogoDark className="inline h-12 dark:hidden sm:h-20" />
           <LogoLight className="hidden h-12 dark:inline sm:h-20" />
           <span className="text-4xl font-bold sm:text-6xl">Domain Digger</span>
         </div>
 
-        <div className="mb-16 mt-32">
+        <div className="my-16">
           <h1 className="mb-8 scroll-m-20 pb-2 text-center text-2xl font-semibold tracking-tight first:mt-0 sm:text-3xl">
             Get details about any Domain
           </h1>
@@ -58,6 +59,38 @@ const Home = () => {
               ))}
             </Balancer>
           </div>
+        </div>
+      </section>
+
+      <section className="flex items-center justify-center gap-4 pb-16 font-medium sm:pb-24">
+        <Image
+          width={48}
+          height={48}
+          className="h-12 w-12 rounded-full"
+          src="https://static.wsky.dev/branding/photo.jpg"
+          alt="Felix Wotschofsky, creator of Domain Digger"
+        />
+        <div>
+          <p>Hey there, I am Felix, the creator of Domain Digger. 👋</p>
+          <p>
+            You can{' '}
+            <a
+              className="underline decoration-dotted underline-offset-4"
+              href="https://twitter.com/wotschofsky"
+              target="_blank"
+            >
+              follow me on X
+            </a>{' '}
+            and{' '}
+            <a
+              className="underline decoration-dotted underline-offset-4"
+              href="https://wotschofsky.com/"
+              target="_blank"
+            >
+              check out my other projects
+            </a>
+            .
+          </p>
         </div>
       </section>
 
