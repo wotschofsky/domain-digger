@@ -1,4 +1,5 @@
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import dynamic from 'next/dynamic';
 import type { FC, ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
@@ -7,6 +8,10 @@ import { Footer } from './_components/footer';
 import { Header } from './_components/header';
 import './globals.css';
 import { Providers } from './providers';
+
+const DevHuntPromo = dynamic(() => import('./_components/devhunt-promo'), {
+  ssr: false,
+});
 
 export const metadata = {
   metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : null,
@@ -39,6 +44,7 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
             <Header />
 
             <main className="w-full flex-1">{children}</main>
+            <DevHuntPromo />
 
             <Footer />
           </div>
