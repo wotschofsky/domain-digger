@@ -1,5 +1,3 @@
-'use client';
-
 import { FaGithub, FaHeart } from 'react-icons/fa';
 
 import { Button } from '@/components/ui/button';

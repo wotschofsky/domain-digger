@@ -16,7 +16,7 @@ type StackedRecordProps = {
   subvalue?: string;
 };
 
-export const StackedRecord: FC<StackedRecordProps> = async ({
+export const StackedRecord: FC<StackedRecordProps> = ({
   name,
   TTL,
   value,

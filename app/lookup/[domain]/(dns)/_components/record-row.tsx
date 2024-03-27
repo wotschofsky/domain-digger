@@ -20,7 +20,7 @@ type RecordRowProps = {
   subvalue?: string;
 };
 
-export const RecordRow: FC<RecordRowProps> = async ({
+export const RecordRow: FC<RecordRowProps> = ({
   name,
   TTL,
   value,
