@@ -15,7 +15,11 @@ const lookupWhois = async (domain: string) => {
     mappedResults[key] = (result[key] as WhoisSearchResult).__raw as string;
   }
 
-  return mappedResults;
+  const filteredResults = Object.entries(mappedResults).filter(
+    ([_key, value]) => Boolean(value)
+  );
+
+  return filteredResults;
 };
 
 type WhoisResultsPageProps = {
@@ -47,14 +51,11 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   params: { domain },
   searchParams: { force },
 }) => {
+  const forceOriginal = force !== undefined;
   const rawDomain = getDomain(domain) || domain;
+  const results = await lookupWhois(forceOriginal ? domain : rawDomain);
 
-  const results = await lookupWhois(force !== undefined ? domain : rawDomain);
-  const filteredResults = Object.entries(results).filter(([_key, value]) =>
-    Boolean(value)
-  );
-
-  if (filteredResults.length === 0) {
+  if (results.length === 0) {
     throw new Error('No results found');
   }
 
@@ -93,7 +94,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
           </>
         ))}
 
-      {filteredResults.map(([key, value]) => (
+      {results.map(([key, value]) => (
         <Fragment key={key}>
           <h2 className="mb-4 mt-8 text-3xl font-bold tracking-tight">{key}</h2>
           <code className="break-words">

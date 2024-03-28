@@ -19,6 +19,28 @@ export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
 export const preferredRegion = 'lhr1';
 
+const getRelatedCerts = async (domain: string) => {
+  const requests = [lookupCerts(domain)];
+
+  const hasParentDomain = domain.split('.').filter(Boolean).length > 2;
+  if (hasParentDomain) {
+    const parentDomain = domain.split('.').slice(1).join('.');
+    requests.push(lookupCerts(`*.${parentDomain}`));
+  }
+
+  const responses = await Promise.all(requests);
+
+  const certs = responses
+    .flat()
+    .toSorted(
+      (a, b) =>
+        new Date(b.entry_timestamp).getTime() -
+        new Date(a.entry_timestamp).getTime()
+    );
+
+  return certs;
+};
+
 type CertsResultsPageProps = {
   params: {
     domain: string;
@@ -39,23 +61,7 @@ export const generateMetadata = ({
 const CertsResultsPage: FC<CertsResultsPageProps> = async ({
   params: { domain },
 }) => {
-  const certRequests = [lookupCerts(domain)];
-
-  const hasParentDomain = domain.split('.').filter(Boolean).length > 2;
-  if (hasParentDomain) {
-    const parentDomain = domain.split('.').slice(1).join('.');
-    certRequests.push(lookupCerts(`*.${parentDomain}`));
-  }
-
-  const certs = await Promise.all(certRequests).then((responses) =>
-    responses
-      .flat()
-      .sort(
-        (a, b) =>
-          new Date(b.entry_timestamp).getTime() -
-          new Date(a.entry_timestamp).getTime()
-      )
-  );
+  const certs = await getRelatedCerts(domain);
 
   if (!certs.length) {
     return (
