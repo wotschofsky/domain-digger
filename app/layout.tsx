@@ -1,4 +1,5 @@
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import type { Viewport } from 'next';
 import dynamic from 'next/dynamic';
 import type { FC, ReactNode } from 'react';
 
@@ -12,6 +13,12 @@ import { Providers } from './providers';
 const DevHuntPromo = dynamic(() => import('./_components/devhunt-promo'), {
   ssr: false,
 });
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+};
 
 export const metadata = {
   metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : null,
