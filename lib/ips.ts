@@ -42,10 +42,10 @@ export const hostLookupLoader = new DataLoader(
         const data = await getIpDetails(normalIp);
 
         if (data.org === data.isp) {
-          return data.org;
+          return [data.org];
         }
 
-        return `${data.org} / ${data.isp}`;
+        return [data.org, data.isp].filter(Boolean);
       })
     ),
   {

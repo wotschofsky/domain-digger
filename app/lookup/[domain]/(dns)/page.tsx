@@ -2,14 +2,17 @@ import type { Metadata } from 'next';
 import { redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
+import { RECORD_INSIGHTS } from '@/lib/data';
 import { hostLookupLoader } from '@/lib/ips';
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
+import type { ResolvedRecords } from '@/lib/resolvers/base';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { GoogleDoHResolver } from '@/lib/resolvers/google';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
 import { DnsTable } from './_components/dns-table';
 import { LocationSelector } from './_components/location-selector';
+import type { SubvalueInfo } from './_components/record-subvalues';
 import { ResolverSelector } from './_components/resolver-selector';
 
 const getResolver = (
@@ -37,13 +40,52 @@ const getResolver = (
   }
 };
 
-const getIpsInfo = async (ips: string[]): Promise<Record<string, string>> => {
+const getIpsInfo = async (ips: string[]): Promise<Record<string, string[]>> => {
   const hosts = await hostLookupLoader.loadMany(ips);
   return Object.fromEntries(
     ips
       .map((ip, index) => [ip, hosts[index]])
-      .filter(([, host]) => typeof host === 'string')
+      .filter(([, hosts]) => Array.isArray(hosts))
   );
+};
+
+const getSubvalues = async (records: ResolvedRecords) => {
+  const allSubvalues: Record<string, SubvalueInfo[]> = {};
+
+  const ips = records.A.map((r) => r.data).concat(
+    records.AAAA.map((r) => r.data)
+  );
+  const ipsInfo = await getIpsInfo(ips);
+
+  const flatRecords = Object.values(records).flat();
+  for (const record of flatRecords) {
+    const subvalues: SubvalueInfo[] = [];
+
+    const normalizedRecord = record.data.endsWith('.')
+      ? record.data.slice(0, -1)
+      : record.data;
+
+    const possibleInsights = RECORD_INSIGHTS[record.type];
+    for (const insight of possibleInsights) {
+      if (insight.test.test(normalizedRecord)) {
+        subvalues.push(insight);
+      }
+    }
+
+    if (record.data in ipsInfo) {
+      subvalues.push(
+        ...ipsInfo[record.data].map((h) => ({
+          description: h,
+        }))
+      );
+    }
+
+    if (subvalues.length > 0) {
+      allSubvalues[record.data] = subvalues;
+    }
+  }
+
+  return allSubvalues;
 };
 
 type LookupDomainProps = {
@@ -90,9 +132,7 @@ const LookupDomain: FC<LookupDomainProps> = async ({
 
   const resolver = getResolver(resolverName, locationName);
   const records = await resolver.resolveAllRecords(domain);
-  const ipsInfo = await getIpsInfo(
-    records.A.map((r) => r.data).concat(records.AAAA.map((r) => r.data))
-  );
+  const subvalues = await getSubvalues(records);
 
   const hasResults =
     Object.values(records)
@@ -110,7 +150,7 @@ const LookupDomain: FC<LookupDomainProps> = async ({
       </div>
 
       {hasResults ? (
-        <DnsTable records={records} ipsInfo={ipsInfo} />
+        <DnsTable records={records} subvalues={subvalues} />
       ) : (
         <p className="mt-24 text-center text-muted-foreground">
           No DNS records found!

@@ -1,3 +1,5 @@
+import type { RecordType } from './resolvers/base';
+
 export const REGIONS: Record<
   string,
   { name: string; lat: number; lng: number }
@@ -33,3 +35,178 @@ export const EXAMPLE_DOMAINS = [
   'twitter.com',
   'discord.com',
 ];
+
+type RecordInsights = {
+  [key in RecordType]: Array<{
+    test: RegExp;
+    description: string;
+    url: string;
+  }>;
+};
+
+export const RECORD_INSIGHTS: RecordInsights = {
+  A: [
+    {
+      // 35.71.142.77 or 52.223.52.2
+      test: /^(?:35\.71\.142\.77|52\.223\.52\.2)$/,
+      description: 'Framer',
+      url: 'https://www.framer.com',
+    },
+    {
+      // 75.2.70.75 or 99.83.190.102
+      test: /^(?:75\.2\.70\.75|99\.83\.190\.102)$/,
+      description: 'Webflow',
+      url: 'https://www.webflow.com',
+    },
+  ],
+  AAAA: [],
+  CAA: [],
+  CNAME: [
+    {
+      test: /\.(akadns|akamai|akamaiedge|edgekey|edgesuite)\.net$/,
+      description: 'Akamai',
+      url: 'https://www.akamai.com',
+    },
+    {
+      test: /\.cloudfront\.net$/,
+      description: 'Amazon CloudFront',
+      url: 'https://aws.amazon.com/cloudfront/',
+    },
+    {
+      test: /\.elb\.[a-z]+-[a-z]+-\d+\.amazonaws\.com$/,
+      description: 'AWS Elastic Load Balancing',
+      url: 'https://aws.amazon.com/elasticloadbalancing/',
+    },
+    {
+      test: /\.cdn\.cloudflare\.net$/,
+      description: 'Cloudflare',
+      url: 'https://www.cloudflare.com',
+    },
+    {
+      test: /\.map\.fastly.net$/,
+      description: 'Fastly',
+      url: 'https://www.fastly.com',
+    },
+    {
+      test: /sites\.framer\.app\./,
+      description: 'Framer',
+      url: 'https://www.framer.com',
+    },
+    {
+      test: /\.github\.io$/,
+      description: 'GitHub Pages',
+      url: 'https://pages.github.com',
+    },
+    {
+      test: /^ghs\.googlehosted\.com$/,
+      description: 'Google Cloud',
+      url: 'https://cloud.google.com',
+    },
+    {
+      test: /\.netlify\.app$/,
+      description: 'Netlify',
+      url: 'https://www.netlify.com',
+    },
+    {
+      test: /^proxy-ssl\.webflow\.com\./,
+      description: 'Webflow',
+      url: 'https://www.webflow.com',
+    },
+  ],
+  DNSKEY: [],
+  DS: [],
+  MX: [
+    {
+      test: /\.mxrecord\.(mx|io)$/,
+      description: 'Cloudflare Area 1',
+      url: 'https://developers.cloudflare.com/email-security/',
+    },
+    {
+      test: /in\d\-smtp.messagingengine\.com$/,
+      description: 'Fastmail',
+      url: 'https://www.fastmail.com/',
+    },
+    {
+      test: /(aspmx\.l\.google|aspmx\d\.googlemail)\.com$/,
+      description: 'Google Workspace',
+      url: 'https://workspace.google.com',
+    },
+    {
+      test: /work-mx\.app\.hey\.com$/,
+      description: 'HEY',
+      url: 'https://www.hey.com/',
+    },
+    {
+      test: /mail\.protection\.outlook\.com$/,
+      description: 'Microsoft 365',
+      url: 'https://www.microsoft.com/microsoft-365',
+    },
+    {
+      test: /eforward\d\.registrar-servers\.com$/,
+      description: 'Namecheap Forwarding',
+      url: 'https://www.namecheap.com',
+    },
+    {
+      test: /\.pphosted\.com$/,
+      description: 'Proofpoint',
+      url: 'https://www.proofpoint.com',
+    },
+  ],
+  NAPTR: [],
+  NS: [
+    {
+      test: /^ns-\d{1,4}\.awsdns-\d{1,2}\.(com|net|org|co\.uk)$/,
+      description: 'Amazon Route 53',
+      url: 'https://aws.amazon.com/route53/',
+    },
+    {
+      test: /^(coco|kiki)\.bunny\.net$/,
+      description: 'Bunny DNS',
+      url: 'https://bunny.net/dns/',
+    },
+    {
+      test: /^[a-z]+\.ns\.cloudflare\.com$/,
+      description: 'Cloudflare',
+      url: 'https://www.cloudflare.com',
+    },
+    {
+      test: /^ns\d\.messagingengine\.com$/,
+      description: 'Fastmail',
+      url: 'https://www.fastmail.com/',
+    },
+    {
+      test: /^ns\d{2}\.domaincontrol\.com$/,
+      description: 'GoDaddy',
+      url: 'https://www.godaddy.com',
+    },
+    {
+      test: /^ns\d-\d{1,2}\.azure-dns\.(com|info|net|org)$/,
+      description: 'Microsoft Azure DNS',
+      url: 'https://azure.microsoft.com/services/dns/',
+    },
+    {
+      test: /^dns\d\.registrar-servers\.com$/,
+      description: 'Namecheap',
+      url: 'https://www.namecheap.com',
+    },
+    {
+      test: /^dns\d\.p\d{2}\.nsone\.net$/,
+      description: 'NS1',
+      url: 'https://ns1.com',
+    },
+    {
+      test: /\.ultradns\.(biz|com|net|org)$/,
+      description: 'Vercara UltraDNS',
+      url: 'https://vercara.com/authoritative-dns',
+    },
+    {
+      test: /^.+\.vercel-dns\.com$/,
+      description: 'Vercel',
+      url: 'https://vercel.com',
+    },
+  ],
+  PTR: [],
+  SOA: [],
+  SRV: [],
+  TXT: [],
+};

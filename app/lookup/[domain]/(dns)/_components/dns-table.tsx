@@ -12,14 +12,15 @@ import {
 import type { ResolvedRecords } from '@/lib/resolvers/base';
 
 import { RecordRow } from './record-row';
+import type { SubvalueInfo } from './record-subvalues';
 import { StackedRecord } from './stacked-record';
 
 type DnsTableProps = {
   records: ResolvedRecords;
-  ipsInfo: Record<string, string>;
+  subvalues: Record<string, SubvalueInfo[]>;
 };
 
-export const DnsTable: FC<DnsTableProps> = ({ records, ipsInfo }) => (
+export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
   <>
     {Object.keys(records).map((recordType) => {
       const value = records[recordType];
@@ -45,7 +46,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, ipsInfo }) => (
                     name={v.name}
                     TTL={v.TTL}
                     value={v.data}
-                    subvalue={ipsInfo[v.data]}
+                    subvalues={subvalues[v.data]}
                   />
                 </Fragment>
               ))}
@@ -70,7 +71,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, ipsInfo }) => (
                       name={v.name}
                       TTL={v.TTL}
                       value={v.data}
-                      subvalue={ipsInfo[v.data]}
+                      subvalues={subvalues[v.data]}
                     />
                   ))}
               </TableBody>

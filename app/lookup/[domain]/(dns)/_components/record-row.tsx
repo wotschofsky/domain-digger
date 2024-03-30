@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 
 import { DomainLink } from '../../_components/domain-link';
 import { IpLink } from '../../_components/ip-link';
+import { RecordSubvalues, type SubvalueInfo } from './record-subvalues';
 
 const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const IPV4_REGEX = /(\d{1,3}\.){3}\d{1,3}/g;
@@ -17,14 +18,14 @@ type RecordRowProps = {
   name: string;
   TTL: number;
   value: string;
-  subvalue?: string;
+  subvalues?: SubvalueInfo[];
 };
 
 export const RecordRow: FC<RecordRowProps> = ({
   name,
   TTL,
   value,
-  subvalue,
+  subvalues,
 }) => {
   let interpolatedValue: ReactNode[] | string | null = value;
 
@@ -64,13 +65,9 @@ export const RecordRow: FC<RecordRowProps> = ({
     <TableRow className="hover:bg-transparent">
       <TableCell className="pl-0">{name}</TableCell>
       <TableCell>{TTL}</TableCell>
-      <TableCell className={cn('pr-0', { ['py-1']: subvalue })}>
+      <TableCell className={cn('pr-0', { ['py-1']: subvalues })}>
         {interpolatedValue}
-        {subvalue && (
-          <span className="mt-1 block text-xs text-muted-foreground">
-            {subvalue}
-          </span>
-        )}
+        {subvalues && <RecordSubvalues subvalues={subvalues} />}
       </TableCell>
     </TableRow>
   );

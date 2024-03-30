@@ -3,6 +3,7 @@ import reactStringReplace from 'react-string-replace';
 
 import { DomainLink } from '../../_components/domain-link';
 import { IpLink } from '../../_components/ip-link';
+import { RecordSubvalues, type SubvalueInfo } from './record-subvalues';
 
 const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const IPV4_REGEX = /(\d{1,3}\.){3}\d{1,3}/g;
@@ -13,14 +14,14 @@ type StackedRecordProps = {
   name: string;
   TTL: number;
   value: string;
-  subvalue?: string;
+  subvalues?: SubvalueInfo[];
 };
 
 export const StackedRecord: FC<StackedRecordProps> = ({
   name,
   TTL,
   value,
-  subvalue,
+  subvalues,
 }) => {
   let interpolatedValue: ReactNode[] | string | null = value;
 
@@ -63,11 +64,7 @@ export const StackedRecord: FC<StackedRecordProps> = ({
         <span>{TTL}</span>
       </div>
       <p className="break-words">{interpolatedValue}</p>
-      {subvalue && (
-        <span className="mt-1 block break-words text-xs text-muted-foreground">
-          {subvalue}
-        </span>
-      )}
+      {subvalues && <RecordSubvalues subvalues={subvalues} />}
     </div>
   );
 };
