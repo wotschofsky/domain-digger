@@ -49,7 +49,7 @@ export const getSearchSuggestions = async (query: string) => {
       FROM ${tableName}
       WHERE baseDomain LIKE @query
       GROUP BY baseDomain
-      ORDER BY COUNT(*) ASC
+      ORDER BY COUNT(*) DESC
       LIMIT 5
     `,
     params: {
