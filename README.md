@@ -1,6 +1,3 @@
-> **[We're live on DevHunt!](https://devhunt.org/tool/domain-digger) 🚀** \
-> Join the conversation and help us reach the top of the leaderboard!
-
 ![Domain Digger](docs/logo.svg)
 
 # 🔍 Domain Digger: Full Toolkit for Next-Level Domain Analysis

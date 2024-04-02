@@ -50,9 +50,6 @@ dependencies:
   autoprefixer:
     specifier: ^10.4.18
     version: 10.4.18(postcss@8.4.35)
-  canvas-confetti:
-    specifier: ^1.9.2
-    version: 1.9.2
   class-variance-authority:
     specifier: ^0.7.0
     version: 0.7.0
@@ -160,9 +157,6 @@ devDependencies:
   '@trivago/prettier-plugin-sort-imports':
     specifier: ^4.3.0
     version: 4.3.0(prettier@3.2.5)
-  '@types/canvas-confetti':
-    specifier: ^1.6.4
-    version: 1.6.4
   '@types/dns-packet':
     specifier: ^5.6.5
     version: 5.6.5
@@ -3014,10 +3008,6 @@ packages:
     resolution: {integrity: sha512-ZpboH7pCPPeyBWKf8c7TJswtCEQObFo3bOBYalm99NzZarATALYCo5OhbCa/n4RQyJyHfhkdx+hNrdL5ByFYDw==}
     dev: false
 
-  /@types/canvas-confetti@1.6.4:
-    resolution: {integrity: sha512-fNyZ/Fdw/Y92X0vv7B+BD6ysHL4xVU5dJcgzgxLdGbn8O3PezZNIJpml44lKM0nsGur+o/6+NZbZeNTt00U1uA==}
-    dev: true
-
   /@types/dns-packet@5.6.5:
     resolution: {integrity: sha512-qXOC7XLOEe43ehtWJCMnQXvgcIpv6rPmQ1jXT98Ad8A3TB1Ue50jsCbSSSyuazScEuZ/Q026vHbrOTVkmwA+7Q==}
     dependencies:
@@ -3754,10 +3744,6 @@ packages:
 
   /caniuse-lite@1.0.30001598:
     resolution: {integrity: sha512-j8mQRDziG94uoBfeFuqsJUNECW37DXpnvhcMJMdlH2u3MRkq1sAI0LJcXP1i/Py0KbSIC4UDj8YHPrTn5YsL+Q==}
-
-  /canvas-confetti@1.9.2:
-    resolution: {integrity: sha512-6Xi7aHHzKwxZsem4mCKoqP6YwUG3HamaHHAlz1hTNQPCqXhARFpSXnkC9TWlahHY5CG6hSL5XexNjxK8irVErg==}
-    dev: false
 
   /chai@4.4.1:
     resolution: {integrity: sha512-13sOfMv2+DWduEU+/xbun3LScLoqN17nBeTLUsmDfKdoiC1fr0n9PU4guu4AhRcOVFk/sW8LyZWHuhWtQZiF+g==}
