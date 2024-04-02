@@ -60,7 +60,43 @@ export const RECORD_INSIGHTS: RecordInsights = {
     },
   ],
   AAAA: [],
-  CAA: [],
+  CAA: [
+    {
+      test: /"(amazon|amazontrust|awstrust|amazonaws)\.com("|;)/,
+      description: 'AWS Certificate Manager',
+      url: 'https://aws.amazon.com/certificate-manager/',
+    },
+    {
+      test: /"digicert\.com("|;)/,
+      description: 'DigiCert',
+      url: 'https://www.digicert.com',
+    },
+    {
+      test: /"certainly\.com("|;)/,
+      description: 'Fastly Certainly',
+      url: 'https://docs.fastly.com/products/certainly',
+    },
+    {
+      test: /"globalsign\.com("|;)/,
+      description: 'GlobalSign',
+      url: 'https://shop.globalsign.com/en/ssl',
+    },
+    {
+      test: /"pki\.goog("|;)/,
+      description: 'Google Trust Services',
+      url: 'https://pki.goog',
+    },
+    {
+      test: /"letsencrypt\.org("|;)/,
+      description: 'Let’s Encrypt',
+      url: 'https://letsencrypt.org',
+    },
+    {
+      test: /"(sectigo|trust-provider|usertrust|comodoca)\.com("|;)/,
+      description: 'Sectigo',
+      url: 'https://sectigo.com',
+    },
+  ],
   CNAME: [
     {
       test: /\.(akadns|akamai|akamaiedge|edgekey|edgesuite)\.net$/,
@@ -88,7 +124,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
       url: 'https://www.fastly.com',
     },
     {
-      test: /sites\.framer\.app\./,
+      test: /^sites\.framer\.app$/,
       description: 'Framer',
       url: 'https://www.framer.com',
     },
@@ -108,7 +144,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
       url: 'https://www.netlify.com',
     },
     {
-      test: /^proxy-ssl\.webflow\.com\./,
+      test: /^proxy-ssl\.webflow\.com$/,
       description: 'Webflow',
       url: 'https://www.webflow.com',
     },
@@ -124,7 +160,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
     {
       test: /in\d\-smtp.messagingengine\.com$/,
       description: 'Fastmail',
-      url: 'https://www.fastmail.com/',
+      url: 'https://www.fastmail.com',
     },
     {
       test: /(aspmx\.l\.google|aspmx\d\.googlemail)\.com$/,
@@ -134,7 +170,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
     {
       test: /work-mx\.app\.hey\.com$/,
       description: 'HEY',
-      url: 'https://www.hey.com/',
+      url: 'https://www.hey.com',
     },
     {
       test: /mail\.protection\.outlook\.com$/,
@@ -145,6 +181,11 @@ export const RECORD_INSIGHTS: RecordInsights = {
       test: /eforward\d\.registrar-servers\.com$/,
       description: 'Namecheap Forwarding',
       url: 'https://www.namecheap.com',
+    },
+    {
+      test: /\.privateemail\.com$/,
+      description: 'Namecheap Private Email',
+      url: 'https://privateemail.com',
     },
     {
       test: /\.pphosted\.com$/,
@@ -180,6 +221,11 @@ export const RECORD_INSIGHTS: RecordInsights = {
       url: 'https://www.godaddy.com',
     },
     {
+      test: /\.googledomains\.com$/,
+      description: 'Google Cloud DNS',
+      url: 'https://cloud.google.com/dns',
+    },
+    {
       test: /^ns\d-\d{1,2}\.azure-dns\.(com|info|net|org)$/,
       description: 'Microsoft Azure DNS',
       url: 'https://azure.microsoft.com/services/dns/',
@@ -188,6 +234,16 @@ export const RECORD_INSIGHTS: RecordInsights = {
       test: /^dns\d\.registrar-servers\.com$/,
       description: 'Namecheap',
       url: 'https://www.namecheap.com',
+    },
+    {
+      test: /^freedns\d\.registrar-servers\.com$/,
+      description: 'Namecheap FreeDNS',
+      url: 'https://www.namecheap.com/domains/freedns/',
+    },
+    {
+      test: /^pdns\d\.registrar-servers\.com$/,
+      description: 'Namecheap PremiumDNS',
+      url: 'https://www.namecheap.com/security/premiumdns/',
     },
     {
       test: /^dns\d\.p\d{2}\.nsone\.net$/,
@@ -208,5 +264,56 @@ export const RECORD_INSIGHTS: RecordInsights = {
   PTR: [],
   SOA: [],
   SRV: [],
-  TXT: [],
+  TXT: [
+    {
+      test: /include:amazonses\.com/,
+      description: 'Amazon SES',
+      url: 'https://aws.amazon.com/ses/',
+    },
+    {
+      test: /include:_spf\.google\.com/,
+      description: 'Google Workspace',
+      url: 'https://workspace.google.com',
+    },
+    {
+      test: /include:\d+\.spf\d{1,2}\.hubspotemail\.net/,
+      description: 'HubSpot',
+      url: 'https://www.hubspot.com',
+    },
+    {
+      test: /include:servers\.mcsv\.net/,
+      description: 'Mailchimp',
+      url: 'https://mailchimp.com',
+    },
+    {
+      test: /include:mailgun\.org/,
+      description: 'Mailgun',
+      url: 'https://www.mailgun.com',
+    },
+    {
+      test: /include:spf\.protection\.outlook\.com/,
+      description: 'Microsoft 365',
+      url: 'https://www.microsoft.com/microsoft-365',
+    },
+    {
+      test: /include:spf-([a-z]|[0-9])+\.pphosted\.com/,
+      description: 'Proofpoint',
+      url: 'https://www.proofpoint.com',
+    },
+    {
+      test: /include:_spf\.salesforce\.com/,
+      description: 'Salesforce',
+      url: 'https://www.salesforce.com',
+    },
+    {
+      test: /include:sendgrid\.net/,
+      description: 'Twilio SendGrid',
+      url: 'https://sendgrid.com',
+    },
+    {
+      test: /include:mail\.zendesk\.com/,
+      description: 'Zendesk',
+      url: 'https://www.zendesk.com',
+    },
+  ],
 };
