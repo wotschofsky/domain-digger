@@ -54,7 +54,8 @@ const LookupLayout: FC<LookupLayoutProps> = ({
 
       <div className="container">
         <div className="flex w-full items-center gap-4">
-          <h1 className="mb-2 flex-1 overflow-hidden break-words">
+          {/* Bottom padding added to avoid clipping */}
+          <h1 className="mb-2 flex-1 overflow-hidden break-words pb-1">
             <span className="block text-muted-foreground">Results for</span>
             <a
               className="block text-4xl font-bold"
