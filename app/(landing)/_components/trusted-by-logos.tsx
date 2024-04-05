@@ -3,6 +3,7 @@ import Link from 'next/link';
 export const TrustedByLogos = () => (
   <div className="flex flex-wrap justify-center gap-8 [&_*]:h-7 [&_*]:w-auto">
     <Link href="/lookup/cloudflare.com">
+      <span className="sr-only">Cloudflare</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         x="0"
@@ -28,6 +29,7 @@ export const TrustedByLogos = () => (
     </Link>
 
     <Link href="/lookup/atlassian.com">
+      <span className="sr-only">Atlassian</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="195"
@@ -47,6 +49,7 @@ export const TrustedByLogos = () => (
     </Link>
 
     <Link href="/lookup/heroku.com">
+      <span className="sr-only">Heroku</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="268"
@@ -62,6 +65,7 @@ export const TrustedByLogos = () => (
     </Link>
 
     <Link href="/lookup/webflow.com">
+      <span className="sr-only">Webflow</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="1080"
@@ -113,6 +117,7 @@ export const TrustedByLogos = () => (
     </Link>
 
     <Link href="/lookup/sap.com">
+      <span className="sr-only">SAP</span>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 1223">
         <path
           className="fill-muted-foreground"

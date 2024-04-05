@@ -1,12 +1,6 @@
 import Image from 'next/image';
-import Link from 'next/link';
-import Balancer from 'react-wrap-balancer';
 
 import { Card } from '@/components/ui/card';
-
-import LogoDark from '@/assets/logo-dark.svg';
-import LogoLight from '@/assets/logo-light.svg';
-import { EXAMPLE_DOMAINS } from '@/lib/data';
 
 import { SearchForm } from '../_components/search-form';
 import { TrustedByLogos } from './_components/trusted-by-logos';
@@ -22,47 +16,41 @@ export const metadata = {
 
 const Home = () => {
   return (
-    <div className="container">
-      <section className="py-24 sm:py-32">
-        <div className="flex items-center justify-center gap-4 sm:gap-6">
-          <LogoDark className="inline h-12 dark:hidden sm:h-20" />
-          <LogoLight className="hidden h-12 dark:inline sm:h-20" />
-          <span className="text-4xl font-bold sm:text-6xl">Domain Digger</span>
-        </div>
-
-        <div className="my-16">
-          <h1 className="mb-8 scroll-m-20 pb-2 text-center text-2xl font-semibold tracking-tight first:mt-0 sm:text-3xl">
-            Get details about any Domain
-          </h1>
-          <div className="mx-auto max-w-4xl">
-            <SearchForm autofocus={true} />
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-center font-semibold sm:text-lg">
-            Start with examples
-          </h2>
-          <div className="mt-2 text-center text-sm leading-7 text-muted-foreground">
-            <Balancer>
-              {EXAMPLE_DOMAINS.map((domain) => (
-                <>
-                  <Link
-                    key={domain}
-                    className="underline decoration-dotted underline-offset-4"
-                    href={`/lookup/${domain}`}
-                  >
-                    {domain}
-                  </Link>
-                  <span className="whitespace-pre-wrap">{'  '}</span>
-                </>
-              ))}
-            </Balancer>
-          </div>
+    <div className="container space-y-16 pt-24">
+      <section>
+        <h1 className="mb-8 scroll-m-20 pb-2 text-center text-2xl font-semibold tracking-tight first:mt-0 sm:text-3xl">
+          Get details about any Domain
+        </h1>
+        <div className="mx-auto max-w-4xl">
+          <SearchForm autofocus={true} />
         </div>
       </section>
 
-      <section className="flex items-center justify-center gap-4 pb-16 font-medium sm:pb-24">
+      <section>
+        <div className="flex flex-col items-center gap-6">
+          <h2 className="text-center font-semibold sm:text-lg">
+            Trusted by experts at
+          </h2>
+
+          <TrustedByLogos />
+
+          <a
+            href="https://www.producthunt.com/posts/domain-digger?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-domain&#0045;digger"
+            target="_blank"
+            className="mt-2"
+          >
+            <img
+              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=434616&theme=neutral"
+              alt="Domain&#0032;Digger - Full&#0032;open&#0045;source&#0032;toolkit&#0032;for&#0032;next&#0045;level&#0032;domain&#0032;analysis | Product Hunt"
+              style={{ width: '250px', height: '54px' }}
+              width="250"
+              height="54"
+            />
+          </a>
+        </div>
+      </section>
+
+      <section className="flex items-center justify-center gap-4 font-medium">
         <Image
           width={48}
           height={48}
@@ -94,31 +82,7 @@ const Home = () => {
         </div>
       </section>
 
-      <section>
-        <div className="flex flex-col items-center gap-8">
-          <h2 className="text-center font-semibold sm:text-lg">
-            Trusted by experts at
-          </h2>
-
-          <TrustedByLogos />
-
-          <a
-            href="https://www.producthunt.com/posts/domain-digger?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-domain&#0045;digger"
-            target="_blank"
-            className="mt-4"
-          >
-            <img
-              src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=434616&theme=neutral"
-              alt="Domain&#0032;Digger - Full&#0032;open&#0045;source&#0032;toolkit&#0032;for&#0032;next&#0045;level&#0032;domain&#0032;analysis | Product Hunt"
-              style={{ width: '250px', height: '54px' }}
-              width="250"
-              height="54"
-            />
-          </a>
-        </div>
-      </section>
-
-      <section className="mt-32">
+      <section className="!mt-32">
         <h2 className="mb-6 text-center text-3xl font-bold">
           Domain Digger: The Essential Domain Information Tool
         </h2>

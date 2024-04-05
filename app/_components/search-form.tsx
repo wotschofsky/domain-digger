@@ -20,6 +20,7 @@ import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { cn, isAppleDevice, isValidDomain } from '@/lib/utils';
 
 const normalizeDomain = (input: string) => {
@@ -44,7 +45,22 @@ const useSuggestions = (domain: string) => {
     { keepPreviousData: true }
   );
 
-  return { suggestions };
+  return {
+    suggestions: domain ? suggestions : EXAMPLE_DOMAINS,
+  };
+};
+
+const useFirstRender = () => {
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+  }, []);
+
+  return isFirstRender;
 };
 
 enum FormStates {
@@ -59,6 +75,8 @@ type SearchFormProps = {
 };
 
 export const SearchForm = (props: SearchFormProps) => {
+  const isFirstRender = useFirstRender();
+
   const plausible = usePlausible();
 
   const router = useRouter();
@@ -136,17 +154,18 @@ export const SearchForm = (props: SearchFormProps) => {
       redirectUser(value);
 
       plausible('Search Form: Click Suggestion', {
-        props: { domain: value },
+        props: {
+          domain: value,
+          isExample: !domain,
+        },
       });
     },
-    [setDomain, redirectUser, plausible]
+    [domain, setDomain, redirectUser, plausible]
   );
 
   const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
     (event) => {
-      if (
-        !(suggestionsVisible && domain && suggestions && suggestions.length > 0)
-      ) {
+      if (!(suggestionsVisible && suggestions && suggestions.length > 0)) {
         return;
       }
 
@@ -177,12 +196,17 @@ export const SearchForm = (props: SearchFormProps) => {
     },
     [
       suggestionsVisible,
-      domain,
       suggestions,
       selectedSuggestion,
       handleSelectSuggestion,
     ]
   );
+
+  const handleFocus = useCallback(() => {
+    // Skip the first render to avoid suggestions showing up on initial load without user interaction
+    if (isFirstRender.current) return;
+    setSuggestionsVisible(true);
+  }, [isFirstRender, setSuggestionsVisible]);
 
   return (
     <div>
@@ -193,14 +217,15 @@ export const SearchForm = (props: SearchFormProps) => {
             className="w-full"
             type="text"
             required
-            placeholder="example.com"
+            placeholder="Search any domain or URL"
             aria-label="Domain"
             value={domain}
             onInput={(event: ChangeEvent<HTMLInputElement>) =>
               setDomain(event.target.value)
             }
             onKeyDown={handleKeyDown}
-            onFocus={() => setSuggestionsVisible(true)}
+            onFocus={handleFocus}
+            onClick={handleFocus}
             onBlur={() => {
               setTimeout(() => {
                 setSuggestionsVisible(false);
@@ -220,25 +245,22 @@ export const SearchForm = (props: SearchFormProps) => {
             )}
           </kbd>
 
-          {suggestionsVisible &&
-            domain &&
-            suggestions &&
-            suggestions.length > 0 && (
-              <ul className="absolute left-0 top-full w-full rounded-xl border bg-card p-1 text-card-foreground shadow">
-                {suggestions.map((value, index) => (
-                  <li
-                    key={value}
-                    className={cn(
-                      'cursor-pointer rounded-lg px-2 py-1 hover:bg-muted/50',
-                      { 'bg-muted/50': selectedSuggestion === index }
-                    )}
-                    onClick={() => handleSelectSuggestion(value)}
-                  >
-                    {value}
-                  </li>
-                ))}
-              </ul>
-            )}
+          {suggestionsVisible && suggestions && suggestions.length > 0 && (
+            <ul className="absolute left-0 top-full w-full rounded-xl border bg-card p-1 text-card-foreground shadow">
+              {suggestions.map((value, index) => (
+                <li
+                  key={value}
+                  className={cn(
+                    'cursor-pointer rounded-lg px-2 py-1 hover:bg-muted/50',
+                    { 'bg-muted/50': selectedSuggestion === index }
+                  )}
+                  onClick={() => handleSelectSuggestion(value)}
+                >
+                  {value}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <Button
           className="flex-[1]"
@@ -252,15 +274,11 @@ export const SearchForm = (props: SearchFormProps) => {
         </Button>
       </form>
 
-      {error ? (
-        <p className="mt-2 text-center text-sm text-red-600">
-          An error occurred! Please check your input or try again later.
-        </p>
-      ) : (
-        <p className="mt-2 text-center text-sm text-muted-foreground">
-          It can be anything! An apex, subdomain, or even a URL.
-        </p>
-      )}
+      <p className="mt-2 whitespace-pre text-center text-sm text-red-600">
+        {error
+          ? 'An error occurred! Please check your input or try again later.'
+          : ' '}
+      </p>
     </div>
   );
 };
