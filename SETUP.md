@@ -1,4 +1,4 @@
-# Contributing to Domain Digger
+# Setting Up Domain Digger
 
 ## About the project
 
@@ -8,17 +8,23 @@ Dependencies are managed by [pnpm](https://pnpm.io/installation) and can be inst
 
 Development mode can be initiated using `pnpm dev`. For production, the app should be deployed on Vercel to ensure all features function as expected.
 
-The codebase can/should be formatted with Prettier using `pnpm format`.
+The codebase can and should be formatted with Prettier using `pnpm format`.
 
 ## Configuring the project
 
 For full functionality, Domain Digger relies on Upstash Redis and Google BigQuery.
 
-Credentials are provided through environment variables. Using [a .env file as per the Next.js docs](https://nextjs.org/docs/app/building-your-application/configuring/environment-variables#loading-environment-variables) is recommended. All required variables are documented in the [example env file](./.env.example).
+Credentials are provided through environment variables. Using [a .env file as per the Next.js docs](https://nextjs.org/docs/basic-features/environment-variables#loading-environment-variables) is recommended. All required variables are documented in the [example env file](./.env.example).
+
+### Deployment Platform
+
+As of writing this, Vercel is the only platform able to correctly deploy Domain Digger. Both Cloudflare Pages and Netlify do not correctly support all required features.
+
+While a traditional non-serverless deployment is possible, the DNS map won't work correctly.
 
 ### Upstash
 
-Head to the [Upstash Console](https://console.upstash.com) and create a Redis database from there. Retrieve credentials for `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+Head to the [Upstash Console](https://console.upstash.com) and create a Redis database from there. Retrieve credentials for `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (scroll down to the "REST API" section).
 
 ### Google Cloud
 
