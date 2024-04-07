@@ -6,7 +6,7 @@ import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import {
-  type ChangeEvent,
+  type ChangeEventHandler,
   type FormEvent,
   type KeyboardEventHandler,
   useCallback,
@@ -163,9 +163,17 @@ export const SearchForm = (props: SearchFormProps) => {
     [domain, setDomain, redirectUser, plausible]
   );
 
+  const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(
+    (event) => setDomain(event.currentTarget.value),
+    [setDomain]
+  );
+
   const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
     (event) => {
       if (!(suggestionsVisible && suggestions && suggestions.length > 0)) {
+        if (event.currentTarget.value !== '') {
+          setSuggestionsVisible(true);
+        }
         return;
       }
 
@@ -191,6 +199,9 @@ export const SearchForm = (props: SearchFormProps) => {
             event.preventDefault();
             handleSelectSuggestion(suggestions[selectedSuggestion]);
           }
+          break;
+        case 'Escape':
+          setSuggestionsVisible(false);
           break;
       }
     },
@@ -220,9 +231,7 @@ export const SearchForm = (props: SearchFormProps) => {
             placeholder="Search any domain or URL"
             aria-label="Domain"
             value={domain}
-            onInput={(event: ChangeEvent<HTMLInputElement>) =>
-              setDomain(event.target.value)
-            }
+            onInput={handleInput}
             onKeyDown={handleKeyDown}
             onFocus={handleFocus}
             onClick={handleFocus}
