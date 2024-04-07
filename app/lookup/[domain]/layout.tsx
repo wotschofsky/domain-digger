@@ -1,9 +1,11 @@
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 
+import { isUserBot } from '@/lib/api';
 import { recordLookup } from '@/lib/search';
 import { isValidDomain } from '@/lib/utils';
 
@@ -44,7 +46,8 @@ const LookupLayout: FC<LookupLayoutProps> = ({
     return notFound();
   }
 
-  recordLookup(domain);
+  const { isBot } = isUserBot(headers());
+  recordLookup({ domain, isBot });
 
   return (
     <>

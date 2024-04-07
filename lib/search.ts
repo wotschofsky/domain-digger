@@ -3,12 +3,12 @@ import { getDomain } from 'tldts';
 
 import { bigquery } from '@/lib/bigquery';
 
-export const recordLookup = (domain: string) => {
+export const recordLookup = (data: { domain: string; isBot: boolean }) => {
   if (!bigquery) {
     return;
   }
 
-  const baseDomain = getDomain(domain);
+  const baseDomain = getDomain(data.domain);
 
   const forwardedFor = headers().get('x-forwarded-for');
   const ip = (forwardedFor ?? '127.0.0.1').split(',')[0];
@@ -19,10 +19,11 @@ export const recordLookup = (domain: string) => {
       tableName: 'lookups',
       rows: [
         {
-          domain,
+          domain: data.domain,
           baseDomain,
           timestamp: Math.floor(new Date().getTime() / 1000),
           ip,
+          isBot: data.isBot,
         },
       ],
     })

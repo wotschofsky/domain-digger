@@ -63,6 +63,13 @@ Use the following schema for creating the dataset:
     "type": "STRING",
     "description": null,
     "fields": []
+  },
+  {
+    "name": "isBot",
+    "mode": "NULLABLE",
+    "type": "BOOLEAN",
+    "description": null,
+    "fields": []
   }
 ]
 ```
