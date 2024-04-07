@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { parse as tldtsParse } from 'tldts';
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
@@ -13,11 +14,23 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
     return retry(fn, maxRetries - 1);
   });
 
-// TODO Integrate hyphen check into regex
-export const isValidDomain = (domain: string) =>
-  /^(\*\.)?(((?!-))(xn--|_)?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*(xn--)?([a-z0-9][a-z0-9\-]{0,60}|[a-z0-9-]{1,30}\.[a-z]{2,})$/.test(
-    domain
-  ) && !domain.startsWith('-');
+export const isValidDomain = (domain: string) => {
+  // TODO Integrate hyphen check into regex
+  const regexResult =
+    /^(\*\.)?(((?!-))(xn--|_)?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*(xn--)?([a-z0-9][a-z0-9\-]{0,60}|[a-z0-9-]{1,30}\.[a-z]{2,})$/.test(
+      domain
+    ) && !domain.startsWith('-');
+  if (!regexResult) return false;
+
+  // Remove wildcard prefix to avoid false negatives from library
+  const cleanedDomain = domain.startsWith('*.') ? domain.slice(2) : domain;
+  try {
+    const result = tldtsParse(cleanedDomain);
+    return result.isIcann || result.isPrivate;
+  } catch (error) {
+    return false;
+  }
+};
 
 export const isAppleDevice = () => {
   if (typeof window === 'undefined') return false;

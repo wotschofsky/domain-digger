@@ -65,7 +65,7 @@ describe('isValidDomain', () => {
     expect(isValidDomain('subdomain.example.com')).toBe(true);
     expect(isValidDomain('www.example.co.uk')).toBe(true);
     expect(isValidDomain('xn--fiqs8s')).toBe(true); // Punycode example for Chinese "中国"
-    expect(isValidDomain('example')).toBe(true); // Only TLD
+    expect(isValidDomain('com')).toBe(true); // Only TLD
   });
 
   it('validates wildcard domains', () => {
@@ -75,6 +75,8 @@ describe('isValidDomain', () => {
   it('rejects invalid domains', () => {
     expect(isValidDomain('-example.com')).toBe(false); // Starts with a hyphen
     expect(isValidDomain('.com')).toBe(false); // No domain name
+    expect(isValidDomain('test.bad')).toBe(false); // Invalid TLD
+    expect(isValidDomain('example')).toBe(false); // Only Invalid TLD
     expect(isValidDomain('exa_mple.com')).toBe(false); // Underscore in domain
     expect(isValidDomain('example..com')).toBe(false); // Double dot
   });
