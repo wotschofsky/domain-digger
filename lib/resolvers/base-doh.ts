@@ -30,7 +30,7 @@ type DoHResponse = {
   }[];
 };
 
-export class BaseDoHResolver extends DnsResolver {
+export abstract class BaseDoHResolver extends DnsResolver {
   constructor(
     private sendRequest: (domain: string, type: RecordType) => Promise<Response>
   ) {
