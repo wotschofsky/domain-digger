@@ -23,7 +23,7 @@ export const isValidDomain = (domain: string) => {
   if (!regexResult) return false;
 
   // Remove wildcard prefix to avoid false negatives from library
-  const cleanedDomain = domain.startsWith('*.') ? domain.slice(2) : domain;
+  const cleanedDomain = domain.replace(/^\*\./, '');
   try {
     const result = tldtsParse(cleanedDomain);
     return result.isIcann || result.isPrivate;

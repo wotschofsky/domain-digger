@@ -8,7 +8,10 @@ export const recordLookup = (data: { domain: string; isBot: boolean }) => {
     return;
   }
 
-  const baseDomain = getDomain(data.domain);
+  // Remove wildcard prefix to avoid base domain not being extracted correctly
+  // Remove trailing dot
+  const cleanedDomain = data.domain.replace(/^\*\./, '').replace(/\.$/, '');
+  const baseDomain = getDomain(cleanedDomain) || cleanedDomain;
 
   const forwardedFor = headers().get('x-forwarded-for');
   const ip = (forwardedFor ?? '127.0.0.1').split(',')[0];
