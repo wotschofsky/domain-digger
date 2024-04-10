@@ -1,37 +1,53 @@
 import type { MetadataRoute } from 'next';
+import { parse as parseTldts } from 'tldts';
 
 import { EXAMPLE_DOMAINS } from '@/lib/data';
+import { getTopDomains } from '@/lib/search';
+import { deduplicate } from '@/lib/utils';
 
 const SITE_URL = process.env.SITE_URL;
+const RESULTS_SUBPATHS = ['', '/certs', '/map', '/subdomains', '/whois'];
 
-const tlds = EXAMPLE_DOMAINS.map((domain) => domain.replace(/^.+\./, ''));
-const uniqueTlds = Array.from(new Set(tlds));
+const getSitemapPaths = async () => {
+  const topDomains = await getTopDomains(1000);
 
-const domains = [
-  ...EXAMPLE_DOMAINS,
-  ...EXAMPLE_DOMAINS.map((domain) => 'www.' + domain),
-  ...uniqueTlds,
-];
-domains.sort();
+  const namedDomains = deduplicate([...EXAMPLE_DOMAINS, ...topDomains]);
+  const tlds = deduplicate(namedDomains.map((d) => parseTldts(d).publicSuffix));
 
-const sitemap = (): MetadataRoute.Sitemap =>
-  SITE_URL
-    ? [
-        {
-          url: SITE_URL,
-          lastModified: new Date(),
-          changeFrequency: 'monthly' as const,
-          priority: 1,
-        },
-        ...domains.flatMap((domain) =>
-          ['', '/certs', '/map', '/subdomains', '/whois'].map((suffix) => ({
-            url: SITE_URL + '/lookup/' + domain + suffix,
-            lastModified: new Date(),
-            changeFrequency: 'always' as const,
-            priority: 0.5,
-          }))
-        ),
-      ]
-    : [];
+  const allDomains = [
+    ...namedDomains,
+    ...namedDomains.map((domain) => 'www.' + domain),
+    ...tlds,
+  ].toSorted();
+
+  const resultsPaths = allDomains.flatMap((domain) =>
+    RESULTS_SUBPATHS.map((suffix) => '/lookup/' + domain + suffix)
+  );
+
+  return resultsPaths;
+};
+
+const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
+  if (!SITE_URL) {
+    return [];
+  }
+
+  const paths = await getSitemapPaths();
+
+  return [
+    {
+      url: SITE_URL,
+      lastModified: new Date(),
+      changeFrequency: 'monthly' as const,
+      priority: 1,
+    },
+    ...paths.map((url) => ({
+      url: SITE_URL + url,
+      lastModified: new Date(),
+      changeFrequency: 'always' as const,
+      priority: 0.5,
+    })),
+  ];
+};
 
 export default sitemap;
