@@ -1,6 +1,6 @@
 import { lookupCerts } from './certs';
 import type { DnsResolver } from './resolvers/base';
-import { isValidDomain } from './utils';
+import { deduplicate, isValidDomain } from './utils';
 
 const RESULTS_LIMIT = 500;
 
@@ -12,9 +12,7 @@ export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
     domains: [cert.common_name, ...cert.name_value.split(/\n/g)],
   }));
 
-  const uniqueDomains = Array.from(
-    new Set<string>(issuedCerts.flatMap((r) => r.domains))
-  )
+  const uniqueDomains = deduplicate(issuedCerts.flatMap((r) => r.domains))
     .filter(isValidDomain)
     .filter((d) => d.endsWith(`.${domain}`));
 

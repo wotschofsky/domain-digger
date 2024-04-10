@@ -4,6 +4,8 @@ import { parse as tldtsParse } from 'tldts';
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
+export const deduplicate = <T>(array: T[]): T[] => Array.from(new Set(array));
+
 // From https://stackoverflow.com/a/30471209/12475254
 export const retry = <T extends Function>(fn: T, maxRetries: number) =>
   fn().catch((err: Error) => {

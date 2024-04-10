@@ -8,7 +8,28 @@ import {
   vi,
 } from 'vitest';
 
-import { isAppleDevice, isValidDomain, retry } from './utils';
+import { deduplicate, isAppleDevice, isValidDomain, retry } from './utils';
+
+describe('deduplicate', () => {
+  it('removes duplicate numbers from an array', () => {
+    expect(deduplicate([1, 2, 2, 3])).toEqual([1, 2, 3]);
+  });
+
+  it('removes duplicate strings from an array', () => {
+    expect(deduplicate(['a', 'b', 'b', 'c'])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('handles arrays of objects based on strict equality', () => {
+    const obj1 = { id: 1 };
+    const obj2 = { id: 2 };
+    // These are two different references, so both should remain
+    expect(deduplicate([obj1, obj2, obj1])).toEqual([obj1, obj2]);
+  });
+
+  it('returns an empty array when given an empty array', () => {
+    expect(deduplicate([])).toEqual([]);
+  });
+});
 
 describe('retry', () => {
   let warnSpy: MockInstance;
