@@ -17,6 +17,13 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
   });
 
 export const isValidDomain = (domain: string) => {
+  if (typeof domain !== 'string') {
+    if (process?.env.VITEST !== 'true') {
+      console.warn('isValidDomain expects a string input, received', domain);
+    }
+    return false;
+  }
+
   // TODO Integrate hyphen check into regex
   const regexResult =
     /^(\*\.)?(((?!-))(xn--|_)?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*(xn--)?([a-z0-9][a-z0-9\-]{0,60}|[a-z0-9-]{1,30}\.[a-z]{2,})$/.test(

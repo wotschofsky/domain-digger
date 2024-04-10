@@ -81,6 +81,17 @@ describe('retry', () => {
 });
 
 describe('isValidDomain', () => {
+  it('filters non-strings', () => {
+    // @ts-expect-error Testing invalid input
+    expect(isValidDomain(null)).toBe(false);
+    // @ts-expect-error Testing invalid input
+    expect(isValidDomain(undefined)).toBe(false);
+    // @ts-expect-error Testing invalid input
+    expect(isValidDomain(123)).toBe(false);
+    // @ts-expect-error Testing invalid input
+    expect(isValidDomain({})).toBe(false);
+  });
+
   it('validates typical domains', () => {
     expect(isValidDomain('example.com')).toBe(true);
     expect(isValidDomain('subdomain.example.com')).toBe(true);
@@ -94,6 +105,7 @@ describe('isValidDomain', () => {
   });
 
   it('rejects invalid domains', () => {
+    expect(isValidDomain('')).toBe(false);
     expect(isValidDomain('-example.com')).toBe(false); // Starts with a hyphen
     expect(isValidDomain('.com')).toBe(false); // No domain name
     expect(isValidDomain('test.bad')).toBe(false); // Invalid TLD
