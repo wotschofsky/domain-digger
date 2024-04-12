@@ -1,7 +1,7 @@
 'use client';
 
 import { useDebounce } from '@uidotdev/usehooks';
-import { Loader2 } from 'lucide-react';
+import { Loader2Icon, SearchIcon } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
@@ -57,7 +57,6 @@ const useFirstRender = () => {
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      return;
     }
   }, []);
 
@@ -224,9 +223,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     <div>
       <form className="flex gap-3" onSubmit={handleSubmit}>
         <div className="group relative flex-[3]">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+
           <Input
             ref={inputRef}
-            className="w-full"
+            className="w-full pl-9"
             type="text"
             required
             placeholder="Search any domain or URL"
@@ -261,11 +262,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                 <li
                   key={value}
                   className={cn(
-                    'cursor-pointer rounded-lg px-2 py-1 hover:bg-muted/50',
+                    'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-muted/50',
                     { 'bg-muted/50': selectedSuggestion === index }
                   )}
                   onClick={() => handleSelectSuggestion(value)}
                 >
+                  <img
+                    className="mr-2 inline-block h-4 w-4"
+                    src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
+                    alt=""
+                  />
                   {value}
                 </li>
               ))}
@@ -278,7 +284,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           disabled={state !== FormStates.Initial}
         >
           {state === FormStates.Submitting && (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
           )}
           Lookup
         </Button>
