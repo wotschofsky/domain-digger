@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { lookupCerts } from '@/lib/certs';
+import { lookupRelatedCerts } from '@/lib/certs';
 import { isValidDomain } from '@/lib/utils';
 
 import { DomainLink } from '../_components/domain-link';
@@ -18,28 +18,6 @@ import { DomainLink } from '../_components/domain-link';
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
 export const preferredRegion = 'lhr1';
-
-const getRelatedCerts = async (domain: string) => {
-  const requests = [lookupCerts(domain)];
-
-  const hasParentDomain = domain.split('.').filter(Boolean).length > 2;
-  if (hasParentDomain) {
-    const parentDomain = domain.split('.').slice(1).join('.');
-    requests.push(lookupCerts(`*.${parentDomain}`));
-  }
-
-  const responses = await Promise.all(requests);
-
-  const certs = responses
-    .flat()
-    .toSorted(
-      (a, b) =>
-        new Date(b.entry_timestamp).getTime() -
-        new Date(a.entry_timestamp).getTime()
-    );
-
-  return certs;
-};
 
 type CertsResultsPageProps = {
   params: {
@@ -61,7 +39,7 @@ export const generateMetadata = ({
 const CertsResultsPage: FC<CertsResultsPageProps> = async ({
   params: { domain },
 }) => {
-  const certs = await getRelatedCerts(domain);
+  const certs = await lookupRelatedCerts(domain);
 
   if (!certs.length) {
     return (

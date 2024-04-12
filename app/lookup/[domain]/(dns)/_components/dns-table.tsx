@@ -9,15 +9,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
+import type { RecordContextEntry } from '@/lib/record-context';
 import type { ResolvedRecords } from '@/lib/resolvers/base';
 
 import { RecordRow } from './record-row';
-import type { SubvalueInfo } from './record-subvalues';
 import { StackedRecord } from './stacked-record';
 
 type DnsTableProps = {
   records: ResolvedRecords;
-  subvalues: Record<string, SubvalueInfo[]>;
+  subvalues: Record<string, RecordContextEntry[]>;
 };
 
 export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (

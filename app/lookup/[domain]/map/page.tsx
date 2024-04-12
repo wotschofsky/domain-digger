@@ -4,53 +4,12 @@ import { headers } from 'next/headers';
 import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
-import { REGIONS } from '@/lib/data';
-import { InternalDoHResolver } from '@/lib/resolvers/internal';
+import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
 
 import { BaseAlert } from './_components/base-alert';
 import { ResultsGlobe } from './_components/results-globe';
 
 export const runtime = 'edge';
-
-const getMarkers = (domain: string) =>
-  Promise.all(
-    Object.entries(REGIONS).map(async ([code, data]) => {
-      const resolver = new InternalDoHResolver(code, 'cloudflare');
-      // TODO Optimize this to only required records
-      const results = await resolver.resolveAllRecords(domain);
-
-      return {
-        ...data,
-        code,
-        results: {
-          A: results.A.map((r) => r.data),
-          AAAA: results.AAAA.map((r) => r.data),
-          CNAME: results.CNAME.map((r) => r.data),
-        },
-      };
-    })
-  );
-
-const getHasDifferences = (
-  markers: { A: string[]; AAAA: string[]; CNAME: string[] }[]
-) => {
-  let hasDifferentRecords = false;
-  for (let i = 1; i < markers.length; i++) {
-    const previous = markers[i - 1];
-    const current = markers[i];
-    if (
-      previous.A.toSorted().toString() !== current.A.toSorted().toString() ||
-      previous.AAAA.toSorted().toString() !==
-        current.AAAA.toSorted().toString() ||
-      previous.CNAME.toSorted().toString() !==
-        current.CNAME.toSorted().toString()
-    ) {
-      hasDifferentRecords = true;
-      break;
-    }
-  }
-  return hasDifferentRecords;
-};
 
 type MapResultsPageProps = {
   params: {
@@ -86,8 +45,8 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
     );
   }
 
-  const markers = await getMarkers(domain);
-  const hasDifferences = getHasDifferences(markers.map((m) => m.results));
+  const lookupResults = await getGlobalLookupResults(domain);
+  const hasDifferences = getHasDifferences(lookupResults.map((m) => m.results));
 
   return (
     <>
@@ -105,7 +64,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
         </BaseAlert>
       )}
 
-      <ResultsGlobe domain={domain} markers={markers} />
+      <ResultsGlobe domain={domain} markers={lookupResults} />
     </>
   );
 };

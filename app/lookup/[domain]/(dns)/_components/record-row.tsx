@@ -3,11 +3,12 @@ import reactStringReplace from 'react-string-replace';
 
 import { TableCell, TableRow } from '@/components/ui/table';
 
+import type { RecordContextEntry } from '@/lib/record-context';
 import { cn } from '@/lib/utils';
 
 import { DomainLink } from '../../_components/domain-link';
 import { IpLink } from '../../_components/ip-link';
-import { RecordSubvalues, type SubvalueInfo } from './record-subvalues';
+import { RecordSubvalues } from './record-subvalues';
 
 const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const IPV4_REGEX = /(\d{1,3}\.){3}\d{1,3}/g;
@@ -18,7 +19,7 @@ type RecordRowProps = {
   name: string;
   TTL: number;
   value: string;
-  subvalues?: SubvalueInfo[];
+  subvalues?: RecordContextEntry[];
 };
 
 export const RecordRow: FC<RecordRowProps> = ({

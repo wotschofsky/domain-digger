@@ -2,66 +2,15 @@ import { NextResponse } from 'next/server';
 import isIP from 'validator/lib/isIP';
 
 import { applyRateLimit } from '@/lib/api';
-import { getIpDetails } from '@/lib/ips';
+import { getIpDetails, lookupReverse } from '@/lib/ips';
 
 export const runtime = 'edge';
 
-export type IpLookupResponse = {
-  city: string;
-  country: string;
-  isp: string;
-  lat: number;
-  lon: number;
-  org: string;
-  region: string;
+export type IpLookupResponse = Pick<
+  Awaited<ReturnType<typeof getIpDetails>>,
+  'city' | 'country' | 'isp' | 'lat' | 'lon' | 'org' | 'region' | 'timezone'
+> & {
   reverse: string[];
-  timezone: string;
-};
-
-const ipv4ToDnsName = (ipv4: string) =>
-  ipv4.split('.').reverse().join('.') + '.in-addr.arpa';
-
-const ipv6ToDnsName = (ipv6: string) => {
-  const segments = ipv6.split(':');
-  const missingSegments = 8 - segments.length + (ipv6.includes('::') ? 1 : 0);
-  const expandedSegments = segments.map((segment) => segment.padStart(4, '0'));
-  for (let i = 0; i < missingSegments; i++) {
-    expandedSegments.splice(segments.indexOf(''), 0, '0000');
-  }
-  const fullAddress = expandedSegments.join('');
-
-  return (
-    fullAddress
-      .split('')
-      .reverse()
-      .join('.')
-      .replace(/:/g, '')
-      .split('.')
-      .filter((x) => x)
-      .join('.') + '.ip6.arpa'
-  );
-};
-
-const lookupReverse = async (ip: string): Promise<string[]> => {
-  const reverseDnsName = ip.includes(':')
-    ? ipv6ToDnsName(ip)
-    : ipv4ToDnsName(ip);
-
-  const response = await fetch(
-    `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
-    {
-      headers: { Accept: 'application/dns-json' },
-    }
-  );
-
-  if (!response.ok)
-    throw new Error(`Error fetching DNS records: ${response.statusText}`);
-
-  const data = await response.json();
-
-  return data.Answer
-    ? data.Answer.map((record: { data: string }) => record.data.slice(0, -1))
-    : [];
 };
 
 export async function GET(request: Request) {

@@ -28,6 +28,53 @@ export const getIpDetails = async (ip: string) => {
   return data as IpDetails;
 };
 
+const ipv4ToDnsName = (ipv4: string) =>
+  ipv4.split('.').reverse().join('.') + '.in-addr.arpa';
+
+const ipv6ToDnsName = (ipv6: string) => {
+  const segments = ipv6.split(':');
+  const missingSegments = 8 - segments.length + (ipv6.includes('::') ? 1 : 0);
+  const expandedSegments = segments.map((segment) => segment.padStart(4, '0'));
+  for (let i = 0; i < missingSegments; i++) {
+    expandedSegments.splice(segments.indexOf(''), 0, '0000');
+  }
+  const fullAddress = expandedSegments.join('');
+
+  return (
+    fullAddress
+      .split('')
+      .reverse()
+      .join('.')
+      .replace(/:/g, '')
+      .split('.')
+      .filter((x) => x)
+      .join('.') + '.ip6.arpa'
+  );
+};
+
+const ipToDnsName = (ip: string) =>
+  ip.includes(':') ? ipv6ToDnsName(ip) : ipv4ToDnsName(ip);
+
+export const lookupReverse = async (ip: string): Promise<string[]> => {
+  const reverseDnsName = ipToDnsName(ip);
+
+  const response = await fetch(
+    `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
+    {
+      headers: { Accept: 'application/dns-json' },
+    }
+  );
+
+  if (!response.ok)
+    throw new Error(`Error fetching DNS records: ${response.statusText}`);
+
+  const data = await response.json();
+
+  return data.Answer
+    ? data.Answer.map((record: { data: string }) => record.data.slice(0, -1))
+    : [];
+};
+
 // Standardize last segment of IP address to reduce the number of requests and avoid rate limiting
 // 1st Regex is for IPv4
 // 2nd Regex is for IPv6

@@ -25,3 +25,25 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
 
   return await response.json();
 };
+
+export const lookupRelatedCerts = async (domain: string) => {
+  const requests = [lookupCerts(domain)];
+
+  const hasParentDomain = domain.split('.').filter(Boolean).length > 2;
+  if (hasParentDomain) {
+    const parentDomain = domain.split('.').slice(1).join('.');
+    requests.push(lookupCerts(`*.${parentDomain}`));
+  }
+
+  const responses = await Promise.all(requests);
+
+  const certs = responses
+    .flat()
+    .toSorted(
+      (a, b) =>
+        new Date(b.entry_timestamp).getTime() -
+        new Date(a.entry_timestamp).getTime()
+    );
+
+  return certs;
+};

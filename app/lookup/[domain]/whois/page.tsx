@@ -2,25 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { type FC, Fragment } from 'react';
 import { getDomain } from 'tldts';
-import whoiser, { type WhoisSearchResult } from 'whoiser';
 
-const lookupWhois = async (domain: string) => {
-  const result = await whoiser(domain, {
-    raw: true,
-    timeout: 5000,
-  });
-
-  const mappedResults: Record<string, string> = {};
-  for (const key in result) {
-    mappedResults[key] = (result[key] as WhoisSearchResult).__raw as string;
-  }
-
-  const filteredResults = Object.entries(mappedResults).filter(
-    ([_key, value]) => Boolean(value)
-  );
-
-  return filteredResults;
-};
+import { lookupWhois } from '@/lib/whois';
 
 type WhoisResultsPageProps = {
   params: {

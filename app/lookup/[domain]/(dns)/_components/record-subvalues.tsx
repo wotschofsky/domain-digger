@@ -1,12 +1,9 @@
 import type { FC } from 'react';
 
-export type SubvalueInfo = {
-  description: string;
-  url?: string;
-};
+import type { RecordContextEntry } from '@/lib/record-context';
 
 type RecordSubvaluesProps = {
-  subvalues: SubvalueInfo[];
+  subvalues: RecordContextEntry[];
 };
 
 export const RecordSubvalues: FC<RecordSubvaluesProps> = ({ subvalues }) => (
