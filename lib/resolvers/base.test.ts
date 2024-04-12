@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ALL_RECORD_TYPES,
   DnsResolver,
   type RawRecord,
-  RECORD_TYPES,
   type RecordType,
 } from './base';
 
@@ -41,22 +41,41 @@ describe('DnsResolver', () => {
     });
   });
 
-  describe('resolveAllRecords', () => {
+  describe('resolveRecordTypes', () => {
     it('should resolve all supported record types for a domain', async () => {
       const resolver = new MockResolver();
 
-      const resolvedRecords = await resolver.resolveAllRecords('example.com');
+      const resolvedRecords = await resolver.resolveRecordTypes(
+        'example.com',
+        ALL_RECORD_TYPES
+      );
 
       // Ensure all record types are present and have the expected data
-      RECORD_TYPES.forEach((type) => {
+      ALL_RECORD_TYPES.forEach((type) => {
         expect(resolvedRecords[type]).toBeDefined();
         expect(resolvedRecords[type][0].type).toBe(type);
       });
 
       // Ensure all and only the expected keys are present
-      const expectedKeys = RECORD_TYPES;
+      const expectedKeys = ALL_RECORD_TYPES;
       const resolvedKeys = Object.keys(resolvedRecords);
       expect(resolvedKeys.toSorted()).toEqual(expectedKeys.toSorted());
+    });
+
+    it('should resolve only specified record types for a domain', async () => {
+      const resolver = new MockResolver();
+
+      const resolvedRecords = await resolver.resolveRecordTypes('example.com', [
+        'A',
+        'AAAA',
+      ]);
+
+      // Ensure only the specified record types are present
+      expect(Object.keys(resolvedRecords).toSorted()).toEqual(['A', 'AAAA']);
+
+      // Ensure the specified record types have the expected data
+      expect(resolvedRecords['A'][0].data).toBe('data-for-A');
+      expect(resolvedRecords['AAAA'][0].data).toBe('data-for-AAAA');
     });
   });
 });

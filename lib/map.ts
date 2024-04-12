@@ -1,12 +1,17 @@
 import { REGIONS } from '@/lib/data';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
+const DISPLAYED_RECORD_TYPES = ['A', 'AAAA', 'CNAME'] as const;
+
 export const getGlobalLookupResults = (domain: string) =>
   Promise.all(
     Object.entries(REGIONS).map(async ([code, data]) => {
       const resolver = new InternalDoHResolver(code, 'cloudflare');
       // TODO Optimize this to only required records
-      const results = await resolver.resolveAllRecords(domain);
+      const results = await resolver.resolveRecordTypes(
+        domain,
+        DISPLAYED_RECORD_TYPES
+      );
 
       return {
         ...data,

@@ -3,6 +3,7 @@ import { redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
 import { getRecordContextEntries } from '@/lib/record-context';
+import { ALL_RECORD_TYPES } from '@/lib/resolvers/base';
 import { getResolverFromName } from '@/lib/resolvers/utils';
 
 import { DnsTable } from './_components/dns-table';
@@ -52,7 +53,7 @@ const LookupDomain: FC<LookupDomainProps> = async ({
   }
 
   const resolver = getResolverFromName(resolverName, locationName);
-  const records = await resolver.resolveAllRecords(domain);
+  const records = await resolver.resolveRecordTypes(domain, ALL_RECORD_TYPES);
   const subvalues = await getRecordContextEntries(records);
 
   const hasResults =

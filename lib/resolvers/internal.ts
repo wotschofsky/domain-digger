@@ -1,7 +1,6 @@
 import {
   DnsResolver,
   type RawRecord,
-  RECORD_TYPES,
   type RecordType,
   type ResolvedRecords,
 } from './base';
@@ -56,10 +55,13 @@ export class InternalDoHResolver extends DnsResolver {
     return results[type];
   }
 
-  public async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
+  public async resolveRecordTypes(
+    domain: string,
+    types: readonly RecordType[]
+  ): Promise<ResolvedRecords> {
     const url = this.getBaseUrl(this.location);
     url.searchParams.set('resolver', this.resolver);
-    RECORD_TYPES.forEach((type) => url.searchParams.append('type', type));
+    types.forEach((type) => url.searchParams.append('type', type));
     url.searchParams.set('domain', domain);
 
     const response = await fetch(url, this.requestInit);

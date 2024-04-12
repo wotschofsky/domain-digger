@@ -1,4 +1,4 @@
-export const RECORD_TYPES = [
+export const ALL_RECORD_TYPES = [
   'A',
   'AAAA',
   'CAA',
@@ -30,7 +30,7 @@ export const RECORD_TYPES_BY_DECIMAL = {
   16: 'TXT',
 } as const;
 
-export type RecordType = (typeof RECORD_TYPES)[number];
+export type RecordType = (typeof ALL_RECORD_TYPES)[number];
 
 export type RawRecord = {
   name: string;
@@ -47,12 +47,15 @@ export abstract class DnsResolver {
     type: RecordType
   ): Promise<RawRecord[]>;
 
-  public async resolveAllRecords(domain: string): Promise<ResolvedRecords> {
+  public async resolveRecordTypes(
+    domain: string,
+    types: readonly RecordType[]
+  ): Promise<ResolvedRecords> {
     const results = await Promise.all(
-      RECORD_TYPES.map((type) => this.resolveRecordType(domain, type))
+      types.map((type) => this.resolveRecordType(domain, type))
     );
 
-    return RECORD_TYPES.reduce(
+    return types.reduce(
       (res, type, index) => ({
         ...res,
         [type]: results[index],
