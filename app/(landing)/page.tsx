@@ -40,6 +40,7 @@ const Home: FC = () => {
             target="_blank"
             className="mt-2"
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=434616&theme=neutral"
               alt="Domain&#0032;Digger - Full&#0032;open&#0045;source&#0032;toolkit&#0032;for&#0032;next&#0045;level&#0032;domain&#0032;analysis | Product Hunt"

@@ -267,6 +267,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                   )}
                   onClick={() => handleSelectSuggestion(value)}
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     className="mr-2 inline-block h-4 w-4"
                     src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
