@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { applyRateLimit } from './lib/api';
+import { applyRateLimit } from '@/lib/api';
 
 export const middleware = async (request: NextRequest) => {
   const visitorIp = request.headers.get('x-forwarded-for') ?? '';
