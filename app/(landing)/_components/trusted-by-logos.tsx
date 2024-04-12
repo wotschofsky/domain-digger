@@ -1,6 +1,7 @@
 import Link from 'next/link';
+import type { FC } from 'react';
 
-export const TrustedByLogos = () => (
+export const TrustedByLogos: FC = () => (
   <div className="flex flex-wrap justify-center gap-8 [&_*]:h-7 [&_*]:w-auto">
     <Link href="/lookup/cloudflare.com">
       <span className="sr-only">Cloudflare</span>

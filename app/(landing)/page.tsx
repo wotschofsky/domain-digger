@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import type { FC } from 'react';
 
 import { Card } from '@/components/ui/card';
 
@@ -14,7 +15,7 @@ export const metadata = {
   },
 };
 
-const Home = () => {
+const Home: FC = () => {
   return (
     <div className="container space-y-16 pt-24">
       <section>

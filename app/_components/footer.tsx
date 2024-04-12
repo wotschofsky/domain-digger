@@ -1,8 +1,9 @@
+import type { FC } from 'react';
 import { FaGithub, FaHeart } from 'react-icons/fa';
 
 import { Button } from '@/components/ui/button';
 
-export const Footer = () => (
+export const Footer: FC = () => (
   <footer className="w-full p-4 md:px-8">
     <div className="flex items-center justify-between border-t pt-4">
       <p className="text-sm">

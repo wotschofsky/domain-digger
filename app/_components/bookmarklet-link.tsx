@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  type FC,
   type MouseEventHandler,
   useCallback,
   useEffect,
@@ -17,7 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-export const BookmarkletLink = () => {
+export const BookmarkletLink: FC = () => {
   const [target, setTarget] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [activated, setActivated] = useState(false);

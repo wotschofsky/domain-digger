@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import {
   type ChangeEventHandler,
+  type FC,
   type FormEvent,
   type KeyboardEventHandler,
   useCallback,
@@ -74,7 +75,7 @@ type SearchFormProps = {
   autofocus?: boolean;
 };
 
-export const SearchForm = (props: SearchFormProps) => {
+export const SearchForm: FC<SearchFormProps> = (props) => {
   const isFirstRender = useFirstRender();
 
   const plausible = usePlausible();

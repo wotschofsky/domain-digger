@@ -1,3 +1,5 @@
+import type { FC } from 'react';
+
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -8,7 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-const SubdomainsLoading = () => (
+const SubdomainsLoading: FC = () => (
   <Table>
     <TableHeader>
       <TableRow className="hover:bg-transparent">

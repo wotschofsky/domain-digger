@@ -8,12 +8,19 @@ import { useHotkeys } from 'react-hotkeys-hook';
 
 import { isAppleDevice } from '@/lib/utils';
 
-const SingleTab: FC<{
+type SingleTabProps = {
   label: string;
   href: string;
   selected: boolean;
   shortcutNumber: number;
-}> = ({ label, href, selected, shortcutNumber }) => (
+};
+
+const SingleTab: FC<SingleTabProps> = ({
+  label,
+  href,
+  selected,
+  shortcutNumber,
+}) => (
   <li className="mr-2">
     <Link
       href={href}
