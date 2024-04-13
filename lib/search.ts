@@ -1,32 +1,34 @@
-import { headers } from 'next/headers';
 import { getDomain } from 'tldts';
 
 import { bigquery } from '@/lib/bigquery';
 
-export const recordLookup = (data: { domain: string; isBot: boolean }) => {
+type LookupLogPayload = {
+  domain: string;
+  ip: string;
+  isBot: boolean;
+};
+
+export const recordLookup = async (payload: LookupLogPayload) => {
   if (!bigquery) {
     return;
   }
 
   // Remove wildcard prefix to avoid base domain not being extracted correctly
   // Remove trailing dot
-  const cleanedDomain = data.domain.replace(/^\*\./, '').replace(/\.$/, '');
+  const cleanedDomain = payload.domain.replace(/^\*\./, '').replace(/\.$/, '');
   const baseDomain = getDomain(cleanedDomain) || cleanedDomain;
 
-  const forwardedFor = headers().get('x-forwarded-for');
-  const ip = (forwardedFor ?? '127.0.0.1').split(',')[0];
-
-  bigquery
+  await bigquery
     .insertRows({
       datasetName: process.env.BIGQUERY_DATASET!,
       tableName: 'lookups',
       rows: [
         {
-          domain: data.domain,
+          domain: payload.domain,
           baseDomain,
           timestamp: Math.floor(new Date().getTime() / 1000),
-          ip,
-          isBot: data.isBot,
+          ip: payload.ip,
+          isBot: payload.isBot,
         },
       ],
     })

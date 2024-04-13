@@ -5,7 +5,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 
-import { isUserBot } from '@/lib/api';
+import { getVisitorIp, isUserBot } from '@/lib/api';
 import { recordLookup } from '@/lib/search';
 import { isValidDomain } from '@/lib/utils';
 
@@ -46,8 +46,9 @@ const LookupLayout: FC<LookupLayoutProps> = ({
     return notFound();
   }
 
+  const ip = getVisitorIp(headers());
   const { isBot } = isUserBot(headers());
-  recordLookup({ domain, isBot });
+  recordLookup({ domain, ip, isBot });
 
   return (
     <>
