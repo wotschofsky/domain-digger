@@ -1,6 +1,75 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { normalizeIpEnding } from './ips';
+import {
+  ipToDnsName,
+  ipv4ToDnsName,
+  ipv6ToDnsName,
+  lookupReverse,
+  normalizeIpEnding,
+} from './ips';
+
+describe('ipv4ToDnsName', () => {
+  it('should convert an IPv4 address to a reverse DNS lookup format', () => {
+    expect(ipv4ToDnsName('8.8.8.8')).toBe('8.8.8.8.in-addr.arpa');
+  });
+});
+
+describe('ipv6ToDnsName', () => {
+  it('should convert an IPv6 address to a reverse DNS lookup format', () => {
+    expect(ipv6ToDnsName('2001:db8::1')).toBe(
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa'
+    );
+  });
+});
+
+describe('ipToDnsName', () => {
+  it('should convert an IPv4 address to a reverse DNS lookup format', () => {
+    expect(ipToDnsName('8.8.8.8')).toBe('8.8.8.8.in-addr.arpa');
+  });
+
+  it('should convert an IPv6 address to a reverse DNS lookup format', () => {
+    expect(ipToDnsName('2001:db8::1')).toBe(
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa'
+    );
+  });
+});
+
+describe('lookupReverse', () => {
+  it('should return an array of domain names from reverse DNS lookups', async () => {
+    const fakeResponse = {
+      json: vi.fn().mockResolvedValue({
+        Answer: [{ data: 'dns.google.' }, { data: 'another.dns.google.' }],
+      }),
+      ok: true,
+    };
+    global.fetch = vi.fn().mockResolvedValue(fakeResponse);
+
+    const results = await lookupReverse('8.8.8.8');
+    expect(results).toEqual(['dns.google', 'another.dns.google']);
+  });
+
+  it('should return an empty array if no answers are found in the DNS lookup', async () => {
+    const fakeResponse = {
+      json: vi.fn().mockResolvedValue({}),
+      ok: true,
+    };
+    global.fetch = vi.fn().mockResolvedValue(fakeResponse);
+
+    const results = await lookupReverse('8.8.4.4');
+    expect(results).toEqual([]);
+  });
+
+  it('should throw an error when the API call for DNS lookup fails', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Service Unavailable',
+    });
+
+    await expect(lookupReverse('8.8.4.4')).rejects.toThrow(
+      'Error fetching DNS records: Service Unavailable'
+    );
+  });
+});
 
 describe('normalizeIpEnding', () => {
   it('should normalize the last octet of an IPv4 address to .0', () => {

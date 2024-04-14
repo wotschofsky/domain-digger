@@ -5,6 +5,7 @@ import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
 import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
+import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
 import { BaseAlert } from './_components/base-alert';
 import { ResultsGlobe } from './_components/results-globe';
@@ -45,7 +46,10 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
     );
   }
 
-  const lookupResults = await getGlobalLookupResults(domain);
+  const lookupResults = await getGlobalLookupResults(
+    domain,
+    (code) => new InternalDoHResolver(code, 'cloudflare')
+  );
   const hasDifferences = getHasDifferences(lookupResults.map((m) => m.results));
 
   return (
@@ -64,7 +68,9 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
         </BaseAlert>
       )}
 
-      <ResultsGlobe domain={domain} markers={lookupResults} />
+      <div className="mx-[-2rem]">
+        <ResultsGlobe domain={domain} markers={lookupResults} />
+      </div>
     </>
   );
 };

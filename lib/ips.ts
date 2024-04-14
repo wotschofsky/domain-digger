@@ -28,10 +28,10 @@ export const getIpDetails = async (ip: string) => {
   return data as IpDetails;
 };
 
-const ipv4ToDnsName = (ipv4: string) =>
+export const ipv4ToDnsName = (ipv4: string) =>
   ipv4.split('.').reverse().join('.') + '.in-addr.arpa';
 
-const ipv6ToDnsName = (ipv6: string) => {
+export const ipv6ToDnsName = (ipv6: string) => {
   const segments = ipv6.split(':');
   const missingSegments = 8 - segments.length + (ipv6.includes('::') ? 1 : 0);
   const expandedSegments = segments.map((segment) => segment.padStart(4, '0'));
@@ -52,7 +52,7 @@ const ipv6ToDnsName = (ipv6: string) => {
   );
 };
 
-const ipToDnsName = (ip: string) =>
+export const ipToDnsName = (ip: string) =>
   ip.includes(':') ? ipv6ToDnsName(ip) : ipv4ToDnsName(ip);
 
 export const lookupReverse = async (ip: string): Promise<string[]> => {
