@@ -223,7 +223,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     <div>
       <form className="flex gap-3" onSubmit={handleSubmit}>
         <div className="group relative flex-[3]">
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+          {domain === props.initialValue ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(props.initialValue)}`}
+              alt=""
+            />
+          ) : (
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          )}
 
           <Input
             ref={inputRef}
