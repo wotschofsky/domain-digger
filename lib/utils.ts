@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { parse as tldtsParse } from 'tldts';
+import { getDomain, parse as tldtsParse } from 'tldts';
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
@@ -39,6 +39,19 @@ export const isValidDomain = (domain: string) => {
   } catch (error) {
     return false;
   }
+};
+
+/**
+ * Extracts the base domain from a given domain
+ *
+ * Example: www.example.com -> example.com
+ */
+export const getBaseDomain = (domain: string) => {
+  // Remove wildcard prefix to avoid base domain not being extracted correctly
+  // Remove trailing dot
+  const cleanedDomain = domain.replace(/^\*\./, '').replace(/\.$/, '');
+  const baseDomain = getDomain(cleanedDomain) || cleanedDomain;
+  return baseDomain;
 };
 
 export const isAppleDevice = () => {

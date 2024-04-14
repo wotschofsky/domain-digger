@@ -1,7 +1,6 @@
-import { getDomain } from 'tldts';
 import whoiser, { type WhoisSearchResult } from 'whoiser';
 
-import { isValidDomain } from './utils';
+import { getBaseDomain, isValidDomain } from './utils';
 
 export const lookupWhois = async (domain: string) => {
   const result = await whoiser(domain, {
@@ -54,10 +53,10 @@ export const getWhoisSummary = async (
     };
   }
 
-  const rawDomain = getDomain(domain) || domain;
+  const baseDomain = getBaseDomain(domain);
 
   try {
-    const results = await whoiser(rawDomain, {
+    const results = await whoiser(baseDomain, {
       timeout: 5000,
       raw: true,
     });

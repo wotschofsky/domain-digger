@@ -1,6 +1,5 @@
-import { getDomain } from 'tldts';
-
 import { bigquery } from '@/lib/bigquery';
+import { getBaseDomain } from '@/lib/utils';
 
 type LookupLogPayload = {
   domain: string;
@@ -13,10 +12,7 @@ export const recordLookup = async (payload: LookupLogPayload) => {
     return;
   }
 
-  // Remove wildcard prefix to avoid base domain not being extracted correctly
-  // Remove trailing dot
-  const cleanedDomain = payload.domain.replace(/^\*\./, '').replace(/\.$/, '');
-  const baseDomain = getDomain(cleanedDomain) || cleanedDomain;
+  const baseDomain = getBaseDomain(payload.domain);
 
   await bigquery
     .insertRows({

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { type FC, Fragment } from 'react';
-import { getDomain } from 'tldts';
 
+import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 
 type WhoisResultsPageProps = {
@@ -35,8 +35,8 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   searchParams: { force },
 }) => {
   const forceOriginal = force !== undefined;
-  const rawDomain = getDomain(domain) || domain;
-  const results = await lookupWhois(forceOriginal ? domain : rawDomain);
+  const baseDomain = getBaseDomain(domain);
+  const results = await lookupWhois(forceOriginal ? domain : baseDomain);
 
   if (results.length === 0) {
     throw new Error('No results found');
@@ -44,7 +44,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
 
   return (
     <>
-      {rawDomain !== domain &&
+      {baseDomain !== domain &&
         (force !== undefined ? (
           <>
             <p className="mt-8 text-muted-foreground">
@@ -56,14 +56,14 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
                 className="underline decoration-dotted underline-offset-4"
                 href={`/lookup/${domain}/whois`}
               >
-                {rawDomain} instead
+                {baseDomain} instead
               </Link>
             </p>
           </>
         ) : (
           <>
             <p className="mt-8 text-muted-foreground">
-              Showing results for {rawDomain}
+              Showing results for {baseDomain}
             </p>
             <p className="text-muted-foreground">
               Force lookup for{' '}

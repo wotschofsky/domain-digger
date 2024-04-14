@@ -8,7 +8,13 @@ import {
   vi,
 } from 'vitest';
 
-import { deduplicate, isAppleDevice, isValidDomain, retry } from './utils';
+import {
+  deduplicate,
+  getBaseDomain,
+  isAppleDevice,
+  isValidDomain,
+  retry,
+} from './utils';
 
 describe('deduplicate', () => {
   it('removes duplicate numbers from an array', () => {
@@ -112,6 +118,30 @@ describe('isValidDomain', () => {
     expect(isValidDomain('example')).toBe(false); // Only Invalid TLD
     expect(isValidDomain('exa_mple.com')).toBe(false); // Underscore in domain
     expect(isValidDomain('example..com')).toBe(false); // Double dot
+  });
+});
+
+describe('getBaseDomain', () => {
+  it('extracts the base domain from a given domain', () => {
+    expect(getBaseDomain('example.com')).toBe('example.com');
+    expect(getBaseDomain('subdomain.example.com')).toBe('example.com');
+    expect(getBaseDomain('www.example.co.uk')).toBe('example.co.uk');
+    expect(getBaseDomain('*.example.com')).toBe('example.com');
+  });
+
+  it('removes wildcard prefixes', () => {
+    expect(getBaseDomain('*.example.com')).toBe('example.com');
+  });
+
+  it('removes trailing dots', () => {
+    expect(getBaseDomain('example.com.')).toBe('example.com');
+    expect(getBaseDomain('subdomain.example.com.')).toBe('example.com');
+  });
+
+  it('returns the input when no base domain is found', () => {
+    expect(getBaseDomain('')).toBe('');
+    expect(getBaseDomain('xn--fiqs8s')).toBe('xn--fiqs8s');
+    expect(getBaseDomain('com')).toBe('com');
   });
 });
 
