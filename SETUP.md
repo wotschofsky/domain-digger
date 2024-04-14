@@ -1,5 +1,7 @@
 # Setting Up Domain Digger
 
+> Read [CONTRIBUTING.md](./CONTRIBUTING.md) for what to know when contributing to Domain Digger 👀
+
 ## About the project
 
 Domain Digger is built with the Next.js App Router and relies on some Vercel-exclusive features (namely, regional edge functions) for full functionality. The app is styled with Tailwind and shadcn/ui.
