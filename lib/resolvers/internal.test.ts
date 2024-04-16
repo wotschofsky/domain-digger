@@ -6,12 +6,16 @@ global.fetch = vi.fn();
 
 describe('InternalDoHResolver', () => {
   beforeAll(() => {
-    vi.stubEnv('SITE_URL', 'https://example.com');
-    vi.stubEnv('INTERNAL_API_SECRET', 'secret');
+    vi.mock('@/env', () => ({
+      env: {
+        SITE_URL: 'https://example.com',
+        INTERNAL_API_SECRET: 'secret',
+      },
+    }));
   });
 
   afterAll(() => {
-    vi.unstubAllEnvs();
+    vi.resetAllMocks();
   });
 
   it('should successfully resolve DNS records', async () => {

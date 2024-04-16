@@ -5,6 +5,8 @@ import { ThemeProvider } from 'next-themes';
 import { type FC, type ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 
+import { env } from '@/env';
+
 type CustomizedPlausibleProviderProps = {
   children: ReactNode;
 };
@@ -12,15 +14,15 @@ type CustomizedPlausibleProviderProps = {
 const CustomizedPlausibleProvider: FC<CustomizedPlausibleProviderProps> = ({
   children,
 }) => {
-  if (!process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN) {
+  if (!env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN) {
     return children;
   }
 
   return (
     <PlausibleProvider
-      customDomain={process.env.NEXT_PUBLIC_PLAUSIBLE_HOST}
+      customDomain={env.NEXT_PUBLIC_PLAUSIBLE_HOST}
       trackOutboundLinks
-      domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN}
+      domain={env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN}
     >
       {children}
     </PlausibleProvider>

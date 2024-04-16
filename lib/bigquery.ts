@@ -1,9 +1,10 @@
-// @ts-expect-error
 import { getAccessToken } from 'web-auth-library/google';
 
-const credentials = process.env.GOOGLE_SERVICE_KEY_B64
+import { env } from '@/env';
+
+const credentials = env.GOOGLE_SERVICE_KEY_B64
   ? (JSON.parse(
-      Buffer.from(process.env.GOOGLE_SERVICE_KEY_B64, 'base64').toString()
+      Buffer.from(env.GOOGLE_SERVICE_KEY_B64, 'base64').toString()
     ) as {
       type: 'service_account';
       project_id: string;
@@ -22,6 +23,7 @@ export const insertRows = async ({
   rows: Record<string, any>[];
 }): Promise<void> => {
   const accessToken = await getAccessToken({
+    // @ts-expect-error still works
     credentials: credentials,
     scope: 'https://www.googleapis.com/auth/cloud-platform',
   });
@@ -58,6 +60,7 @@ export const query = async ({
   params?: Record<string, string>;
 }): Promise<any[]> => {
   const accessToken = await getAccessToken({
+    // @ts-expect-error still works
     credentials: credentials,
     scope: 'https://www.googleapis.com/auth/bigquery',
   });
@@ -85,7 +88,7 @@ export const query = async ({
       body: JSON.stringify({
         kind: 'bigquery#queryRequest',
         useLegacySql: false,
-        location: process.env.BIGQUERY_LOCATION,
+        location: env.BIGQUERY_LOCATION,
         query,
         parameterMode: 'NAMED',
         queryParameters,

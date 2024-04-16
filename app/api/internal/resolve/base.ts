@@ -1,15 +1,16 @@
+import { env } from '@/env';
 import { ALL_RECORD_TYPES, type RecordType } from '@/lib/resolvers/base';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { GoogleDoHResolver } from '@/lib/resolvers/google';
 
-if (process.env.NODE_ENV === 'production' && !process.env.INTERNAL_API_SECRET) {
+if (env.NODE_ENV === 'production' && !env.INTERNAL_API_SECRET) {
   throw new Error('INTERNAL_API_SECRET is required in production');
 }
 
 export const handler = async (request: Request) => {
   if (
-    process.env.INTERNAL_API_SECRET &&
-    process.env.INTERNAL_API_SECRET !== request.headers.get('authorization')
+    env.INTERNAL_API_SECRET &&
+    env.INTERNAL_API_SECRET !== request.headers.get('authorization')
   ) {
     return Response.json(
       {

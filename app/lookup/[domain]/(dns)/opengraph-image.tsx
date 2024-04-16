@@ -1,5 +1,7 @@
 import { ImageResponse } from 'next/og';
 
+import { env } from '@/env';
+
 export const runtime = 'edge';
 export const contentType = 'image/png';
 
@@ -12,8 +14,8 @@ const interBoldFontP = fetch(
 ).then((res) => res.arrayBuffer());
 
 const publicUrl =
-  process.env.SITE_URL ||
-  (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+  env.SITE_URL ||
+  (env.VERCEL_URL && `https://${env.VERCEL_URL}`) ||
   'http://localhost:3000';
 
 export const handler = async ({ params }: { params: { domain: string } }) => {

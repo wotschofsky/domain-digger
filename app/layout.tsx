@@ -4,6 +4,8 @@ import type { FC, ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
 
+import { env } from '@/env';
+
 import { Footer } from './_components/footer';
 import { Header } from './_components/header';
 import './globals.css';
@@ -16,7 +18,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata = {
-  metadataBase: process.env.SITE_URL ? new URL(process.env.SITE_URL) : null,
+  metadataBase: env.SITE_URL ? new URL(env.SITE_URL) : null,
   title: 'Domain Digger: DNS, WHOIS lookup & more',
   description:
     'Domain Digger is the full open-source toolkit for next-level domain analysis, providing detailed DNS, IP, WHOIS data, and SSL/TLS history in a user-friendly, no-install interface.',

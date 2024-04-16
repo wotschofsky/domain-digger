@@ -1,3 +1,4 @@
+import { env } from '@/env';
 import { bigquery } from '@/lib/bigquery';
 import { getBaseDomain } from '@/lib/utils';
 
@@ -16,7 +17,7 @@ export const recordLookup = async (payload: LookupLogPayload) => {
 
   await bigquery
     .insertRows({
-      datasetName: process.env.BIGQUERY_DATASET!,
+      datasetName: env.BIGQUERY_DATASET!,
       tableName: 'lookups',
       rows: [
         {
@@ -44,7 +45,7 @@ export const getSearchSuggestions = async (query: string) => {
     return [];
   }
 
-  const tableName = `\`${bigquery.projectId}.${process.env.BIGQUERY_DATASET}.lookups\``;
+  const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.lookups\``;
   const results = await bigquery.query({
     query: `
       SELECT baseDomain
@@ -67,7 +68,7 @@ export const getTopDomains = async (count: number) => {
     return [];
   }
 
-  const tableName = `\`${bigquery.projectId}.${process.env.BIGQUERY_DATASET}.lookups\``;
+  const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.lookups\``;
   const results = await bigquery.query({
     query: `
       SELECT baseDomain

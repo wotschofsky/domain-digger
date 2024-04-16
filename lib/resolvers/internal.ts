@@ -1,3 +1,5 @@
+import { env } from '@/env';
+
 import {
   DnsResolver,
   type RawRecord,
@@ -15,8 +17,8 @@ export class InternalDoHResolver extends DnsResolver {
 
   private getBaseUrl(location: string) {
     const baseUrl = new URL(
-      process.env.SITE_URL ||
-        (process.env.VERCEL_URL && `https://${process.env.VERCEL_URL}`) ||
+      env.SITE_URL ||
+        (env.VERCEL_URL && `https://${env.VERCEL_URL}`) ||
         'http://localhost:3000'
     );
     baseUrl.pathname = `/api/internal/resolve/${location}`;
@@ -24,13 +26,13 @@ export class InternalDoHResolver extends DnsResolver {
   }
 
   private get requestInit() {
-    if (!process.env.INTERNAL_API_SECRET) {
+    if (!env.INTERNAL_API_SECRET) {
       return {};
     }
 
     return {
       headers: {
-        Authorization: process.env.INTERNAL_API_SECRET,
+        Authorization: env.INTERNAL_API_SECRET,
       },
     };
   }
