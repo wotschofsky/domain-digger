@@ -27,7 +27,7 @@ export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
         domain,
         firstSeen: issuedCerts
           .filter((c) => c.domains.includes(domain))
-          .sort((a, b) => a.date.getTime() - b.date.getTime())[0].date,
+          .toSorted((a, b) => a.date.getTime() - b.date.getTime())[0].date,
         stillExists: hasRecords,
       };
     })

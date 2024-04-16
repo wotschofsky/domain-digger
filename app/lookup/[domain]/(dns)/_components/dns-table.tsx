@@ -38,7 +38,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
           <div className="flex flex-col gap-4 sm:hidden">
             {value
               .slice()
-              .sort((a, b) => naturalCompare(a.data, b.data))
+              .toSorted((a, b) => naturalCompare(a.data, b.data))
               .map((v, i) => (
                 <Fragment key={v.type + v.data}>
                   {i > 0 && <hr />}
@@ -64,7 +64,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
               <TableBody>
                 {value
                   .slice()
-                  .sort((a, b) => naturalCompare(a.data, b.data))
+                  .toSorted((a, b) => naturalCompare(a.data, b.data))
                   .map((v) => (
                     <RecordRow
                       key={v.type + v.data}
