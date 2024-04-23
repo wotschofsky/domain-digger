@@ -1,4 +1,4 @@
-type CertsData = {
+export type CertsData = {
   issuer_ca_id: number;
   issuer_name: string;
   common_name: string;

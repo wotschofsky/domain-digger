@@ -1,20 +1,10 @@
-import { CheckIcon, XIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import type { FC } from 'react';
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { findSubdomains } from '@/lib/subdomains';
 
-import { DomainLink } from '../_components/domain-link';
+import { SubdomainsTable } from './_components/table';
 
 export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
@@ -55,32 +45,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 
   return (
     <>
-      <Table>
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="pl-0">Domain Name</TableHead>
-            <TableHead>First seen</TableHead>
-            <TableHead className="pr-0">Still exists</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {results.map((result) => (
-            <TableRow key={result.domain} className="hover:bg-transparent">
-              <TableCell className="pl-0">
-                <DomainLink domain={result.domain} />
-              </TableCell>
-              <TableCell>{result.firstSeen.toISOString()}</TableCell>
-              <TableCell className="pr-0">
-                {result.stillExists ? (
-                  <CheckIcon size="1.25rem" />
-                ) : (
-                  <XIcon size="1.25rem" />
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <SubdomainsTable results={results} />
 
       {isTruncated && (
         <p className="mt-8 text-center text-muted-foreground">
