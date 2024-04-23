@@ -5,7 +5,7 @@ import { z } from 'zod';
 export const env = createEnv({
   extends: [vercel],
   server: {
-    NODE_ENV: z.enum(['production']).optional(),
+    NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
 
     SITE_URL: z.string().url().optional(),
     INTERNAL_API_SECRET: z.string().min(1),
