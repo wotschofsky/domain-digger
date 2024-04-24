@@ -21,6 +21,7 @@ import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+import { ClientOnly } from '@/components/client-only';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { cn, isAppleDevice, isValidDomain } from '@/lib/utils';
 
@@ -255,15 +256,17 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
             autoFocus={props.autofocus}
           />
 
-          <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-            {isAppleDevice() ? (
-              <>
-                <span className="text-xs">⌘</span>K
-              </>
-            ) : (
-              'ctrl+k'
-            )}
-          </kbd>
+          <ClientOnly>
+            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+              {isAppleDevice() ? (
+                <>
+                  <span className="text-xs">⌘</span>K
+                </>
+              ) : (
+                'ctrl+k'
+              )}
+            </kbd>
+          </ClientOnly>
 
           {suggestionsVisible && suggestions && suggestions.length > 0 && (
             <ul className="absolute left-0 top-full w-full rounded-xl border bg-card p-1 text-card-foreground shadow">
