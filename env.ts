@@ -16,6 +16,8 @@ export const env = createEnv({
     GOOGLE_SERVICE_KEY_B64: z.string().optional(),
     BIGQUERY_DATASET: z.string().optional(),
     BIGQUERY_LOCATION: z.string().optional(),
+
+    GITHUB_TOKEN: z.string().optional(),
   },
   client: {
     NEXT_PUBLIC_PLAUSIBLE_DOMAIN: z.string().optional(),

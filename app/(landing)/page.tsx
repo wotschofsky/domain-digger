@@ -3,6 +3,7 @@ import type { FC } from 'react';
 import { SearchForm } from '../_components/search-form';
 import { AuthorSection } from './_components/author-section';
 import { FeaturesSection } from './_components/features-section';
+import { SponsorsSection } from './_components/sponsors-section';
 import { TrustedBySection } from './_components/trusted-by-section';
 
 export const metadata = {
@@ -28,6 +29,7 @@ const Home: FC = () => {
 
       <TrustedBySection />
       <AuthorSection />
+      <SponsorsSection />
       <FeaturesSection className="!mt-32" />
     </div>
   );

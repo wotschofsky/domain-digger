@@ -38,6 +38,9 @@ const nextConfig = {
         hostname: 'static.wsky.dev',
         pathname: '/branding/**',
       },
+      {
+        hostname: 'avatars.githubusercontent.com',
+      },
     ],
     formats: ['image/avif', 'image/webp'],
   },
