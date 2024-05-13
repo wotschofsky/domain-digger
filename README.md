@@ -43,6 +43,14 @@ Discover in-depth details of any domain with just a few clicks.
 
 ---
 
+## ❤️ Sponsors
+
+<a href="https://macarne.com/?ref=domain-digger" target="_blank">
+  <img width="64" height="64" src="https://avatars.githubusercontent.com/u/149550368?v=4" />
+</a>
+
+---
+
 > **🤝 Contributing:** Any pull requests and contributions are very welcome. Your ideas and suggestions are greatly appreciated!
 >
 > **[How to run the app](./SETUP.md)**
