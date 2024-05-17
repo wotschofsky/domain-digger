@@ -2,6 +2,8 @@ import whoiser, { type WhoisSearchResult } from 'whoiser';
 
 import { getBaseDomain, isValidDomain } from './utils';
 
+export const formatDate = (date: Date) => date.toISOString().split('T')[0];
+
 export const lookupWhois = async (domain: string) => {
   const result = await whoiser(domain, {
     raw: true,
@@ -85,9 +87,7 @@ export const getWhoisSummary = async (
       registrar: firstResult['Registrar']?.toString(),
       createdAt:
         firstResult && 'Created Date' in firstResult
-          ? new Date(firstResult['Created Date'].toString()).toLocaleDateString(
-              'en-US'
-            )
+          ? formatDate(new Date(firstResult['Created Date'].toString()))
           : null,
       dnssec: firstResult['DNSSEC']?.toString(),
     };
