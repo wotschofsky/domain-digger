@@ -32,7 +32,7 @@ export const EXAMPLE_DOMAINS = [
   'tiktok.com',
   'reddit.com',
   'baidu.com',
-  'twitter.com',
+  'x.com',
   'discord.com',
 ];
 

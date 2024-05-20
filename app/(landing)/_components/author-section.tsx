@@ -29,7 +29,7 @@ export const AuthorSection: FC<AuthorSectionProps> = ({
         You can{' '}
         <a
           className="underline decoration-dotted underline-offset-4"
-          href="https://twitter.com/wotschofsky"
+          href="https://x.com/wotschofsky"
           target="_blank"
         >
           follow me on X
