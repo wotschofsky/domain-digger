@@ -5,6 +5,7 @@ import { getBaseDomain } from '@/lib/utils';
 type LookupLogPayload = {
   domain: string;
   ip: string;
+  userAgent: string | null;
   isBot: boolean;
 };
 
@@ -25,6 +26,7 @@ export const recordLookup = async (payload: LookupLogPayload) => {
           baseDomain,
           timestamp: Math.floor(new Date().getTime() / 1000),
           ip: payload.ip,
+          userAgent: payload.userAgent,
           isBot: payload.isBot,
         },
       ],

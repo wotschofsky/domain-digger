@@ -67,6 +67,13 @@ Use the following schema for creating the dataset:
     "fields": []
   },
   {
+    "name": "userAgent",
+    "mode": "NULLABLE",
+    "type": "STRING",
+    "description": null,
+    "fields": []
+  },
+  {
     "name": "isBot",
     "mode": "NULLABLE",
     "type": "BOOLEAN",

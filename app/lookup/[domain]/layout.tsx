@@ -47,8 +47,8 @@ const LookupLayout: FC<LookupLayoutProps> = ({
   }
 
   const ip = getVisitorIp(headers());
-  const { isBot } = isUserBot(headers());
-  recordLookup({ domain, ip, isBot });
+  const { isBot, userAgent } = isUserBot(headers());
+  recordLookup({ domain, ip, userAgent, isBot });
 
   return (
     <>
