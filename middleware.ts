@@ -1,8 +1,22 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { applyRateLimit } from '@/lib/api';
+import { env } from '@/env';
+import { applyRateLimit, isUserBot } from '@/lib/api';
 
 export const middleware = async (request: NextRequest) => {
+  if (env.ALLOWED_BOTS) {
+    const { isBot, userAgent } = isUserBot(request.headers);
+    if (isBot) {
+      const isAllowedBot =
+        !!userAgent &&
+        env.ALLOWED_BOTS.some((name) => userAgent.toLowerCase().includes(name));
+
+      if (!isAllowedBot) {
+        return new Response('Forbidden', { status: 403 });
+      }
+    }
+  }
+
   const visitorIp = request.headers.get('x-forwarded-for') ?? '';
   const identifier = ['lookup-page', visitorIp].join(':');
   const isAllowed = await applyRateLimit(identifier, 10, '60s');

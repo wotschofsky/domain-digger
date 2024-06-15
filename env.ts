@@ -2,6 +2,14 @@ import { createEnv } from '@t3-oss/env-nextjs';
 import { vercel } from '@t3-oss/env-nextjs/presets';
 import { z } from 'zod';
 
+const safeJSONParse = (input: string) => {
+  try {
+    return JSON.parse(input);
+  } catch {
+    return input;
+  }
+};
+
 export const env = createEnv({
   extends: [vercel],
   server: {
@@ -12,6 +20,11 @@ export const env = createEnv({
 
     UPSTASH_REDIS_REST_URL: z.string().url(),
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1),
+    ALLOWED_BOTS: z
+      .string()
+      .transform(safeJSONParse)
+      .pipe(z.array(z.string()))
+      .optional(),
 
     GOOGLE_SERVICE_KEY_B64: z.string().optional(),
     BIGQUERY_DATASET: z.string().optional(),
