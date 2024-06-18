@@ -1,3 +1,5 @@
+import dgram from 'node:dgram';
+
 import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
@@ -5,7 +7,6 @@ import dnsPacket, {
   type Question,
   type StringAnswer,
 } from 'dns-packet';
-import dgram from 'node:dgram';
 
 import { retry } from '@/lib/utils';
 

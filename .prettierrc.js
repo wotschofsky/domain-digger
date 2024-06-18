@@ -9,6 +9,7 @@ module.exports = {
     'prettier-plugin-tailwindcss',
   ],
   importOrder: [
+    '^node:(.*)$',
     '<THIRD_PARTY_MODULES>',
     '^@/components/ui/(.*)$',
     '^@/(.*)$',
