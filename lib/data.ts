@@ -20,7 +20,7 @@ export const REGIONS: Record<
   lhr: { lat: 51.477, lng: -0.461, name: '🇬🇧 London, UK' },
   pdx: { lat: 45.5875, lng: -122.593333, name: '🇺🇸 Portland, USA' },
   sfo: { lat: 37.618056, lng: -122.378611, name: '🇺🇸 San Francisco, USA' },
-  sin: { lat: 1.356944, lng: 103.988611, name: '🇸🇬 Singapore, Singapore' },
+  sin: { lat: 1.356944, lng: 103.988611, name: '🇸🇬 Singapore' },
   syd: { lat: -33.946111, lng: 151.177222, name: '🇦🇺 Sydney, Australia' },
 };
 
