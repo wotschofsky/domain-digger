@@ -13,6 +13,7 @@ import {
   getBaseDomain,
   isAppleDevice,
   isValidDomain,
+  isWildcardDomain, // Make sure to import the new function
   retry,
 } from './utils';
 
@@ -142,6 +143,26 @@ describe('getBaseDomain', () => {
     expect(getBaseDomain('')).toBe('');
     expect(getBaseDomain('xn--fiqs8s')).toBe('xn--fiqs8s');
     expect(getBaseDomain('com')).toBe('com');
+  });
+});
+
+describe('isWildcardDomain', () => {
+  it('returns true for wildcard domains', () => {
+    expect(isWildcardDomain('*.example.com')).toBe(true);
+    expect(isWildcardDomain('*.sub.domain.com')).toBe(true);
+  });
+
+  it('returns false for non-wildcard domains', () => {
+    expect(isWildcardDomain('example.com')).toBe(false);
+    expect(isWildcardDomain('sub.domain.com')).toBe(false);
+    expect(isWildcardDomain('www.*.com')).toBe(false); // Invalid wildcard usage
+  });
+
+  it('handles edge cases', () => {
+    expect(isWildcardDomain('')).toBe(false);
+    expect(isWildcardDomain('*')).toBe(false);
+    expect(isWildcardDomain('*.')).toBe(false);
+    expect(isWildcardDomain('*.com')).toBe(true);
   });
 });
 

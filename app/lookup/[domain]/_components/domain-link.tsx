@@ -9,6 +9,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+import { isWildcardDomain } from '@/lib/utils';
+
 type DomainLinkProps = {
   domain: string;
 };
@@ -31,7 +33,7 @@ export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
-    {!domain.startsWith('*.') && (
+    {!isWildcardDomain(domain) && (
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

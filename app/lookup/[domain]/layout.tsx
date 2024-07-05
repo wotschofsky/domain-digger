@@ -7,7 +7,7 @@ import { type FC, type ReactNode } from 'react';
 
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { recordLookup } from '@/lib/search';
-import { isValidDomain } from '@/lib/utils';
+import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
 import { SearchForm } from '../../_components/search-form';
 import { RelatedDomains } from './_components/related-domains';
@@ -61,14 +61,18 @@ const LookupLayout: FC<LookupLayoutProps> = ({
           {/* Bottom padding added to avoid clipping */}
           <h1 className="mb-2 flex-1 overflow-hidden break-words pb-1">
             <span className="block text-muted-foreground">Results for</span>
-            <a
-              className="block text-4xl font-bold"
-              href={`https://${domain}`}
-              target="_blank"
-              rel="noreferrer nofollow"
-            >
-              {domain} <ExternalLinkIcon className="inline-block" />
-            </a>
+            {isWildcardDomain(domain) ? (
+              <span className="block text-4xl font-bold">{domain}</span>
+            ) : (
+              <a
+                className="block text-4xl font-bold"
+                href={`https://${domain}`}
+                target="_blank"
+                rel="noreferrer nofollow"
+              >
+                {domain} <ExternalLinkIcon className="inline-block" />
+              </a>
+            )}
           </h1>
 
           <ShareButton />

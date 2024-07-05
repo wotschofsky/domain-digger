@@ -54,6 +54,9 @@ export const getBaseDomain = (domain: string) => {
   return baseDomain;
 };
 
+export const isWildcardDomain = (domain: string) =>
+  domain.startsWith('*.') && domain.length > 2;
+
 export const isAppleDevice = () => {
   if (typeof window === 'undefined') return false;
   const userAgent = window.navigator.userAgent;

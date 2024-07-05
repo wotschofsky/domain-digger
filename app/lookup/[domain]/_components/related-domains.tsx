@@ -5,6 +5,8 @@ import type { FC } from 'react';
 
 import { Button } from '@/components/ui/button';
 
+import { isWildcardDomain } from '@/lib/utils';
+
 type RelatedDomainsProps = {
   domain: string;
 };
@@ -21,7 +23,7 @@ const getRecommendations = (original: string) => {
 
   if (
     !original.startsWith('www.') &&
-    !original.startsWith('*.') &&
+    !isWildcardDomain(original) &&
     splitOriginal.length >= 2
   ) {
     domains.unshift(`www.${original}`);
