@@ -1,3 +1,4 @@
+import { AlibabaDoHResolver } from './alibaba';
 import { AuthoritativeResolver } from './authoritative';
 import { CloudflareDoHResolver } from './cloudflare';
 import { GoogleDoHResolver } from './google';
@@ -13,6 +14,8 @@ export const getResolverFromName = (
         return new InternalDoHResolver(locationName, 'cloudflare');
       case 'google':
         return new InternalDoHResolver(locationName, 'google');
+      case 'alibaba':
+        return new InternalDoHResolver(locationName, 'alibaba');
     }
 
     throw new Error('Invalid resolver');
@@ -23,6 +26,8 @@ export const getResolverFromName = (
       return new CloudflareDoHResolver();
     case 'google':
       return new GoogleDoHResolver();
+    case 'alibaba':
+      return new AlibabaDoHResolver();
     default:
       return new AuthoritativeResolver();
   }

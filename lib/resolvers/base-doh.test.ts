@@ -63,12 +63,15 @@ describe('BaseDoHResolver', () => {
     mockSendRequest.mockResolvedValue({
       ok: false,
       statusText: 'Internal Server Error',
+      url: 'https://dns.google/resolve',
     });
 
     const resolver = new BaseDoHResolver(mockSendRequest);
 
     await expect(
       resolver.resolveRecordType('example.com', 'A')
-    ).rejects.toThrow('Bad response from Google: Internal Server Error');
+    ).rejects.toThrow(
+      'Bad response from DoH Resolver: Internal Server Error from https://dns.google/resolve'
+    );
   });
 });

@@ -10,7 +10,7 @@ import {
 export class InternalDoHResolver extends DnsResolver {
   constructor(
     private readonly location: string,
-    private readonly resolver: 'cloudflare' | 'google'
+    private readonly resolver: 'alibaba' | 'cloudflare' | 'google'
   ) {
     super();
   }

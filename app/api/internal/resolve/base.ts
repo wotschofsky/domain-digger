@@ -1,4 +1,5 @@
 import { env } from '@/env';
+import { AlibabaDoHResolver } from '@/lib/resolvers/alibaba';
 import { ALL_RECORD_TYPES, type RecordType } from '@/lib/resolvers/base';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { GoogleDoHResolver } from '@/lib/resolvers/google';
@@ -46,7 +47,7 @@ export const handler = async (request: Request) => {
     );
   }
 
-  if (!['cloudflare', 'google'].includes(resolverName)) {
+  if (!['alibaba', 'cloudflare', 'google'].includes(resolverName)) {
     return Response.json(
       {
         error: true,
@@ -79,10 +80,13 @@ export const handler = async (request: Request) => {
     }
   }
 
+  // TODO Clean up this mess
   const resolver =
-    resolverName === 'google'
-      ? new GoogleDoHResolver()
-      : new CloudflareDoHResolver();
+    resolverName === 'alibaba'
+      ? new AlibabaDoHResolver()
+      : resolverName === 'cloudflare'
+        ? new CloudflareDoHResolver()
+        : new GoogleDoHResolver();
   const records = Object.fromEntries(
     await Promise.all(
       types.map(async (type) => [

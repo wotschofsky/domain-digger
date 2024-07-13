@@ -43,7 +43,9 @@ export abstract class BaseDoHResolver extends DnsResolver {
   ): Promise<RawRecord[]> {
     const response = await this.sendRequest(domain, type);
     if (!response.ok)
-      throw new Error(`Bad response from Google: ${response.statusText}`);
+      throw new Error(
+        `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`
+      );
     const results = (await response.json()) as DoHResponse;
 
     if (!results.Answer) {

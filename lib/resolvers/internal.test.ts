@@ -45,7 +45,7 @@ describe('InternalDoHResolver', () => {
   });
 
   it('should throw an error on failed DNS resolution', async () => {
-    const resolver = new InternalDoHResolver('lhr', 'google');
+    const resolver = new InternalDoHResolver('lhr', 'alibaba');
     const mockResponse = {
       ok: false,
       status: 500,
@@ -57,7 +57,7 @@ describe('InternalDoHResolver', () => {
     await expect(
       resolver.resolveRecordType('example.com', 'A')
     ).rejects.toThrow(
-      'Failed to fetch results for lhr from https://example.com/api/internal/resolve/lhr?resolver=google&type=A&domain=example.com: 500 Internal Server Error'
+      'Failed to fetch results for lhr from https://example.com/api/internal/resolve/lhr?resolver=alibaba&type=A&domain=example.com: 500 Internal Server Error'
     );
   });
 

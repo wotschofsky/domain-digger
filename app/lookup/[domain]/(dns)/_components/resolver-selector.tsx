@@ -59,8 +59,9 @@ export const ResolverSelector: FC<ResolverSelectorProps> = ({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="authoritative">Authoritative</SelectItem>
-          <SelectItem value="google">Google</SelectItem>
+          <SelectItem value="alibaba">Alibaba</SelectItem>
           <SelectItem value="cloudflare">Cloudflare</SelectItem>
+          <SelectItem value="google">Google</SelectItem>
         </SelectContent>
       </Select>
     </Label>
