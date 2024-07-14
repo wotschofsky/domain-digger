@@ -23,7 +23,13 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
     throw new Error('Failed to fetch certs');
   }
 
-  return await response.json();
+  const data: CertsData = await response.json();
+
+  return data.filter((cert) =>
+    cert.name_value
+      .split(/\n/g)
+      .some((value) => value === domain || value.endsWith(`.${domain}`))
+  );
 };
 
 export const lookupRelatedCerts = async (domain: string) => {
