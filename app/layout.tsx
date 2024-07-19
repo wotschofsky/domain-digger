@@ -1,6 +1,5 @@
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Viewport } from 'next';
-import dynamic from 'next/dynamic';
 import type { FC, ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
@@ -11,10 +10,6 @@ import { Footer } from './_components/footer';
 import { Header } from './_components/header';
 import './globals.css';
 import { Providers } from './providers';
-
-const WADPromo = dynamic(() => import('./_components/wad-promo'), {
-  ssr: false,
-});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -53,7 +48,6 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
             <Header />
 
             <main className="w-full flex-1">{children}</main>
-            <WADPromo />
 
             <Footer />
           </div>
