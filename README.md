@@ -45,6 +45,12 @@ Discover in-depth details of any domain with just a few clicks.
 
 ## ❤️ Sponsors
 
+<a href="https://vercel.com/?utm_source=domain-digger&utm_campaign=oss" target="_blank">
+  <img height="48" src="./assets/powered-by-vercel.svg" />
+</a>
+
+<br />
+
 <a href="https://macarne.com/?ref=domain-digger" target="_blank">
   <img width="64" height="64" src="https://avatars.githubusercontent.com/u/149550368?v=4" />
 </a>
