@@ -58,7 +58,7 @@ export const getSearchSuggestions = async (query: string) => {
       LIMIT 5
     `,
     params: {
-      query: `${query}%`,
+      query: `${query.toLowerCase()}%`,
     },
   });
 

@@ -42,7 +42,7 @@ const useSuggestions = (domain: string) => {
 
   const { data: suggestions } = useSWR<string[]>(
     domain
-      ? `/api/search-suggestions?q=${encodeURIComponent(debouncedDomain)}`
+      ? `/api/search-suggestions?q=${encodeURIComponent(debouncedDomain.toLowerCase())}`
       : null,
     { keepPreviousData: true }
   );

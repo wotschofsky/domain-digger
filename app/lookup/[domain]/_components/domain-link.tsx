@@ -22,7 +22,7 @@ export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
         <TooltipTrigger asChild>
           <Link
             className="select-all underline decoration-dotted underline-offset-4"
-            href={`/lookup/${domain}`}
+            href={`/lookup/${domain.toLowerCase()}`}
             aria-label={`Results for ${domain}`}
           >
             <span>{domain}</span>
@@ -38,7 +38,7 @@ export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
         <Tooltip>
           <TooltipTrigger asChild>
             <a
-              href={`https://${domain}`}
+              href={`https://${domain.toLowerCase()}`}
               target="_blank"
               rel="noreferrer nofollow"
               aria-label={`Visit for ${domain}`}
