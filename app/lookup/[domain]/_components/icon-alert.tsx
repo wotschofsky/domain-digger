@@ -3,18 +3,22 @@ import type { FC } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-type BaseAlertProps = {
+import { cn } from '@/lib/utils';
+
+type IconAlertProps = {
+  className?: string;
   icon: LucideIcon;
   title: string;
   children: React.ReactNode;
 };
 
-export const BaseAlert: FC<BaseAlertProps> = ({
+export const IconAlert: FC<IconAlertProps> = ({
+  className,
   icon: Icon,
   title,
   children,
 }) => (
-  <Alert className="mx-auto mt-24 max-w-max">
+  <Alert className={cn('mx-auto max-w-max', className)}>
     <Icon className="h-4 w-4" />
     <AlertTitle>{title}</AlertTitle>
     <AlertDescription>{children}</AlertDescription>

@@ -7,7 +7,7 @@ import { isUserBot } from '@/lib/api';
 import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
-import { BaseAlert } from './_components/base-alert';
+import { IconAlert } from '../_components/icon-alert';
 import { ResultsGlobe } from './_components/results-globe';
 
 export const runtime = 'edge';
@@ -37,12 +37,16 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
   if (isBot) {
     console.log('Bot detected, blocking request, UA:', userAgent);
     return (
-      <BaseAlert icon={ShieldAlertIcon} title="Bot or crawler detected!">
+      <IconAlert
+        className="mt-24"
+        icon={ShieldAlertIcon}
+        title="Bot or crawler detected!"
+      >
         To protect our infrastructure, this page is not available for bots or
         crawlers.
         <br />
         But don&apos;t be sad, there&apos;s nothing to crawl here anyway.
-      </BaseAlert>
+      </IconAlert>
     );
   }
 
@@ -55,17 +59,25 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
   return (
     <>
       {hasDifferences ? (
-        <BaseAlert icon={InfoIcon} title="Different records detected!">
+        <IconAlert
+          className="mt-12"
+          icon={InfoIcon}
+          title="Different records detected!"
+        >
           Not all regions have the same records for this domain. This{' '}
           <i>could</i> be an indication for the use of GeoDNS.
           <br /> Keep in mind however, that some providers rotate their IP
           addresses, which can also lead to different results.
-        </BaseAlert>
+        </IconAlert>
       ) : (
-        <BaseAlert icon={CheckCircleIcon} title="All records are the same!">
+        <IconAlert
+          className="mt-12"
+          icon={CheckCircleIcon}
+          title="All records are the same!"
+        >
           All records are the same for all regions. Therefore propagation was
           successful and the domain is not using GeoDNS.
-        </BaseAlert>
+        </IconAlert>
       )}
 
       <div className="mx-[-2rem]">
