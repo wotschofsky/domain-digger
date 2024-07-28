@@ -20,7 +20,7 @@ const CertsLayout: FC<CertsLayoutProps> = ({ children }) => (
         is publicly announced and stored
       </a>
       .<br />
-      The entires on this page were collected by{' '}
+      The entries on this page were collected by{' '}
       <a
         className="underline decoration-dotted underline-offset-4"
         href="https://crt.sh/"
