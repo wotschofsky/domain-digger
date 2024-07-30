@@ -1,3 +1,4 @@
+import { HeartIcon } from 'lucide-react';
 import Link from 'next/link';
 import type { FC } from 'react';
 import { FaGithub } from 'react-icons/fa';
@@ -20,6 +21,16 @@ export const Header: FC = () => (
       </Link>
 
       <div className="flex items-center justify-between gap-4">
+        <Button variant="ghost" asChild>
+          <a
+            href="https://github.com/sponsors/wotschofsky"
+            target="_blank"
+            rel="noopener"
+          >
+            <HeartIcon className="mr-1 h-6 w-4 text-pink-600" />
+            <span>Sponsor</span>
+          </a>
+        </Button>
         <Button variant="ghost" asChild>
           <a
             href="https://github.com/wotschofsky/domain-digger"
