@@ -1,6 +1,5 @@
 'use client';
 
-import { useDebounce } from '@uidotdev/usehooks';
 import { Loader2Icon, SearchIcon } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter } from 'next/navigation';
@@ -16,7 +15,6 @@ import {
   useState,
 } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import useSWR from 'swr';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,17 +36,8 @@ const normalizeDomain = (input: string) => {
 };
 
 const useSuggestions = (domain: string) => {
-  const debouncedDomain = useDebounce(domain, 200);
-
-  const { data: suggestions } = useSWR<string[]>(
-    domain
-      ? `/api/search-suggestions?q=${encodeURIComponent(debouncedDomain.toLowerCase())}`
-      : null,
-    { keepPreviousData: true }
-  );
-
   return {
-    suggestions: domain ? suggestions : EXAMPLE_DOMAINS,
+    suggestions: domain ? [] : EXAMPLE_DOMAINS,
   };
 };
 
