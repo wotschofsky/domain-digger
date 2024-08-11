@@ -57,8 +57,9 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
                 View Trace
               </CollapsibleTrigger>
             </div>
+
             <CollapsibleContent>
-              <code className="block overflow-x-scroll whitespace-nowrap rounded border border-gray-300 bg-gray-200 p-2 font-mono text-xs">
+              <code className="block overflow-x-scroll whitespace-nowrap rounded border border-slate-300 bg-slate-200 p-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-800">
                 {response.trace.map((line, index) => (
                   <Fragment key={index}>
                     {line}
