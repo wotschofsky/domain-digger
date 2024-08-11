@@ -39,18 +39,20 @@ export type RawRecord = {
   data: string;
 };
 
-export type ResolvedRecords = Record<string, RawRecord[]>;
+export type ResolverResponse = { records: RawRecord[]; trace: string[] };
+
+export type ResolverMultiResponse = Record<string, ResolverResponse>;
 
 export abstract class DnsResolver {
   public abstract resolveRecordType(
     domain: string,
     type: RecordType
-  ): Promise<RawRecord[]>;
+  ): Promise<ResolverResponse>;
 
   public async resolveRecordTypes(
     domain: string,
     types: readonly RecordType[]
-  ): Promise<ResolvedRecords> {
+  ): Promise<ResolverMultiResponse> {
     const results = await Promise.all(
       types.map((type) => this.resolveRecordType(domain, type))
     );
@@ -60,7 +62,7 @@ export abstract class DnsResolver {
         ...res,
         [type]: results[index],
       }),
-      {} as ResolvedRecords
+      {} as ResolverMultiResponse
     );
   }
 }

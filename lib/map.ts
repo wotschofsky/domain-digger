@@ -19,9 +19,9 @@ export const getGlobalLookupResults = (
         ...data,
         code,
         results: {
-          A: results.A.map((r) => r.data),
-          AAAA: results.AAAA.map((r) => r.data),
-          CNAME: results.CNAME.map((r) => r.data),
+          A: results.A.records.map((r) => r.data),
+          AAAA: results.AAAA.records.map((r) => r.data),
+          CNAME: results.CNAME.records.map((r) => r.data),
         },
       };
     })

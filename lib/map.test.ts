@@ -10,9 +10,12 @@ vi.mock('./data', () => ({
 }));
 
 const mockResolveRecordTypes = vi.fn().mockImplementation(() => ({
-  A: [{ data: '1.2.3.4' }],
-  AAAA: [{ data: '2001:0db8:85a3:0000:0000:8a2e:0370:7334' }],
-  CNAME: [{ data: 'alias.example.com' }],
+  A: { records: [{ data: '1.2.3.4' }], trace: [] },
+  AAAA: {
+    records: [{ data: '2001:0db8:85a3:0000:0000:8a2e:0370:7334' }],
+    trace: [],
+  },
+  CNAME: { records: [{ data: 'alias.example.com' }], trace: [] },
 }));
 
 const resolverFactory = vi.fn().mockImplementation(() => ({

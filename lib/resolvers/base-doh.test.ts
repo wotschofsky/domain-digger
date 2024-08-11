@@ -31,19 +31,23 @@ describe('BaseDoHResolver', () => {
     mockSendRequest.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockDoHResponse([{ type: 1 }])),
+      url: 'https://dns.google/resolve',
     });
 
     const resolver = new BaseDoHResolver(mockSendRequest);
     const records = await resolver.resolveRecordType('example.com', 'A');
 
-    expect(records).toEqual([
-      {
-        name: 'example.com',
-        type: 'A',
-        TTL: 300,
-        data: 'data',
-      },
-    ]);
+    expect(records).toEqual({
+      records: [
+        {
+          name: 'example.com',
+          type: 'A',
+          TTL: 300,
+          data: 'data',
+        },
+      ],
+      trace: ['GET https://dns.google/resolve'],
+    });
     expect(mockSendRequest).toHaveBeenCalledWith('example.com', 'A');
   });
 
@@ -51,12 +55,16 @@ describe('BaseDoHResolver', () => {
     mockSendRequest.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockDoHResponse([])),
+      url: 'https://dns.google/resolve',
     });
 
     const resolver = new BaseDoHResolver(mockSendRequest);
     const records = await resolver.resolveRecordType('example.com', 'A');
 
-    expect(records).toEqual([]);
+    expect(records).toEqual({
+      records: [],
+      trace: ['GET https://dns.google/resolve'],
+    });
   });
 
   it('should throw an error for bad HTTP responses', async () => {

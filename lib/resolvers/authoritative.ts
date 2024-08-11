@@ -10,7 +10,12 @@ import dnsPacket, {
 
 import { retry } from '@/lib/utils';
 
-import { DnsResolver, type RawRecord, type RecordType } from './base';
+import {
+  DnsResolver,
+  type RawRecord,
+  type RecordType,
+  type ResolverResponse,
+} from './base';
 
 export class AuthoritativeResolver extends DnsResolver {
   private async getRootServers() {
@@ -137,14 +142,16 @@ export class AuthoritativeResolver extends DnsResolver {
   private async fetchRecords(
     domain: string,
     recordType: RecordType,
-    nameserver?: string
-  ): Promise<RawRecord[]> {
+    nameserver?: string,
+    trace: string[] = []
+  ): Promise<ResolverResponse> {
     const rootServers = await this.getRootServers();
 
+    const usedNameserver = nameserver || rootServers[0]; // TODO Use fallback nameservers
     const response = await this.requestLoader.load({
       domain,
       type: recordType,
-      nameserver: nameserver || rootServers[0], // TODO Use fallback nameservers
+      nameserver: usedNameserver,
     });
 
     if (response.answers?.length) {
@@ -152,7 +159,7 @@ export class AuthoritativeResolver extends DnsResolver {
         (answer) => answer.name === domain && answer.type === recordType
       ) as Extract<Answer, { type: RecordType }>[];
 
-      const recordData: RawRecord[] =
+      const records: RawRecord[] =
         filteredAnswers?.map((answer) => ({
           name: answer.name,
           type: answer.type,
@@ -160,7 +167,12 @@ export class AuthoritativeResolver extends DnsResolver {
           data: this.recordToString(answer),
         })) || [];
 
-      return recordData;
+      const fullTrace = [
+        ...trace,
+        `${recordType} ${domain} @ ${usedNameserver} -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
+      ];
+
+      return { records, trace: fullTrace };
     }
 
     // TODO Support IPv6
@@ -171,40 +183,46 @@ export class AuthoritativeResolver extends DnsResolver {
     ).filter((answer) => answer.type === 'A' || answer.type === 'NS');
 
     if (redirects.length) {
-      const ipValue = (
-        redirects.find((redirect) => redirect.type === 'A') as
-          | StringAnswer
-          | undefined
-      )?.data;
-      if (ipValue) {
-        return this.fetchRecords(domain, recordType, ipValue);
+      const aRedirects = redirects.filter(
+        (redirect) => redirect.type === 'A'
+      ) as StringAnswer[];
+      if (aRedirects.length) {
+        return this.fetchRecords(domain, recordType, aRedirects[0].data, [
+          ...trace,
+          `${recordType} ${domain} @ ${usedNameserver} -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+        ]);
       }
 
-      const nsValue = (
-        redirects.find((redirect) => redirect.type === 'NS') as
-          | StringAnswer
-          | undefined
-      )?.data;
-      if (!nsValue) {
-        throw new Error(`Bad redirects for ${domain}`);
+      const nsRedirects = redirects.filter(
+        (redirect) => redirect.type === 'NS'
+      ) as StringAnswer[];
+      if (nsRedirects.length) {
+        const { records: aRecords, trace: subTrace } = await this.fetchRecords(
+          nsRedirects[0].data,
+          'A'
+        );
+
+        if (!aRecords.length) {
+          throw new Error(`Bad redirects for ${domain}`);
+        }
+
+        return this.fetchRecords(domain, recordType, aRecords[0].data, [
+          ...trace,
+          `${recordType} ${domain} @ ${usedNameserver} -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
+          ...subTrace,
+        ]);
       }
 
-      const records = await this.fetchRecords(nsValue, 'A');
-
-      if (!records.length) {
-        throw new Error(`Bad redirects for ${domain}`);
-      }
-
-      return this.fetchRecords(domain, recordType, records[0].data);
+      throw new Error(`Bad redirects for ${domain}`);
     }
 
-    return [];
+    return { records: [], trace };
   }
 
   public async resolveRecordType(
     domain: string,
     type: RecordType
-  ): Promise<RawRecord[]> {
+  ): Promise<ResolverResponse> {
     return this.fetchRecords(domain, type);
   }
 }

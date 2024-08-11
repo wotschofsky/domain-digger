@@ -1,8 +1,8 @@
 import {
   DnsResolver,
-  type RawRecord,
   RECORD_TYPES_BY_DECIMAL,
   type RecordType,
+  type ResolverResponse,
 } from './base';
 
 type DoHResponse = {
@@ -40,16 +40,17 @@ export abstract class BaseDoHResolver extends DnsResolver {
   public async resolveRecordType(
     domain: string,
     type: RecordType
-  ): Promise<RawRecord[]> {
+  ): Promise<ResolverResponse> {
     const response = await this.sendRequest(domain, type);
     if (!response.ok)
       throw new Error(
         `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`
       );
     const results = (await response.json()) as DoHResponse;
+    const trace = [`GET ${response.url}`];
 
     if (!results.Answer) {
-      return [];
+      return { records: [], trace };
     }
 
     const filteredAnswers = results.Answer.filter(
@@ -59,11 +60,13 @@ export abstract class BaseDoHResolver extends DnsResolver {
         RECORD_TYPES_BY_DECIMAL[answer.type] === type
     );
 
-    return filteredAnswers.map((answer) => ({
+    const cleanedAnswers = filteredAnswers.map((answer) => ({
       name: answer.name,
       type,
       TTL: answer.TTL,
       data: answer.data,
     }));
+
+    return { records: cleanedAnswers, trace };
   }
 }

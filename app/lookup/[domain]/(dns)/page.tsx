@@ -57,7 +57,10 @@ const LookupDomain: FC<LookupDomainProps> = async ({
   const subvalues = await getRecordContextEntries(records);
 
   const hasResults =
-    Object.values(records).reduce((prev, curr) => prev + curr.length, 0) > 0;
+    Object.values(records).reduce(
+      (prev, curr) => prev + curr.records.length,
+      0
+    ) > 0;
 
   return (
     <>

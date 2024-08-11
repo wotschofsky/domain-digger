@@ -2,9 +2,9 @@ import { env } from '@/env';
 
 import {
   DnsResolver,
-  type RawRecord,
   type RecordType,
-  type ResolvedRecords,
+  type ResolverMultiResponse,
+  type ResolverResponse,
 } from './base';
 
 export class InternalDoHResolver extends DnsResolver {
@@ -40,7 +40,7 @@ export class InternalDoHResolver extends DnsResolver {
   public async resolveRecordType(
     domain: string,
     type: RecordType
-  ): Promise<RawRecord[]> {
+  ): Promise<ResolverResponse> {
     const url = this.getBaseUrl(this.location);
     url.searchParams.set('resolver', this.resolver);
     url.searchParams.set('type', type);
@@ -52,7 +52,7 @@ export class InternalDoHResolver extends DnsResolver {
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`
       );
 
-    const results = (await response.json()) as { [key: string]: RawRecord[] };
+    const results = (await response.json()) as ResolverMultiResponse;
 
     return results[type];
   }
@@ -60,7 +60,7 @@ export class InternalDoHResolver extends DnsResolver {
   public async resolveRecordTypes(
     domain: string,
     types: readonly RecordType[]
-  ): Promise<ResolvedRecords> {
+  ): Promise<ResolverMultiResponse> {
     const url = this.getBaseUrl(this.location);
     url.searchParams.set('resolver', this.resolver);
     types.forEach((type) => url.searchParams.append('type', type));
@@ -72,7 +72,7 @@ export class InternalDoHResolver extends DnsResolver {
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`
       );
 
-    const results = (await response.json()) as { [key: string]: RawRecord[] };
+    const results = (await response.json()) as ResolverMultiResponse;
 
     return results;
   }

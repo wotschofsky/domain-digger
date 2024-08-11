@@ -22,6 +22,7 @@ const CustomizedPlausibleProvider: FC<CustomizedPlausibleProviderProps> = ({
     <PlausibleProvider
       customDomain={env.NEXT_PUBLIC_PLAUSIBLE_HOST}
       trackOutboundLinks
+      taggedEvents
       domain={env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN}
     >
       {children}

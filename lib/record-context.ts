@@ -1,6 +1,6 @@
 import { RECORD_INSIGHTS } from './data';
 import { hostLookupLoader } from './ips';
-import type { ResolvedRecords } from './resolvers/base';
+import type { ResolverMultiResponse } from './resolvers/base';
 
 export type RecordContextEntry = {
   description: string;
@@ -16,15 +16,17 @@ const getIpsInfo = async (ips: string[]): Promise<Record<string, string[]>> => {
   );
 };
 
-export const getRecordContextEntries = async (records: ResolvedRecords) => {
+export const getRecordContextEntries = async (
+  records: ResolverMultiResponse
+) => {
   const allSubvalues: Record<string, RecordContextEntry[]> = {};
 
-  const ips = records.A.map((r) => r.data).concat(
-    records.AAAA.map((r) => r.data)
-  );
+  const ips = records.A.records
+    .map((r) => r.data)
+    .concat(records.AAAA.records.map((r) => r.data));
   const ipsInfo = await getIpsInfo(ips);
 
-  const flatRecords = Object.values(records).flat();
+  const flatRecords = Object.values(records).flatMap((r) => r.records);
   for (const record of flatRecords) {
     const subvalues: RecordContextEntry[] = [];
 

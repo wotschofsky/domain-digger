@@ -21,7 +21,7 @@ export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
     // https://developers.cloudflare.com/workers/platform/limits#subrequests
     uniqueDomains.slice(0, RESULTS_LIMIT).map(async (domain) => {
       const records = await resolver.resolveRecordType(domain, 'A');
-      const hasRecords = records.length > 0;
+      const hasRecords = records.records.length > 0;
 
       return {
         domain,

@@ -87,14 +87,10 @@ export const handler = async (request: Request) => {
       : resolverName === 'cloudflare'
         ? new CloudflareDoHResolver()
         : new GoogleDoHResolver();
-  const records = Object.fromEntries(
-    await Promise.all(
-      types.map(async (type) => [
-        type,
-        await resolver.resolveRecordType(domain, type as RecordType),
-      ])
-    )
+  const response = await resolver.resolveRecordTypes(
+    domain,
+    types as RecordType[]
   );
 
-  return Response.json(records);
+  return Response.json(response);
 };
