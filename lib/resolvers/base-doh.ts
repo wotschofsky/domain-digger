@@ -47,10 +47,12 @@ export abstract class BaseDoHResolver extends DnsResolver {
         `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`
       );
     const results = (await response.json()) as DoHResponse;
-    const trace = [`GET ${response.url}`];
 
     if (!results.Answer) {
-      return { records: [], trace };
+      return {
+        records: [],
+        trace: [`HTTPS GET ${response.url} -> no answer`],
+      };
     }
 
     const filteredAnswers = results.Answer.filter(
@@ -67,6 +69,11 @@ export abstract class BaseDoHResolver extends DnsResolver {
       data: answer.data,
     }));
 
-    return { records: cleanedAnswers, trace };
+    return {
+      records: cleanedAnswers,
+      trace: [
+        `HTTPS GET ${response.url} -> answer: ${cleanedAnswers.map((a) => a.data).join(', ')}`,
+      ],
+    };
   }
 }

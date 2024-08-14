@@ -46,7 +46,7 @@ describe('BaseDoHResolver', () => {
           data: 'data',
         },
       ],
-      trace: ['GET https://dns.google/resolve'],
+      trace: ['HTTPS GET https://dns.google/resolve -> answer: data'],
     });
     expect(mockSendRequest).toHaveBeenCalledWith('example.com', 'A');
   });
@@ -63,7 +63,7 @@ describe('BaseDoHResolver', () => {
 
     expect(records).toEqual({
       records: [],
-      trace: ['GET https://dns.google/resolve'],
+      trace: ['HTTPS GET https://dns.google/resolve -> answer: '],
     });
   });
 
