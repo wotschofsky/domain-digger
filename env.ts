@@ -11,7 +11,7 @@ const safeJSONParse = (input: string) => {
 };
 
 export const env = createEnv({
-  extends: [vercel],
+  extends: [vercel()],
   server: {
     NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
 
