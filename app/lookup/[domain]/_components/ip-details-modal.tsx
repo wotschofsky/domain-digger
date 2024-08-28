@@ -23,7 +23,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
-import type { IpLookupResponse } from '@/app/api/lookup-ip/route';
+import type { IpLookupResponse } from '@/app/api/ip-details/route';
 
 import { CopyButton } from './copy-button';
 import { DomainLink } from './domain-link';
@@ -59,7 +59,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
   const { width: windowWidth } = useWindowSize();
 
   const { data, error } = useSWRImmutable<IpLookupResponse>(
-    open ? `/api/lookup-ip?ip=${encodeURIComponent(ip)}` : null
+    open ? `/api/ip-details?ip=${encodeURIComponent(ip)}` : null
   );
 
   let mappedEntries: { label: string; value: string; type: EntryTypes }[] = [];

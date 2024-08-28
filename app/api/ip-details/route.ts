@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   }
 
   const visitorIp = request.headers.get('x-forwarded-for') ?? '';
-  const identifier = ['lookup-ip', visitorIp].join(':');
+  const identifier = ['ip-details', visitorIp].join(':');
   const isAllowed = await applyRateLimit(identifier, 10, '60s');
   if (!isAllowed) {
     return new Response('Too many requests', {
@@ -61,6 +61,7 @@ export async function GET(request: Request) {
     {
       status: 200,
       headers: {
+        'Cache-Control': 'public, max-age=600, s-maxage=1800',
         'Content-Type': 'application/json',
       },
     }
