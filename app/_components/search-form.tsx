@@ -246,7 +246,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           <Input
             ref={inputRef}
             className={cn('w-full pl-9', {
-              'focus-visible:ring-red-500 [&:not(:focus-visible)]:border-red-500':
+              'focus-visible:ring-destructive [&:not(:focus-visible)]:border-destructive':
                 isInvalid,
             })}
             type="text"
