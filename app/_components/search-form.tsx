@@ -21,7 +21,15 @@ import { Input } from '@/components/ui/input';
 
 import { ClientOnly } from '@/components/client-only';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
-import { cn, isAppleDevice, isValidDomain } from '@/lib/utils';
+import {
+  cn,
+  IPV4_REGEX,
+  IPV6_REGEX,
+  isAppleDevice,
+  isValidDomain,
+} from '@/lib/utils';
+
+import { IpDetailsModal } from '../lookup/[domain]/_components/ip-details-modal';
 
 const normalizeDomain = (input: string) => {
   let tDomain;
@@ -76,6 +84,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [isInvalid, setInvalid] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
+  const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   useHotkeys(
@@ -111,7 +120,17 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     (event: FormEvent) => {
       event.preventDefault();
 
-      const normalizedDomain = normalizeDomain(domain);
+      const trimmedInput = domain.trim();
+      if (trimmedInput.length === 0) {
+        return;
+      }
+
+      if (trimmedInput.match(IPV4_REGEX) || trimmedInput.match(IPV6_REGEX)) {
+        setIpDetailsOpen(true);
+        return;
+      }
+
+      const normalizedDomain = normalizeDomain(trimmedInput);
       if (!isValidDomain(normalizedDomain)) {
         setInvalid(true);
         return;
@@ -124,7 +143,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         props: { domain: normalizedDomain },
       });
     },
-    [setInvalid, domain, redirectUser, plausible]
+    [domain, setInvalid, setIpDetailsOpen, redirectUser, plausible]
   );
 
   const { suggestions } = useSuggestions(domain);
@@ -232,7 +251,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
             })}
             type="text"
             required
-            placeholder="Search any domain or URL"
+            placeholder="Search any domain, URL or IP"
             aria-label="Domain"
             value={domain}
             onInput={handleInput}
@@ -294,6 +313,12 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           Lookup
         </Button>
       </form>
+
+      <IpDetailsModal
+        ip={domain.trim()}
+        open={ipDetailsOpen}
+        onOpenChange={setIpDetailsOpen}
+      />
     </>
   );
 };
