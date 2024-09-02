@@ -119,6 +119,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const handleSubmit = useCallback(
     (event: FormEvent) => {
       event.preventDefault();
+      const domain =
+        new FormData(event.currentTarget as HTMLFormElement)
+          .get('domain')
+          ?.toString() || '';
 
       const trimmedInput = domain.trim();
       if (trimmedInput.length === 0) {
@@ -143,7 +147,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         props: { domain: normalizedDomain },
       });
     },
-    [domain, setInvalid, setIpDetailsOpen, redirectUser, plausible]
+    [setInvalid, setIpDetailsOpen, redirectUser, plausible]
   );
 
   const { suggestions } = useSuggestions(domain);
@@ -245,6 +249,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
           <Input
             ref={inputRef}
+            name="domain"
             className={cn('w-full pl-9', {
               'focus-visible:ring-destructive [&:not(:focus-visible)]:border-destructive':
                 isInvalid,
