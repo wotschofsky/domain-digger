@@ -30,15 +30,19 @@ const CustomizedPlausibleProvider: FC<CustomizedPlausibleProviderProps> = ({
   );
 };
 
+const swrFetcher = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+};
+
 type ProvidersProps = {
   children: ReactNode;
 };
 
 export const Providers: FC<ProvidersProps> = ({ children }) => (
   <ThemeProvider attribute="class">
-    <SWRConfig
-      value={{ fetcher: (url) => fetch(url).then((res) => res.json()) }}
-    >
+    <SWRConfig value={{ fetcher: swrFetcher }}>
       <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
     </SWRConfig>
   </ThemeProvider>
