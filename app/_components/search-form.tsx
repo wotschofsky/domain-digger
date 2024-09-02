@@ -74,7 +74,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const [domain, setDomain] = useState(props.initialValue ?? '');
   const [state, setState] = useState<FormStates>(FormStates.Initial);
-  const [error, setError] = useState(false);
+  const [isInvalid, setInvalid] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,18 +113,18 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
       const normalizedDomain = normalizeDomain(domain);
       if (!isValidDomain(normalizedDomain)) {
-        setError(true);
+        setInvalid(true);
         return;
       }
 
-      setError(false);
+      setInvalid(false);
       redirectUser(normalizedDomain);
 
       plausible('Search Form: Submit', {
         props: { domain: normalizedDomain },
       });
     },
-    [setError, domain, redirectUser, plausible]
+    [setInvalid, domain, redirectUser, plausible]
   );
 
   const { suggestions } = useSuggestions(domain);
@@ -137,7 +137,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const handleSelectSuggestion = useCallback(
     (value: string) => {
-      setError(false);
+      setInvalid(false);
 
       setDomain(value);
       setSuggestionsVisible(false);
@@ -210,7 +210,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   }, [isFirstRender, setSuggestionsVisible]);
 
   return (
-    <div>
+    <>
       <form className="flex gap-3" onSubmit={handleSubmit}>
         <div className="group relative flex-[3]">
           {domain === props.initialValue ? (
@@ -226,7 +226,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
           <Input
             ref={inputRef}
-            className="w-full pl-9"
+            className={cn('w-full pl-9', {
+              'focus-visible:ring-red-500 [&:not(:focus-visible)]:border-red-500':
+                isInvalid,
+            })}
             type="text"
             required
             placeholder="Search any domain or URL"
@@ -291,12 +294,6 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           Lookup
         </Button>
       </form>
-
-      <p className="mt-2 whitespace-pre text-center text-sm text-red-600">
-        {error
-          ? 'An error occurred! Please check your input or try again later.'
-          : ' '}
-      </p>
-    </div>
+    </>
   );
 };
