@@ -256,6 +256,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
             })}
             type="text"
             required
+            autoComplete="off"
             placeholder="Search any domain, URL or IP"
             aria-label="Domain"
             value={domain}
