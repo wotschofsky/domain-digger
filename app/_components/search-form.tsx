@@ -39,8 +39,42 @@ const normalizeDomain = (input: string) => {
     tDomain = input.trim().toLowerCase();
   }
 
-  let normalizedDomain = tDomain.endsWith('.') ? tDomain.slice(0, -1) : tDomain;
+  const normalizedDomain = tDomain.endsWith('.')
+    ? tDomain.slice(0, -1)
+    : tDomain;
   return toASCII(normalizedDomain);
+};
+
+const parseSearchInput = (input: string) => {
+  const trimmedInput = input.trim();
+  if (trimmedInput.length === 0) {
+    return {
+      type: 'empty',
+    } as const;
+  }
+
+  if (trimmedInput.match(IPV4_REGEX) || trimmedInput.match(IPV6_REGEX)) {
+    return {
+      type: 'ip',
+      value: trimmedInput,
+    } as const;
+  }
+
+  const normalizedDomain = normalizeDomain(trimmedInput);
+  if (isValidDomain(normalizedDomain)) {
+    return {
+      type: 'domain',
+      value: normalizedDomain,
+    } as const;
+  }
+
+  if (trimmedInput.includes('@')) {
+    return parseSearchInput(trimmedInput.split('@').pop()!);
+  }
+
+  return {
+    type: 'invalid',
+  } as const;
 };
 
 const useSuggestions = (domain: string) => {
@@ -124,28 +158,24 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           .get('domain')
           ?.toString() || '';
 
-      const trimmedInput = domain.trim();
-      if (trimmedInput.length === 0) {
-        return;
+      const parsed = parseSearchInput(domain);
+
+      switch (parsed.type) {
+        case 'ip':
+          setInvalid(false);
+          setIpDetailsOpen(true);
+          return;
+        case 'domain':
+          setInvalid(false);
+          redirectUser(parsed.value);
+          plausible('Search Form: Submit', {
+            props: { domain: parsed.value },
+          });
+          return;
+        case 'invalid':
+          setInvalid(true);
+          return;
       }
-
-      if (trimmedInput.match(IPV4_REGEX) || trimmedInput.match(IPV6_REGEX)) {
-        setIpDetailsOpen(true);
-        return;
-      }
-
-      const normalizedDomain = normalizeDomain(trimmedInput);
-      if (!isValidDomain(normalizedDomain)) {
-        setInvalid(true);
-        return;
-      }
-
-      setInvalid(false);
-      redirectUser(normalizedDomain);
-
-      plausible('Search Form: Submit', {
-        props: { domain: normalizedDomain },
-      });
     },
     [setInvalid, setIpDetailsOpen, redirectUser, plausible]
   );
@@ -257,7 +287,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
             type="text"
             required
             autoComplete="off"
-            placeholder="Search any domain, URL or IP"
+            placeholder="Search any domain, URL, email or IP"
             aria-label="Domain"
             value={domain}
             onInput={handleInput}
