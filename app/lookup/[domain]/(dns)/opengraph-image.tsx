@@ -130,9 +130,9 @@ export const handler = async ({ params }: { params: { domain: string } }) => {
             viewBox="0 0 24 24"
             fill="none"
             stroke="rgba(0, 0, 0, 0.4)"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             style={{ height: 40, width: 40 }}
           >
             <circle cx="11" cy="11" r="8" />
