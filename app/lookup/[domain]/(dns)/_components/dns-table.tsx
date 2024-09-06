@@ -28,11 +28,9 @@ type DnsTableProps = {
 
 export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
   <>
-    {Object.keys(records).map((recordType) => {
-      const response = records[recordType];
-
+    {Object.entries(records).map(([recordType, response]) => {
       if (!response || response.records.length === 0) {
-        return;
+        return null;
       }
 
       const sortedRecords = response.records.toSorted((a, b) =>
@@ -89,7 +87,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="pl-0">Name</TableHead>
-                  <TableHead>TTL</TableHead>
+                  <TableHead className="w-32">TTL</TableHead>
                   <TableHead className="pr-0">Value</TableHead>
                 </TableRow>
               </TableHeader>
