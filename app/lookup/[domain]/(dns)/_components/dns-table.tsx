@@ -40,13 +40,13 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
       return (
         <Fragment key={recordType}>
           <Collapsible>
-            <div className="mb-4 mt-8 flex items-center gap-2">
+            <div className="mb-4 mt-8 flex items-center gap-3">
               <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
                 {recordType}
               </h2>
               <CollapsibleTrigger
                 className={cn(
-                  'text-sm text-muted-foreground',
+                  'text-sm text-muted-foreground underline decoration-dotted underline-offset-4',
                   'plausible-event-name=Trace:+Click',
                   `plausible-event-domain=${sortedRecords[0].name}`,
                   `plausible-event-type=${recordType}`
