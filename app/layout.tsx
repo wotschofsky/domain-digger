@@ -47,7 +47,7 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
           <div className="flex min-h-screen flex-col items-center justify-center">
             <Header />
 
-            <main className="w-full flex-1">{children}</main>
+            <main className="w-full flex-1 pb-16 pt-8">{children}</main>
 
             <Footer />
           </div>

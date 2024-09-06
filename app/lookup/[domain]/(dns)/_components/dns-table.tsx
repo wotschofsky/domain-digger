@@ -40,7 +40,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
       return (
         <Fragment key={recordType}>
           <Collapsible>
-            <div className="mb-4 mt-8 flex items-center gap-3">
+            <div className="mb-2 mt-14 flex items-center gap-3">
               <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
                 {recordType}
               </h2>
