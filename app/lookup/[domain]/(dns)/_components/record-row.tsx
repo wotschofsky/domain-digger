@@ -61,7 +61,12 @@ export const RecordRow: FC<RecordRowProps> = ({
     <TableRow className="whitespace-nowrap hover:bg-transparent">
       <TableCell className="w-0 min-w-[20%] pl-0 pr-12">{name}</TableCell>
       <TableCell className="w-32 pr-12">{TTL}</TableCell>
-      <TableCell className={cn('pr-0', { ['py-1']: subvalues })}>
+      <TableCell
+        className={cn(
+          'whitespace-normal break-words pr-0',
+          subvalues ? 'py-1' : 'py-4'
+        )}
+      >
         {interpolatedValue}
         {subvalues && <RecordSubvalues subvalues={subvalues} />}
       </TableCell>
