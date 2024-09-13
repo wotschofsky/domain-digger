@@ -4,6 +4,12 @@ import { getBaseDomain, isValidDomain } from './utils';
 
 export const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
+const parseDateSafe = (date: string): Date | null => {
+  const parsed = new Date(date);
+  if (!isNaN(parsed.getTime())) return parsed;
+  return null;
+};
+
 export const lookupWhois = async (domain: string) => {
   const result = await whoiser(domain, {
     raw: true,
@@ -82,14 +88,15 @@ export const getWhoisSummary = async (
       };
     }
 
+    const createdAt =
+      firstResult && 'Created Date' in firstResult
+        ? parseDateSafe(firstResult['Created Date'].toString())
+        : null;
     return {
       registered: true,
-      registrar: firstResult['Registrar']?.toString(),
-      createdAt:
-        firstResult && 'Created Date' in firstResult
-          ? formatDate(new Date(firstResult['Created Date'].toString()))
-          : null,
-      dnssec: firstResult['DNSSEC']?.toString(),
+      registrar: firstResult['Registrar']?.toString() || null,
+      createdAt: createdAt && formatDate(createdAt),
+      dnssec: firstResult['DNSSEC']?.toString() || null,
     };
   } catch (error) {
     console.error(error);
