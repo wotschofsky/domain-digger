@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
+import { ALL_RECORD_TYPES } from '@/lib/data';
 import { getRecordContextEntries } from '@/lib/record-context';
-import { ALL_RECORD_TYPES } from '@/lib/resolvers/base';
 import { getResolverFromName } from '@/lib/resolvers/utils';
 
 import { DnsTable } from './_components/dns-table';

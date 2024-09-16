@@ -1,6 +1,7 @@
 import { env } from '@/env';
+import { ALL_RECORD_TYPES } from '@/lib/data';
 import { AlibabaDoHResolver } from '@/lib/resolvers/alibaba';
-import { ALL_RECORD_TYPES, type RecordType } from '@/lib/resolvers/base';
+import { type RecordType } from '@/lib/resolvers/base';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { GoogleDoHResolver } from '@/lib/resolvers/google';
 
@@ -63,8 +64,7 @@ export const handler = async (request: Request) => {
   }
 
   for (const type of types) {
-    // @ts-expect-error
-    if (!ALL_RECORD_TYPES.includes(type)) {
+    if (!ALL_RECORD_TYPES.includes(type as RecordType)) {
       return Response.json(
         {
           error: true,

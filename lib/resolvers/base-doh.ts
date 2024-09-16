@@ -1,9 +1,5 @@
-import {
-  DnsResolver,
-  RECORD_TYPES_BY_DECIMAL,
-  type RecordType,
-  type ResolverResponse,
-} from './base';
+import { RECORD_TYPES_BY_DECIMAL } from '../data';
+import { DnsResolver, type RecordType, type ResolverResponse } from './base';
 
 type DoHResponse = {
   Status: number;
