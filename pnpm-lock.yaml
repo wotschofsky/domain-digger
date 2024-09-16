@@ -86,6 +86,9 @@ importers:
       lucide-react:
         specifier: ^0.429.0
         version: 0.429.0(react@18.3.1)
+      ms:
+        specifier: ^2.1.3
+        version: 2.1.3
       natural-compare-lite:
         specifier: ^1.4.0
         version: 1.4.0
@@ -174,6 +177,9 @@ importers:
       '@types/leaflet':
         specifier: ^1.9.12
         version: 1.9.12
+      '@types/ms':
+        specifier: ^0.7.34
+        version: 0.7.34
       '@types/natural-compare-lite':
         specifier: ^1.4.2
         version: 1.4.2
@@ -1773,6 +1779,9 @@ packages:
 
   '@types/leaflet@1.9.12':
     resolution: {integrity: sha512-BK7XS+NyRI291HIo0HCfE18Lp8oA30H1gpi1tf0mF3TgiCEzanQjOqNZ4x126SXzzi2oNSZhZ5axJp1k0iM6jg==}
+
+  '@types/ms@0.7.34':
+    resolution: {integrity: sha512-nG96G3Wp6acyAgJqGasjODb+acrI7KltPiRxzHPXnP3NgI28bpQDRv53olbqGXbfcgF5aiiHmO3xpwEpS5Ld9g==}
 
   '@types/natural-compare-lite@1.4.2':
     resolution: {integrity: sha512-kk1ie31cI6AUm17qOi72lEOBfpRhcknJPsJQoKBulaZC9y00MHUWqxGTk/luWEnenLB+lHoNThrKAKdYVydlew==}
@@ -5786,6 +5795,8 @@ snapshots:
   '@types/leaflet@1.9.12':
     dependencies:
       '@types/geojson': 7946.0.14
+
+  '@types/ms@0.7.34': {}
 
   '@types/natural-compare-lite@1.4.2': {}
 

@@ -1,3 +1,4 @@
+import ms from 'ms';
 import type { FC, ReactNode } from 'react';
 import reactStringReplace from 'react-string-replace';
 
@@ -60,7 +61,12 @@ export const RecordRow: FC<RecordRowProps> = ({
   return (
     <TableRow className="whitespace-nowrap hover:bg-transparent">
       <TableCell className="w-0 min-w-[20%] pl-0 pr-12">{name}</TableCell>
-      <TableCell className="w-32 pr-12">{TTL}</TableCell>
+      <TableCell className="w-32 py-1 pr-12">
+        {TTL}
+        <RecordSubvalues
+          subvalues={[{ description: ms(TTL * 1000, { long: true }) }]}
+        />
+      </TableCell>
       <TableCell
         className={cn(
           'whitespace-normal break-words pr-0',
