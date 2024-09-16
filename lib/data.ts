@@ -47,6 +47,7 @@ export const ALL_RECORD_TYPES = [
   'NAPTR',
   'NS',
   'PTR',
+  'RRSIG',
   'SOA',
   'SRV',
   'TXT',
@@ -63,6 +64,7 @@ export const RECORD_TYPES_BY_DECIMAL = {
   35: 'NAPTR',
   2: 'NS',
   12: 'PTR',
+  46: 'RRSIG',
   6: 'SOA',
   33: 'SRV',
   16: 'TXT',
@@ -294,6 +296,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
     },
   ],
   PTR: [],
+  RRSIG: [],
   SOA: [],
   SRV: [],
   TXT: [
