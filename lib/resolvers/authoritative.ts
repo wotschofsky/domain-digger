@@ -63,11 +63,11 @@ export class AuthoritativeResolver extends DnsResolver {
       case 'DNSKEY':
         return `${record.data.flags} ${
           record.data.algorithm
-        } ${record.data.key.toString('hex')}`;
+        } ${record.data.key.toString('base64')}`;
       case 'DS':
         return `${record.data.keyTag} ${record.data.algorithm} ${
           record.data.digestType
-        } ${record.data.digest.toString('hex')}`;
+        } ${record.data.digest.toString('hex').toUpperCase()}`;
       case 'MX':
         return `${record.data.preference} ${record.data.exchange}`;
       case 'NAPTR':
