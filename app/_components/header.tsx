@@ -1,24 +1,17 @@
 import { HeartIcon } from 'lucide-react';
-import Link from 'next/link';
 import type { FC } from 'react';
 import { FaGithub } from 'react-icons/fa';
 
 import { Button } from '@/components/ui/button';
 
-import LogoDark from '@/assets/logo-dark.svg';
-import LogoLight from '@/assets/logo-light.svg';
-
 import { BookmarkletLink } from './bookmarklet-link';
+import { Logo } from './logo';
 import { ThemeMenu } from './theme-menu';
 
 export const Header: FC = () => (
   <header className="w-full p-4 md:px-8">
     <div className="flex items-center justify-between">
-      <Link className="flex items-center gap-2" href="/" aria-label="Home Page">
-        <LogoDark className="inline h-6 dark:hidden" />
-        <LogoLight className="hidden h-6 dark:inline" />
-        Domain Digger
-      </Link>
+      <Logo />
 
       <div className="flex items-center justify-between gap-4">
         <Button variant="ghost" asChild>
