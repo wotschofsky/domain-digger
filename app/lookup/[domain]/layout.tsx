@@ -15,10 +15,6 @@ import { ResultsTabs } from './_components/results-tabs';
 import { ShareButton } from './_components/share-button';
 import { WhoisQuickInfo } from './_components/whois-quick-info';
 
-const StarReminder = dynamic(() => import('./_components/star-reminder'), {
-  ssr: false,
-});
-
 type LookupLayoutProps = {
   children: ReactNode;
   params: {
@@ -84,8 +80,6 @@ const LookupLayout: FC<LookupLayoutProps> = ({
 
         {children}
       </div>
-
-      <StarReminder />
     </>
   );
 };
