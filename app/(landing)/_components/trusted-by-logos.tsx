@@ -1,9 +1,18 @@
 import Link from 'next/link';
 import type { FC } from 'react';
 
-export const TrustedByLogos: FC = () => (
+type TrustedByLogoProps = {
+  subpage?: string;
+};
+
+const formatHref = (domain: string, subpage?: string) => {
+  const suffix = subpage ? `/${subpage}` : '';
+  return `/lookup/${domain}${suffix}`;
+};
+
+export const TrustedByLogos: FC<TrustedByLogoProps> = ({ subpage }) => (
   <div className="flex flex-wrap justify-center gap-8 [&_*]:h-7 [&_*]:w-auto">
-    <Link href="/lookup/cloudflare.com">
+    <Link href={formatHref('cloudflare.com', subpage)}>
       <span className="sr-only">Cloudflare</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -29,7 +38,7 @@ export const TrustedByLogos: FC = () => (
       </svg>
     </Link>
 
-    <Link href="/lookup/atlassian.com">
+    <Link href={formatHref('atlassian.com', subpage)}>
       <span className="sr-only">Atlassian</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -49,7 +58,7 @@ export const TrustedByLogos: FC = () => (
       </svg>
     </Link>
 
-    <Link href="/lookup/heroku.com">
+    <Link href={formatHref('heroku.com', subpage)}>
       <span className="sr-only">Heroku</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -65,7 +74,7 @@ export const TrustedByLogos: FC = () => (
       </svg>
     </Link>
 
-    <Link href="/lookup/webflow.com">
+    <Link href={formatHref('webflow.com', subpage)}>
       <span className="sr-only">Webflow</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -117,7 +126,7 @@ export const TrustedByLogos: FC = () => (
       </svg>
     </Link>
 
-    <Link href="/lookup/sap.com">
+    <Link href={formatHref('sap.com', subpage)}>
       <span className="sr-only">SAP</span>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 1223">
         <path

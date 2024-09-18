@@ -15,7 +15,7 @@ export const metadata = {
   },
 };
 
-const Home: FC = () => {
+const MainLandingPage: FC = () => {
   return (
     <div className="container space-y-16 pt-24">
       <section>
@@ -23,7 +23,7 @@ const Home: FC = () => {
           Get details about any Domain
         </h1>
         <div className="mx-auto max-w-4xl">
-          <SearchForm autofocus={true} />
+          <SearchForm autofocus />
         </div>
       </section>
 
@@ -35,4 +35,4 @@ const Home: FC = () => {
   );
 };
 
-export default Home;
+export default MainLandingPage;

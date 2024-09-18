@@ -6,9 +6,10 @@ import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { getTopDomains } from '@/lib/search';
 import { deduplicate } from '@/lib/utils';
 
+const LANDING_PAGES = ['', '/certs', '/map', '/subdomains', '/whois'];
 const RESULTS_SUBPATHS = ['', '/certs', '/map', '/subdomains', '/whois'];
 
-const getSitemapPaths = async () => {
+const getProgrammaticPaths = async () => {
   const topDomains = await getTopDomains(1000);
 
   const namedDomains = deduplicate([...EXAMPLE_DOMAINS, ...topDomains]);
@@ -32,16 +33,16 @@ const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
     return [];
   }
 
-  const paths = await getSitemapPaths();
+  const programmaticPaths = await getProgrammaticPaths();
 
   return [
-    {
-      url: env.SITE_URL,
+    ...LANDING_PAGES.map((url) => ({
+      url: env.SITE_URL + url,
       lastModified: new Date(),
       changeFrequency: 'monthly' as const,
       priority: 1,
-    },
-    ...paths.map((url) => ({
+    })),
+    ...programmaticPaths.map((url) => ({
       url: env.SITE_URL + url,
       lastModified: new Date(),
       changeFrequency: 'always' as const,

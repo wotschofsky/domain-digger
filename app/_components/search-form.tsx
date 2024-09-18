@@ -104,6 +104,7 @@ enum FormStates {
 type SearchFormProps = {
   initialValue?: string;
   autofocus?: boolean;
+  subpage?: string;
 };
 
 export const SearchForm: FC<SearchFormProps> = (props) => {
@@ -135,7 +136,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     (domain: string) => {
       setState(FormStates.Submitting);
 
-      const target = `/lookup/${domain}`;
+      let target = `/lookup/${domain}`;
+      if (props.subpage) {
+        target += `/${props.subpage}`;
+      }
 
       if (pathname === target) {
         router.refresh();
@@ -147,7 +151,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
       router.push(target);
     },
-    [setState, router, pathname]
+    [setState, router, pathname, props.subpage]
   );
 
   const handleSubmit = useCallback(

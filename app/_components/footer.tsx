@@ -52,6 +52,10 @@ export const Footer: FC = () => (
             <h2 className="mb-1 font-semibold">Free Tools</h2>
             <div className="space-y-1 text-sm underline decoration-dotted underline-offset-4 [&>*]:block">
               <Link href="/">DNS Lookup</Link>
+              <Link href="/map">Global DNS Lookup</Link>
+              <Link href="/whois">WHOIS Lookup</Link>
+              <Link href="/certs">Certificate Logs</Link>
+              <Link href="/subdomains">Subdomains Finder</Link>
             </div>
           </div>
         </div>

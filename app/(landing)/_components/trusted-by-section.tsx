@@ -2,7 +2,9 @@ import type { FC, HTMLAttributes } from 'react';
 
 import { TrustedByLogos } from './trusted-by-logos';
 
-type TrustedBySectionProps = HTMLAttributes<HTMLElement>;
+type TrustedBySectionProps = HTMLAttributes<HTMLElement> & {
+  subpage?: string;
+};
 
 export const TrustedBySection: FC<TrustedBySectionProps> = (props) => (
   <section {...props}>
@@ -11,7 +13,7 @@ export const TrustedBySection: FC<TrustedBySectionProps> = (props) => (
         Trusted by experts at
       </h2>
 
-      <TrustedByLogos />
+      <TrustedByLogos subpage={props.subpage} />
 
       <a
         href="https://www.producthunt.com/posts/domain-digger?utm_source=badge-featured&utm_medium=badge&utm_souce=badge-domain&#0045;digger"
