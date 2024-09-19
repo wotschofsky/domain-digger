@@ -47,20 +47,18 @@ export const Footer: FC = () => (
       </div>
 
       <div className="flex w-full items-center justify-between">
-        <div className="flex flex-col gap-4">
-          <div>
-            <h2 className="mb-1 font-semibold">Free Tools</h2>
-            <div className="space-y-1 text-sm underline decoration-dotted underline-offset-4 [&>*]:block">
-              <Link href="/">DNS Lookup</Link>
-              <Link href="/map">Global DNS Lookup</Link>
-              <Link href="/whois">WHOIS Lookup</Link>
-              <Link href="/certs">Certificate Logs</Link>
-              <Link href="/subdomains">Subdomains Finder</Link>
-            </div>
+        <div className="flex flex-col gap-2">
+          <h2 className="font-semibold">Free Tools</h2>
+          <div className="flex flex-col gap-1 text-sm underline decoration-dotted underline-offset-4 lg:flex-row lg:gap-4">
+            <Link href="/">DNS Lookup</Link>
+            <Link href="/map">Global DNS Lookup</Link>
+            <Link href="/whois">WHOIS Lookup</Link>
+            <Link href="/certs">Certificate Logs</Link>
+            <Link href="/subdomains">Subdomains Finder</Link>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 xl:flex-row">
           <Button variant="ghost" asChild>
             <a
               href="https://github.com/wotschofsky/domain-digger"
