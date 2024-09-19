@@ -16,14 +16,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+const INITIAL_DELAY = ms('2h');
+const TIMEOUT_PERIOD = ms('7d');
+
 export const FeedbackPrompt: FC = () => {
   const plausible = usePlausible();
 
-  const [lastDismissed, setLastDismissed] = useLocalStorage<number | null>(
+  const [lastDismissed, setLastDismissed] = useLocalStorage(
     'feedback-prompt.last-dismissed',
-    null
+    Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY
   );
-  const visible = !lastDismissed || Date.now() - lastDismissed > ms('7d');
+  const visible = Date.now() - lastDismissed > TIMEOUT_PERIOD;
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleDismiss = useCallback(() => {
