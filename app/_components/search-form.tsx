@@ -266,6 +266,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSuggestionsVisible(true);
   }, [isFirstRender, setSuggestionsVisible]);
 
+  const handleIpDetailsOpenChange = useCallback(
+    (open: boolean) => {
+      setIpDetailsOpen(open);
+      if (!open) {
+        inputRef.current?.focus();
+      }
+    },
+    [setIpDetailsOpen, inputRef]
+  );
+
   return (
     <>
       <form className="flex gap-3" onSubmit={handleSubmit}>
@@ -357,7 +367,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       <IpDetailsModal
         ip={domain.trim()}
         open={ipDetailsOpen}
-        onOpenChange={setIpDetailsOpen}
+        onOpenChange={handleIpDetailsOpenChange}
       />
     </>
   );
