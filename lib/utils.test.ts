@@ -107,6 +107,14 @@ describe('isValidDomain', () => {
     expect(isValidDomain('com')).toBe(true); // Only TLD
   });
 
+  it('validates odd domains', () => {
+    expect(
+      isValidDomain(
+        'theofficialabsolutelongestdomainnameregisteredontheworldwideweb.international'
+      )
+    ).toBe(true);
+  });
+
   it('validates wildcard domains', () => {
     expect(isValidDomain('*.example.com')).toBe(true);
   });

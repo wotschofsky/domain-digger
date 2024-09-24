@@ -3,6 +3,8 @@ import { twMerge } from 'tailwind-merge';
 import { getDomain, parse as tldtsParse } from 'tldts';
 
 export const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
+const DOMAIN_LABEL_REGEX =
+  /^(xn--)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
 export const IPV4_REGEX =
   /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/g;
 export const IPV6_REGEX =
@@ -22,6 +24,7 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
     return retry(fn, maxRetries - 1);
   });
 
+// ABased on https://en.wikipedia.org/wiki/Domain_name#Domain_name_syntax
 export const isValidDomain = (domain: string) => {
   if (typeof domain !== 'string') {
     if (process?.env.VITEST !== 'true') {
@@ -30,18 +33,30 @@ export const isValidDomain = (domain: string) => {
     return false;
   }
 
-  // TODO Integrate hyphen check into regex
-  const regexResult =
-    /^(\*\.)?(((?!-))(xn--|_)?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*(xn--)?([a-z0-9][a-z0-9\-]{0,60}|[a-z0-9-]{1,30}\.[a-z]{2,})$/.test(
-      domain
-    ) && !domain.startsWith('-');
-  if (!regexResult) return false;
+  // Check total length (maximum 253 characters)
+  if (domain.length > 253 || domain.length === 0) return false;
 
-  // Remove wildcard prefix to avoid false negatives from library
-  const cleanedDomain = domain.replace(/^\*\./, '');
+  // Remove wildcard prefix & trailing dot (if fully qualified domain name)
+  const cleanedDomain = domain.replace(/^\*\./, '').replace(/\.$/, '');
+
+  // Split domain into labels
+  const labels = cleanedDomain.split('.');
+
+  for (const label of labels) {
+    // Check label length (between 1 and 63 characters)
+    if (label.length < 1 || label.length > 63) {
+      return false;
+    }
+
+    // Check if label matches the regular expression
+    if (!DOMAIN_LABEL_REGEX.test(label)) {
+      return false;
+    }
+  }
+
   try {
     const result = tldtsParse(cleanedDomain);
-    return result.isIcann || result.isPrivate;
+    return Boolean(result.isIcann || result.isPrivate);
   } catch (error) {
     return false;
   }
