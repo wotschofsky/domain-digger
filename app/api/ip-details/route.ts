@@ -28,7 +28,7 @@ export async function GET(request: Request) {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
   }
 
@@ -64,6 +64,6 @@ export async function GET(request: Request) {
         'Cache-Control': 'public, max-age=600, s-maxage=1800',
         'Content-Type': 'application/json',
       },
-    }
+    },
   );
 }

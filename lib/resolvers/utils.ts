@@ -6,7 +6,7 @@ import { InternalDoHResolver } from './internal';
 
 export const getResolverFromName = (
   resolverName: string | undefined,
-  locationName: string | undefined
+  locationName: string | undefined,
 ) => {
   if (locationName) {
     switch (resolverName) {

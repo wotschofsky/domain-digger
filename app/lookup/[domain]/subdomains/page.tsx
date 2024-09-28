@@ -32,7 +32,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 }) => {
   const { results, isTruncated, RESULTS_LIMIT } = await findSubdomains(
     domain,
-    new CloudflareDoHResolver()
+    new CloudflareDoHResolver(),
   );
 
   if (!results.length) {

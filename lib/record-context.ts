@@ -12,12 +12,12 @@ const getIpsInfo = async (ips: string[]): Promise<Record<string, string[]>> => {
   return Object.fromEntries(
     ips
       .map((ip, index) => [ip, hosts[index]])
-      .filter(([, hosts]) => Array.isArray(hosts))
+      .filter(([, hosts]) => Array.isArray(hosts)),
   );
 };
 
 export const getRecordContextEntries = async (
-  records: ResolverMultiResponse
+  records: ResolverMultiResponse,
 ) => {
   const allSubvalues: Record<string, RecordContextEntry[]> = {};
 
@@ -45,7 +45,7 @@ export const getRecordContextEntries = async (
       subvalues.push(
         ...ipsInfo[record.data].map((h) => ({
           description: h,
-        }))
+        })),
       );
     }
 

@@ -48,7 +48,7 @@ const LookupDomain: FC<LookupDomainProps> = async ({
   if (locationName && !resolverName) {
     return redirect(
       `/lookup/${encodeURIComponent(domain)}`,
-      RedirectType.replace
+      RedirectType.replace,
     );
   }
 
@@ -59,7 +59,7 @@ const LookupDomain: FC<LookupDomainProps> = async ({
   const hasResults =
     Object.values(records).reduce(
       (prev, curr) => prev + curr.records.length,
-      0
+      0,
     ) > 0;
 
   return (

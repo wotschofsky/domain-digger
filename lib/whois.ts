@@ -22,7 +22,7 @@ export const lookupWhois = async (domain: string) => {
   }
 
   const filteredResults = Object.entries(mappedResults).filter(
-    ([_key, value]) => Boolean(value)
+    ([_key, value]) => Boolean(value),
   );
 
   return filteredResults;
@@ -49,7 +49,7 @@ type WhoisSummary =
     };
 
 export const getWhoisSummary = async (
-  domain: string
+  domain: string,
 ): Promise<WhoisSummary> => {
   // TODO Allow resolving for TLDs
   if (!isValidDomain(domain)) {
@@ -71,7 +71,7 @@ export const getWhoisSummary = async (
 
     const resultsKey = Object.keys(results).find(
       // @ts-expect-error
-      (key) => !('error' in results[key])
+      (key) => !('error' in results[key]),
     );
     if (!resultsKey) {
       throw new Error('No valid results found for domain ' + domain);
@@ -80,7 +80,7 @@ export const getWhoisSummary = async (
 
     if (
       UNREGISTERED_INDICATORS.some((indicator) =>
-        firstResult['__raw'].toString().toLowerCase().includes(indicator)
+        firstResult['__raw'].toString().toLowerCase().includes(indicator),
       )
     ) {
       return {

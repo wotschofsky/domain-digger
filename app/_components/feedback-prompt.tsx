@@ -24,7 +24,7 @@ export const FeedbackPrompt: FC = () => {
 
   const [lastDismissed, setLastDismissed] = useLocalStorage(
     'feedback-prompt.last-dismissed',
-    Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY
+    Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY,
   );
   const visible = Date.now() - lastDismissed > TIMEOUT_PERIOD;
   const [dialogOpen, setDialogOpen] = useState(false);

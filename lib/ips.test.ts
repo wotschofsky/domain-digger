@@ -17,7 +17,7 @@ describe('ipv4ToDnsName', () => {
 describe('ipv6ToDnsName', () => {
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
     expect(ipv6ToDnsName('2001:db8::1')).toBe(
-      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa'
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
     );
   });
 });
@@ -29,7 +29,7 @@ describe('ipToDnsName', () => {
 
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
     expect(ipToDnsName('2001:db8::1')).toBe(
-      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa'
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
     );
   });
 });
@@ -66,7 +66,7 @@ describe('lookupReverse', () => {
     });
 
     await expect(lookupReverse('8.8.4.4')).rejects.toThrow(
-      'Error fetching DNS records: Service Unavailable'
+      'Error fetching DNS records: Service Unavailable',
     );
   });
 });
@@ -79,7 +79,7 @@ describe('normalizeIpEnding', () => {
 
   it('should normalize IPv6 by removing the last segment after a colon', () => {
     expect(normalizeIpEnding('fe80::250:56ff:fe97:2b82')).toBe(
-      'fe80::250:56ff:fe97:'
+      'fe80::250:56ff:fe97:',
     );
     expect(normalizeIpEnding('2001:db8::1428:57ab')).toBe('2001:db8::1428:');
   });

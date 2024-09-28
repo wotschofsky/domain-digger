@@ -16,15 +16,15 @@ export type ResolverMultiResponse = Record<string, ResolverResponse>;
 export abstract class DnsResolver {
   public abstract resolveRecordType(
     domain: string,
-    type: RecordType
+    type: RecordType,
   ): Promise<ResolverResponse>;
 
   public async resolveRecordTypes(
     domain: string,
-    types: readonly RecordType[]
+    types: readonly RecordType[],
   ): Promise<ResolverMultiResponse> {
     const results = await Promise.all(
-      types.map((type) => this.resolveRecordType(domain, type))
+      types.map((type) => this.resolveRecordType(domain, type)),
     );
 
     return types.reduce(
@@ -32,7 +32,7 @@ export abstract class DnsResolver {
         ...res,
         [type]: results[index],
       }),
-      {} as ResolverMultiResponse
+      {} as ResolverMultiResponse,
     );
   }
 }

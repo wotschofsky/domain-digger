@@ -28,9 +28,9 @@ const createMarkerResults = (results: string[]) => {
     isTruncated
       ? h(
           'p.text-xs.text-muted-foreground.italic',
-          `and ${results.length - 4} more`
+          `and ${results.length - 4} more`,
         )
-      : undefined
+      : undefined,
   );
 };
 
@@ -42,7 +42,7 @@ const createMarker = (
     CNAME: string[];
   },
   href: string,
-  onClick: () => void
+  onClick: () => void,
 ) =>
   h(
     'div.marker-wrapper',
@@ -73,10 +73,10 @@ const createMarker = (
               onClick();
             },
           },
-          'View full results'
-        )
-      )
-    )
+          'View full results',
+        ),
+      ),
+    ),
   );
 
 type ResultsGlobeProps = {
@@ -121,7 +121,7 @@ export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
       const onClick = () => router.push(href);
       return createMarker(data.name, data.results, href, onClick);
     },
-    [domain, router]
+    [domain, router],
   );
 
   return (

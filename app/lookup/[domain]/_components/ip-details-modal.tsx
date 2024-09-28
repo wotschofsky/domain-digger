@@ -32,7 +32,7 @@ const LocationMap = dynamic(
   () => import('./location-map').then((m) => m.LocationMap),
   {
     ssr: false,
-  }
+  },
 );
 
 enum EntryTypes {
@@ -59,7 +59,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
   const { width: windowWidth } = useWindowSize();
 
   const { data, error } = useSWRImmutable<IpLookupResponse>(
-    open ? `/api/ip-details?ip=${encodeURIComponent(ip)}` : null
+    open ? `/api/ip-details?ip=${encodeURIComponent(ip)}` : null,
   );
 
   let mappedEntries: { label: string; value: string; type: EntryTypes }[] = [];

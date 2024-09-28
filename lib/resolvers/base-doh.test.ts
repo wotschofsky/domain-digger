@@ -6,7 +6,7 @@ describe('BaseDoHResolver', () => {
   const mockSendRequest = vi.fn();
 
   const mockDoHResponse = (
-    answers: Partial<DoHResponse['Answer'][number]>[] = []
+    answers: Partial<DoHResponse['Answer'][number]>[] = [],
   ): DoHResponse => ({
     Status: 0,
     TC: false,
@@ -77,9 +77,9 @@ describe('BaseDoHResolver', () => {
     const resolver = new BaseDoHResolver(mockSendRequest);
 
     await expect(
-      resolver.resolveRecordType('example.com', 'A')
+      resolver.resolveRecordType('example.com', 'A'),
     ).rejects.toThrow(
-      'Bad response from DoH Resolver: Internal Server Error from https://dns.google/resolve'
+      'Bad response from DoH Resolver: Internal Server Error from https://dns.google/resolve',
     );
   });
 });

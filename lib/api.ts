@@ -9,7 +9,7 @@ type Duration = `${number} ${Unit}` | `${number}${Unit}`;
 export const applyRateLimit = async (
   identifier: string,
   tokens: number,
-  window: Duration
+  window: Duration,
 ) => {
   const limiter = new Ratelimit({
     redis: Redis.fromEnv(),

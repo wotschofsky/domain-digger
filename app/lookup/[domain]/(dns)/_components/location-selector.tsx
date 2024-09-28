@@ -47,7 +47,7 @@ export const LocationSelector: FC<LocationSelectorProps> = ({
         props: { location: value },
       });
     },
-    [router, pathname, searchParams, plausible]
+    [router, pathname, searchParams, plausible],
   );
 
   return (

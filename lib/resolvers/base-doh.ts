@@ -28,19 +28,22 @@ type DoHResponse = {
 
 export abstract class BaseDoHResolver extends DnsResolver {
   constructor(
-    private sendRequest: (domain: string, type: RecordType) => Promise<Response>
+    private sendRequest: (
+      domain: string,
+      type: RecordType,
+    ) => Promise<Response>,
   ) {
     super();
   }
 
   public async resolveRecordType(
     domain: string,
-    type: RecordType
+    type: RecordType,
   ): Promise<ResolverResponse> {
     const response = await this.sendRequest(domain, type);
     if (!response.ok)
       throw new Error(
-        `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`
+        `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`,
       );
     const results = (await response.json()) as DoHResponse;
 
@@ -55,7 +58,7 @@ export abstract class BaseDoHResolver extends DnsResolver {
       (answer) =>
         answer.type in RECORD_TYPES_BY_DECIMAL &&
         // @ts-expect-error
-        RECORD_TYPES_BY_DECIMAL[answer.type] === type
+        RECORD_TYPES_BY_DECIMAL[answer.type] === type,
     );
 
     const cleanedAnswers = filteredAnswers.map((answer) => ({

@@ -37,7 +37,7 @@ export const StackedRecord: FC<StackedRecordProps> = ({
           ? match.slice(0, -1)
           : match;
         return <DomainLink domain={normalizedMatch} />;
-      }
+      },
     );
   }
 
@@ -46,7 +46,7 @@ export const StackedRecord: FC<StackedRecordProps> = ({
     interpolatedValue = reactStringReplace(
       interpolatedValue,
       domain,
-      (match) => <IpLink value={match} />
+      (match) => <IpLink value={match} />,
     );
   }
 
@@ -55,7 +55,7 @@ export const StackedRecord: FC<StackedRecordProps> = ({
     interpolatedValue = reactStringReplace(
       interpolatedValue,
       domain,
-      (match) => <IpLink value={match} />
+      (match) => <IpLink value={match} />,
     );
   }
 

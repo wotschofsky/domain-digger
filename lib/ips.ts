@@ -62,7 +62,7 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
     `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
     {
       headers: { Accept: 'application/dns-json' },
-    }
+    },
   );
 
   if (!response.ok)
@@ -93,9 +93,9 @@ export const hostLookupLoader = new DataLoader(
         }
 
         return [data.org, data.isp].filter(Boolean);
-      })
+      }),
     ),
   {
     cacheKeyFn: normalizeIpEnding,
-  }
+  },
 );

@@ -50,7 +50,7 @@ export const SortableTable = <T extends Record<string, any>>({
         if (a[sort] < b[sort]) return sortDirection === 'asc' ? -1 : 1;
         return 0;
       }),
-    [data, sort, sortDirection]
+    [data, sort, sortDirection],
   );
 
   const handleSort = useCallback(
@@ -62,7 +62,7 @@ export const SortableTable = <T extends Record<string, any>>({
         setSortDirection('asc');
       }
     },
-    [sort, sortDirection]
+    [sort, sortDirection],
   );
 
   return (
@@ -82,7 +82,7 @@ export const SortableTable = <T extends Record<string, any>>({
                   // Compensate for sort icon not being present
                   'pr-10': sort !== key && index !== allColumns.length - 1,
                   'pr-6': sort !== key && index === allColumns.length - 1,
-                }
+                },
               )}
               onClick={() => handleSort(key)}
             >

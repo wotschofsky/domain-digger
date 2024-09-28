@@ -24,7 +24,7 @@ export const handler = async (request: Request) => {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
   }
 
@@ -44,7 +44,7 @@ export const handler = async (request: Request) => {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
   }
 
@@ -59,7 +59,7 @@ export const handler = async (request: Request) => {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
   }
 
@@ -75,7 +75,7 @@ export const handler = async (request: Request) => {
           headers: {
             'Content-Type': 'application/json',
           },
-        }
+        },
       );
     }
   }
@@ -89,7 +89,7 @@ export const handler = async (request: Request) => {
         : new GoogleDoHResolver();
   const response = await resolver.resolveRecordTypes(
     domain,
-    types as RecordType[]
+    types as RecordType[],
   );
 
   return Response.json(response);

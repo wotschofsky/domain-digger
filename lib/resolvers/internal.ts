@@ -10,7 +10,7 @@ import {
 export class InternalDoHResolver extends DnsResolver {
   constructor(
     private readonly location: string,
-    private readonly resolver: 'alibaba' | 'cloudflare' | 'google'
+    private readonly resolver: 'alibaba' | 'cloudflare' | 'google',
   ) {
     super();
   }
@@ -19,7 +19,7 @@ export class InternalDoHResolver extends DnsResolver {
     const baseUrl = new URL(
       env.SITE_URL ||
         (env.VERCEL_URL && `https://${env.VERCEL_URL}`) ||
-        'http://localhost:3000'
+        'http://localhost:3000',
     );
     baseUrl.pathname = `/api/internal/resolve/${location}`;
     return baseUrl;
@@ -39,7 +39,7 @@ export class InternalDoHResolver extends DnsResolver {
 
   public async resolveRecordType(
     domain: string,
-    type: RecordType
+    type: RecordType,
   ): Promise<ResolverResponse> {
     const url = this.getBaseUrl(this.location);
     url.searchParams.set('resolver', this.resolver);
@@ -49,7 +49,7 @@ export class InternalDoHResolver extends DnsResolver {
     const response = await fetch(url, this.requestInit);
     if (!response.ok)
       throw new Error(
-        `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`
+        `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
       );
 
     const results = (await response.json()) as ResolverMultiResponse;
@@ -59,7 +59,7 @@ export class InternalDoHResolver extends DnsResolver {
 
   public async resolveRecordTypes(
     domain: string,
-    types: readonly RecordType[]
+    types: readonly RecordType[],
   ): Promise<ResolverMultiResponse> {
     const url = this.getBaseUrl(this.location);
     url.searchParams.set('resolver', this.resolver);
@@ -69,7 +69,7 @@ export class InternalDoHResolver extends DnsResolver {
     const response = await fetch(url, this.requestInit);
     if (!response.ok)
       throw new Error(
-        `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`
+        `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
       );
 
     const results = (await response.json()) as ResolverMultiResponse;

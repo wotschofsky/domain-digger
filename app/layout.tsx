@@ -16,7 +16,7 @@ const FeedbackPrompt = dynamic(
   () => import('./_components/feedback-prompt').then((m) => m.FeedbackPrompt),
   {
     ssr: false,
-  }
+  },
 );
 
 export const viewport: Viewport = {

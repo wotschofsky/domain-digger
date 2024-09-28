@@ -36,7 +36,7 @@ export const RecordRow: FC<RecordRowProps> = ({
           ? match.slice(0, -1)
           : match;
         return <DomainLink domain={normalizedMatch} />;
-      }
+      },
     );
   }
 
@@ -45,7 +45,7 @@ export const RecordRow: FC<RecordRowProps> = ({
     interpolatedValue = reactStringReplace(
       interpolatedValue,
       domain,
-      (match) => <IpLink value={match} />
+      (match) => <IpLink value={match} />,
     );
   }
 
@@ -54,7 +54,7 @@ export const RecordRow: FC<RecordRowProps> = ({
     interpolatedValue = reactStringReplace(
       interpolatedValue,
       domain,
-      (match) => <IpLink value={match} />
+      (match) => <IpLink value={match} />,
     );
   }
 
@@ -70,7 +70,7 @@ export const RecordRow: FC<RecordRowProps> = ({
       <TableCell
         className={cn(
           'whitespace-normal break-words pr-0',
-          subvalues ? 'py-1' : 'py-4'
+          subvalues ? 'py-1' : 'py-4',
         )}
       >
         {interpolatedValue}

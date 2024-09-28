@@ -46,7 +46,7 @@ export const BookmarkletLink: FC = () => {
       event.preventDefault();
       setIsOpen(true);
     },
-    [setIsOpen]
+    [setIsOpen],
   );
 
   const mouseDownHandler = useCallback<

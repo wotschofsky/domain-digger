@@ -34,7 +34,7 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     const ipAddresses = aRecords?.map(
-      (l) => l.replaceAll(/\s+/g, ' ').split(' ')[2]
+      (l) => l.replaceAll(/\s+/g, ' ').split(' ')[2],
     );
 
     return ipAddresses;
@@ -88,7 +88,7 @@ export class AuthoritativeResolver extends DnsResolver {
   private async sendRequest(
     domain: string,
     recordType: RecordType,
-    nameserver: string
+    nameserver: string,
   ) {
     const packetBuffer = dnsPacket.encode({
       type: 'query',
@@ -104,8 +104,8 @@ export class AuthoritativeResolver extends DnsResolver {
         socket.close();
         reject(
           new Error(
-            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`
-          )
+            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`,
+          ),
         );
       }, 3000);
 
@@ -133,19 +133,19 @@ export class AuthoritativeResolver extends DnsResolver {
     async (keys) =>
       Promise.all(
         keys.map(async ({ domain, type, nameserver }) =>
-          retry(() => this.sendRequest(domain, type, nameserver), 3)
-        )
+          retry(() => this.sendRequest(domain, type, nameserver), 3),
+        ),
       ),
     {
       cacheKeyFn: (key) => JSON.stringify(key),
-    }
+    },
   );
 
   private async fetchRecords(
     domain: string,
     recordType: RecordType,
     nameserver?: string,
-    trace: string[] = []
+    trace: string[] = [],
   ): Promise<ResolverResponse> {
     const rootServers = await this.getRootServers();
 
@@ -158,7 +158,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
     if (response.answers?.length) {
       const filteredAnswers = response.answers.filter(
-        (answer) => answer.name === domain && answer.type === recordType
+        (answer) => answer.name === domain && answer.type === recordType,
       ) as Extract<Answer, { type: RecordType }>[];
 
       const records: RawRecord[] =
@@ -181,12 +181,12 @@ export class AuthoritativeResolver extends DnsResolver {
     const redirects = Object.assign(
       [] as Answer[],
       response.authorities,
-      response.additionals
+      response.additionals,
     ).filter((answer) => answer.type === 'A' || answer.type === 'NS');
 
     if (redirects.length) {
       const aRedirects = redirects.filter(
-        (redirect) => redirect.type === 'A'
+        (redirect) => redirect.type === 'A',
       ) as StringAnswer[];
       if (aRedirects.length) {
         return this.fetchRecords(domain, recordType, aRedirects[0].data, [
@@ -196,12 +196,12 @@ export class AuthoritativeResolver extends DnsResolver {
       }
 
       const nsRedirects = redirects.filter(
-        (redirect) => redirect.type === 'NS'
+        (redirect) => redirect.type === 'NS',
       ) as StringAnswer[];
       if (nsRedirects.length) {
         const { records: aRecords, trace: subTrace } = await this.fetchRecords(
           nsRedirects[0].data,
-          'A'
+          'A',
         );
 
         if (!aRecords.length) {
@@ -223,7 +223,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
   public async resolveRecordType(
     domain: string,
-    type: RecordType
+    type: RecordType,
   ): Promise<ResolverResponse> {
     return this.fetchRecords(domain, type);
   }

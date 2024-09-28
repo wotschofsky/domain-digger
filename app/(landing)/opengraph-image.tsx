@@ -6,11 +6,11 @@ export const runtime = 'edge';
 export const contentType = 'image/png';
 
 const interRegularFontP = fetch(
-  new URL('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff')
+  new URL('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff'),
 ).then((res) => res.arrayBuffer());
 
 const interBoldFontP = fetch(
-  new URL('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff')
+  new URL('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff'),
 ).then((res) => res.arrayBuffer());
 
 const publicUrl =
@@ -187,7 +187,7 @@ export const handler = async () => {
           weight: 700,
         },
       ],
-    }
+    },
   );
 };
 

@@ -40,7 +40,7 @@ type WhoisQuickInfoProps = {
 
 export const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
   const { data, isLoading } = useSWRImmutable<WhoisSummaryResponse>(
-    `/api/whois-summary?domain=${encodeURIComponent(domain)}`
+    `/api/whois-summary?domain=${encodeURIComponent(domain)}`,
   );
 
   if (isLoading || !data) {

@@ -52,7 +52,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
 
   const lookupResults = await getGlobalLookupResults(
     domain,
-    (code) => new InternalDoHResolver(code, 'cloudflare')
+    (code) => new InternalDoHResolver(code, 'cloudflare'),
   );
   const hasDifferences = getHasDifferences(lookupResults.map((m) => m.results));
 

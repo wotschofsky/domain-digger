@@ -129,7 +129,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       inputRef.current?.focus();
     },
     { preventDefault: true },
-    [inputRef.current]
+    [inputRef.current],
   );
 
   const redirectUser = useCallback(
@@ -151,7 +151,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
       router.push(target);
     },
-    [setState, router, pathname, props.subpage]
+    [setState, router, pathname, props.subpage],
   );
 
   const handleSubmit = useCallback(
@@ -181,12 +181,12 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           return;
       }
     },
-    [setInvalid, setIpDetailsOpen, redirectUser, plausible]
+    [setInvalid, setIpDetailsOpen, redirectUser, plausible],
   );
 
   const { suggestions } = useSuggestions(domain);
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(
-    null
+    null,
   );
   useEffect(() => {
     setSelectedSuggestion(null);
@@ -207,12 +207,12 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         },
       });
     },
-    [domain, setDomain, redirectUser, plausible]
+    [domain, setDomain, redirectUser, plausible],
   );
 
   const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(
     (event) => setDomain(event.currentTarget.value),
-    [setDomain]
+    [setDomain],
   );
 
   const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
@@ -257,7 +257,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       suggestions,
       selectedSuggestion,
       handleSelectSuggestion,
-    ]
+    ],
   );
 
   const handleFocus = useCallback(() => {
@@ -273,7 +273,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         inputRef.current?.focus();
       }
     },
-    [setIpDetailsOpen, inputRef]
+    [setIpDetailsOpen, inputRef],
   );
 
   return (
@@ -336,7 +336,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                   key={value}
                   className={cn(
                     'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-muted/50',
-                    { 'bg-muted/50': selectedSuggestion === index }
+                    { 'bg-muted/50': selectedSuggestion === index },
                   )}
                   onClick={() => handleSelectSuggestion(value)}
                 >

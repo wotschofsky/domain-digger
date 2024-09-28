@@ -16,7 +16,7 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
       new URLSearchParams({
         Identity: domain,
         output: 'json',
-      })
+      }),
   );
 
   if (!response.ok) {
@@ -28,7 +28,7 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
   return data.filter((cert) =>
     cert.name_value
       .split(/\n/g)
-      .some((value) => value === domain || value.endsWith(`.${domain}`))
+      .some((value) => value === domain || value.endsWith(`.${domain}`)),
   );
 };
 
@@ -48,7 +48,7 @@ export const lookupRelatedCerts = async (domain: string) => {
     .toSorted(
       (a, b) =>
         new Date(b.entry_timestamp).getTime() -
-        new Date(a.entry_timestamp).getTime()
+        new Date(a.entry_timestamp).getTime(),
     );
 
   return certs;

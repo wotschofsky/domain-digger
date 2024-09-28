@@ -30,11 +30,11 @@ export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
           .toSorted((a, b) => a.date.getTime() - b.date.getTime())[0].date,
         stillExists: hasRecords,
       };
-    })
+    }),
   );
 
   const sortedResults = results.toSorted(
-    (a, b) => b.firstSeen.getTime() - a.firstSeen.getTime()
+    (a, b) => b.firstSeen.getTime() - a.firstSeen.getTime(),
   );
 
   return {

@@ -34,13 +34,13 @@ describe('InternalDoHResolver', () => {
     expect(records).toEqual(mockRawRecord);
     expect(fetch).toHaveBeenCalledWith(
       new URL(
-        'https://example.com/api/internal/resolve/cdg?resolver=google&type=A&domain=example.com'
+        'https://example.com/api/internal/resolve/cdg?resolver=google&type=A&domain=example.com',
       ),
       {
         headers: {
           Authorization: 'secret',
         },
-      }
+      },
     );
   });
 
@@ -55,9 +55,9 @@ describe('InternalDoHResolver', () => {
     vi.mocked(fetch).mockResolvedValue(mockResponse as Response);
 
     await expect(
-      resolver.resolveRecordType('example.com', 'A')
+      resolver.resolveRecordType('example.com', 'A'),
     ).rejects.toThrow(
-      'Failed to fetch results for lhr from https://example.com/api/internal/resolve/lhr?resolver=alibaba&type=A&domain=example.com: 500 Internal Server Error'
+      'Failed to fetch results for lhr from https://example.com/api/internal/resolve/lhr?resolver=alibaba&type=A&domain=example.com: 500 Internal Server Error',
     );
   });
 
@@ -83,13 +83,13 @@ describe('InternalDoHResolver', () => {
     expect(records).toEqual(mockRecords);
     expect(fetch).toHaveBeenCalledWith(
       new URL(
-        'https://example.com/api/internal/resolve/hkg?resolver=cloudflare&type=A&type=AAAA&domain=example.com'
+        'https://example.com/api/internal/resolve/hkg?resolver=cloudflare&type=A&type=AAAA&domain=example.com',
       ),
       {
         headers: {
           Authorization: 'secret',
         },
-      }
+      },
     );
   });
 });

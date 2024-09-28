@@ -6,7 +6,7 @@ export class AlibabaDoHResolver extends BaseDoHResolver {
       fetch(`https://dns.alidns.com/resolve?name=${domain}&type=${type}`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
-      })
+      }),
     );
   }
 }

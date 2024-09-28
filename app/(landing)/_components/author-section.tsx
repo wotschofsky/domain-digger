@@ -12,7 +12,7 @@ export const AuthorSection: FC<AuthorSectionProps> = ({
   <section
     className={cn(
       'flex items-center justify-center gap-4 font-medium',
-      className
+      className,
     )}
     {...props}
   >

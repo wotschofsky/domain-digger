@@ -38,7 +38,7 @@ describe('getResolverFromName', () => {
 
   it('should throw an error when an invalid resolver name is provided and location is defined', () => {
     expect(() => getResolverFromName('invalid', 'iad1')).toThrow(
-      'Invalid resolver'
+      'Invalid resolver',
     );
   });
 });

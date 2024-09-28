@@ -26,7 +26,7 @@ describe('getGlobalLookupResults', () => {
   it('should resolve DNS records for all regions and format results', async () => {
     const results = await getGlobalLookupResults(
       'example.com',
-      resolverFactory
+      resolverFactory,
     );
     expect(resolverFactory).toHaveBeenCalledTimes(2);
     expect(mockResolveRecordTypes).toHaveBeenCalledWith('example.com', [

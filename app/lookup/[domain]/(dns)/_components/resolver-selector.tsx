@@ -43,7 +43,7 @@ export const ResolverSelector: FC<ResolverSelectorProps> = ({
         props: { resolver: value },
       });
     },
-    [router, pathname, searchParams, plausible]
+    [router, pathname, searchParams, plausible],
   );
 
   return (

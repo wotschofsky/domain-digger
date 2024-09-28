@@ -18,7 +18,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
       url.searchParams.set('ref', 'domain-digger');
       return url.toString();
     },
-    []
+    [],
   );
 
   if (!env.GITHUB_TOKEN) {

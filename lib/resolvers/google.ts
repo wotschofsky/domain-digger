@@ -6,7 +6,7 @@ export class GoogleDoHResolver extends BaseDoHResolver {
       fetch(`https://dns.google/resolve?name=${domain}&type=${type}`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
-      })
+      }),
     );
   }
 }

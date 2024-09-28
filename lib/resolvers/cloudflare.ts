@@ -8,8 +8,8 @@ export class CloudflareDoHResolver extends BaseDoHResolver {
         {
           method: 'GET',
           headers: { Accept: 'application/dns-json' },
-        }
-      )
+        },
+      ),
     );
   }
 }

@@ -7,7 +7,7 @@ import { DnsResolver, type RecordType, type ResolverResponse } from './base';
 class MockResolver extends DnsResolver {
   public async resolveRecordType(
     domain: string,
-    type: RecordType
+    type: RecordType,
   ): Promise<ResolverResponse> {
     return {
       records: [
@@ -50,7 +50,7 @@ describe('DnsResolver', () => {
 
       const resolvedRecords = await resolver.resolveRecordTypes(
         'example.com',
-        ALL_RECORD_TYPES
+        ALL_RECORD_TYPES,
       );
 
       // Ensure all record types are present and have the expected data

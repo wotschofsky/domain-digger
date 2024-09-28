@@ -34,7 +34,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
       }
 
       const sortedRecords = response.records.toSorted((a, b) =>
-        naturalCompare(a.data, b.data)
+        naturalCompare(a.data, b.data),
       );
 
       return (
@@ -49,7 +49,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
                   'text-sm text-muted-foreground underline decoration-dotted underline-offset-4',
                   'plausible-event-name=Trace:+Click',
                   `plausible-event-domain=${sortedRecords[0].name}`,
-                  `plausible-event-type=${recordType}`
+                  `plausible-event-type=${recordType}`,
                 )}
               >
                 View Trace

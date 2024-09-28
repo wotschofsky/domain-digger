@@ -16,7 +16,7 @@ export async function GET(request: Request) {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
   }
 
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
         headers: {
           'Content-Type': 'application/json',
         },
-      }
+      },
     );
   }
 }

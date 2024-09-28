@@ -22,7 +22,7 @@ const getProgrammaticPaths = async () => {
   ].toSorted();
 
   const resultsPaths = allDomains.flatMap((domain) =>
-    RESULTS_SUBPATHS.map((suffix) => '/lookup/' + domain + suffix)
+    RESULTS_SUBPATHS.map((suffix) => '/lookup/' + domain + suffix),
   );
 
   return resultsPaths;
