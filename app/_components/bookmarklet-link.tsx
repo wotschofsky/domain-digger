@@ -19,11 +19,12 @@ import {
 } from '@/components/ui/alert-dialog';
 
 export const BookmarkletLink: FC = () => {
-  const [target, setTarget] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const [activated, setActivated] = useState(false);
+  const [pressed, setPressed] = useState(false);
 
-  useEffect(() => {
+  const applyScript = useCallback((element: HTMLAnchorElement | null) => {
+    if (!element) return;
+
     const rawScript = `
       (function(){
         var tab = window.open('${location.origin}/lookup/'+location.hostname+'?ref=bookmarklet', '_blank');
@@ -38,7 +39,8 @@ export const BookmarkletLink: FC = () => {
       .split('\n')
       .map((line) => line.trim())
       .join('');
-    setTarget(`javascript:${minifiedScript}`);
+
+    element.href = `javascript:${minifiedScript}`;
   }, []);
 
   const clickHandler = useCallback<MouseEventHandler<HTMLAnchorElement>>(
@@ -52,12 +54,12 @@ export const BookmarkletLink: FC = () => {
   const mouseDownHandler = useCallback<
     MouseEventHandler<HTMLAnchorElement>
   >(() => {
-    setActivated(true);
-  }, [setActivated]);
+    setPressed(true);
+  }, [setPressed]);
 
   useEffect(() => {
     const handler = () => {
-      setActivated(false);
+      setPressed(false);
     };
 
     window.addEventListener('mouseup', handler);
@@ -71,19 +73,15 @@ export const BookmarkletLink: FC = () => {
 
   return (
     <>
-      {target ? (
-        <a
-          className="text-center"
-          href={target}
-          onClick={clickHandler}
-          onMouseDown={mouseDownHandler}
-          tabIndex={-1}
-        >
-          {activated ? 'Inspect Domain' : 'Bookmarklet'}
-        </a>
-      ) : (
-        <span className="text-center">Loading...</span>
-      )}
+      <a
+        ref={applyScript}
+        className="cursor-pointer text-center"
+        onClick={clickHandler}
+        onMouseDown={mouseDownHandler}
+        tabIndex={-1}
+      >
+        {pressed ? 'Inspect Domain' : 'Bookmarklet'}
+      </a>
 
       <AlertDialog open={isOpen} onOpenChange={setIsOpen}>
         <AlertDialogContent>
