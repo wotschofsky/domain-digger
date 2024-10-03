@@ -29,6 +29,11 @@ export const env = createEnv({
     BIGQUERY_LOCATION: z.string().optional(),
 
     GITHUB_TOKEN: z.string().optional(),
+    GITHUB_SPONSORS_FEATURED_TIERS: z
+      .string()
+      .transform(safeJSONParse)
+      .pipe(z.array(z.string()))
+      .optional(),
   },
   client: {
     NEXT_PUBLIC_PLAUSIBLE_DOMAIN: z.string().optional(),

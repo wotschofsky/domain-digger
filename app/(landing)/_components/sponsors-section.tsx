@@ -26,9 +26,8 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   }
 
   const sponsors = await getGitHubSponsors('wotschofsky');
-  const shownSponsors = sponsors.filter((sponsor) => sponsor.amount >= 50);
 
-  if (!shownSponsors.length) {
+  if (!sponsors.length) {
     return null;
   }
 
@@ -40,7 +39,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
       <h2 className="text-center font-semibold sm:text-lg">Sponsored by</h2>
 
       <div className="mb-2 flex items-center justify-center gap-4">
-        {shownSponsors.map((sponsor) => (
+        {sponsors.map((sponsor) => (
           <a
             key={sponsor.login}
             href={buildSponsorUrl(sponsor)}
@@ -61,7 +60,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
         href="https://github.com/sponsors/wotschofsky"
         target="_blank"
       >
-        Sponsor Domain Digger
+        Sponsor Domain Digger and add your logo
       </a>
     </section>
   );

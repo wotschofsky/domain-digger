@@ -4,19 +4,17 @@ type SponsorsQueryResponse = {
   data: {
     user: {
       sponsorshipsAsMaintainer: {
-        edges: {
-          node: {
-            sponsorEntity: {
-              login: string;
-              name: string;
-              url: string;
-              avatarUrl: string;
-              websiteUrl: string | null;
-            };
-            tier: {
-              monthlyPriceInDollars: number;
-            };
+        nodes: {
+          sponsorEntity: {
+            login: string;
+            name: string;
+            url: string;
+            avatarUrl: string;
+            websiteUrl: string | null;
           };
+          tier: {
+            id: string;
+          } | null;
         }[];
       };
     };
@@ -35,27 +33,25 @@ export const getGitHubSponsors = async (username: string) => {
         query SponsorsQuery($username: String!) {
           user(login: $username) {
             sponsorshipsAsMaintainer(first: 100) {
-              edges {
-                node {
-                  sponsorEntity {
-                    ... on User {
-                      login
-                      name
-                      url
-                      avatarUrl
-                      websiteUrl
-                    }
-                    ... on Organization {
-                      login
-                      name
-                      url
-                      avatarUrl
-                      websiteUrl
-                    }
+              nodes {
+                sponsorEntity {
+                  ... on User {
+                    login
+                    name
+                    url
+                    avatarUrl
+                    websiteUrl
                   }
-                  tier {
-                    monthlyPriceInDollars
+                  ... on Organization {
+                    login
+                    name
+                    url
+                    avatarUrl
+                    websiteUrl
                   }
+                }
+                tier {
+                  id
                 }
               }
             }
@@ -72,17 +68,36 @@ export const getGitHubSponsors = async (username: string) => {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to fetch GitHub sponsors');
+    const body = await response.text();
+    throw new Error(
+      `Failed to fetch GitHub sponsors: ${response.status} ${response.statusText}\n${body}`,
+    );
   }
 
   const body = (await response.json()) as SponsorsQueryResponse;
 
-  return body.data.user.sponsorshipsAsMaintainer.edges.map(({ node }) => ({
-    login: node.sponsorEntity.login,
-    name: node.sponsorEntity.name,
-    url: node.sponsorEntity.url,
-    avatarUrl: node.sponsorEntity.avatarUrl,
-    websiteUrl: node.sponsorEntity.websiteUrl,
-    amount: node.tier.monthlyPriceInDollars,
-  }));
+  const sponsors = body.data.user.sponsorshipsAsMaintainer.nodes.map((node) => {
+    if (!node.tier) {
+      throw new Error(
+        'Failed to fetch GitHub sponsors; access token might lack sufficient permissions',
+      );
+    }
+
+    return {
+      login: node.sponsorEntity.login,
+      name: node.sponsorEntity.name,
+      url: node.sponsorEntity.url,
+      avatarUrl: node.sponsorEntity.avatarUrl,
+      websiteUrl: node.sponsorEntity.websiteUrl,
+      tierId: node.tier.id,
+    };
+  });
+
+  const filteredSponsors = env.GITHUB_SPONSORS_FEATURED_TIERS
+    ? sponsors.filter((sponsor) =>
+        env.GITHUB_SPONSORS_FEATURED_TIERS!.includes(sponsor.tierId),
+      )
+    : sponsors;
+
+  return filteredSponsors;
 };
