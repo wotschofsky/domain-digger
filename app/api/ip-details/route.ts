@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import isIP from 'validator/lib/isIP';
 
-import { applyRateLimit } from '@/lib/api';
 import { getIpDetails, lookupReverse } from '@/lib/ips';
 
 export const runtime = 'edge';
@@ -30,15 +29,6 @@ export async function GET(request: Request) {
         },
       },
     );
-  }
-
-  const visitorIp = request.headers.get('x-forwarded-for') ?? '';
-  const identifier = ['ip-details', visitorIp].join(':');
-  const isAllowed = await applyRateLimit(identifier, 10, '60s');
-  if (!isAllowed) {
-    return new Response('Too many requests', {
-      status: 429,
-    });
   }
 
   const [data, reverse] = await Promise.all([

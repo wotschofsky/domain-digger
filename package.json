@@ -28,8 +28,6 @@
     "@types/punycode": "^2.1.4",
     "@types/validator": "^13.12.0",
     "@uidotdev/usehooks": "^2.4.1",
-    "@upstash/ratelimit": "^2.0.1",
-    "@upstash/redis": "^1.34.0",
     "@vercel/speed-insights": "^1.0.12",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.0",

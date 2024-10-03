@@ -1,4 +1,3 @@
-import { applyRateLimit } from '@/lib/api';
 import { getWhoisSummary } from '@/lib/whois';
 
 export type WhoisSummaryResponse = Awaited<ReturnType<typeof getWhoisSummary>>;
@@ -18,15 +17,6 @@ export async function GET(request: Request) {
         },
       },
     );
-  }
-
-  const visitorIp = request.headers.get('x-forwarded-for') ?? '';
-  const identifier = ['whois-summary', visitorIp].join(':');
-  const isAllowed = await applyRateLimit(identifier, 5, '60s');
-  if (!isAllowed) {
-    return new Response('Too many requests', {
-      status: 429,
-    });
   }
 
   try {
