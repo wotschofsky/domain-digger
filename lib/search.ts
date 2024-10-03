@@ -48,7 +48,7 @@ export const getSearchSuggestions = async (query: string) => {
   }
 
   const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.lookups\``;
-  const results = await bigquery.query({
+  const results = await bigquery.query<{ baseDomain: string }>({
     query: `
       SELECT baseDomain
       FROM ${tableName}
@@ -62,7 +62,7 @@ export const getSearchSuggestions = async (query: string) => {
     },
   });
 
-  return results.map((row: any) => row.baseDomain) as string[];
+  return results.map((row) => row.baseDomain);
 };
 
 export const getTopDomains = async (count: number) => {
@@ -71,7 +71,7 @@ export const getTopDomains = async (count: number) => {
   }
 
   const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.lookups\``;
-  const results = await bigquery.query({
+  const results = await bigquery.query<{ baseDomain: string }>({
     query: `
       SELECT baseDomain
       FROM ${tableName}
@@ -82,5 +82,5 @@ export const getTopDomains = async (count: number) => {
     `,
   });
 
-  return results.map((row: any) => row.baseDomain) as string[];
+  return results.map((row) => row.baseDomain);
 };

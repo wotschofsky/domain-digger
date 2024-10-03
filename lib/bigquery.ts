@@ -52,13 +52,13 @@ export const insertRows = async ({
   }
 };
 
-export const query = async ({
+export const query = async <T extends Record<string, any>>({
   query,
   params,
 }: {
   query: string;
   params?: Record<string, string>;
-}): Promise<any[]> => {
+}): Promise<T[]> => {
   const accessToken = await getAccessToken({
     // @ts-expect-error still works
     credentials: credentials,
