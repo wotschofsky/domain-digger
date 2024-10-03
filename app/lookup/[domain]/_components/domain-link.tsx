@@ -23,6 +23,7 @@ export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
           <Link
             className="select-all underline decoration-dotted underline-offset-4"
             href={`/lookup/${domain.toLowerCase()}`}
+            prefetch={false}
             aria-label={`Results for ${domain}`}
           >
             <span>{domain}</span>
