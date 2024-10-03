@@ -79,6 +79,25 @@ Use the following schema for creating the dataset:
 ]
 ```
 
+Next, create a materialized view. Make sur to replace `project`, `dataset` with your project ID and dataset name:
+
+```sql
+CREATE OR REPLACE MATERIALIZED VIEW `project.dataset.popular_domains`
+OPTIONS(
+  refresh_interval_minutes = 360,
+  enable_refresh = true
+) AS
+SELECT
+  baseDomain as domain,
+  COUNT(*) AS count
+FROM
+  `project.dataset.lookups`
+WHERE
+  baseDomain IS NOT NULL
+GROUP BY
+  baseDomain;
+```
+
 #### Creating a service account
 
 When creating a service account, ensure that the following permissions are granted:

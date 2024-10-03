@@ -47,22 +47,21 @@ export const getSearchSuggestions = async (query: string) => {
     return [];
   }
 
-  const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.lookups\``;
-  const results = await bigquery.query<{ baseDomain: string }>({
+  const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.popular_domains\``;
+  const results = await bigquery.query<{ domain: string }>({
     query: `
-      SELECT baseDomain
+      SELECT domain
       FROM ${tableName}
-      WHERE baseDomain LIKE @query
-      GROUP BY baseDomain
-      ORDER BY COUNT(*) DESC
+      WHERE STARTS_WITH(domain, @query)
+      ORDER BY count DESC
       LIMIT 5
     `,
     params: {
-      query: `${query.toLowerCase()}%`,
+      query: query.toLowerCase(),
     },
   });
 
-  return results.map((row) => row.baseDomain);
+  return results.map((row) => row.domain);
 };
 
 export const getTopDomains = async (count: number) => {
@@ -70,17 +69,16 @@ export const getTopDomains = async (count: number) => {
     return [];
   }
 
-  const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.lookups\``;
-  const results = await bigquery.query<{ baseDomain: string }>({
+  const tableName = `\`${bigquery.projectId}.${env.BIGQUERY_DATASET}.popular_domains\``;
+  const results = await bigquery.query<{ domain: string }>({
     query: `
-      SELECT baseDomain
+      SELECT domain
       FROM ${tableName}
-      WHERE baseDomain IS NOT NULL
-      GROUP BY baseDomain
-      ORDER BY COUNT(*) DESC
+      WHERE domain IS NOT NULL
+      ORDER BY count DESC
       LIMIT ${count}
     `,
   });
 
-  return results.map((row) => row.baseDomain);
+  return results.map((row) => row.domain);
 };
