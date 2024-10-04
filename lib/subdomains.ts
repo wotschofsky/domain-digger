@@ -2,7 +2,7 @@ import { lookupCerts } from './certs';
 import type { DnsResolver } from './resolvers/base';
 import { deduplicate, isValidDomain } from './utils';
 
-const RESULTS_LIMIT = 500;
+const DETAILED_RESULTS_LIMIT = 500;
 
 export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
   const certs = await lookupCerts(domain);
@@ -17,20 +17,32 @@ export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
     .filter((d) => d.endsWith(`.${domain}`));
 
   const results = await Promise.all(
-    // Limited to avoid subrequest limit from Cloudflare Workers of 1000
-    // https://developers.cloudflare.com/workers/platform/limits#subrequests
-    uniqueDomains.slice(0, RESULTS_LIMIT).map(async (domain) => {
-      const records = await resolver.resolveRecordType(domain, 'A');
-      const hasRecords = records.records.length > 0;
-
-      return {
+    uniqueDomains
+      .map((domain) => ({
         domain,
         firstSeen: issuedCerts
           .filter((c) => c.domains.includes(domain))
           .toSorted((a, b) => a.date.getTime() - b.date.getTime())[0].date,
-        stillExists: hasRecords,
-      };
-    }),
+      }))
+      .toSorted((a, b) => b.firstSeen.getTime() - a.firstSeen.getTime())
+      .map(async (entry, index) => {
+        // Limited to avoid subrequest limit from Cloudflare Workers of 1000
+        // https://developers.cloudflare.com/workers/platform/limits#subrequests
+        if (index > DETAILED_RESULTS_LIMIT) {
+          return {
+            ...entry,
+            stillExists: null,
+          };
+        }
+
+        const records = await resolver.resolveRecordType(entry.domain, 'A');
+        const hasRecords = records.records.length > 0;
+
+        return {
+          ...entry,
+          stillExists: hasRecords,
+        };
+      }),
   );
 
   const sortedResults = results.toSorted(
@@ -39,7 +51,7 @@ export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
 
   return {
     results: sortedResults,
-    isTruncated: uniqueDomains.length > RESULTS_LIMIT,
-    RESULTS_LIMIT,
+    detailsReduced: uniqueDomains.length > DETAILED_RESULTS_LIMIT,
+    detailedResultsLimit: DETAILED_RESULTS_LIMIT,
   };
 };

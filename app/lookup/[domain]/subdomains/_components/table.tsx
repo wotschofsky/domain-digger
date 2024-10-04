@@ -1,7 +1,14 @@
 'use client';
 
-import { CheckIcon, XIcon } from 'lucide-react';
+import { CheckIcon, FileQuestionIcon, XIcon } from 'lucide-react';
 import type { FC } from 'react';
+
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 import { SortableTable } from '@/components/sortable-table';
 
@@ -11,11 +18,15 @@ type SubdomainsTableProps = {
   results: {
     domain: string;
     firstSeen: Date;
-    stillExists: boolean;
+    stillExists: boolean | null;
   }[];
+  detailedResultsLimit: number;
 };
 
-export const SubdomainsTable: FC<SubdomainsTableProps> = ({ results }) => (
+export const SubdomainsTable: FC<SubdomainsTableProps> = ({
+  results,
+  detailedResultsLimit,
+}) => (
   <SortableTable
     data={results}
     columns={[
@@ -33,7 +44,22 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({ results }) => (
         key: 'stillExists',
         label: 'Still exists',
         render: (value) =>
-          value ? <CheckIcon size="1.25rem" /> : <XIcon size="1.25rem" />,
+          value === null ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <FileQuestionIcon size="1.25rem" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Detailed results limited to {detailedResultsLimit}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : value ? (
+            <CheckIcon size="1.25rem" />
+          ) : (
+            <XIcon size="1.25rem" />
+          ),
       },
     ]}
     keyColumn="domain"

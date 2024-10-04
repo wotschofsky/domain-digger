@@ -30,10 +30,8 @@ export const generateMetadata = ({
 const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   params: { domain },
 }) => {
-  const { results, isTruncated, RESULTS_LIMIT } = await findSubdomains(
-    domain,
-    new CloudflareDoHResolver(),
-  );
+  const { results, detailsReduced, detailedResultsLimit } =
+    await findSubdomains(domain, new CloudflareDoHResolver());
 
   if (!results.length) {
     return (
@@ -45,13 +43,16 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 
   return (
     <>
-      <SubdomainsTable results={results} />
+      <SubdomainsTable
+        results={results}
+        detailedResultsLimit={detailedResultsLimit}
+      />
 
-      {isTruncated && (
-        <p className="mt-8 text-center text-muted-foreground">
-          Results limited to {RESULTS_LIMIT} subdomains.
-        </p>
-      )}
+      <p className="mt-8 text-center text-muted-foreground">
+        Found {results.length} subdomains.
+        {detailsReduced &&
+          ` Detailed results limited to ${detailedResultsLimit} subdomains. Some entries may lack information.`}
+      </p>
     </>
   );
 };
