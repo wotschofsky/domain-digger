@@ -18,7 +18,7 @@ export const IconAlert: FC<IconAlertProps> = ({
   title,
   children,
 }) => (
-  <Alert className={cn('mx-auto max-w-max', className)}>
+  <Alert className={cn('max-w-max', className)}>
     <Icon className="h-4 w-4" />
     <AlertTitle>{title}</AlertTitle>
     <AlertDescription>{children}</AlertDescription>

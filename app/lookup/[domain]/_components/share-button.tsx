@@ -1,6 +1,6 @@
 'use client';
 
-import { ShareIcon } from 'lucide-react';
+import { Share2Icon } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
 import { type FC, useCallback } from 'react';
 import { toast } from 'sonner';
@@ -35,7 +35,7 @@ export const ShareButton: FC = () => {
       onClick={onClick}
       aria-label="Share"
     >
-      <ShareIcon />
+      <Share2Icon />
     </Button>
   );
 };

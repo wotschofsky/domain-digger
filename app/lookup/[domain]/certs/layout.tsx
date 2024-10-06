@@ -9,7 +9,7 @@ type CertsLayoutProps = {
 
 const CertsLayout: FC<CertsLayoutProps> = ({ children }) => (
   <>
-    <IconAlert className="my-12" icon={InfoIcon} title="How it works">
+    <IconAlert className="mx-auto my-12" icon={InfoIcon} title="How it works">
       Every certificate issued for a domain by a trusted CA{' '}
       <a
         className="underline decoration-dotted underline-offset-4"

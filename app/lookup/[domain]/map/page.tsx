@@ -38,7 +38,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
     console.log('Bot detected, blocking request, UA:', userAgent);
     return (
       <IconAlert
-        className="mt-24"
+        className="mx-auto mt-24"
         icon={ShieldAlertIcon}
         title="Bot or crawler detected!"
       >
@@ -60,7 +60,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
     <>
       {hasDifferences ? (
         <IconAlert
-          className="mt-12"
+          className="mx-auto mt-12"
           icon={InfoIcon}
           title="Different records detected!"
         >
@@ -71,7 +71,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({
         </IconAlert>
       ) : (
         <IconAlert
-          className="mt-12"
+          className="mx-auto mt-12"
           icon={CheckCircleIcon}
           title="All records are the same!"
         >
