@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server';
+
 import { env } from '@/env';
 import { ALL_RECORD_TYPES } from '@/lib/data';
 import { AlibabaDoHResolver } from '@/lib/resolvers/alibaba';
@@ -14,7 +16,7 @@ export const handler = async (request: Request) => {
     env.INTERNAL_API_SECRET &&
     env.INTERNAL_API_SECRET !== request.headers.get('authorization')
   ) {
-    return Response.json(
+    return NextResponse.json(
       {
         error: true,
         message: 'Unauthorized',
@@ -34,7 +36,7 @@ export const handler = async (request: Request) => {
   const domain = searchParams.get('domain');
 
   if (!resolverName || !types.length || !domain) {
-    return Response.json(
+    return NextResponse.json(
       {
         error: true,
         message: '"resolver", "type" and "domain" params are required',
@@ -49,7 +51,7 @@ export const handler = async (request: Request) => {
   }
 
   if (!['alibaba', 'cloudflare', 'google'].includes(resolverName)) {
-    return Response.json(
+    return NextResponse.json(
       {
         error: true,
         message: `Invalid resolver "${resolverName}"`,
@@ -65,7 +67,7 @@ export const handler = async (request: Request) => {
 
   for (const type of types) {
     if (!ALL_RECORD_TYPES.includes(type as RecordType)) {
-      return Response.json(
+      return NextResponse.json(
         {
           error: true,
           message: `Invalid record type "${type}"`,
@@ -92,5 +94,5 @@ export const handler = async (request: Request) => {
     types as RecordType[],
   );
 
-  return Response.json(response);
+  return NextResponse.json(response);
 };

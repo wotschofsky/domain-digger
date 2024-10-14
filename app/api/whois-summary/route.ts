@@ -1,3 +1,5 @@
+import { NextResponse } from 'next/server';
+
 import { getWhoisSummary } from '@/lib/whois';
 
 export type WhoisSummaryResponse = Awaited<ReturnType<typeof getWhoisSummary>>;
@@ -8,7 +10,7 @@ export async function GET(request: Request) {
   const domain = searchParams.get('domain');
 
   if (!domain) {
-    return Response.json(
+    return NextResponse.json(
       { error: true, message: 'No domain provided' },
       {
         status: 400,
@@ -21,13 +23,13 @@ export async function GET(request: Request) {
 
   try {
     const summary = await getWhoisSummary(domain);
-    return Response.json(summary, {
+    return NextResponse.json(summary, {
       headers: {
         'Cache-Control': 'public, max-age=600, s-maxage=1800',
       },
     });
   } catch (error) {
-    return Response.json(
+    return NextResponse.json(
       { error: true, message: 'Error fetching whois summary' },
       {
         status: 500,
