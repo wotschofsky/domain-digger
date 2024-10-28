@@ -18,7 +18,15 @@ const publicUrl =
   (env.VERCEL_URL && `https://${env.VERCEL_URL}`) ||
   'http://localhost:3000';
 
-export const handler = async ({ params }: { params: { domain: string } }) => {
+type OGImageProps = {
+  params: Promise<{
+    domain: string;
+  }>;
+};
+
+export const handler = async ({ params: paramsPromise }: OGImageProps) => {
+  const params = await paramsPromise;
+
   const [interRegularFont, interBoldFont] = await Promise.all([
     interRegularFontP,
     interBoldFontP,

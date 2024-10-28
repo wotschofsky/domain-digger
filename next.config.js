@@ -53,6 +53,10 @@ const nextConfig = {
   ],
   experimental: {
     webpackBuildWorker: true,
+    staleTimes: {
+      dynamic: 60,
+      static: 300,
+    },
   },
 };
 

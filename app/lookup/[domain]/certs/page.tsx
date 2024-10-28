@@ -10,25 +10,32 @@ export const runtime = 'edge';
 export const preferredRegion = 'lhr1';
 
 type CertsResultsPageProps = {
-  params: {
+  params: Promise<{
     domain: string;
+  }>;
+};
+
+export const generateMetadata = async ({
+  params,
+}: CertsResultsPageProps): Promise<Metadata> => {
+  const { domain } = await params;
+
+  return {
+    openGraph: {
+      url: `/lookup/${domain}/certs`,
+    },
+
+    alternates: {
+      canonical: `/lookup/${domain}/certs`,
+    },
   };
 };
 
-export const generateMetadata = ({
-  params: { domain },
-}: CertsResultsPageProps): Metadata => ({
-  openGraph: {
-    url: `/lookup/${domain}/certs`,
-  },
-  alternates: {
-    canonical: `/lookup/${domain}/certs`,
-  },
-});
+const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
+  const params = await props.params;
 
-const CertsResultsPage: FC<CertsResultsPageProps> = async ({
-  params: { domain },
-}) => {
+  const { domain } = params;
+
   const certs = await lookupRelatedCerts(domain);
 
   if (!certs.length) {

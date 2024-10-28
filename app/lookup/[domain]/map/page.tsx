@@ -13,26 +13,31 @@ import { ResultsGlobe } from './_components/results-globe';
 export const runtime = 'edge';
 
 type MapResultsPageProps = {
-  params: {
+  params: Promise<{
     domain: string;
+  }>;
+};
+
+export const generateMetadata = async ({
+  params,
+}: MapResultsPageProps): Promise<Metadata> => {
+  const { domain } = await params;
+
+  return {
+    openGraph: {
+      url: `/lookup/${domain}/map`,
+    },
+    alternates: {
+      canonical: `/lookup/${domain}/map`,
+    },
   };
 };
 
-export const generateMetadata = ({
-  params: { domain },
-}: MapResultsPageProps): Metadata => ({
-  openGraph: {
-    url: `/lookup/${domain}/map`,
-  },
-  alternates: {
-    canonical: `/lookup/${domain}/map`,
-  },
-});
+const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
+  const { domain } = await params;
 
-const MapResultsPage: FC<MapResultsPageProps> = async ({
-  params: { domain },
-}) => {
-  const { isBot, userAgent } = isUserBot(headers());
+  const headersList = await headers();
+  const { isBot, userAgent } = isUserBot(headersList);
 
   if (isBot) {
     console.log('Bot detected, blocking request, UA:', userAgent);

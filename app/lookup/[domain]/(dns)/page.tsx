@@ -11,30 +11,33 @@ import { LocationSelector } from './_components/location-selector';
 import { ResolverSelector } from './_components/resolver-selector';
 
 type LookupDomainProps = {
-  params: {
+  params: Promise<{
     domain: string;
-  };
-  searchParams: {
+  }>;
+  searchParams: Promise<{
     resolver?: string;
     location?: string;
-  };
+  }>;
 };
 
-export const generateMetadata = ({
-  params: { domain },
-  searchParams: { resolver, location },
-}: LookupDomainProps): Metadata => {
-  const params = new URLSearchParams();
-  if (resolver) params.set('resolver', resolver);
-  if (location) params.set('location', location);
-  const search = params.size ? `?${params.toString()}` : '';
+export const generateMetadata = async ({
+  params,
+  searchParams,
+}: LookupDomainProps): Promise<Metadata> => {
+  const { domain } = await params;
+  const { resolver, location } = await searchParams;
+
+  const normalizedParams = new URLSearchParams();
+  if (resolver) normalizedParams.set('resolver', resolver);
+  if (location) normalizedParams.set('location', location);
+  const suffix = normalizedParams.size ? `?${normalizedParams.toString()}` : '';
 
   return {
     openGraph: {
-      url: `/lookup/${domain}${search}`,
+      url: `/lookup/${domain}${suffix}`,
     },
     alternates: {
-      canonical: `/lookup/${domain}${search}`,
+      canonical: `/lookup/${domain}${suffix}`,
     },
   };
 };
@@ -42,9 +45,12 @@ export const generateMetadata = ({
 export const fetchCache = 'default-no-store';
 
 const LookupDomain: FC<LookupDomainProps> = async ({
-  params: { domain },
-  searchParams: { resolver: resolverName, location: locationName },
+  params,
+  searchParams,
 }) => {
+  const { domain } = await params;
+  const { resolver: resolverName, location: locationName } = await searchParams;
+
   if (locationName && !resolverName) {
     return redirect(
       `/lookup/${encodeURIComponent(domain)}`,

@@ -29,7 +29,10 @@ import { CopyButton } from './copy-button';
 import { DomainLink } from './domain-link';
 
 const LocationMap = dynamic(
-  () => import('./location-map').then((m) => m.LocationMap),
+  () =>
+    import('./location-map').then((m) => ({
+      default: m.LocationMap,
+    })),
   {
     ssr: false,
   },

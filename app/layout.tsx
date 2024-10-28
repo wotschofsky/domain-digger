@@ -5,6 +5,7 @@ import type { FC, ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
 
+import { ClientOnly } from '@/components/client-only';
 import { env } from '@/env';
 
 import { Footer } from './_components/footer';
@@ -12,11 +13,10 @@ import { Header } from './_components/header';
 import './globals.css';
 import { Providers } from './providers';
 
-const FeedbackPrompt = dynamic(
-  () => import('./_components/feedback-prompt').then((m) => m.FeedbackPrompt),
-  {
-    ssr: false,
-  },
+const FeedbackPrompt = dynamic(() =>
+  import('./_components/feedback-prompt').then((m) => ({
+    default: m.FeedbackPrompt,
+  })),
 );
 
 export const viewport: Viewport = {
@@ -56,7 +56,9 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
             <Header />
 
             <main className="w-full flex-1 pb-16 pt-8">{children}</main>
-            <FeedbackPrompt />
+            <ClientOnly>
+              <FeedbackPrompt />
+            </ClientOnly>
 
             <Footer />
           </div>

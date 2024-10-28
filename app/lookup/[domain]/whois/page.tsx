@@ -6,18 +6,21 @@ import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 
 type WhoisResultsPageProps = {
-  params: {
+  params: Promise<{
     domain: string;
-  };
-  searchParams: {
+  }>;
+  searchParams: Promise<{
     force?: string;
-  };
+  }>;
 };
 
-export const generateMetadata = ({
-  params: { domain },
-  searchParams: { force },
-}: WhoisResultsPageProps): Metadata => {
+export const generateMetadata = async ({
+  params,
+  searchParams,
+}: WhoisResultsPageProps): Promise<Metadata> => {
+  const { domain } = await params;
+  const { force } = await searchParams;
+
   const search = force !== undefined ? '?force' : '';
 
   return {
@@ -31,9 +34,12 @@ export const generateMetadata = ({
 };
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
-  params: { domain },
-  searchParams: { force },
+  params,
+  searchParams,
 }) => {
+  const { domain } = await params;
+  const { force } = await searchParams;
+
   const forceOriginal = force !== undefined;
   const baseDomain = getBaseDomain(domain);
   const results = await lookupWhois(forceOriginal ? domain : baseDomain);

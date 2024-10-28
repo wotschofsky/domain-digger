@@ -37,18 +37,18 @@ export const FeedbackPrompt: FC = () => {
     window.open('https://wotschofsky.com/#contact', '_blank');
     handleDismiss();
     plausible('Feedback: Negative');
-  }, [handleDismiss]);
+  }, [handleDismiss, plausible]);
 
   const handleNeutral = useCallback(() => {
     handleDismiss();
     plausible('Feedback: Neutral');
-  }, [handleDismiss]);
+  }, [handleDismiss, plausible]);
 
   const handlePositive = useCallback(() => {
     setDialogOpen(true);
     handleDismiss();
     plausible('Feedback: Positive');
-  }, [setDialogOpen, handleDismiss]);
+  }, [setDialogOpen, handleDismiss, plausible]);
 
   return (
     <>

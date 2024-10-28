@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { type FC, type HTMLAttributes, useCallback } from 'react';
+import { type FC, type HTMLAttributes } from 'react';
 
 import { env } from '@/env';
 import { getGitHubSponsors } from '@/lib/github';
@@ -11,15 +11,15 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   className,
   ...props
 }) => {
-  const buildSponsorUrl = useCallback(
-    (sponsor: { url: string; websiteUrl: string | null }) => {
-      if (!sponsor.websiteUrl) return sponsor.url;
-      const url = new URL(sponsor.websiteUrl);
-      url.searchParams.set('ref', 'domain-digger');
-      return url.toString();
-    },
-    [],
-  );
+  const buildSponsorUrl = (sponsor: {
+    url: string;
+    websiteUrl: string | null;
+  }) => {
+    if (!sponsor.websiteUrl) return sponsor.url;
+    const url = new URL(sponsor.websiteUrl);
+    url.searchParams.set('ref', 'domain-digger');
+    return url.toString();
+  };
 
   if (!env.GITHUB_TOKEN) {
     return null;

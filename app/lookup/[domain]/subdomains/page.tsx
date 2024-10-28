@@ -16,25 +16,32 @@ export const runtime = 'edge';
 export const preferredRegion = 'lhr1';
 
 type SubdomainsResultsPageProps = {
-  params: {
+  params: Promise<{
     domain: string;
+  }>;
+};
+
+export const generateMetadata = async ({
+  params,
+}: SubdomainsResultsPageProps): Promise<Metadata> => {
+  const { domain } = await params;
+
+  return {
+    openGraph: {
+      url: `/lookup/${domain}/subdomains`,
+    },
+
+    alternates: {
+      canonical: `/lookup/${domain}/subdomains`,
+    },
   };
 };
 
-export const generateMetadata = ({
-  params: { domain },
-}: SubdomainsResultsPageProps): Metadata => ({
-  openGraph: {
-    url: `/lookup/${domain}/subdomains`,
-  },
-  alternates: {
-    canonical: `/lookup/${domain}/subdomains`,
-  },
-});
-
 const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
-  params: { domain },
+  params,
 }) => {
+  const { domain } = await params;
+
   const { results, detailsReduced, detailedResultsLimit } =
     await findSubdomains(domain, new CloudflareDoHResolver());
 

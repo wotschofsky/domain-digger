@@ -17,33 +17,42 @@ import { WhoisQuickInfo } from './_components/whois-quick-info';
 
 type LookupLayoutProps = {
   children: ReactNode;
-  params: {
+  params: Promise<{
     domain: string;
+  }>;
+};
+
+export const generateMetadata = async ({
+  params,
+}: LookupLayoutProps): Promise<Metadata> => {
+  const { domain } = await params;
+
+  return {
+    title: `Results for ${domain} - Domain Digger`,
+    description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain} using Domain Digger, the full open-source toolkit for next-level domain analysis.`,
+
+    openGraph: {
+      type: 'website',
+      title: `Results for ${domain} - Domain Digger`,
+      description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain} using Domain Digger, the full open-source toolkit for next-level domain analysis.`,
+    },
   };
 };
 
-export const generateMetadata = ({
-  params: { domain },
-}: LookupLayoutProps): Metadata => ({
-  title: `Results for ${domain} - Domain Digger`,
-  description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain} using Domain Digger, the full open-source toolkit for next-level domain analysis.`,
-  openGraph: {
-    type: 'website',
-    title: `Results for ${domain} - Domain Digger`,
-    description: `Find DNS records, WHOIS data, SSL/TLS certificate history and other for ${domain} using Domain Digger, the full open-source toolkit for next-level domain analysis.`,
-  },
-});
+const LookupLayout: FC<LookupLayoutProps> = async (props) => {
+  const params = await props.params;
 
-const LookupLayout: FC<LookupLayoutProps> = ({
-  children,
-  params: { domain },
-}) => {
+  const { domain } = params;
+
+  const { children } = props;
+
   if (!isValidDomain(domain)) {
     return notFound();
   }
 
-  const ip = getVisitorIp(headers());
-  const { isBot, userAgent } = isUserBot(headers());
+  const headersList = await headers();
+  const ip = getVisitorIp(headersList);
+  const { isBot, userAgent } = isUserBot(headersList);
   recordLookup({ domain, ip, userAgent, isBot });
 
   return (
