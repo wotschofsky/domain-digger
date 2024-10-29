@@ -140,7 +140,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       inputRef.current?.focus();
     },
     { preventDefault: true },
-    [inputRef.current],
+    [inputRef],
   );
 
   const redirectUser = useCallback(
