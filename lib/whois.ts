@@ -29,6 +29,7 @@ export const lookupWhois = async (domain: string) => {
 };
 
 const UNREGISTERED_INDICATORS = [
+  'is free', // .nl
   'no data found',
   'no match',
   'no object found',
