@@ -34,6 +34,21 @@ export const env = createEnv({
       .transform(safeJSONParse)
       .pipe(z.array(z.string()))
       .optional(),
+
+    SPONSORS: z
+      .string()
+      .transform(safeJSONParse)
+      .pipe(
+        z.array(
+          z.object({
+            id: z.string(),
+            name: z.string(),
+            logoUrl: z.string(),
+            url: z.string(),
+          }),
+        ),
+      )
+      .optional(),
   },
   client: {
     NEXT_PUBLIC_PLAUSIBLE_DOMAIN: z.string().optional(),

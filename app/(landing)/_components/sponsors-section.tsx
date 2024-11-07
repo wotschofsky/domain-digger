@@ -11,23 +11,25 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   className,
   ...props
 }) => {
-  const buildSponsorUrl = (sponsor: {
-    url: string;
-    websiteUrl: string | null;
-  }) => {
-    if (!sponsor.websiteUrl) return sponsor.url;
-    const url = new URL(sponsor.websiteUrl);
+  const buildSponsorUrl = (baseUrl: string) => {
+    const url = new URL(baseUrl);
     url.searchParams.set('ref', 'domain-digger');
     return url.toString();
   };
 
-  if (!env.GITHUB_TOKEN) {
-    return null;
-  }
+  const githubSponsors = await getGitHubSponsors('wotschofsky');
 
-  const sponsors = await getGitHubSponsors('wotschofsky');
+  const allSponsors = [
+    ...(env.SPONSORS || []),
+    ...githubSponsors.map((s) => ({
+      id: s.login,
+      name: s.name,
+      logoUrl: s.avatarUrl,
+      url: s.websiteUrl || s.url,
+    })),
+  ];
 
-  if (!sponsors.length) {
+  if (!allSponsors.length) {
     return null;
   }
 
@@ -39,29 +41,39 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
       <h2 className="text-center font-semibold sm:text-lg">Sponsored by</h2>
 
       <div className="mb-2 flex items-center justify-center gap-4">
-        {sponsors.map((sponsor) => (
+        {allSponsors.map((sponsor) => (
           <a
-            key={sponsor.login}
-            href={buildSponsorUrl(sponsor)}
+            key={sponsor.id}
+            href={buildSponsorUrl(sponsor.url)}
             target="_blank"
           >
             <Image
               width={48}
               height={48}
               className="h-16 w-16 rounded-md"
-              src={sponsor.avatarUrl}
+              src={sponsor.logoUrl}
               alt={sponsor.name}
             />
           </a>
         ))}
       </div>
-      <a
-        className="text-center text-sm text-muted-foreground underline decoration-dotted underline-offset-4"
-        href="https://github.com/sponsors/wotschofsky"
-        target="_blank"
-      >
-        Sponsor Domain Digger and add your logo
-      </a>
+      <span>
+        <a
+          className="text-center text-sm text-muted-foreground underline decoration-dotted underline-offset-4"
+          href="https://github.com/sponsors/wotschofsky"
+          target="_blank"
+        >
+          Sponsor through GitHub and add your logo
+        </a>{' '}
+        or{' '}
+        <a
+          className="text-center text-sm text-muted-foreground underline decoration-dotted underline-offset-4"
+          href="https://wotschofsky.com#contact"
+          target="_blank"
+        >
+          reach out for more options
+        </a>
+      </span>
     </section>
   );
 };
