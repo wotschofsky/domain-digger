@@ -57,9 +57,9 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
           </a>
         ))}
       </div>
-      <span>
+      <span className="text-center text-sm">
         <a
-          className="text-center text-sm text-muted-foreground underline decoration-dotted underline-offset-4"
+          className="text-muted-foreground underline decoration-dotted underline-offset-4"
           href="https://github.com/sponsors/wotschofsky"
           target="_blank"
         >
@@ -67,7 +67,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
         </a>{' '}
         or{' '}
         <a
-          className="text-center text-sm text-muted-foreground underline decoration-dotted underline-offset-4"
+          className="text-muted-foreground underline decoration-dotted underline-offset-4"
           href="https://wotschofsky.com#contact"
           target="_blank"
         >
