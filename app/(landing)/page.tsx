@@ -6,6 +6,8 @@ import { FeaturesSection } from './_components/features-section';
 import { SponsorsSection } from './_components/sponsors-section';
 import { TrustedBySection } from './_components/trusted-by-section';
 
+export const revalidate = 86400; // 24 hours
+
 export const metadata = {
   openGraph: {
     url: '/',

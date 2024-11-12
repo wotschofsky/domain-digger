@@ -62,9 +62,6 @@ export const getGitHubSponsors = async (username: string) => {
         username,
       },
     }),
-    next: {
-      revalidate: 24 * 60 * 60,
-    },
   });
 
   if (!response.ok) {
