@@ -54,6 +54,9 @@ Discover in-depth details of any domain with just a few clicks.
 <a href="https://macarne.com/?ref=domain-digger" target="_blank">
   <img width="64" height="64" src="https://avatars.githubusercontent.com/u/149550368?v=4" />
 </a>
+<a href="https://23m.com/?ref=domain-digger" target="_blank">
+  <img width="64" height="64" src="https://avatars.githubusercontent.com/u/6716623?v=4" />
+</a>
 
 ---
 
