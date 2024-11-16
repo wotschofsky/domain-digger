@@ -240,7 +240,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
       url: 'https://www.akamai.com',
     },
     {
-      test: /.+\.bunny\.net$/,
+      test: /^[^.]+\.bunny\.net$/,
       description: 'Bunny DNS',
       url: 'https://bunny.net/dns/',
     },
