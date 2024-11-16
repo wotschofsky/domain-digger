@@ -90,7 +90,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
       // 75.2.70.75 or 99.83.190.102
       test: /^(?:75\.2\.70\.75|99\.83\.190\.102)$/,
       description: 'Webflow',
-      url: 'https://www.webflow.com',
+      url: 'https://webflow.com',
     },
   ],
   AAAA: [],
@@ -180,7 +180,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
     {
       test: /^proxy-ssl\.webflow\.com$/,
       description: 'Webflow',
-      url: 'https://www.webflow.com',
+      url: 'https://webflow.com',
     },
   ],
   DNSKEY: [],
@@ -192,7 +192,7 @@ export const RECORD_INSIGHTS: RecordInsights = {
       url: 'https://developers.cloudflare.com/email-security/',
     },
     {
-      test: /in\d\-smtp.messagingengine\.com$/,
+      test: /\.messagingengine\.com$/,
       description: 'Fastmail',
       url: 'https://www.fastmail.com',
     },
@@ -235,7 +235,12 @@ export const RECORD_INSIGHTS: RecordInsights = {
       url: 'https://aws.amazon.com/route53/',
     },
     {
-      test: /^(coco|kiki)\.bunny\.net$/,
+      test: /\.akam\.net$/,
+      description: 'Akamai',
+      url: 'https://www.akamai.com',
+    },
+    {
+      test: /.+\.bunny\.net$/,
       description: 'Bunny DNS',
       url: 'https://bunny.net/dns/',
     },
