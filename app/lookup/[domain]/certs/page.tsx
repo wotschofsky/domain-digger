@@ -46,7 +46,15 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
     );
   }
 
-  return <CertsTable certs={certs} />;
+  return (
+    <>
+      <CertsTable certs={certs} />
+
+      <p className="mt-8 text-center text-muted-foreground">
+        Found {certs.length} certificates.
+      </p>
+    </>
+  );
 };
 
 export default CertsResultsPage;
