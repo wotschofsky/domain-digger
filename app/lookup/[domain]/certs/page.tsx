@@ -40,7 +40,7 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
 
   if (!certs.length) {
     return (
-      <p className="mt-8 text-center text-muted-foreground">
+      <p className="mt-8 text-center text-zinc-500 dark:text-zinc-400">
         No issued certificates found!
       </p>
     );
@@ -50,7 +50,7 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
     <>
       <CertsTable certs={certs} />
 
-      <p className="mt-8 text-center text-muted-foreground">
+      <p className="mt-8 text-center text-zinc-500 dark:text-zinc-400">
         Found {certs.length} certificates.
       </p>
     </>

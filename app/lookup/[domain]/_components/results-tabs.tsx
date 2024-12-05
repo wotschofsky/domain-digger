@@ -34,7 +34,7 @@ const SingleTab: FC<SingleTabProps> = ({
       {label}
       <ClientOnly>
         <span
-          className="pointer-events-none absolute bottom-0 left-1/2 hidden w-full -translate-x-1/2 translate-y-4 text-xs text-muted-foreground opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100 sm:block"
+          className="pointer-events-none absolute bottom-0 left-1/2 hidden w-full -translate-x-1/2 translate-y-4 text-xs text-zinc-500 opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100 dark:text-zinc-400 sm:block"
           aria-hidden
         >
           {isAppleDevice() ? (

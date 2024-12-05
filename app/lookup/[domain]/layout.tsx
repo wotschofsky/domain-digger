@@ -66,7 +66,9 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
           <div className="flex w-full items-center gap-4">
             {/* Bottom padding added to avoid clipping */}
             <h1 className="mb-2 flex-1 overflow-hidden break-words pb-1">
-              <span className="block text-muted-foreground">Results for</span>
+              <span className="block text-zinc-500 dark:text-zinc-400">
+                Results for
+              </span>
               {isWildcardDomain(domain) ? (
                 <span className="block text-4xl font-bold">{domain}</span>
               ) : (

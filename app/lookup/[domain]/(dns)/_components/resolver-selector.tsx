@@ -48,7 +48,7 @@ export const ResolverSelector: FC<ResolverSelectorProps> = ({
 
   return (
     <Label className="flex flex-col gap-1">
-      <span className="text-sm text-muted-foreground">Resolver</span>
+      <span className="text-sm text-zinc-500 dark:text-zinc-400">Resolver</span>
 
       <Select
         defaultValue={initialValue || 'authoritative'}

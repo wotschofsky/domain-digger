@@ -19,6 +19,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import useSWRImmutable from 'swr/immutable';
 
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 import { ClientOnly } from '@/components/client-only';
@@ -306,7 +307,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
               alt=""
             />
           ) : (
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-500 dark:text-zinc-400" />
           )}
 
           <Input
@@ -348,26 +349,31 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           </ClientOnly>
 
           {suggestionsVisible && suggestions && suggestions.length > 0 && (
-            <ul className="absolute left-0 top-full w-full rounded-xl border bg-card p-1 text-card-foreground shadow">
-              {suggestions.map((value, index) => (
-                <li
-                  key={value}
-                  className={cn(
-                    'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-muted/50',
-                    { 'bg-muted/50': selectedSuggestion === index },
-                  )}
-                  onClick={() => handleSelectSuggestion(value)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    className="mr-2 inline-block h-4 w-4"
-                    src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
-                    alt=""
-                  />
-                  {value}
-                </li>
-              ))}
-            </ul>
+            <Card className="absolute left-0 top-full h-min p-1">
+              <ul>
+                {suggestions.map((value, index) => (
+                  <li
+                    key={value}
+                    className={cn(
+                      'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
+                      {
+                        'bg-black/5 dark:bg-white/10':
+                          selectedSuggestion === index,
+                      },
+                    )}
+                    onClick={() => handleSelectSuggestion(value)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className="mr-2 inline-block h-4 w-4"
+                      src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
+                      alt=""
+                    />
+                    {value}
+                  </li>
+                ))}
+              </ul>
+            </Card>
           )}
         </div>
         <Button

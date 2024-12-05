@@ -25,7 +25,9 @@ const WhoisQuickInfoTile: FC<WhoisQuickInfoTileProps> = ({
   value,
 }) => (
   <div>
-    <h3 className="text-xs/6 font-medium text-muted-foreground">{title}</h3>
+    <h3 className="text-xs/6 font-medium text-zinc-500 dark:text-zinc-400">
+      {title}
+    </h3>
     {loading ? (
       <Skeleton className="mt-1 h-4 w-24 rounded-sm" />
     ) : (
