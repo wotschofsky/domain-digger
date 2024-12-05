@@ -6,14 +6,30 @@ import { Button } from '@/components/ui/button';
 
 import { BookmarkletLink } from './bookmarklet-link';
 import { Logo } from './logo';
+import { SearchForm } from './search-form';
 import { ThemeMenu } from './theme-menu';
 
-export const Header: FC = () => (
+type HeaderProps = {
+  showSearch: boolean;
+};
+
+export const Header: FC<HeaderProps> = ({ showSearch }) => (
   <header className="w-full p-4 md:px-8">
     <div className="flex items-center justify-between">
-      <Logo />
+      <div className="flex flex-1 items-center justify-start gap-8">
+        <Logo />
+        <div className="hidden md:block">
+          <BookmarkletLink />
+        </div>
+      </div>
 
-      <div className="flex items-center justify-between gap-4">
+      {showSearch && (
+        <div className="max-w-xl flex-1">
+          <SearchForm autofocus={false} />
+        </div>
+      )}
+
+      <div className="flex flex-1 items-center justify-end gap-4">
         <Button variant="ghost" asChild>
           <a
             href="https://github.com/sponsors/wotschofsky"
@@ -35,9 +51,6 @@ export const Header: FC = () => (
             <span className="sr-only">on GitHub</span>
           </a>
         </Button>
-        <div className="hidden sm:block">
-          <BookmarkletLink />
-        </div>
         <ThemeMenu />
       </div>
     </div>

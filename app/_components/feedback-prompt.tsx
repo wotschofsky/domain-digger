@@ -53,7 +53,7 @@ export const FeedbackPrompt: FC = () => {
   return (
     <>
       {visible && (
-        <div className="fixed bottom-6 right-6 max-w-[calc(100vw-3rem)]">
+        <aside className="fixed bottom-6 right-6 max-w-[calc(100vw-3rem)]">
           <Alert className="relative p-8 shadow-lg">
             <XIcon
               role="button"
@@ -88,7 +88,7 @@ export const FeedbackPrompt: FC = () => {
               </span>
             </div>
           </Alert>
-        </div>
+        </aside>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

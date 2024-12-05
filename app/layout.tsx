@@ -53,17 +53,13 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
       <body className="bg-zinc-100 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white">
         <Providers>
           <div className="flex min-h-screen flex-col items-center justify-center">
-            <Header />
-
-            <main className="w-full flex-1 pb-16 pt-8">{children}</main>
-            <ClientOnly>
-              <FeedbackPrompt />
-            </ClientOnly>
-
-            <Footer />
+            {children}
           </div>
         </Providers>
 
+        <ClientOnly>
+          <FeedbackPrompt />
+        </ClientOnly>
         <Toaster />
         <SpeedInsights />
       </body>

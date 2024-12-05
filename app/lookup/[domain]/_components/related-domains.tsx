@@ -38,7 +38,7 @@ export const RelatedDomains: FC<RelatedDomainsProps> = ({
   const domains = getRecommendations(original);
 
   return (
-    <div className="my-4 flex flex-wrap gap-4">
+    <div className="flex flex-wrap gap-4">
       {domains.map((domain) => (
         <Button
           key={domain}

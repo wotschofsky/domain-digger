@@ -3,7 +3,7 @@
 import { useDebounce } from '@uidotdev/usehooks';
 import { Loader2Icon, SearchIcon } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
-import { usePathname, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import {
   type ChangeEventHandler,
@@ -113,7 +113,6 @@ enum FormStates {
 }
 
 type SearchFormProps = {
-  initialValue?: string;
   autofocus?: boolean;
   subpage?: string;
 };
@@ -126,7 +125,15 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [domain, setDomain] = useState(props.initialValue ?? '');
+  const { domain: initialValue } = useParams<{ domain: string }>();
+  const [domain, setDomain] = useState(initialValue ?? '');
+
+  useEffect(() => {
+    if (initialValue) {
+      setDomain(initialValue);
+    }
+  }, [initialValue]);
+
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [isInvalid, setInvalid] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
@@ -291,21 +298,21 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     <>
       <form className="flex gap-3" onSubmit={handleSubmit}>
         <div className="group relative flex-[3]">
-          {domain === props.initialValue ? (
+          {domain === initialValue ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-              src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(props.initialValue)}`}
+              className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2"
+              src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(initialValue)}`}
               alt=""
             />
           ) : (
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           )}
 
           <Input
             ref={inputRef}
             name="domain"
-            className={cn('w-full pl-9', {
+            className={cn('w-full !pl-9', {
               'focus-visible:ring-destructive [&:not(:focus-visible)]:border-destructive':
                 isInvalid,
             })}
