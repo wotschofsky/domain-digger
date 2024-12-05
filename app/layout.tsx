@@ -50,7 +50,7 @@ type RootLayoutProps = {
 const RootLayout: FC<RootLayoutProps> = ({ children }) => {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
+      <body className="bg-zinc-100 text-zinc-950 antialiased dark:bg-zinc-950 dark:text-white">
         <Providers>
           <div className="flex min-h-screen flex-col items-center justify-center">
             <Header />

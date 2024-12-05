@@ -5,6 +5,8 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 
+import { Card } from '@/components/ui/card';
+
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { recordLookup } from '@/lib/search';
 import { isValidDomain, isWildcardDomain } from '@/lib/utils';
@@ -85,9 +87,15 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
 
         <RelatedDomains domain={domain} />
         <WhoisQuickInfo domain={domain} />
-        <ResultsTabs domain={domain} />
+      </div>
 
-        {children}
+      <div className="p-3">
+        <Card className="pb-16">
+          <div className="container">
+            <ResultsTabs domain={domain} />
+            {children}
+          </div>
+        </Card>
       </div>
     </>
   );
