@@ -28,7 +28,7 @@ const SingleTab: FC<SingleTabProps> = ({
       className={
         selected
           ? 'relative inline-block w-max rounded-t-lg border-b-2 border-primary p-4 text-primary'
-          : 'relative inline-block w-max rounded-t-lg border-b-2 border-transparent p-4 hover:border-gray-300 hover:text-gray-600 dark:hover:text-gray-300'
+          : 'relative inline-block w-max rounded-t-lg border-b-2 border-transparent p-4 hover:border-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-300'
       }
     >
       {label}
@@ -68,7 +68,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   ]);
 
   return (
-    <div className="group mb-6 border-b border-gray-200 text-center text-sm font-medium text-gray-500 dark:border-gray-700 dark:text-gray-400">
+    <div className="group mb-6 border-b border-zinc-200 text-center text-sm font-medium text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
       <ul className="-mb-px flex flex-wrap">
         <SingleTab
           label="DNS"

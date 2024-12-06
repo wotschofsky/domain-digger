@@ -91,7 +91,7 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
         </div>
 
         <div className="p-3">
-          <Card className="pb-16">
+          <Card className="pb-12">
             <div className="container">
               <ResultsTabs domain={domain} />
               {children}

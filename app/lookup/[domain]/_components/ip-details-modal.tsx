@@ -9,14 +9,12 @@ import useSWRImmutable from 'swr/immutable';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
   Drawer,
   DrawerContent,
-  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
@@ -159,8 +157,8 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>{title}</DrawerTitle>
-            <DrawerDescription>{content}</DrawerDescription>
           </DrawerHeader>
+          {content}
         </DrawerContent>
       </Drawer>
     );
@@ -171,8 +169,8 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{content}</DialogDescription>
         </DialogHeader>
+        {content}
       </DialogContent>
     </Dialog>
   );
