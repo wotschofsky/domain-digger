@@ -47,8 +47,8 @@
     "next-themes": "^0.4.3",
     "postcss": "^8.4.49",
     "punycode": "^2.3.1",
-    "react": "19.0.0-rc-66855b96-20241106",
-    "react-dom": "19.0.0-rc-66855b96-20241106",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "react-globe.gl": "^2.27.4",
     "react-hotkeys-hook": "^4.6.1",
     "react-icons": "^5.3.0",
@@ -75,8 +75,8 @@
     "@types/ms": "^0.7.34",
     "@types/natural-compare-lite": "^1.4.2",
     "@types/node": "^22.9.0",
-    "@types/react": "npm:types-react@19.0.0-rc.1",
-    "@types/react-dom": "npm:types-react-dom@19.0.0-rc.1",
+    "@types/react": "19.0.1",
+    "@types/react-dom": "19.0.1",
     "@typescript-eslint/eslint-plugin": "^8.14.0",
     "eslint": "^9.14.0",
     "eslint-config-next": "15.0.3",
@@ -86,11 +86,5 @@
     "prettier-plugin-tailwindcss": "^0.6.8",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
-  },
-  "pnpm": {
-    "overrides": {
-      "@types/react": "npm:types-react@19.0.0-rc.1",
-      "@types/react-dom": "npm:types-react-dom@19.0.0-rc.1"
-    }
   }
 }
