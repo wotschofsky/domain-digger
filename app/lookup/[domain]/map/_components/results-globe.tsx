@@ -24,10 +24,12 @@ const createMarkerResults = (results: string[]) => {
 
   return h(
     'div',
-    shownResults.map((value) => h('p.text-xs.text-muted-foreground', value)),
+    shownResults.map((value) =>
+      h('p.text-xs.text-zinc-500.dark:text-zinc-400', value),
+    ),
     isTruncated
       ? h(
-          'p.text-xs.text-muted-foreground.italic',
+          'p.text-xs.text-zinc-500.dark:text-zinc-400.italic',
           `and ${results.length - 4} more`,
         )
       : undefined,
@@ -48,7 +50,7 @@ const createMarker = (
     'div.marker-wrapper',
 
     h(
-      'div.flex.flex-col.gap-2.rounded-lg.bg-background.p-2.shadow-md',
+      'div.flex.flex-col.gap-2.rounded-lg.border.border-zinc-200.bg-white.p-2.text-zinc-900.shadow-md.dark:border-zinc-800.dark:bg-zinc-900.dark:text-zinc-100',
 
       h('h3.text-sm.font-bold', label),
 
@@ -59,11 +61,14 @@ const createMarker = (
       results.A.length === 0 &&
         results.AAAA.length === 0 &&
         results.CNAME.length === 0
-        ? h('p.text-xs.text-muted-foreground.italic', 'No records found!')
+        ? h(
+            'p.text-xs.text-zinc-500.dark:text-zinc-400.italic',
+            'No records found!',
+          )
         : undefined,
 
       h(
-        'p.text-xs.text-muted-foreground.italic',
+        'p.text-xs.text-zinc-500.dark:text-zinc-400.italic',
         h(
           'a.underline.decoration-dotted',
           {
@@ -127,11 +132,12 @@ export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
   return (
     <div ref={wrapperRef} className={cn(styles.wrapper, 'w-full')}>
       <Globe
-        // Map from https://github.com/vasturiano/three-globe
+        atmosphereColor="#d4d4d8" // Zinc 300
+        // Map based on https://commons.wikimedia.org/wiki/File:BlankMap-Equirectangular.svg
         globeImageUrl={
           resolvedTheme === 'dark'
-            ? '/assets/earth-night.jpg'
-            : '/assets/earth-day.jpg'
+            ? '/assets/map-dark.png' // Zinc 800 / 600
+            : '/assets/map-light.png' // Zinc 50 / 300
         }
         backgroundColor="rgba(0,0,0,0)"
         width={width}
