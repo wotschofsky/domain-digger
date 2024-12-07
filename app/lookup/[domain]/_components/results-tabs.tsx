@@ -68,7 +68,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   ]);
 
   return (
-    <div className="group mb-6 border-b border-zinc-200 text-center text-sm font-medium text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+    <div className="group mb-6 border-b border-zinc-950/10 text-center text-sm font-medium text-zinc-500">
       <ul className="-mb-px flex flex-wrap">
         <SingleTab
           label="DNS"

@@ -41,9 +41,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               '[&::-webkit-datetime-edit-meridiem-field]:p-0',
             ],
             // Basic layout
-            'relative block w-full appearance-none rounded-lg px-3.5 py-2.5 sm:px-3 sm:py-1.5',
+            'relative block w-full appearance-none rounded-lg px-3 py-1.5',
             // Typography
-            'text-base/6 text-zinc-950 placeholder:text-zinc-500 dark:text-white sm:text-sm/6',
+            'text-sm/6 text-zinc-950 placeholder:text-zinc-500 dark:text-white',
             // Border
             'border border-zinc-950/10 data-[hover]:border-zinc-950/20 dark:border-white/10 dark:data-[hover]:border-white/20',
             // Background color

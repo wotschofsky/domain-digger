@@ -29,8 +29,8 @@ const SelectTrigger = React.forwardRef<
     <SelectPrimitive.Trigger
       ref={ref}
       className={cn(
-        'relative block w-full appearance-none rounded-lg px-3.5 py-2.5 sm:px-3 sm:py-1.5',
-        'text-base/6 text-zinc-950 placeholder:text-zinc-500 dark:text-white sm:text-sm/6',
+        'relative block w-full appearance-none rounded-lg px-3 py-1.5',
+        'text-sm/6 text-zinc-950 placeholder:text-zinc-500 dark:text-white',
         'border border-zinc-950/10 data-[hover]:border-zinc-950/20 dark:border-white/10 dark:data-[hover]:border-white/20',
         'bg-transparent dark:bg-white/5',
         'focus:outline-none',
