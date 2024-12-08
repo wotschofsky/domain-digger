@@ -6,8 +6,8 @@ import ms from 'ms';
 import { usePlausible } from 'next-plausible';
 import { type FC, useCallback, useState } from 'react';
 
-import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -54,7 +54,7 @@ export const FeedbackPrompt: FC = () => {
     <>
       {visible && (
         <aside className="fixed bottom-6 right-6 max-w-[calc(100vw-3rem)]">
-          <Alert className="relative p-8 shadow-lg">
+          <Card className="relative p-8 shadow-lg">
             <XIcon
               role="button"
               onClick={handleDismiss}
@@ -87,7 +87,7 @@ export const FeedbackPrompt: FC = () => {
                 😍
               </span>
             </div>
-          </Alert>
+          </Card>
         </aside>
       )}
 

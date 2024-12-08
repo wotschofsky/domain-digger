@@ -1,6 +1,14 @@
 import Image from 'next/image';
 import { type FC, type HTMLAttributes } from 'react';
 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+
 import { env } from '@/env';
 import { getGitHubSponsors } from '@/lib/github';
 import { cn } from '@/lib/utils';
@@ -38,7 +46,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
       className={cn(className, 'flex flex-col items-center gap-4')}
       {...props}
     >
-      <h2 className="text-center font-semibold sm:text-lg">Sponsored by</h2>
+      <h2 className="text-center font-semibold">Sponsored by</h2>
 
       <div className="mb-2 flex items-center justify-center gap-4">
         {allSponsors.map((sponsor) => (
@@ -57,23 +65,48 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
           </a>
         ))}
       </div>
-      <span className="text-center text-sm">
-        <a
-          className="text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400"
-          href="https://github.com/sponsors/wotschofsky"
-          target="_blank"
-        >
-          Sponsor through GitHub and add your logo
-        </a>{' '}
-        or{' '}
-        <a
-          className="text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400"
-          href="https://wotschofsky.com#contact"
-          target="_blank"
-        >
-          reach out for more options
-        </a>
-      </span>
+      <Dialog>
+        <DialogTrigger className="text-center text-sm text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400">
+          Add your logo
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Sponsor Domain Digger</DialogTitle>
+          </DialogHeader>
+          <p className="text-zinc-500 dark:text-zinc-400">
+            Sponsorships help support the project&apos;s development. Your logo
+            and link will be featured on all landing pages and the README on
+            GitHub.
+            <br />
+            <br />
+            Support through{' '}
+            <a
+              className="text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400"
+              href="https://github.com/sponsors/wotschofsky"
+              target="_blank"
+            >
+              GitHub Sponsors
+            </a>{' '}
+            or{' '}
+            <a
+              className="text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400"
+              href="https://buymeacoffee.com/wotschofsky"
+              target="_blank"
+            >
+              Buy Me a Coffee
+            </a>
+            , or{' '}
+            <a
+              className="text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400"
+              href="https://wotschofsky.com#contact"
+              target="_blank"
+            >
+              reach out
+            </a>{' '}
+            for other options.
+          </p>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 };
