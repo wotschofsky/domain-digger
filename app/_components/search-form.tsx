@@ -1,9 +1,9 @@
 'use client';
 
-import { useDebounce } from '@uidotdev/usehooks';
-import { Loader2Icon, SearchIcon } from 'lucide-react';
+import { useDebounce, useMeasure } from '@uidotdev/usehooks';
+import { SearchIcon } from 'lucide-react';
 import { usePlausible } from 'next-plausible';
-import { usePathname, useRouter } from 'next/navigation';
+import { useParams, usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import {
   type ChangeEventHandler,
@@ -18,7 +18,7 @@ import {
 import { useHotkeys } from 'react-hotkeys-hook';
 import useSWRImmutable from 'swr/immutable';
 
-import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 import { ClientOnly } from '@/components/client-only';
@@ -113,7 +113,6 @@ enum FormStates {
 }
 
 type SearchFormProps = {
-  initialValue?: string;
   autofocus?: boolean;
   subpage?: string;
 };
@@ -126,12 +125,21 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [domain, setDomain] = useState(props.initialValue ?? '');
+  const { domain: initialValue } = useParams<{ domain: string }>();
+  const [domain, setDomain] = useState(initialValue ?? '');
+
+  useEffect(() => {
+    if (initialValue) {
+      setDomain(initialValue);
+    }
+  }, [initialValue]);
+
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [isInvalid, setInvalid] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
 
+  const [measureRef, { width: inputWidth }] = useMeasure<HTMLFormElement>();
   const inputRef = useRef<HTMLInputElement>(null);
   useHotkeys(
     isAppleDevice() ? 'meta+k' : 'ctrl+k',
@@ -289,65 +297,73 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   return (
     <>
-      <form className="flex gap-3" onSubmit={handleSubmit}>
-        <div className="group relative flex-[3]">
-          {domain === props.initialValue ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-              src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(props.initialValue)}`}
-              alt=""
-            />
-          ) : (
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          )}
-
-          <Input
-            ref={inputRef}
-            name="domain"
-            className={cn('w-full pl-9', {
-              'focus-visible:ring-destructive [&:not(:focus-visible)]:border-destructive':
-                isInvalid,
-            })}
-            type="text"
-            required
-            autoComplete="off"
-            placeholder="Search any domain, URL, email or IP"
-            aria-label="Domain"
-            value={domain}
-            onInput={handleInput}
-            onKeyDown={handleKeyDown}
-            onFocus={handleFocus}
-            onClick={handleFocus}
-            onBlur={() => {
-              setTimeout(() => {
-                setSuggestionsVisible(false);
-              }, 100);
-            }}
-            disabled={state !== FormStates.Initial}
-            autoFocus={props.autofocus}
+      <form ref={measureRef} className="relative" onSubmit={handleSubmit}>
+        {domain === initialValue ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2"
+            src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(initialValue)}`}
+            alt=""
           />
+        ) : (
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-500 dark:text-zinc-400" />
+        )}
 
-          <ClientOnly>
-            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
-              {isAppleDevice() ? (
-                <>
-                  <span className="text-xs">⌘</span>K
-                </>
-              ) : (
-                'ctrl+k'
-              )}
-            </kbd>
-          </ClientOnly>
+        <Input
+          ref={inputRef}
+          name="domain"
+          className={cn('w-full !pl-9', {
+            'focus-visible:ring-destructive [&:not(:focus-visible)]:border-destructive':
+              isInvalid,
+          })}
+          type="text"
+          required
+          autoComplete="off"
+          placeholder={
+            (inputWidth || Infinity) >= 300
+              ? 'Search any domain, URL, email or IP'
+              : 'Search'
+          }
+          aria-label="Domain"
+          enterKeyHint="go"
+          value={domain}
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          onFocus={handleFocus}
+          onClick={handleFocus}
+          onBlur={() => {
+            setTimeout(() => {
+              setSuggestionsVisible(false);
+            }, 100);
+          }}
+          disabled={state !== FormStates.Initial}
+          autoFocus={props.autofocus}
+        />
 
-          {suggestionsVisible && suggestions && suggestions.length > 0 && (
-            <ul className="absolute left-0 top-full w-full rounded-xl border bg-card p-1 text-card-foreground shadow">
+        <ClientOnly>
+          <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-[10px] font-medium opacity-100 dark:border-zinc-700 dark:bg-zinc-800 sm:flex">
+            {isAppleDevice() ? (
+              <>
+                <span className="text-xs">⌘</span>K
+              </>
+            ) : (
+              'ctrl+k'
+            )}
+          </kbd>
+        </ClientOnly>
+
+        {suggestionsVisible && suggestions && suggestions.length > 0 && (
+          <Card className="absolute left-0 top-full z-10 h-min p-1">
+            <ul>
               {suggestions.map((value, index) => (
                 <li
                   key={value}
                   className={cn(
-                    'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-muted/50',
-                    { 'bg-muted/50': selectedSuggestion === index },
+                    'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
+                    {
+                      'bg-black/5 dark:bg-white/10':
+                        selectedSuggestion === index,
+                    },
                   )}
                   onClick={() => handleSelectSuggestion(value)}
                 >
@@ -361,18 +377,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                 </li>
               ))}
             </ul>
-          )}
-        </div>
-        <Button
-          className="flex-[1]"
-          type="submit"
-          disabled={state !== FormStates.Initial}
-        >
-          {state === FormStates.Submitting && (
-            <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-          )}
-          Lookup
-        </Button>
+          </Card>
+        )}
       </form>
 
       <IpDetailsModal

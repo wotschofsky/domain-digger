@@ -53,12 +53,12 @@ export const FeedbackPrompt: FC = () => {
   return (
     <>
       {visible && (
-        <div className="fixed bottom-6 right-6 max-w-[calc(100vw-3rem)]">
+        <aside className="fixed bottom-6 right-6 max-w-[calc(100vw-3rem)]">
           <Alert className="relative p-8 shadow-lg">
             <XIcon
               role="button"
               onClick={handleDismiss}
-              className="absolute !left-[unset] !top-2 right-2 h-5 w-5 text-muted-foreground"
+              className="absolute !left-[unset] !top-2 right-2 h-5 w-5 text-zinc-500 dark:text-zinc-400"
             />
 
             <p className="!pl-0 font-semibold">
@@ -88,7 +88,7 @@ export const FeedbackPrompt: FC = () => {
               </span>
             </div>
           </Alert>
-        </div>
+        </aside>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

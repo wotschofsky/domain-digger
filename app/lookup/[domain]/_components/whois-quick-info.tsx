@@ -25,11 +25,13 @@ const WhoisQuickInfoTile: FC<WhoisQuickInfoTileProps> = ({
   value,
 }) => (
   <div>
-    <h3 className="text-xs text-muted-foreground">{title}</h3>
+    <h3 className="text-xs/6 font-medium text-zinc-500 dark:text-zinc-400">
+      {title}
+    </h3>
     {loading ? (
       <Skeleton className="mt-1 h-4 w-24 rounded-sm" />
     ) : (
-      <p className="text-sm">{value}</p>
+      <p className="text-sm font-medium">{value}</p>
     )}
   </div>
 );
@@ -45,7 +47,7 @@ export const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
 
   if (isLoading || !data) {
     return (
-      <div className="my-8 flex flex-wrap gap-8">
+      <div className="flex flex-wrap gap-8">
         <WhoisQuickInfoTile title="Registrar" loading />
         <WhoisQuickInfoTile title="Creation Date" loading />
         <WhoisQuickInfoTile title="DNSSEC" loading />
@@ -55,14 +57,14 @@ export const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
 
   if (!data.registered) {
     return (
-      <div className="my-8 flex flex-wrap gap-8">
+      <div className="flex flex-wrap gap-8">
         <WhoisQuickInfoTile title="Status" value="Not registered" />
       </div>
     );
   }
 
   return (
-    <div className="my-8 flex flex-wrap gap-8">
+    <div className="flex flex-wrap gap-8">
       <WhoisQuickInfoTile
         title="Registrar"
         value={data?.registrar || 'Unavailable'}

@@ -23,7 +23,7 @@ const CertsLandingPage: FC = () => {
         <h1 className="mb-8 scroll-m-20 pb-2 text-center text-2xl font-semibold tracking-tight first:mt-0 sm:text-3xl">
           Find certificate history for any domain
         </h1>
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-2xl">
           <SearchForm subpage="certs" autofocus />
         </div>
       </section>

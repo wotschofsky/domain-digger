@@ -46,7 +46,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
               </h2>
               <CollapsibleTrigger
                 className={cn(
-                  'text-sm text-muted-foreground underline decoration-dotted underline-offset-4',
+                  'text-sm text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400',
                   'plausible-event-name=Trace:+Click',
                   `plausible-event-domain=${sortedRecords[0].name}`,
                   `plausible-event-type=${recordType}`,

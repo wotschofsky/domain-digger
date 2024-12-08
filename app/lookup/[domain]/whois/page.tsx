@@ -53,10 +53,10 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
       {baseDomain !== domain &&
         (force !== undefined ? (
           <>
-            <p className="mt-8 text-muted-foreground">
+            <p className="mt-8 text-zinc-500 dark:text-zinc-400">
               Forcing lookup for {domain}
             </p>
-            <p className="text-muted-foreground">
+            <p className="text-zinc-500 dark:text-zinc-400">
               Lookup{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"
@@ -68,10 +68,10 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
           </>
         ) : (
           <>
-            <p className="mt-8 text-muted-foreground">
+            <p className="mt-8 text-zinc-500 dark:text-zinc-400">
               Showing results for {baseDomain}
             </p>
-            <p className="text-muted-foreground">
+            <p className="text-zinc-500 dark:text-zinc-400">
               Force lookup for{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"

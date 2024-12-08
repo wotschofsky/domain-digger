@@ -5,11 +5,14 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 
+import { Card } from '@/components/ui/card';
+
+import { Footer } from '@/app/_components/footer';
+import { Header } from '@/app/_components/header';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { recordLookup } from '@/lib/search';
 import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
-import { SearchForm } from '../../_components/search-form';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
 import { ShareButton } from './_components/share-button';
@@ -57,38 +60,46 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
 
   return (
     <>
-      <div className="container mb-12 max-w-2xl">
-        <SearchForm initialValue={domain} autofocus={false} />
-      </div>
+      <Header showSearch={true} />
+      <main className="w-full flex-1">
+        <div className="container space-y-6 pb-8 pt-12">
+          <div className="flex w-full items-center gap-4">
+            {/* Bottom padding added to avoid clipping */}
+            <h1 className="mb-2 flex-1 overflow-hidden break-words pb-1">
+              <span className="block text-zinc-500 dark:text-zinc-400">
+                Results for
+              </span>
+              {isWildcardDomain(domain) ? (
+                <span className="block text-4xl font-bold">{domain}</span>
+              ) : (
+                <a
+                  className="block text-4xl font-bold"
+                  href={`https://${domain}`}
+                  target="_blank"
+                  rel="noreferrer nofollow"
+                >
+                  {domain} <ExternalLinkIcon className="inline-block" />
+                </a>
+              )}
+            </h1>
 
-      <div className="container">
-        <div className="flex w-full items-center gap-4">
-          {/* Bottom padding added to avoid clipping */}
-          <h1 className="mb-2 flex-1 overflow-hidden break-words pb-1">
-            <span className="block text-muted-foreground">Results for</span>
-            {isWildcardDomain(domain) ? (
-              <span className="block text-4xl font-bold">{domain}</span>
-            ) : (
-              <a
-                className="block text-4xl font-bold"
-                href={`https://${domain}`}
-                target="_blank"
-                rel="noreferrer nofollow"
-              >
-                {domain} <ExternalLinkIcon className="inline-block" />
-              </a>
-            )}
-          </h1>
+            <ShareButton />
+          </div>
 
-          <ShareButton />
+          <RelatedDomains domain={domain} />
+          <WhoisQuickInfo domain={domain} />
         </div>
 
-        <RelatedDomains domain={domain} />
-        <WhoisQuickInfo domain={domain} />
-        <ResultsTabs domain={domain} />
-
-        {children}
-      </div>
+        <div className="p-3">
+          <Card className="pb-12">
+            <div className="container">
+              <ResultsTabs domain={domain} />
+              {children}
+            </div>
+          </Card>
+        </div>
+      </main>
+      <Footer />
     </>
   );
 };
