@@ -8,8 +8,6 @@ import { Toaster } from '@/components/ui/sonner';
 import { ClientOnly } from '@/components/client-only';
 import { env } from '@/env';
 
-import { Footer } from './_components/footer';
-import { Header } from './_components/header';
 import './globals.css';
 import { Providers } from './providers';
 
