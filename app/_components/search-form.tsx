@@ -326,10 +326,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         <Input
           ref={inputRef}
           name="domain"
-          className={cn('w-full !pl-9', {
-            'focus-visible:ring-destructive [&:not(:focus-visible)]:border-destructive':
-              isInvalid,
-          })}
+          className="w-full !pl-9"
+          data-invalid={isInvalid ? '' : undefined}
           type="text"
           required
           autoComplete="off"
