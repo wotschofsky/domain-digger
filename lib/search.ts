@@ -43,6 +43,23 @@ export const recordLookup = async (payload: LookupLogPayload) => {
 };
 
 export const getSearchSuggestions = async (query: string) => {
+  const segments = query.split('.').filter(Boolean);
+
+  const suggestions = await Promise.all(
+    // Limit to 2 segments to avoid abuse and keep results sensible
+    segments.slice(0, 2).map(async (_, i) => {
+      const querySegment = segments.slice(i).join('.');
+      const suggestions = await getSearchSuggestionsForPrefix(querySegment);
+      const prefix = i === 0 ? '' : segments.slice(0, i).join('.');
+      console.log({ querySegment, suggestions, prefix });
+      return suggestions.map((s) => (prefix ? `${prefix}.${s}` : s));
+    }),
+  );
+
+  return Array.from(new Set(suggestions.flat()));
+};
+
+export const getSearchSuggestionsForPrefix = async (prefix: string) => {
   if (!bigquery) {
     return [];
   }
@@ -52,12 +69,12 @@ export const getSearchSuggestions = async (query: string) => {
     query: `
       SELECT domain
       FROM ${tableName}
-      WHERE STARTS_WITH(domain, @query)
+      WHERE STARTS_WITH(domain, @prefix)
       ORDER BY count DESC
       LIMIT 5
     `,
     params: {
-      query: query.toLowerCase(),
+      prefix: prefix.toLowerCase(),
     },
   });
 
