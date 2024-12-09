@@ -36,8 +36,8 @@ export const isValidDomain = (domain: string) => {
   // Check total length (maximum 253 characters)
   if (domain.length > 253 || domain.length === 0) return false;
 
-  // Remove wildcard prefix & trailing dot (if fully qualified domain name)
-  const cleanedDomain = domain.replace(/^\*\./, '').replace(/\.$/, '');
+  // Remove wildcard prefix or leading underscore, trailing dot (if fully qualified domain name)
+  const cleanedDomain = domain.replace(/^(\*\.)|_/, '').replace(/\.$/, '');
 
   // Split domain into labels
   const labels = cleanedDomain.split('.');
