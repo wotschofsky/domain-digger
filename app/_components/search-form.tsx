@@ -230,7 +230,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   );
 
   const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(
-    (event) => setDomain(event.currentTarget.value),
+    (event) => {
+      setDomain(event.currentTarget.value);
+      setSelectedSuggestion(null);
+    },
     [setDomain],
   );
 
@@ -248,7 +251,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           event.preventDefault();
           setSelectedSuggestion((prev) => {
             if (prev === null) return 0;
-            if (prev === suggestions?.length - 1) return 0;
+            if (prev === suggestions?.length - 1) return null;
             return prev + 1;
           });
           break;
@@ -256,9 +259,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           event.preventDefault();
           setSelectedSuggestion((prev) => {
             if (prev === null) return suggestions?.length - 1;
-            if (prev === 0) return suggestions?.length - 1;
+            if (prev === 0) return null;
             return prev - 1;
           });
+          break;
+        case 'ArrowLeft':
+        case 'ArrowRight':
+          if (selectedSuggestion !== null) {
+            event.preventDefault();
+            setSelectedSuggestion(null);
+          }
           break;
         case 'Enter':
           if (selectedSuggestion !== null) {
@@ -268,6 +278,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           break;
         case 'Escape':
           setSuggestionsVisible(false);
+          if (selectedSuggestion !== null) {
+            setDomain(suggestions[selectedSuggestion]);
+            setSelectedSuggestion(null);
+          }
           break;
       }
     },
@@ -326,7 +340,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           }
           aria-label="Domain"
           enterKeyHint="go"
-          value={domain}
+          value={
+            selectedSuggestion !== null
+              ? suggestions?.[selectedSuggestion]
+              : domain
+          }
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
