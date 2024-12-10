@@ -26,7 +26,7 @@ const MapLandingPage: FC = () => (
             Run DNS lookups across multiple regions
           </h1>
           <div className="mx-auto w-full max-w-2xl">
-            <SearchForm autofocus />
+            <SearchForm subpage="map" autofocus />
           </div>
           <p className="mb-20 mt-4 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
             Find all DNS records, WHOIS data, SSL/TLS certificate history,
