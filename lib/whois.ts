@@ -44,7 +44,6 @@ const UNREGISTERED_INDICATORS = [
   'not been registered',
   'does not exist', // top
   'not found',
-  'reserved', // fit len.fit / 5735.win
   'status: free',
   'status: available', // eu
   'available', // africa
