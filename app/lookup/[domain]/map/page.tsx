@@ -40,7 +40,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
   const { isBot, userAgent } = isUserBot(headersList);
 
   if (isBot) {
-    console.log('Bot detected, blocking request, UA:', userAgent);
+    console.info('Bot detected, blocking request, UA:', userAgent);
     return (
       <IconAlert
         className="mx-auto mt-24"

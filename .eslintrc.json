@@ -2,6 +2,12 @@
   "extends": "next/core-web-vitals",
   "plugins": ["@typescript-eslint", "eslint-plugin-react-compiler"],
   "rules": {
+    "no-console": [
+      "error",
+      {
+        "allow": ["error", "info", "warn"]
+      }
+    ],
     "@typescript-eslint/consistent-type-imports": "error",
     "react-compiler/react-compiler": "error"
   }

@@ -51,7 +51,6 @@ export const getSearchSuggestions = async (query: string) => {
       const querySegment = segments.slice(i).join('.');
       const suggestions = await getSearchSuggestionsForPrefix(querySegment);
       const prefix = i === 0 ? '' : segments.slice(0, i).join('.');
-      console.log({ querySegment, suggestions, prefix });
       return suggestions.map((s) => (prefix ? `${prefix}.${s}` : s));
     }),
   );
