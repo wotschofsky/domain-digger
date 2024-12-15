@@ -46,9 +46,7 @@ const UNREGISTERED_INDICATORS = [
   'not found',
   'status: free',
   'status: available', // eu
-  'available', // africa
-  ' available', // it
-  ' unassignable', // postiglione.sa.it
+  'unassignable', // postiglione.sa.it
 ];
 
 type WhoisSummary =
