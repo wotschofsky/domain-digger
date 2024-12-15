@@ -20,7 +20,7 @@ export const metadata = {
 const MainLandingPage: FC = () => (
   <div className="container space-y-16">
     <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col justify-between gap-16 pb-12">
-      <div className="flex min-h-[40vh] flex-col justify-center py-24">
+      <div className="flex min-h-[40vh] flex-col justify-center py-20">
         <section>
           <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
             Get details about any Domain
