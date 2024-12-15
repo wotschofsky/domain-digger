@@ -113,6 +113,7 @@ describe('isValidDomain', () => {
         'theofficialabsolutelongestdomainnameregisteredontheworldwideweb.international',
       ),
     ).toBe(true);
+    expect(isValidDomain('_dmarc.example.com')).toBe(true);
   });
 
   it('validates wildcard domains', () => {
