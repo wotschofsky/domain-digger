@@ -61,7 +61,7 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
   return (
     <>
       <Header showSearch={true} />
-      <main className="w-full flex-1">
+      <main className="flex w-full flex-1 flex-col">
         <div className="container space-y-6 pb-8 pt-12">
           <div className="flex w-full items-center gap-4">
             {/* Bottom padding added to avoid clipping */}
@@ -90,8 +90,8 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
           <WhoisQuickInfo domain={domain} />
         </div>
 
-        <div className="p-3">
-          <Card className="pb-12">
+        <div className="flex flex-1 flex-col p-3">
+          <Card className="flex-1 pb-12">
             <div className="container">
               <ResultsTabs domain={domain} />
               {children}
