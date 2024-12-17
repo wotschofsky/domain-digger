@@ -1,22 +1,11 @@
+import Image from 'next/image';
 import { ImageResponse } from 'next/og';
-
-import { env } from '@/env';
 
 export const runtime = 'edge';
 export const contentType = 'image/png';
 
-const interRegularFontP = fetch(
-  new URL('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff'),
-).then((res) => res.arrayBuffer());
-
-const interBoldFontP = fetch(
-  new URL('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff'),
-).then((res) => res.arrayBuffer());
-
-const publicUrl =
-  env.SITE_URL ||
-  (env.VERCEL_URL && `https://${env.VERCEL_URL}`) ||
-  'http://localhost:3000';
+const fetchArrayBuffer = async (url: string | URL) =>
+  fetch(url).then((res) => res.arrayBuffer());
 
 type OGImageProps = {
   params: Promise<{
@@ -27,9 +16,14 @@ type OGImageProps = {
 export const handler = async ({ params: paramsPromise }: OGImageProps) => {
   const params = await paramsPromise;
 
-  const [interRegularFont, interBoldFont] = await Promise.all([
-    interRegularFontP,
-    interBoldFontP,
+  const [interRegularFont, interBoldFont, globeImage] = await Promise.all([
+    fetchArrayBuffer(
+      'https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff',
+    ),
+    fetchArrayBuffer(
+      'https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff',
+    ),
+    fetchArrayBuffer(new URL('@/assets/globe.png', import.meta.url)),
   ]);
 
   return new ImageResponse(
@@ -166,8 +160,7 @@ export const handler = async ({ params: paramsPromise }: OGImageProps) => {
 
         {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
         <img
-          // TODO Include image in bundle
-          src={`${publicUrl}/assets/globe.png`}
+          src={`data:image/png;base64,${Buffer.from(globeImage).toString('base64')}`}
           width={1000}
           style={{
             position: 'absolute',
