@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-const INITIAL_DELAY = ms('2h');
+const INITIAL_DELAY = ms('10m');
 const TIMEOUT_PERIOD = ms('7d');
 
 export const FeedbackPrompt: FC = () => {
