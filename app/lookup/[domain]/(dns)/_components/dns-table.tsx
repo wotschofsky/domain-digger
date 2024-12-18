@@ -57,7 +57,7 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
             </div>
 
             <CollapsibleContent>
-              <code className="block overflow-x-scroll whitespace-nowrap rounded border border-slate-300 bg-slate-200 p-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-800">
+              <code className="block overflow-x-scroll whitespace-nowrap rounded border border-zinc-300 bg-zinc-200 p-2 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-800">
                 {response.trace.map((line) => (
                   // eslint-disable-next-line react/jsx-key
                   <Fragment>

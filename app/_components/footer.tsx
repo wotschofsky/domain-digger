@@ -27,7 +27,7 @@ const VercelBadge: FC<VercelBadgeProps> = ({ className, ...props }) => (
 export const Footer: FC = () => (
   <footer className="w-full p-4 md:px-8">
     <div className="flex flex-col items-start gap-6 pt-4">
-      <div className="flex w-full flex-col items-center justify-between gap-3 sm:flex-row">
+      <div className="flex w-full flex-col items-center justify-between gap-6 sm:flex-row">
         <Logo />
 
         <p className="text-sm">
