@@ -1,7 +1,6 @@
 'use client';
 
 import { InfoIcon } from 'lucide-react';
-import { usePlausible } from 'next-plausible';
 import { type FC, useCallback, useState } from 'react';
 
 import {
@@ -11,6 +10,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+import { useAnalytics } from '@/lib/analytics';
+
 import { IpDetailsModal } from './ip-details-modal';
 
 type IpLinkProps = {
@@ -18,13 +19,13 @@ type IpLinkProps = {
 };
 
 export const IpLink: FC<IpLinkProps> = ({ value }) => {
-  const plausible = usePlausible();
+  const { reportEvent } = useAnalytics();
 
   const [isOpen, setOpen] = useState(false);
   const open = useCallback(() => {
     setOpen(true);
-    plausible('IP Details: Open', { props: { ip: value } });
-  }, [setOpen, plausible, value]);
+    reportEvent('IP Details: Open', { ip: value });
+  }, [setOpen, reportEvent, value]);
 
   return (
     <>

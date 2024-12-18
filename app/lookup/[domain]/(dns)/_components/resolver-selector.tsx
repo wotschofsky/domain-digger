@@ -1,7 +1,6 @@
 'use client';
 
 import { Label } from '@radix-ui/react-label';
-import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type FC, useCallback } from 'react';
 
@@ -13,6 +12,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { useAnalytics } from '@/lib/analytics';
+
 type ResolverSelectorProps = {
   initialValue?: string;
 };
@@ -20,7 +21,7 @@ type ResolverSelectorProps = {
 export const ResolverSelector: FC<ResolverSelectorProps> = ({
   initialValue,
 }) => {
-  const plausible = usePlausible();
+  const { reportEvent } = useAnalytics();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -39,11 +40,9 @@ export const ResolverSelector: FC<ResolverSelectorProps> = ({
       const search = current.size ? `?${current.toString()}` : '';
       router.push(`${pathname}${search}`);
 
-      plausible('Resolver Selector: Change', {
-        props: { resolver: value },
-      });
+      reportEvent('Resolver Selector: Change', { resolver: value });
     },
-    [router, pathname, searchParams, plausible],
+    [router, pathname, searchParams, reportEvent],
   );
 
   return (

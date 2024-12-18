@@ -3,7 +3,6 @@
 import { useLocalStorage } from '@uidotdev/usehooks';
 import { XIcon } from 'lucide-react';
 import ms from 'ms';
-import { usePlausible } from 'next-plausible';
 import { type FC, useCallback, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -16,11 +15,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+import { useAnalytics } from '@/lib/analytics';
+
 const INITIAL_DELAY = ms('10m');
 const TIMEOUT_PERIOD = ms('7d');
 
 export const FeedbackPrompt: FC = () => {
-  const plausible = usePlausible();
+  const { reportEvent } = useAnalytics();
 
   const [lastDismissed, setLastDismissed] = useLocalStorage(
     'feedback-prompt.last-dismissed',
@@ -36,19 +37,19 @@ export const FeedbackPrompt: FC = () => {
   const handleNegative = useCallback(() => {
     window.open('https://wotschofsky.com/#contact', '_blank');
     handleDismiss();
-    plausible('Feedback: Negative');
-  }, [handleDismiss, plausible]);
+    reportEvent('Feedback: Negative', {});
+  }, [handleDismiss, reportEvent]);
 
   const handleNeutral = useCallback(() => {
     handleDismiss();
-    plausible('Feedback: Neutral');
-  }, [handleDismiss, plausible]);
+    reportEvent('Feedback: Neutral', {});
+  }, [handleDismiss, reportEvent]);
 
   const handlePositive = useCallback(() => {
     setDialogOpen(true);
     handleDismiss();
-    plausible('Feedback: Positive');
-  }, [setDialogOpen, handleDismiss, plausible]);
+    reportEvent('Feedback: Positive', {});
+  }, [setDialogOpen, handleDismiss, reportEvent]);
 
   return (
     <>

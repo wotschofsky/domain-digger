@@ -1,7 +1,6 @@
 'use client';
 
 import { Label } from '@radix-ui/react-label';
-import { usePlausible } from 'next-plausible';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { type FC, useCallback } from 'react';
 
@@ -13,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { useAnalytics } from '@/lib/analytics';
 import { REGIONS } from '@/lib/data';
 
 type LocationSelectorProps = {
@@ -24,7 +24,7 @@ export const LocationSelector: FC<LocationSelectorProps> = ({
   initialValue,
   disabled,
 }) => {
-  const plausible = usePlausible();
+  const { reportEvent } = useAnalytics();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -43,11 +43,9 @@ export const LocationSelector: FC<LocationSelectorProps> = ({
       const search = current.size ? `?${current.toString()}` : '';
       router.push(`${pathname}${search}`);
 
-      plausible('Location Selector: Change', {
-        props: { location: value },
-      });
+      reportEvent('Location Selector: Change', { location: value });
     },
-    [router, pathname, searchParams, plausible],
+    [router, pathname, searchParams, reportEvent],
   );
 
   return (

@@ -2,7 +2,6 @@
 
 import { useDebounce, useMeasure } from '@uidotdev/usehooks';
 import { SearchIcon } from 'lucide-react';
-import { usePlausible } from 'next-plausible';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { toASCII } from 'punycode';
 import {
@@ -22,6 +21,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 import { ClientOnly } from '@/components/client-only';
+import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 import {
   cn,
@@ -120,7 +120,7 @@ type SearchFormProps = {
 export const SearchForm: FC<SearchFormProps> = (props) => {
   const isFirstRender = useFirstRender();
 
-  const plausible = usePlausible();
+  const { reportEvent } = useAnalytics();
 
   const router = useRouter();
   const pathname = usePathname();
@@ -191,8 +191,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         case 'domain':
           setInvalid(false);
           redirectUser(parsed.value);
-          plausible('Search Form: Submit', {
-            props: { domain: parsed.value },
+          reportEvent('Search Form: Submit', {
+            domain: parsed.value,
           });
           return;
         case 'invalid':
@@ -200,7 +200,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           return;
       }
     },
-    [setInvalid, setIpDetailsOpen, redirectUser, plausible],
+    [setInvalid, setIpDetailsOpen, redirectUser, reportEvent],
   );
 
   const { suggestions } = useSuggestions(domain);
@@ -219,14 +219,12 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       setSuggestionsVisible(false);
       redirectUser(value);
 
-      plausible('Search Form: Click Suggestion', {
-        props: {
-          domain: value,
-          isExample: !domain,
-        },
+      reportEvent('Search Form: Click Suggestion', {
+        domain: value,
+        isExample: !domain,
       });
     },
-    [domain, setDomain, redirectUser, plausible],
+    [domain, setDomain, redirectUser, reportEvent],
   );
 
   const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(

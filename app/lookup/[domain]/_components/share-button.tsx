@@ -1,14 +1,15 @@
 'use client';
 
 import { Share2Icon } from 'lucide-react';
-import { usePlausible } from 'next-plausible';
 import { type FC, useCallback } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 
+import { useAnalytics } from '@/lib/analytics';
+
 export const ShareButton: FC = () => {
-  const plausible = usePlausible();
+  const { reportEvent } = useAnalytics();
 
   const onClick = useCallback(() => {
     if ('share' in navigator) {
@@ -22,10 +23,10 @@ export const ShareButton: FC = () => {
       toast('Copied to clipboard');
     }
 
-    plausible('Share: Click', {
-      props: { url: window.location.pathname + window.location.search },
+    reportEvent('Share: Click', {
+      url: window.location.pathname + window.location.search,
     });
-  }, [plausible]);
+  }, [reportEvent]);
 
   return (
     <Button
