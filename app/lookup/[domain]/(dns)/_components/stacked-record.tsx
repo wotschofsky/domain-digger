@@ -60,13 +60,15 @@ export const StackedRecord: FC<StackedRecordProps> = ({
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex justify-between font-bold">
-        <span>{name}</span>
-        <span>{TTL}</span>
+    <div className="flex flex-col gap-2">
+      <div className="flex justify-between gap-4">
+        <span className="min-w-0 flex-1 break-words font-bold">{name}</span>
+        <span className="flex-shrink-0">{TTL}s</span>
       </div>
-      <p className="break-words">{interpolatedValue}</p>
-      {subvalues && <RecordSubvalues subvalues={subvalues} />}
+      <p className="break-words">
+        {interpolatedValue}
+        {subvalues && <RecordSubvalues subvalues={subvalues} />}
+      </p>
     </div>
   );
 };
