@@ -1,4 +1,5 @@
 import { usePlausible } from 'next-plausible';
+import posthog from 'posthog-js';
 import { useCallback, useMemo } from 'react';
 
 type EmptyEvent = Record<string, never>;
@@ -27,6 +28,7 @@ export const useAnalytics = () => {
   const reportEvent = useCallback(
     <T extends keyof Events>(event: T, props: Events[T]) => {
       plausible(event, { props });
+      posthog.capture(event, props);
     },
     [plausible],
   );
