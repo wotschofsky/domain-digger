@@ -70,12 +70,16 @@ const LookupDomain: FC<LookupDomainProps> = async ({
 
   return (
     <>
-      <div className="flex flex-col gap-8 sm:flex-row">
-        <ResolverSelector initialValue={resolverName} />
-        <LocationSelector
-          initialValue={locationName}
-          disabled={!resolverName}
-        />
+      <div className="flex flex-col gap-4 min-[450px]:flex-row">
+        <div className="w-full flex-1 min-[450px]:max-w-52">
+          <ResolverSelector initialValue={resolverName} />
+        </div>
+        <div className="w-full flex-1 min-[450px]:max-w-52">
+          <LocationSelector
+            initialValue={locationName}
+            disabled={!resolverName}
+          />
+        </div>
       </div>
 
       {hasResults ? (

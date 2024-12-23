@@ -57,7 +57,7 @@ export const LocationSelector: FC<LocationSelectorProps> = ({
         onValueChange={onValueChange}
         disabled={disabled}
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger>
           <SelectValue placeholder="Location" />
         </SelectTrigger>
         <SelectContent>

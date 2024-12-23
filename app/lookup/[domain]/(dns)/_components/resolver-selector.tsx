@@ -53,7 +53,7 @@ export const ResolverSelector: FC<ResolverSelectorProps> = ({
         defaultValue={initialValue || 'authoritative'}
         onValueChange={onValueChange}
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger>
           <SelectValue placeholder="Resolver" />
         </SelectTrigger>
         <SelectContent>
