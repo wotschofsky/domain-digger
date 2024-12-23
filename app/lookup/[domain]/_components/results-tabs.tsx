@@ -1,52 +1,40 @@
 'use client';
 
 import { OptionIcon } from 'lucide-react';
+import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useRouter, useSelectedLayoutSegment } from 'next/navigation';
 import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { ClientOnly } from '@/components/client-only';
-import { isAppleDevice } from '@/lib/utils';
+import { cn, isAppleDevice } from '@/lib/utils';
 
 type SingleTabProps = {
   label: string;
   href: string;
   selected: boolean;
-  shortcutNumber: number;
 };
 
-const SingleTab: FC<SingleTabProps> = ({
-  label,
-  href,
-  selected,
-  shortcutNumber,
-}) => (
+const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   <li className="mr-2">
     <Link
       href={href}
-      className={
+      className={cn(
+        'relative inline-block w-max rounded-t-lg px-4 py-3 transition-colors',
         selected
-          ? 'relative inline-block w-max rounded-t-lg border-b-2 border-primary p-4 text-primary'
-          : 'relative inline-block w-max rounded-t-lg border-b-2 border-transparent p-4 hover:border-zinc-300 hover:text-zinc-600 dark:hover:text-zinc-300'
-      }
+          ? 'text-primary'
+          : 'text-zinc-600 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300',
+      )}
     >
-      {label}
-      <ClientOnly>
-        <span
-          className="pointer-events-none absolute bottom-0 left-1/2 hidden w-full -translate-x-1/2 translate-y-4 text-xs text-zinc-500 opacity-0 transition-all group-hover:translate-y-6 group-hover:opacity-100 dark:text-zinc-400 sm:block"
-          aria-hidden
-        >
-          {isAppleDevice() ? (
-            <>
-              <OptionIcon className="inline-block h-3 w-3" strokeWidth={3} />
-              {` + ${shortcutNumber}`}
-            </>
-          ) : (
-            `alt+${shortcutNumber}`
-          )}
-        </span>
-      </ClientOnly>
+      {selected && (
+        <motion.div
+          className="absolute inset-0 rounded-xl bg-white shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:bg-zinc-900 dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]"
+          layoutId="activeTab"
+          transition={{ type: 'spring', stiffness: 750, damping: 60 }}
+        />
+      )}
+      <span className="relative">{label}</span>
     </Link>
   </li>
 );
@@ -68,39 +56,47 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   ]);
 
   return (
-    <div className="group mb-6 border-b border-zinc-950/10 text-center text-sm font-medium text-zinc-500">
-      <ul className="-mb-px flex flex-wrap">
+    <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
+      <ul className="-mb-px flex">
         <SingleTab
           label="DNS"
           href={`/lookup/${domain}`}
           selected={selectedSegment === '(dns)'}
-          shortcutNumber={1}
         />
         <SingleTab
           label="DNS Map"
           href={`/lookup/${domain}/map`}
           selected={selectedSegment === 'map'}
-          shortcutNumber={2}
         />
         <SingleTab
           label="Whois"
           href={`/lookup/${domain}/whois`}
           selected={selectedSegment === 'whois'}
-          shortcutNumber={3}
         />
         <SingleTab
           label="Certs"
           href={`/lookup/${domain}/certs`}
           selected={selectedSegment === 'certs'}
-          shortcutNumber={4}
         />
         <SingleTab
           label="Subdomains"
           href={`/lookup/${domain}/subdomains`}
           selected={selectedSegment === 'subdomains'}
-          shortcutNumber={5}
         />
       </ul>
+
+      <ClientOnly>
+        <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border border-zinc-200 bg-white px-1.5 font-mono text-[10px] font-medium opacity-100 dark:border-zinc-700 dark:bg-zinc-800 sm:flex">
+          {isAppleDevice() ? (
+            <>
+              <OptionIcon className="inline-block h-2 w-2" strokeWidth={3} />{' '}
+              1-5
+            </>
+          ) : (
+            'ctrl+1-5'
+          )}
+        </kbd>
+      </ClientOnly>
     </div>
   );
 };

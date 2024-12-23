@@ -90,12 +90,13 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
           <WhoisQuickInfo domain={domain} />
         </div>
 
+        <div className="container">
+          <ResultsTabs domain={domain} />
+        </div>
+
         <div className="flex flex-1 flex-col p-3">
-          <Card className="flex-1 pb-12">
-            <div className="container">
-              <ResultsTabs domain={domain} />
-              {children}
-            </div>
+          <Card className="flex-1 py-8">
+            <div className="container px-5">{children}</div>
           </Card>
         </div>
       </main>
