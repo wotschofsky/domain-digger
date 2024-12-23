@@ -71,6 +71,14 @@ const nextConfig = {
       dynamic: 60,
       static: 300,
     },
+    turbo: {
+      rules: {
+        '*.svg': {
+          loaders: ['@svgr/webpack'],
+          as: '*.js',
+        },
+      },
+    },
   },
 };
 
