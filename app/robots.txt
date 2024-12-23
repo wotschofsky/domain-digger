@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-Sitemap: https://digger.tools/sitemap.xml
-Host: https://digger.tools
