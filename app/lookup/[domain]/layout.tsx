@@ -96,7 +96,9 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
 
         <div className="flex flex-1 flex-col p-3">
           <Card className="flex-1 py-8">
-            <div className="container px-5">{children}</div>
+            <div className="container px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
+              {children}
+            </div>
           </Card>
         </div>
       </main>
