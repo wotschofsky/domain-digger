@@ -6,7 +6,7 @@ import { SortableTable } from '@/components/sortable-table';
 import type { CertsData } from '@/lib/certs';
 import { isValidDomain } from '@/lib/utils';
 
-import { DomainLink } from '../../_components/domain-link';
+import { DomainLink } from '../../../../_components/domain-link';
 
 type CertsTableProps = {
   certs: CertsData;

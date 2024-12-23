@@ -12,7 +12,7 @@ import {
 
 import { SortableTable } from '@/components/sortable-table';
 
-import { DomainLink } from '../../_components/domain-link';
+import { DomainLink } from '../../../../_components/domain-link';
 
 type SubdomainsTableProps = {
   results: {

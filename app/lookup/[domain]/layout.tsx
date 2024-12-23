@@ -7,12 +7,12 @@ import { type FC, type ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
 
-import { Footer } from '@/app/_components/footer';
-import { Header } from '@/app/_components/header';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { recordLookup } from '@/lib/search';
 import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
+import { Footer } from '../../_components/footer';
+import { Header } from '../../_components/header';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
 import { ShareButton } from './_components/share-button';

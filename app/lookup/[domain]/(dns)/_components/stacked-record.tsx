@@ -3,7 +3,7 @@ import reactStringReplace from 'react-string-replace';
 
 import type { RecordContextEntry } from '@/lib/record-context';
 
-import { DomainLink } from '../../_components/domain-link';
+import { DomainLink } from '../../../../_components/domain-link';
 import { IpLink } from '../../_components/ip-link';
 import { RecordSubvalues } from './record-subvalues';
 

@@ -7,7 +7,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import type { RecordContextEntry } from '@/lib/record-context';
 import { cn, DOMAIN_REGEX, IPV4_REGEX, IPV6_REGEX } from '@/lib/utils';
 
-import { DomainLink } from '../../_components/domain-link';
+import { DomainLink } from '../../../../_components/domain-link';
 import { IpLink } from '../../_components/ip-link';
 import { RecordSubvalues } from './record-subvalues';
 

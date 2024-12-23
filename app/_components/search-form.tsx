@@ -31,7 +31,7 @@ import {
   isValidDomain,
 } from '@/lib/utils';
 
-import { IpDetailsModal } from '../lookup/[domain]/_components/ip-details-modal';
+import { IpDetailsModal } from './ip-details-modal';
 
 const normalizeDomain = (input: string) => {
   let tDomain;

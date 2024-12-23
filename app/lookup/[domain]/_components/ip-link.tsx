@@ -12,7 +12,7 @@ import {
 
 import { useAnalytics } from '@/lib/analytics';
 
-import { IpDetailsModal } from './ip-details-modal';
+import { IpDetailsModal } from '../../../_components/ip-details-modal';
 
 type IpLinkProps = {
   value: string;
