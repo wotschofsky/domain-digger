@@ -20,9 +20,13 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   ...props
 }) => {
   const buildSponsorUrl = (baseUrl: string) => {
-    const url = new URL(baseUrl);
-    url.searchParams.set('ref', 'domain-digger');
-    return url.toString();
+    try {
+      const url = new URL(baseUrl);
+      url.searchParams.set('ref', 'domain-digger');
+      return url.toString();
+    } catch (_) {
+      return `https://${baseUrl}?ref=domain-digger`;
+    }
   };
 
   const githubSponsors = await getGitHubSponsors('wotschofsky');
