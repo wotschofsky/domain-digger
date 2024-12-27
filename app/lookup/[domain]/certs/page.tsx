@@ -21,10 +21,11 @@ export const generateMetadata = async ({
   const { domain } = await params;
 
   return {
+    title: `Certificate Logs for ${domain}`,
     openGraph: {
+      title: `Certificate Logs for ${domain}`,
       url: `/lookup/${domain}/certs`,
     },
-
     alternates: {
       canonical: `/lookup/${domain}/certs`,
     },

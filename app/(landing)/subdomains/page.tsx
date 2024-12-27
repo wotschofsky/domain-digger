@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import { SearchForm } from '../../_components/search-form';
@@ -7,8 +8,10 @@ import { TrustSection } from '../_components/trust-section';
 
 export const revalidate = 86400; // 24 hours
 
-export const metadata = {
+export const metadata: Metadata = {
+  title: 'Subdomain Search',
   openGraph: {
+    title: 'Subdomain Search',
     url: '/subdomains',
   },
   alternates: {

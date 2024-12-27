@@ -24,7 +24,9 @@ export const generateMetadata = async ({
   const { domain } = await params;
 
   return {
+    title: `DNS Propagation for ${domain}`,
     openGraph: {
+      title: `DNS Propagation for ${domain}`,
       url: `/lookup/${domain}/map`,
     },
     alternates: {

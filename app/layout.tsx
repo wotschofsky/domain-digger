@@ -25,12 +25,15 @@ export const viewport: Viewport = {
 
 export const metadata = {
   metadataBase: env.SITE_URL ? new URL(env.SITE_URL) : null,
-  title: 'Domain Digger: DNS, WHOIS lookup & more',
+  title: {
+    template: '%s - Domain Digger',
+    absolute: 'Domain Digger: DNS Lookup, WHOIS Lookup & more',
+  },
   description:
     'Domain Digger is the full open-source toolkit for next-level domain analysis, providing detailed DNS, IP, WHOIS data, and SSL/TLS history in a user-friendly, no-install interface.',
   openGraph: {
     type: 'website',
-    title: 'Domain Digger: DNS, WHOIS lookup & more',
+    title: 'Domain Digger: DNS Lookup, WHOIS Lookup & more',
     description:
       'Domain Digger is the full open-source toolkit for next-level domain analysis, providing detailed DNS, IP, WHOIS data, and SSL/TLS history in a user-friendly, no-install interface.',
     url: '/',

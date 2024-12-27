@@ -33,7 +33,9 @@ export const generateMetadata = async ({
   const suffix = normalizedParams.size ? `?${normalizedParams.toString()}` : '';
 
   return {
+    title: `DNS Lookup for ${domain}`,
     openGraph: {
+      title: `DNS Lookup for ${domain}`,
       url: `/lookup/${domain}${suffix}`,
     },
     alternates: {

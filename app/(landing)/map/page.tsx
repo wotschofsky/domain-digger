@@ -1,15 +1,17 @@
+import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import { SearchForm } from '../../_components/search-form';
 import { AuthorSection } from '../_components/author-section';
-import { FeaturesSection } from '../_components/features-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
 export const revalidate = 86400; // 24 hours
 
-export const metadata = {
+export const metadata: Metadata = {
+  title: 'DNS Propagation Map',
   openGraph: {
+    title: 'DNS Propagation Map',
     url: '/',
   },
   alternates: {

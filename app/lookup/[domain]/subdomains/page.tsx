@@ -27,10 +27,11 @@ export const generateMetadata = async ({
   const { domain } = await params;
 
   return {
+    title: `Subdomain Search for ${domain}`,
     openGraph: {
+      title: `Subdomain Search for ${domain}`,
       url: `/lookup/${domain}/subdomains`,
     },
-
     alternates: {
       canonical: `/lookup/${domain}/subdomains`,
     },

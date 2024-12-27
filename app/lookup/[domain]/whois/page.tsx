@@ -24,7 +24,9 @@ export const generateMetadata = async ({
   const search = force !== undefined ? '?force' : '';
 
   return {
+    title: `WHOIS Lookup for ${domain}`,
     openGraph: {
+      title: `WHOIS Lookup for ${domain}`,
       url: `/lookup/${domain}/whois${search}`,
     },
     alternates: {
