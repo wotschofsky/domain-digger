@@ -38,7 +38,7 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
       {
         key: 'firstSeen',
         label: 'First seen',
-        render: (value) => value.toISOString(),
+        render: (value) => new Date(value).toLocaleString('en-US'),
       },
       {
         key: 'stillExists',

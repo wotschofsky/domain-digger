@@ -19,14 +19,17 @@ export const CertsTable: FC<CertsTableProps> = ({ certs }) => (
       {
         key: 'entry_timestamp',
         label: 'Logged At',
+        render: (value) => new Date(value).toLocaleString('en-US'),
       },
       {
         key: 'not_before',
         label: 'Not Before',
+        render: (value) => new Date(value).toLocaleString('en-US'),
       },
       {
         key: 'not_after',
         label: 'Not After',
+        render: (value) => new Date(value).toLocaleString('en-US'),
       },
       {
         key: 'common_name',
