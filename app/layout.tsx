@@ -11,9 +11,9 @@ import { env } from '@/env';
 import './globals.css';
 import { Providers } from './providers';
 
-const FeedbackPrompt = dynamic(() =>
-  import('./_components/feedback-prompt').then((m) => ({
-    default: m.FeedbackPrompt,
+const StarReminder = dynamic(() =>
+  import('./_components/star-reminder').then((m) => ({
+    default: m.StarReminder,
   })),
 );
 
@@ -59,7 +59,7 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
         </Providers>
 
         <ClientOnly>
-          <FeedbackPrompt />
+          <StarReminder />
         </ClientOnly>
         <Toaster />
         <SpeedInsights />
