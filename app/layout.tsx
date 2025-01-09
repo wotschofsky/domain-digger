@@ -63,6 +63,9 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
         </ClientOnly>
         <Toaster />
         <SpeedInsights />
+
+        {/* Temporary survey embed */}
+        <img className="hidden" src="https://cf-survey.wsky.dev" alt="" />
       </body>
     </html>
   );
