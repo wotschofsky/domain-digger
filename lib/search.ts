@@ -49,7 +49,7 @@ export const getSearchSuggestions = async (query: string) => {
     return primarySuggestions;
   }
 
-  const segments = query.split('.');
+  const segments = query.split('.').filter((s) => s.length > 0);
   if (segments.length < 2) {
     return [];
   }
