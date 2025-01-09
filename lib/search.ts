@@ -43,19 +43,22 @@ export const recordLookup = async (payload: LookupLogPayload) => {
 };
 
 export const getSearchSuggestions = async (query: string) => {
-  const segments = query.split('.').filter(Boolean);
+  const primarySuggestions = await getSearchSuggestionsForPrefix(query);
 
-  const suggestions = await Promise.all(
-    // Limit to 2 segments to avoid abuse and keep results sensible
-    segments.slice(0, 2).map(async (_, i) => {
-      const querySegment = segments.slice(i).join('.');
-      const suggestions = await getSearchSuggestionsForPrefix(querySegment);
-      const prefix = i === 0 ? '' : segments.slice(0, i).join('.');
-      return suggestions.map((s) => (prefix ? `${prefix}.${s}` : s));
-    }),
-  );
+  if (primarySuggestions.length > 0) {
+    return primarySuggestions;
+  }
 
-  return Array.from(new Set(suggestions.flat()));
+  const segments = query.split('.');
+  if (segments.length < 2) {
+    return [];
+  }
+
+  const secondarySuggestions = await getSearchSuggestionsForPrefix(
+    segments.slice(1).join('.'),
+  ).then((suggestions) => suggestions.map((s) => `${segments[0]}.${s}`));
+
+  return secondarySuggestions;
 };
 
 export const getSearchSuggestionsForPrefix = async (prefix: string) => {
