@@ -46,19 +46,20 @@ export const TrustSection: FC<TrustSectionProps> = (props) => (
         and provide a fun way for students to learn about DNS interactively.
       </Testimonial>
 
+      {/* From https://x.com/midudev/status/1877021355989717196 */}
       <Testimonial
         from={{
-          url: 'https://x.com/genuinu',
-          name: 'benj',
-          role: 'Domain Reseller',
-          imgSrc: '/assets/testimonials/genuinu.png',
+          url: 'https://x.com/midudev',
+          name: 'Miguel Ángel Durán',
+          role: 'Content Creator',
+          imgSrc: '/assets/testimonials/miguel-angel-duran.jpg',
         }}
       >
-        If you&apos;re not using Domain Digger then it&apos;s something else and
-        that&apos;s just silly.
+        <strong>This resource is GOLD</strong> for Programmers and DevOps.
+        <br />A tool that gives you all the info about a domain.
         <br />
         <br />
-        It even looks up emojis!
+        DNS, WHOIS, IPs, Subdomains, certificates and more!
       </Testimonial>
     </div>
   </section>
