@@ -1,3 +1,5 @@
+> **Do you enjoy using Domain Digger? Leave a star! 🌟**
+
 ![Domain Digger](docs/logo.svg)
 
 # 🔍 Domain Digger: Full Toolkit for Next-Level Domain Analysis
