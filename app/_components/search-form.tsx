@@ -19,6 +19,7 @@ import useSWRImmutable from 'swr/immutable';
 
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
@@ -109,7 +110,7 @@ const useFirstRender = () => {
 enum FormStates {
   Initial,
   Submitting,
-  Success,
+  Invalid,
 }
 
 type SearchFormProps = {
@@ -135,7 +136,6 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   }, [initialValue]);
 
   const [state, setState] = useState<FormStates>(FormStates.Initial);
-  const [isInvalid, setInvalid] = useState(false);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
 
@@ -185,22 +185,22 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
       switch (parsed.type) {
         case 'ip':
-          setInvalid(false);
+          setState(FormStates.Initial);
           setIpDetailsOpen(true);
           return;
         case 'domain':
-          setInvalid(false);
+          setState(FormStates.Initial);
           redirectUser(parsed.value);
           reportEvent('Search Form: Submit', {
             domain: parsed.value,
           });
           return;
         case 'invalid':
-          setInvalid(true);
+          setState(FormStates.Invalid);
           return;
       }
     },
-    [setInvalid, setIpDetailsOpen, redirectUser, reportEvent],
+    [setState, setIpDetailsOpen, redirectUser, reportEvent],
   );
 
   const { suggestions } = useSuggestions(domain);
@@ -213,8 +213,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const handleSelectSuggestion = useCallback(
     (value: string) => {
-      setInvalid(false);
-
+      setState(FormStates.Initial);
       setDomain(value);
       setSuggestionsVisible(false);
       redirectUser(value);
@@ -224,7 +223,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         isExample: !domain,
       });
     },
-    [domain, setDomain, redirectUser, reportEvent],
+    [domain, setDomain, setState, redirectUser, reportEvent],
   );
 
   const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(
@@ -325,7 +324,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           ref={inputRef}
           name="domain"
           className="w-full !pl-9"
-          data-invalid={isInvalid ? '' : undefined}
+          data-invalid={state === FormStates.Invalid ? '' : undefined}
           type="text"
           required
           autoComplete="off"
@@ -350,21 +349,27 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
               setSuggestionsVisible(false);
             }, 100);
           }}
-          disabled={state !== FormStates.Initial}
+          disabled={state === FormStates.Submitting}
           autoFocus={props.autofocus}
         />
 
-        <ClientOnly>
-          <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-[10px] font-medium opacity-100 dark:border-zinc-700 dark:bg-zinc-800 sm:flex">
-            {isAppleDevice() ? (
-              <>
-                <span className="text-xs">⌘</span>K
-              </>
-            ) : (
-              'ctrl+k'
-            )}
-          </kbd>
-        </ClientOnly>
+        {state === FormStates.Submitting ? (
+          <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col justify-center">
+            <Spinner className="h-4 w-4" />
+          </div>
+        ) : (
+          <ClientOnly>
+            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-[10px] font-medium opacity-100 dark:border-zinc-700 dark:bg-zinc-800 sm:flex">
+              {isAppleDevice() ? (
+                <>
+                  <span className="text-xs">⌘</span>K
+                </>
+              ) : (
+                'ctrl+k'
+              )}
+            </kbd>
+          </ClientOnly>
+        )}
 
         {suggestionsVisible && suggestions && suggestions.length > 0 && (
           <Card className="absolute left-0 top-full z-10 h-min p-1">

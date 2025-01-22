@@ -116,7 +116,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     <p className="my-12 text-center">An error occurred!</p>
   ) : !data ? (
     <div className="flex items-center justify-center">
-      <Spinner />
+      <Spinner className="my-8" />
     </div>
   ) : (
     <>

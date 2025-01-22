@@ -9,7 +9,7 @@ const Spinner = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'my-8 inline-block h-9 w-9 animate-[spin_0.6s_linear_infinite] rounded-full border-[2px] border-current border-t-transparent text-gray-800',
+      'inline-block h-9 w-9 animate-[spin_0.8s_linear_infinite] rounded-full border-[2px] border-current border-t-transparent text-foreground',
       className,
     )}
     role="status"
