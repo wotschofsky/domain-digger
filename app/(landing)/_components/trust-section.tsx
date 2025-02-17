@@ -14,7 +14,7 @@ export const TrustSection: FC<TrustSectionProps> = (props) => (
       <TrustedByLogos subpage={props.subpage} />
     </div>
 
-    <div className="mt-12 grid grid-cols-3 gap-8">
+    <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-3">
       <Testimonial
         from={{
           url: 'https://www.linkedin.com/in/anouar-springer',
