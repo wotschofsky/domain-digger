@@ -22,6 +22,11 @@ type SponsorsQueryResponse = {
 };
 
 export const getGitHubSponsors = async (username: string) => {
+  if (!env.GITHUB_TOKEN) {
+    console.warn('GITHUB_TOKEN not set; skipping GitHub sponsors');
+    return [];
+  }
+
   const response = await fetch('https://api.github.com/graphql', {
     method: 'POST',
     headers: {
