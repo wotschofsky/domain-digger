@@ -12,20 +12,19 @@ export const ShareButton: FC = () => {
   const { reportEvent } = useAnalytics();
 
   const onClick = useCallback(() => {
+    reportEvent('Share: Click', {
+      url: window.location.pathname + window.location.search,
+    });
+
     if ('share' in navigator) {
       navigator.share({
         title: document.title,
         url: window.location.href,
       });
-      return;
     } else {
       (navigator as Navigator).clipboard.writeText(window.location.href);
       toast('Copied to clipboard');
     }
-
-    reportEvent('Share: Click', {
-      url: window.location.pathname + window.location.search,
-    });
   }, [reportEvent]);
 
   return (

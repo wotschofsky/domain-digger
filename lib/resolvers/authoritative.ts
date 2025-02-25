@@ -117,7 +117,10 @@ export class AuthoritativeResolver extends DnsResolver {
         clearTimeout(timeout);
         resolve(response);
       });
-      socket.on('error', reject);
+      socket.on('error', (error) => {
+        socket.close();
+        reject(error);
+      });
     });
   }
 

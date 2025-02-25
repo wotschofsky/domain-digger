@@ -45,7 +45,7 @@ export const SortableTable = <T extends Record<string, any>>({
 
   const sortedData = useMemo(
     () =>
-      data.sort((a, b) => {
+      data.toSorted((a, b) => {
         if (a[sort] > b[sort]) return sortDirection === 'asc' ? 1 : -1;
         if (a[sort] < b[sort]) return sortDirection === 'asc' ? -1 : 1;
         return 0;
