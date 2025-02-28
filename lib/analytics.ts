@@ -14,6 +14,7 @@ type Events = {
   'Search Form: Submit': { domain: string };
   'Share: Click': { url: string };
   'Star Reminder: Click': EmptyEvent;
+  'Star Reminder: Show': EmptyEvent;
   'Star Reminder: Suppress': EmptyEvent;
   'Trace: Click': { type: string; domain: string };
 };

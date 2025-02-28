@@ -1,12 +1,14 @@
 import { waitUntil } from '@vercel/functions';
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
+import dynamic from 'next/dynamic';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { type FC, type ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
 
+import { ClientOnly } from '@/components/client-only';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { recordLookup } from '@/lib/search';
 import { isValidDomain, isWildcardDomain } from '@/lib/utils';
@@ -17,6 +19,12 @@ import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
 import { ShareButton } from './_components/share-button';
 import { WhoisQuickInfo } from './_components/whois-quick-info';
+
+const StarReminder = dynamic(() =>
+  import('./_components/star-reminder').then((m) => ({
+    default: m.StarReminder,
+  })),
+);
 
 type LookupLayoutProps = {
   children: ReactNode;
@@ -100,6 +108,10 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
         </div>
       </main>
       <Footer />
+
+      <ClientOnly>
+        <StarReminder />
+      </ClientOnly>
     </>
   );
 };

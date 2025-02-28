@@ -1,21 +1,13 @@
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Viewport } from 'next';
-import dynamic from 'next/dynamic';
 import type { FC, ReactNode } from 'react';
 
 import { Toaster } from '@/components/ui/sonner';
 
-import { ClientOnly } from '@/components/client-only';
 import { env } from '@/env';
 
 import './globals.css';
 import { Providers } from './providers';
-
-const StarReminder = dynamic(() =>
-  import('./_components/star-reminder').then((m) => ({
-    default: m.StarReminder,
-  })),
-);
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -58,9 +50,6 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
           </div>
         </Providers>
 
-        <ClientOnly>
-          <StarReminder />
-        </ClientOnly>
         <Toaster />
         <SpeedInsights />
       </body>
