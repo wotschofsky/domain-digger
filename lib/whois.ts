@@ -1,4 +1,4 @@
-import whoiser, { type WhoisSearchResult } from 'whoiser';
+import { firstResult as getFirstResult, whoisDomain } from 'whoiser';
 
 import { getBaseDomain, isValidDomain } from './utils';
 
@@ -10,15 +10,22 @@ const parseDateSafe = (date: string): Date | null => {
   return null;
 };
 
+type WhoisResult = {
+  [key: string]: {
+    __raw: string;
+    [key: string]: unknown;
+  };
+};
+
 export const lookupWhois = async (domain: string) => {
-  const result = await whoiser(domain, {
+  const result = (await whoisDomain(domain, {
     raw: true,
     timeout: 5000,
-  });
+  })) as WhoisResult;
 
   const mappedResults: Record<string, string> = {};
   for (const key in result) {
-    mappedResults[key] = (result[key] as WhoisSearchResult).__raw as string;
+    mappedResults[key] = result[key].__raw as string;
   }
 
   const filteredResults = Object.entries(mappedResults).filter(
@@ -76,19 +83,16 @@ export const getWhoisSummary = async (
   const baseDomain = getBaseDomain(domain);
 
   try {
-    const results = await whoiser(baseDomain, {
+    const results = (await whoisDomain(baseDomain, {
       timeout: 5000,
       raw: true,
-    });
+    })) as WhoisResult;
 
-    const resultsKey = Object.keys(results).find(
-      // @ts-expect-error
-      (key) => !('error' in results[key]),
-    );
-    if (!resultsKey) {
-      throw new Error('No valid results found for domain ' + domain);
+    const firstResult = getFirstResult(results);
+
+    if (!firstResult) {
+      throw new Error('No valid result found for domain ' + domain);
     }
-    const firstResult = results[resultsKey] as WhoisSearchResult;
 
     if (
       UNREGISTERED_INDICATORS.some((indicator) =>

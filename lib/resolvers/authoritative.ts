@@ -56,7 +56,7 @@ export class AuthoritativeResolver extends DnsResolver {
         } else if (record.data instanceof Buffer) {
           return record.data.toString();
         } else {
-          return record.data;
+          return record.data.toString();
         }
       case 'CAA':
         return `${record.data.flags} ${record.data.tag} "${record.data.value}"`;
