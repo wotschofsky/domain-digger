@@ -13,7 +13,7 @@ import {
   getBaseDomain,
   isAppleDevice,
   isValidDomain,
-  isWildcardDomain, // Make sure to import the new function
+  isWildcardDomain,
   retry,
 } from './utils';
 
