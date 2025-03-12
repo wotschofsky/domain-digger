@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { redirect, RedirectType } from 'next/navigation';
+import { notFound, redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
 import { ALL_RECORD_TYPES } from '@/lib/data';
@@ -7,8 +7,6 @@ import { getRecordContextEntries } from '@/lib/record-context';
 import { getResolverFromName } from '@/lib/resolvers/utils';
 
 import { DnsTable } from './_components/dns-table';
-import { LocationSelector } from './_components/location-selector';
-import { ResolverSelector } from './_components/resolver-selector';
 
 type LookupDomainProps = {
   params: Promise<{
@@ -70,28 +68,14 @@ const LookupDomain: FC<LookupDomainProps> = async ({
       0,
     ) > 0;
 
-  return (
-    <>
-      <div className="flex flex-col gap-4 min-[450px]:flex-row">
-        <div className="w-full flex-1 min-[450px]:max-w-52">
-          <ResolverSelector initialValue={resolverName} />
-        </div>
-        <div className="w-full flex-1 min-[450px]:max-w-52">
-          <LocationSelector
-            initialValue={locationName}
-            disabled={!resolverName}
-          />
-        </div>
-      </div>
+  if (hasResults) {
+    return <DnsTable records={records} subvalues={subvalues} />;
+  }
 
-      {hasResults ? (
-        <DnsTable records={records} subvalues={subvalues} />
-      ) : (
-        <p className="mt-24 text-center text-zinc-500 dark:text-zinc-400">
-          No DNS records found!
-        </p>
-      )}
-    </>
+  return (
+    <div className="flex h-screen flex-col items-center justify-center">
+      <p className="text-zinc-500 dark:text-zinc-400">No DNS records found!</p>
+    </div>
   );
 };
 
