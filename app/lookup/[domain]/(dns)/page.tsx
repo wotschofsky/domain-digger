@@ -8,7 +8,7 @@ import { getResolverFromName } from '@/lib/resolvers/utils';
 
 import { DnsTable } from './_components/dns-table';
 
-type LookupDomainProps = {
+type DnsResultsPageProps = {
   params: Promise<{
     domain: string;
   }>;
@@ -21,7 +21,7 @@ type LookupDomainProps = {
 export const generateMetadata = async ({
   params,
   searchParams,
-}: LookupDomainProps): Promise<Metadata> => {
+}: DnsResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
   const { resolver, location } = await searchParams;
 
@@ -44,7 +44,7 @@ export const generateMetadata = async ({
 
 export const fetchCache = 'default-no-store';
 
-const LookupDomain: FC<LookupDomainProps> = async ({
+const DnsResultsPage: FC<DnsResultsPageProps> = async ({
   params,
   searchParams,
 }) => {
@@ -68,15 +68,11 @@ const LookupDomain: FC<LookupDomainProps> = async ({
       0,
     ) > 0;
 
-  if (hasResults) {
-    return <DnsTable records={records} subvalues={subvalues} />;
+  if (!hasResults) {
+    notFound();
   }
 
-  return (
-    <div className="flex h-screen flex-col items-center justify-center">
-      <p className="text-zinc-500 dark:text-zinc-400">No DNS records found!</p>
-    </div>
-  );
+  return <DnsTable records={records} subvalues={subvalues} />;
 };
 
-export default LookupDomain;
+export default DnsResultsPage;
