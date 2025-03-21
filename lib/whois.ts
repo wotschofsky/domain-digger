@@ -40,7 +40,6 @@ const UNREGISTERED_INDICATORS = [
   'no information available',
   'no se encuentra registrado', // ar
   'object_not_found', // mx
-  'available for registration',
   'is free', // .nl
   'no data was found', // co.il
   'no entries found', // cz
