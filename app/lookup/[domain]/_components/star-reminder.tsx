@@ -99,8 +99,8 @@ export const StarReminder: FC = () => {
     const style = document.createElement('style');
     style.innerHTML = `
       @keyframes avatar-bounce {
-        0%, 100% { transform: translateY(0) scale(1.25); }
-        50% { transform: translateY(-10px) scale(1.25); }
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
       }
     `;
     document.head.appendChild(style);

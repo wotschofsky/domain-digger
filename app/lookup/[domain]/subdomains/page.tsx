@@ -92,7 +92,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
             href={`data:text/csv;charset=utf-8,${encodedCsv}`}
             download={exportFileName}
           >
-            <ShareIcon className="mr-2 h-4 w-4" /> Export
+            <ShareIcon className="mr-2 size-4" /> Export
           </a>
         </Button>
       </div>

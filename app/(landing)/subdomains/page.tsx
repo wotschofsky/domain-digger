@@ -30,7 +30,7 @@ const SubdomainsLandingPage: FC = () => (
           <div className="mx-auto w-full max-w-2xl">
             <SearchForm subpage="subdomains" autofocus />
           </div>
-          <p className="mb-20 mt-4 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
+          <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
             Find all DNS records, WHOIS data, SSL/TLS certificate history,
             subdomains and more
           </p>

@@ -19,7 +19,7 @@ export const IconAlert: FC<IconAlertProps> = ({
   children,
 }) => (
   <Alert className={cn('max-w-max', className)}>
-    <Icon className="h-4 w-4" />
+    <Icon className="size-4" />
     <AlertTitle>{title}</AlertTitle>
     <AlertDescription>{children}</AlertDescription>
   </Alert>

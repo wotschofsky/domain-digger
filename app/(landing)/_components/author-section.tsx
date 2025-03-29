@@ -19,7 +19,7 @@ export const AuthorSection: FC<AuthorSectionProps> = ({
     <Image
       width={48}
       height={48}
-      className="h-12 w-12 rounded-full"
+      className="size-12 rounded-full"
       src="https://static.wsky.dev/branding/photo.jpg"
       alt="Felix Wotschofsky, creator of Domain Digger"
     />

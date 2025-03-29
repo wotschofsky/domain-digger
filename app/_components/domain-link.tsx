@@ -21,7 +21,7 @@ export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
       <Tooltip>
         <TooltipTrigger asChild>
           <Link
-            className="select-all underline decoration-dotted underline-offset-4"
+            className="underline decoration-dotted underline-offset-4 select-all"
             href={`/lookup/${domain.toLowerCase()}`}
             prefetch={false}
             aria-label={`Results for ${domain}`}
@@ -44,7 +44,7 @@ export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
               rel="noreferrer nofollow"
               aria-label={`Visit for ${domain}`}
             >
-              <ExternalLinkIcon className="mx-1 inline-block h-3 w-3 -translate-y-0.5" />
+              <ExternalLinkIcon className="mx-1 inline-block size-3 -translate-y-0.5" />
             </a>
           </TooltipTrigger>
           <TooltipContent>

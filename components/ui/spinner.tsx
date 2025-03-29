@@ -10,7 +10,7 @@ const Spinner = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('h-9 w-9', className)}
+    className={cn('size-9', className)}
     role="status"
     aria-label="loading"
     {...props}

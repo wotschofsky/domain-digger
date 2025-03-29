@@ -65,7 +65,7 @@ export const Footer: FC = () => (
               target="_blank"
               rel="noopener"
             >
-              <FaGithub className="mr-1 h-6 w-6" />
+              <FaGithub className="mr-1 size-6" />
               <span>Source on GitHub</span>
             </a>
           </Button>

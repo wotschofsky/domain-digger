@@ -312,18 +312,18 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         {domain === initialValue ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2"
+            className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2"
             src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(initialValue)}`}
             alt=""
           />
         ) : (
-          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-500 dark:text-zinc-400" />
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2 text-zinc-500 dark:text-zinc-400" />
         )}
 
         <Input
           ref={inputRef}
           name="domain"
-          className="w-full !pl-9"
+          className="w-full pl-9!"
           data-invalid={state === FormStates.Invalid ? '' : undefined}
           type="text"
           required
@@ -354,12 +354,12 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         />
 
         {state === FormStates.Submitting ? (
-          <div className="absolute right-3 top-1/2 flex -translate-y-1/2 flex-col justify-center">
-            <Spinner className="h-4 w-4" />
+          <div className="absolute top-1/2 right-3 flex -translate-y-1/2 flex-col justify-center">
+            <Spinner className="size-4" />
           </div>
         ) : (
           <ClientOnly>
-            <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-[10px] font-medium opacity-100 dark:border-zinc-700 dark:bg-zinc-800 sm:flex">
+            <kbd className="pointer-events-none absolute top-1/2 right-3 hidden h-5 -translate-y-1/2 items-center gap-1 rounded border border-zinc-200 bg-zinc-100 px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex dark:border-zinc-700 dark:bg-zinc-800">
               {isAppleDevice() ? (
                 <>
                   <span className="text-xs">⌘</span>K
@@ -372,7 +372,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         )}
 
         {suggestionsVisible && suggestions && suggestions.length > 0 && (
-          <Card className="absolute left-0 top-full z-10 h-min p-1">
+          <Card className="absolute top-full left-0 z-10 h-min p-1">
             <ul>
               {suggestions.map((value, index) => (
                 <li
@@ -388,7 +388,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    className="mr-2 inline-block h-4 w-4"
+                    className="mr-2 inline-block size-4"
                     src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
                     alt=""
                   />

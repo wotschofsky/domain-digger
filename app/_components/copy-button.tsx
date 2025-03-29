@@ -32,7 +32,7 @@ export const CopyButton: FC<CopyButton> = ({ value }) => {
   }, [value, setWasCopied, reportEvent]);
 
   if (wasCopied) {
-    return <CheckIcon className="mx-1 inline-block h-4 w-4 -translate-y-0.5" />;
+    return <CheckIcon className="mx-1 inline-block size-4 -translate-y-0.5" />;
   }
 
   return (
@@ -41,7 +41,7 @@ export const CopyButton: FC<CopyButton> = ({ value }) => {
         <TooltipTrigger asChild>
           <ClipboardIcon
             role="button"
-            className="mx-1 inline-block h-4 w-4 -translate-y-0.5 cursor-pointer"
+            className="mx-1 inline-block size-4 -translate-y-0.5 cursor-pointer"
             onClick={copy}
           />
         </TooltipTrigger>

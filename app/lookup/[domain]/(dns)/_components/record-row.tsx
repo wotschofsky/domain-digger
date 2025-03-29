@@ -60,7 +60,7 @@ export const RecordRow: FC<RecordRowProps> = ({
 
   return (
     <TableRow className="whitespace-nowrap hover:bg-transparent">
-      <TableCell className="w-0 min-w-[20%] pl-0 pr-12">{name}</TableCell>
+      <TableCell className="w-0 min-w-[20%] pr-12 pl-0">{name}</TableCell>
       <TableCell className="w-32 py-1 pr-12">
         {TTL}
         <RecordSubvalues
@@ -69,7 +69,7 @@ export const RecordRow: FC<RecordRowProps> = ({
       </TableCell>
       <TableCell
         className={cn(
-          'whitespace-normal break-words pr-0',
+          'pr-0 break-words whitespace-normal',
           subvalues ? 'py-1' : 'py-4',
         )}
       >

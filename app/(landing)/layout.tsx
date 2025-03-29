@@ -10,7 +10,7 @@ type LandingLayoutProps = {
 const LandingLayout: FC<LandingLayoutProps> = ({ children }) => (
   <>
     <Header showSearch={false} />
-    <main className="w-full flex-1 pb-16 pt-8">{children}</main>
+    <main className="w-full flex-1 pt-8 pb-16">{children}</main>
     <Footer />
   </>
 );

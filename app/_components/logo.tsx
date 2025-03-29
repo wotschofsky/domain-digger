@@ -11,8 +11,8 @@ type LogoProps = {
 
 export const Logo: FC<LogoProps> = ({ textClassName }) => (
   <Link className="flex items-center gap-2" href="/" aria-label="Home Page">
-    <LogoDark className="inline h-6 flex-shrink-0 dark:hidden" />
-    <LogoLight className="hidden h-6 flex-shrink-0 dark:inline" />
+    <LogoDark className="inline h-6 shrink-0 dark:hidden" />
+    <LogoLight className="hidden h-6 shrink-0 dark:inline" />
     <span className={cn('whitespace-nowrap', textClassName)}>
       Domain Digger
     </span>

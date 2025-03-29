@@ -29,7 +29,7 @@ const DrawerOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-zinc-950/25 backdrop-blur-sm',
+      'fixed inset-0 z-50 bg-zinc-950/25 backdrop-blur-xs',
       className,
     )}
     {...props}
@@ -64,7 +64,7 @@ const DrawerHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'text-balance text-lg/6 font-semibold text-zinc-950 dark:text-white sm:text-base/6',
+      'text-lg/6 font-semibold text-balance text-zinc-950 sm:text-base/6 dark:text-white',
       className,
     )}
     {...props}
@@ -93,7 +93,7 @@ const DrawerTitle = React.forwardRef<
   <DrawerPrimitive.Title
     ref={ref}
     className={cn(
-      'text-balance text-lg/6 font-semibold text-zinc-950 dark:text-white sm:text-base/6',
+      'text-lg/6 font-semibold text-balance text-zinc-950 sm:text-base/6 dark:text-white',
       className,
     )}
     {...props}
@@ -108,7 +108,7 @@ const DrawerDescription = React.forwardRef<
   <DrawerPrimitive.Description
     ref={ref}
     className={cn(
-      'mt-2 text-pretty text-sm text-zinc-500 dark:text-zinc-400',
+      'mt-2 text-sm text-pretty text-zinc-500 dark:text-zinc-400',
       className,
     )}
     {...props}

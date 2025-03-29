@@ -11,7 +11,7 @@ const formatHref = (domain: string, subpage?: string) => {
 };
 
 export const TrustedByLogos: FC<TrustedByLogoProps> = ({ subpage }) => (
-  <div className="flex flex-wrap justify-center gap-8 [&_*]:h-6 [&_*]:w-auto">
+  <div className="flex flex-wrap justify-center gap-8 **:h-6 **:w-auto">
     <Link href={formatHref('cloudflare.com', subpage)}>
       <span className="sr-only">Cloudflare</span>
       <svg

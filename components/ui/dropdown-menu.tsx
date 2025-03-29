@@ -27,7 +27,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-lg py-1.5 pl-2 pr-2 text-sm text-zinc-950 outline-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
+      'relative flex w-full cursor-pointer items-center rounded-lg py-1.5 pr-2 pl-2 text-sm text-zinc-950 outline-hidden select-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
       'focus:bg-black/5 dark:focus:bg-white/10',
       inset && 'pl-8',
       className,
@@ -35,7 +35,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    <ChevronRight className="ml-auto h-4 w-4" />
+    <ChevronRight className="ml-auto size-4" />
   </DropdownMenuPrimitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName =
@@ -86,9 +86,9 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-lg py-1.5 pl-2 pr-2 text-sm text-zinc-950 outline-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
+      'relative flex w-full cursor-pointer items-center rounded-lg py-1.5 pr-2 pl-2 text-sm text-zinc-950 outline-hidden select-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
       'focus:bg-black/5 dark:focus:bg-white/10',
-      'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'data-disabled:pointer-events-none data-disabled:opacity-50',
       inset && 'pl-8',
       className,
     )}
@@ -104,9 +104,9 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-2 text-sm text-zinc-950 outline-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
+      'relative flex w-full cursor-pointer items-center rounded-lg py-1.5 pr-2 pl-8 text-sm text-zinc-950 outline-hidden select-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
       'focus:bg-black/5 dark:focus:bg-white/10',
-      'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'data-disabled:pointer-events-none data-disabled:opacity-50',
       className,
     )}
     checked={checked}
@@ -114,7 +114,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
+        <Check className="size-4" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -130,16 +130,16 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-2 text-sm text-zinc-950 outline-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
+      'relative flex w-full cursor-pointer items-center rounded-lg py-1.5 pr-2 pl-8 text-sm text-zinc-950 outline-hidden select-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
       'focus:bg-black/5 dark:focus:bg-white/10',
-      'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'data-disabled:pointer-events-none data-disabled:opacity-50',
       className,
     )}
     {...props}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className="h-2 w-2 fill-current" />
+        <Circle className="size-2 fill-current" />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
     {children}
@@ -156,7 +156,7 @@ const DropdownMenuLabel = React.forwardRef<
   <DropdownMenuPrimitive.Label
     ref={ref}
     className={cn(
-      'py-1.5 pl-2 pr-2 text-sm font-semibold text-zinc-950 dark:text-white',
+      'py-1.5 pr-2 pl-2 text-sm font-semibold text-zinc-950 dark:text-white',
       inset && 'pl-8',
       className,
     )}

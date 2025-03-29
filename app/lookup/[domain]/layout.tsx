@@ -67,10 +67,10 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
     <>
       <Header showSearch={true} />
       <main className="flex w-full flex-1 flex-col">
-        <div className="container space-y-6 pb-8 pt-12">
+        <div className="container space-y-6 pt-12 pb-8">
           <div className="flex w-full items-center gap-4">
             {/* Bottom padding added to avoid clipping */}
-            <h1 className="mb-2 flex-1 overflow-hidden break-words pb-1">
+            <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
               <span className="block text-zinc-500 dark:text-zinc-400">
                 Results for
               </span>

@@ -7,7 +7,7 @@ type RecordSubvaluesProps = {
 };
 
 export const RecordSubvalues: FC<RecordSubvaluesProps> = ({ subvalues }) => (
-  <span className="mt-1 block break-words text-xs text-zinc-500 dark:text-zinc-400">
+  <span className="mt-1 block text-xs break-words text-zinc-500 dark:text-zinc-400">
     {subvalues.map((s, i) => (
       <>
         {i > 0 && ' / '}

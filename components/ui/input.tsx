@@ -15,11 +15,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         data-slot="control"
         className={cn([
           'relative block w-full',
-          'before:absolute before:inset-px before:rounded-[calc(theme(borderRadius.lg)-1px)] before:bg-white before:shadow',
+          'before:absolute before:inset-px before:rounded-[calc(var(--radius-lg)-1px)] before:bg-white before:shadow-sm',
           'dark:before:hidden',
-          'after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:ring-inset after:ring-transparent sm:after:focus-within:ring-2 sm:after:focus-within:ring-blue-500 sm:after:focus-within:has-[[data-invalid]]:ring-red-500',
-          'has-[[data-disabled]]:opacity-50 before:has-[[data-disabled]]:bg-zinc-950/5 before:has-[[data-disabled]]:shadow-none',
-          'before:has-[[data-invalid]]:shadow-red-500/10',
+          'after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:ring-transparent after:ring-inset sm:focus-within:after:ring-2 sm:focus-within:after:ring-blue-500 sm:focus-within:has-data-invalid:after:ring-red-500',
+          'has-data-disabled:opacity-50 has-data-disabled:before:bg-zinc-950/5 has-data-disabled:before:shadow-none',
+          'has-data-invalid:before:shadow-red-500/10',
         ])}
       >
         <input
@@ -45,15 +45,15 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             // Typography
             'text-sm/6 text-zinc-950 placeholder:text-zinc-500 dark:text-white',
             // Border
-            'border border-zinc-950/10 data-[hover]:border-zinc-950/20 dark:border-white/10 dark:data-[hover]:border-white/20',
+            'border border-zinc-950/10 data-hover:border-zinc-950/20 dark:border-white/10 dark:data-hover:border-white/20',
             // Background color
             'bg-transparent dark:bg-white/5',
             // Hide default focus styles
-            'focus:outline-none',
+            'focus:outline-hidden',
             // Invalid state
-            'data-[invalid]:border-red-500 data-[invalid]:data-[hover]:border-red-500 data-[invalid]:dark:border-red-500 data-[invalid]:data-[hover]:dark:border-red-500',
+            'data-invalid:border-red-500 data-invalid:data-hover:border-red-500 dark:data-invalid:border-red-500 dark:data-invalid:data-hover:border-red-500',
             // Disabled state
-            'data-[disabled]:border-zinc-950/20 dark:data-[hover]:data-[disabled]:border-white/15 data-[disabled]:dark:border-white/15 data-[disabled]:dark:bg-white/[2.5%]',
+            'data-disabled:border-zinc-950/20 dark:data-disabled:border-white/15 dark:data-disabled:bg-white/[2.5%] dark:data-hover:data-disabled:border-white/15',
             // System icons
             'dark:[color-scheme:dark]',
             className,

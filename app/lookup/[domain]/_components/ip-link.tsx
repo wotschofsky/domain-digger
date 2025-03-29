@@ -40,7 +40,7 @@ export const IpLink: FC<IpLinkProps> = ({ value }) => {
               <span className="select-all">{value}</span>
               <InfoIcon
                 role="button"
-                className="mx-1 inline-block h-3 w-3 -translate-y-0.5"
+                className="mx-1 inline-block size-3 -translate-y-0.5"
               />
             </a>
           </TooltipTrigger>

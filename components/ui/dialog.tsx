@@ -25,7 +25,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-zinc-950/25 py-16 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-zinc-950/25 py-16 backdrop-blur-xs',
       className,
     )}
     {...props}
@@ -42,14 +42,14 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'relative z-50 grid w-full max-w-lg gap-4 rounded-t-3xl bg-white p-8 shadow-lg ring-1 ring-zinc-950/10 transition duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 dark:bg-zinc-900 dark:ring-white/10 sm:rounded-2xl',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 relative z-50 grid w-full max-w-lg gap-4 rounded-t-3xl bg-white p-8 shadow-lg ring-1 ring-zinc-950/10 transition duration-200 sm:rounded-2xl dark:bg-zinc-900 dark:ring-white/10',
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-          <X className="h-4 w-4" />
+        <DialogPrimitive.Close className="ring-offset-background focus:ring-ring absolute top-4 right-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+          <X className="size-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>
@@ -64,7 +64,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'text-balance text-lg/6 font-semibold text-zinc-950 dark:text-white sm:text-base/6',
+      'text-lg/6 font-semibold text-balance text-zinc-950 sm:text-base/6 dark:text-white',
       className,
     )}
     {...props}
@@ -93,7 +93,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      'text-balance text-lg/6 font-semibold text-zinc-950 dark:text-white sm:text-base/6',
+      'text-lg/6 font-semibold text-balance text-zinc-950 sm:text-base/6 dark:text-white',
       className,
     )}
     {...props}
@@ -108,7 +108,7 @@ const DialogDescription = React.forwardRef<
   <DialogPrimitive.Description
     ref={ref}
     className={cn(
-      'mt-2 text-pretty text-sm text-zinc-500 dark:text-zinc-400',
+      'mt-2 text-sm text-pretty text-zinc-500 dark:text-zinc-400',
       className,
     )}
     {...props}

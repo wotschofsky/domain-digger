@@ -44,7 +44,7 @@ export const RelatedDomains: FC<RelatedDomainsProps> = ({
           key={domain}
           asChild
           variant="secondary"
-          className="h-6 whitespace-nowrap p-2 text-xs"
+          className="h-6 p-2 text-xs whitespace-nowrap"
           aria-label={`Results for ${domain}`}
         >
           <Link href={`/lookup/${domain}`}>{domain}</Link>

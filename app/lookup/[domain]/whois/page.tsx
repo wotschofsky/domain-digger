@@ -87,7 +87,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
 
       {results.map(([key, value]) => (
         <Fragment key={key}>
-          <h2 className="mb-4 mt-8 text-3xl font-bold tracking-tight">{key}</h2>
+          <h2 className="mt-8 mb-4 text-3xl font-bold tracking-tight">{key}</h2>
           <code className="break-words">
             {value.split('\n').map((line) => (
               // eslint-disable-next-line react/jsx-key

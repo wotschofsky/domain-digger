@@ -86,11 +86,10 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
       </ul>
 
       <ClientOnly>
-        <kbd className="pointer-events-none absolute right-3 top-1/2 hidden h-5 -translate-y-1/2 select-none items-center gap-1 rounded border border-zinc-200 bg-white px-1.5 font-mono text-[10px] font-medium opacity-100 dark:border-zinc-700 dark:bg-zinc-800 sm:flex">
+        <kbd className="pointer-events-none absolute top-1/2 right-3 hidden h-5 -translate-y-1/2 items-center gap-1 rounded border border-zinc-200 bg-white px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex dark:border-zinc-700 dark:bg-zinc-800">
           {isAppleDevice() ? (
             <>
-              <OptionIcon className="inline-block h-2 w-2" strokeWidth={3} />{' '}
-              1-5
+              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-5
             </>
           ) : (
             'ctrl+1-5'

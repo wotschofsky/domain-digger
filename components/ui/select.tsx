@@ -20,10 +20,10 @@ const SelectTrigger = React.forwardRef<
     data-slot="control"
     className={cn([
       'relative block w-full',
-      'before:absolute before:inset-px before:rounded-[calc(theme(borderRadius.lg)-1px)] before:bg-white before:shadow',
+      'before:absolute before:inset-px before:rounded-[calc(var(--radius-lg)-1px)] before:bg-white before:shadow-sm',
       'dark:before:hidden',
-      'after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:ring-inset after:ring-transparent sm:after:focus-within:ring-2 sm:after:focus-within:ring-blue-500',
-      'has-[[data-disabled]]:opacity-50 before:has-[[data-disabled]]:bg-zinc-950/5 before:has-[[data-disabled]]:shadow-none',
+      'after:pointer-events-none after:absolute after:inset-0 after:rounded-lg after:ring-transparent after:ring-inset sm:focus-within:after:ring-2 sm:focus-within:after:ring-blue-500',
+      'has-data-disabled:opacity-50 has-data-disabled:before:bg-zinc-950/5 has-data-disabled:before:shadow-none',
     ])}
   >
     <SelectPrimitive.Trigger
@@ -31,10 +31,10 @@ const SelectTrigger = React.forwardRef<
       className={cn(
         'relative box-border block h-10 w-full appearance-none rounded-lg px-3 py-1.5',
         'text-sm/6 text-zinc-950 placeholder:text-zinc-500 dark:text-white',
-        'border border-zinc-950/10 data-[hover]:border-zinc-950/20 dark:border-white/10 dark:data-[hover]:border-white/20',
+        'border border-zinc-950/10 data-hover:border-zinc-950/20 dark:border-white/10 dark:data-hover:border-white/20',
         'bg-transparent dark:bg-white/5',
-        'focus:outline-none',
-        'data-[disabled]:border-zinc-950/20 dark:data-[hover]:data-[disabled]:border-white/15 data-[disabled]:dark:border-white/15 data-[disabled]:dark:bg-white/[2.5%]',
+        'focus:outline-hidden',
+        'data-disabled:border-zinc-950/20 dark:data-disabled:border-white/15 dark:data-disabled:bg-white/[2.5%] dark:data-hover:data-disabled:border-white/15',
         'dark:[color-scheme:dark]',
         'flex items-center justify-between [&>span]:line-clamp-1',
         className,
@@ -43,7 +43,7 @@ const SelectTrigger = React.forwardRef<
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronDown className="h-4 w-4 opacity-50" />
+        <ChevronDown className="size-4 opacity-50" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   </span>
@@ -62,7 +62,7 @@ const SelectScrollUpButton = React.forwardRef<
     )}
     {...props}
   >
-    <ChevronUp className="h-4 w-4 opacity-50" />
+    <ChevronUp className="size-4 opacity-50" />
   </SelectPrimitive.ScrollUpButton>
 ));
 SelectScrollUpButton.displayName = SelectPrimitive.ScrollUpButton.displayName;
@@ -79,7 +79,7 @@ const SelectScrollDownButton = React.forwardRef<
     )}
     {...props}
   >
-    <ChevronDown className="h-4 w-4 opacity-50" />
+    <ChevronDown className="size-4 opacity-50" />
   </SelectPrimitive.ScrollDownButton>
 ));
 SelectScrollDownButton.displayName =
@@ -125,7 +125,7 @@ const SelectLabel = React.forwardRef<
   <SelectPrimitive.Label
     ref={ref}
     className={cn(
-      'py-1.5 pl-2 pr-2 text-sm font-semibold text-zinc-950 dark:text-white',
+      'py-1.5 pr-2 pl-2 text-sm font-semibold text-zinc-950 dark:text-white',
       className,
     )}
     {...props}
@@ -140,8 +140,8 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center rounded-lg py-1.5 pl-8 pr-2 text-sm text-zinc-950 outline-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
-      'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex w-full cursor-pointer items-center rounded-lg py-1.5 pr-2 pl-8 text-sm text-zinc-950 outline-hidden select-none hover:bg-black/5 dark:text-white dark:hover:bg-white/10',
+      'data-disabled:pointer-events-none data-disabled:opacity-50',
       'focus:bg-black/5 dark:focus:bg-white/10',
       className,
     )}
@@ -149,7 +149,7 @@ const SelectItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <Check className="h-4 w-4" />
+        <Check className="size-4" />
       </SelectPrimitive.ItemIndicator>
     </span>
 
