@@ -92,6 +92,7 @@ export const StarReminder: FC = () => {
 
   const handleClick = useCallback(() => {
     setIsStarred(true);
+    window.open('https://github.com/wotschofsky/domain-digger', '_blank');
     reportEvent('Star Reminder: Click', {});
   }, [setIsStarred, reportEvent]);
 
@@ -153,16 +154,9 @@ export const StarReminder: FC = () => {
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <AlertDialogAction asChild onClick={handleClick}>
-          <a
-            href="https://github.com/wotschofsky/domain-digger"
-            target="_blank"
-            rel="noopener"
-            className="mx-auto my-3 flex w-fit items-center justify-center px-4"
-          >
-            <FaGithub className="mr-1 h-6 w-4" />
-            Star on GitHub
-          </a>
+        <AlertDialogAction onClick={handleClick}>
+          <FaGithub className="mr-1 h-6 w-4" />
+          Star on GitHub
         </AlertDialogAction>
 
         <AlertDialogDescription className="text-center text-sm">
