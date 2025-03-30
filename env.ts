@@ -18,12 +18,6 @@ export const env = createEnv({
     SITE_URL: z.string().url().optional(),
     INTERNAL_API_SECRET: z.string().min(1),
 
-    ALLOWED_BOTS: z
-      .string()
-      .transform(safeJSONParse)
-      .pipe(z.array(z.string()))
-      .optional(),
-
     GOOGLE_SERVICE_KEY_B64: z.string().optional(),
     BIGQUERY_DATASET: z.string().optional(),
     BIGQUERY_LOCATION: z.string().optional(),
