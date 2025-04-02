@@ -128,7 +128,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
               className="hover:bg-transparent"
             >
               <TableCell className="pl-0">{el.label}</TableCell>
-              <TableCell className="pr-0">
+              <TableCell className="pr-0 break-words whitespace-normal">
                 {el.type === EntryTypes.Reverse ? (
                   <DomainLink domain={el.value} />
                 ) : (
