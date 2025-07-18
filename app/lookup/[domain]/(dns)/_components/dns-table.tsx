@@ -18,7 +18,6 @@ import type { RecordContextEntry } from '@/lib/record-context';
 import type { ResolverMultiResponse } from '@/lib/resolvers/base';
 import { cn } from '@/lib/utils';
 
-import { DigestGuruBanner } from './digest-guru-banner';
 import { RecordRow } from './record-row';
 import { StackedRecord } from './stacked-record';
 
@@ -29,7 +28,7 @@ type DnsTableProps = {
 
 export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
   <>
-    {Object.entries(records).map(([recordType, response], rowIndex) => {
+    {Object.entries(records).map(([recordType, response]) => {
       if (!response || response.records.length === 0) {
         return null;
       }
@@ -106,12 +105,6 @@ export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
               </TableBody>
             </Table>
           </div>
-
-          {rowIndex === 1 && (
-            <div className="pt-16 not-last:pb-16">
-              <DigestGuruBanner />
-            </div>
-          )}
         </Fragment>
       );
     })}
