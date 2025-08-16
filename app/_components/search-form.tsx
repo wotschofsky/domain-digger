@@ -3,7 +3,6 @@
 import { useDebounce, useMeasure } from '@uidotdev/usehooks';
 import { SearchIcon } from 'lucide-react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
-import { toASCII } from 'punycode';
 import {
   type ChangeEventHandler,
   type FC,
@@ -24,61 +23,10 @@ import { Spinner } from '@/components/ui/spinner';
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
-import {
-  cn,
-  IPV4_REGEX,
-  IPV6_REGEX,
-  isAppleDevice,
-  isValidDomain,
-} from '@/lib/utils';
+import { parseSearchInput } from '@/lib/search-parser';
+import { cn, isAppleDevice } from '@/lib/utils';
 
 import { IpDetailsModal } from './ip-details-modal';
-
-const normalizeDomain = (input: string) => {
-  let tDomain;
-  try {
-    tDomain = new URL(input.trim().toLowerCase()).hostname;
-  } catch (err) {
-    tDomain = input.trim().toLowerCase();
-  }
-
-  const normalizedDomain = tDomain.endsWith('.')
-    ? tDomain.slice(0, -1)
-    : tDomain;
-  return toASCII(normalizedDomain);
-};
-
-const parseSearchInput = (input: string) => {
-  const trimmedInput = input.trim();
-  if (trimmedInput.length === 0) {
-    return {
-      type: 'empty',
-    } as const;
-  }
-
-  if (trimmedInput.match(IPV4_REGEX) || trimmedInput.match(IPV6_REGEX)) {
-    return {
-      type: 'ip',
-      value: trimmedInput,
-    } as const;
-  }
-
-  const normalizedDomain = normalizeDomain(trimmedInput);
-  if (isValidDomain(normalizedDomain)) {
-    return {
-      type: 'domain',
-      value: normalizedDomain,
-    } as const;
-  }
-
-  if (trimmedInput.includes('@')) {
-    return parseSearchInput(trimmedInput.split('@').pop()!);
-  }
-
-  return {
-    type: 'invalid',
-  } as const;
-};
 
 const useSuggestions = (domain: string) => {
   const debouncedDomain = useDebounce(domain, 200);
