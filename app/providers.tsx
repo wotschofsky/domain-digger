@@ -43,9 +43,7 @@ type ProvidersProps = {
 export const Providers: FC<ProvidersProps> = ({ children }) => (
   <ThemeProvider attribute="class">
     <SWRConfig value={{ fetcher: swrFetcher }}>
-      <CustomizedPlausibleProvider>
-        {children}
-      </CustomizedPlausibleProvider>
+      <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
     </SWRConfig>
   </ThemeProvider>
 );
