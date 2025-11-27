@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { parseSearchInput } from './lib/search-parser';
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl.clone();
   const searchTerm = url.searchParams.get('q')!;
   const parsed = parseSearchInput(searchTerm);
