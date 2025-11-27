@@ -3,7 +3,6 @@ import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
 import reactCompiler from 'eslint-plugin-react-compiler';
 import { defineConfig } from 'eslint/config';
 
-
 export default defineConfig([
   {
     extends: [...nextCoreWebVitals],
