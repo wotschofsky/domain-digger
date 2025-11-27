@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "license": "AGPL-3.0-only",
   "engines": {
-    "node": "20"
+    "node": "24"
   },
   "scripts": {
     "dev": "next dev",
