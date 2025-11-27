@@ -58,9 +58,24 @@ const createMarker = (
     'div.marker-wrapper',
 
     h(
-      'div.flex.flex-col.gap-2.rounded-lg.border.border-zinc-200.bg-white.p-2.text-zinc-900.shadow-md.dark:border-zinc-800.dark:bg-zinc-900.dark:text-zinc-100',
+      [
+        'div',
+        'flex',
+        'flex-col',
+        'gap-2',
+        'rounded-lg',
+        'border',
+        'border-zinc-200',
+        'bg-white',
+        'p-2',
+        'text-zinc-900',
+        'shadow-md',
+        'dark:border-zinc-700',
+        'dark:bg-zinc-900',
+        'dark:text-zinc-100',
+      ].join('.'),
 
-      h('h3.text-sm.font-bold', label),
+      h(['h3', 'text-sm', 'font-bold'].join('.'), label),
 
       createMarkerResults(results.A),
       createMarkerResults(results.AAAA),
@@ -70,7 +85,13 @@ const createMarker = (
         results.AAAA.length === 0 &&
         results.CNAME.length === 0
         ? h(
-            'p.text-xs.text-zinc-500.dark:text-zinc-400.italic',
+            [
+              'p',
+              'text-xs',
+              'text-zinc-500',
+              'dark:text-zinc-400',
+              'italic',
+            ].join('.'),
             'No records found!',
           )
         : undefined,
