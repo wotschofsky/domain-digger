@@ -29,7 +29,6 @@
     "@types/punycode": "^2.1.4",
     "@types/validator": "^13.12.2",
     "@uidotdev/usehooks": "^2.4.1",
-    "@vercel/functions": "^2.0.0",
     "@vercel/speed-insights": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
