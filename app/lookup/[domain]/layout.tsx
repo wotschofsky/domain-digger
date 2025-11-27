@@ -1,9 +1,9 @@
-import { waitUntil } from '@vercel/functions';
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { type FC, type ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
@@ -61,7 +61,9 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
   const headersList = await headers();
   const ip = getVisitorIp(headersList);
   const { isBot, userAgent } = isUserBot(headersList);
-  waitUntil(recordLookup({ domain, ip, userAgent, isBot }));
+  after(async () => {
+    await recordLookup({ domain, ip, userAgent, isBot });
+  });
 
   return (
     <>
