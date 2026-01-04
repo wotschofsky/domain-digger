@@ -277,10 +277,17 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           }
           aria-label="Domain"
           enterKeyHint="go"
-          value={
-            selectedSuggestion !== null
-              ? suggestions?.[selectedSuggestion].toString()
-              : domain
+          value={(() => {
+            if (selectedSuggestion !== null) {
+              const selection = suggestions?.[selectedSuggestion];
+              if (selection === SUGGESTION_OWN_IP) {
+                return domain;
+              }
+              return selection
+            }
+            return domain
+
+          })()
           }
           onInput={handleInput}
           onKeyDown={handleKeyDown}
