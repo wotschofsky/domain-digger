@@ -18,13 +18,13 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 
+import { useUserIp } from '@/app/api/user-ip/hook';
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
-import { useUserIp } from '@/app/api/user-ip/hook';
 import { useSearchSuggestions } from '../api/search-suggestions/hook';
 import { IpDetailsModal } from './ip-details-modal';
 
@@ -167,7 +167,12 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSuggestionsVisible(false);
 
     if (value === SUGGESTION_OWN_IP) {
-      if (!userIp) throw new Error('User IP is not loaded');
+      if (!userIp) {
+        // This should never happen, since suggestions should not include this
+        // option, if the IP is not loaded yet
+        throw new Error('User IP is not loaded');
+      }
+
       setDomain(userIp);
       setIpDetailsOpen(true);
       return;
