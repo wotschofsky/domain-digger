@@ -24,7 +24,7 @@ import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
-import { useMyIp } from '../api/my-ip/hook';
+import { useUserIp } from '@/app/api/user-ip/hook';
 import { useSearchSuggestions } from '../api/search-suggestions/hook';
 import { IpDetailsModal } from './ip-details-modal';
 
@@ -41,11 +41,11 @@ const redactIp = (ip: string): string => {
 const useSuggestions = (domain: string) => {
   const debouncedDomain = useDebounce(domain, 200);
 
-  const myIp = useMyIp();
+  const userIp = useUserIp();
   const suggestions = useSearchSuggestions(debouncedDomain);
 
   if (domain) return suggestions;
-  if (myIp) return [SUGGESTION_OWN_IP, ...EXAMPLE_DOMAINS] as const;
+  if (userIp) return [SUGGESTION_OWN_IP, ...EXAMPLE_DOMAINS] as const;
   return EXAMPLE_DOMAINS;
 };
 
@@ -82,6 +82,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const { domain: initialValue } = useParams<{ domain: string }>();
   const [domain, setDomain] = useState(initialValue ?? '');
+
+  const userIp = useUserIp();
 
   useEffect(() => {
     if (initialValue) {
@@ -165,8 +167,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSuggestionsVisible(false);
 
     if (value === SUGGESTION_OWN_IP) {
-      if (!myIp) throw new Error('User IP is not loaded');
-      setDomain(myIp);
+      if (!userIp) throw new Error('User IP is not loaded');
+      setDomain(userIp);
       setIpDetailsOpen(true);
       return;
     }
@@ -337,16 +339,15 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                       <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
                       <span>
                         Your IP address
-                        {myIp && ` (${redactIp(myIp)})`}
+                        {userIp && ` (${redactIp(userIp)})`}
                       </span>
                     </li>
                   );
                 }
 
-                const stringValue = value as string;
                 return (
                   <li
-                    key={stringValue}
+                    key={value}
                     className={cn(
                       'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
                       {
@@ -354,7 +355,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                           selectedSuggestion === index,
                       },
                     )}
-                    onClick={() => handleSelectSuggestion(stringValue)}
+                    onClick={() => handleSelectSuggestion(value)}
                     onKeyDown={() => {}}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -363,7 +364,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                       src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(stringValue)}`}
                       alt=""
                     />
-                    {stringValue}
+                    {value}
                   </li>
                 );
               })}
