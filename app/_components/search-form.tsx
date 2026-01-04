@@ -1,46 +1,57 @@
 'use client';
 
 import { useDebounce, useMeasure } from '@uidotdev/usehooks';
-import { SearchIcon } from 'lucide-react';
+import { NetworkIcon, SearchIcon } from 'lucide-react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import {
   type ChangeEventHandler,
   type FC,
   type FormEvent,
   type KeyboardEventHandler,
-  useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import useSWRImmutable from 'swr/immutable';
 
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 
+import { useUserIp } from '@/app/api/user-ip/hook';
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
+import { useSearchSuggestions } from '../api/search-suggestions/hook';
 import { IpDetailsModal } from './ip-details-modal';
+
+const SUGGESTION_OWN_IP = Symbol('suggestion-own-ip');
+
+const redactIp = (ip: string): string => {
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.xxx.xxx.xxx`;
+  }
+  // For IPv6 or other formats, show first segment only
+  const colonParts = ip.split(':');
+  if (colonParts.length > 1) {
+    return `${colonParts[0]}:xxxx:xxxx:xxxx:...`;
+  }
+  return ip;
+};
 
 const useSuggestions = (domain: string) => {
   const debouncedDomain = useDebounce(domain, 200);
 
-  const { data: suggestions } = useSWRImmutable<string[]>(
-    domain
-      ? `/api/search-suggestions?q=${encodeURIComponent(debouncedDomain.toLowerCase())}`
-      : null,
-    { keepPreviousData: true },
-  );
+  const userIp = useUserIp();
+  const suggestions = useSearchSuggestions(debouncedDomain);
 
-  return {
-    suggestions: domain ? suggestions : EXAMPLE_DOMAINS,
-  };
+  if (domain) return suggestions;
+  if (userIp) return [SUGGESTION_OWN_IP, ...EXAMPLE_DOMAINS] as const;
+  return EXAMPLE_DOMAINS;
 };
 
 const useFirstRender = () => {
@@ -77,6 +88,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const { domain: initialValue } = useParams<{ domain: string }>();
   const [domain, setDomain] = useState(initialValue ?? '');
 
+  const userIp = useUserIp();
+
   useEffect(() => {
     if (initialValue) {
       setDomain(initialValue);
@@ -99,160 +112,146 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     [inputRef],
   );
 
-  const redirectUser = useCallback(
-    (domain: string) => {
-      setState(FormStates.Submitting);
+  const redirectUser = (domain: string) => {
+    setState(FormStates.Submitting);
 
-      let target = `/lookup/${domain}`;
-      if (props.subpage) {
-        target += `/${props.subpage}`;
-      }
+    let target = `/lookup/${domain}`;
+    if (props.subpage) {
+      target += `/${props.subpage}`;
+    }
 
-      if (pathname === target) {
-        router.refresh();
-        setTimeout(() => {
-          setState(FormStates.Initial);
-        }, 150);
+    if (pathname === target) {
+      router.refresh();
+      setTimeout(() => {
+        setState(FormStates.Initial);
+      }, 150);
+      return;
+    }
+
+    router.push(target);
+  };
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const domain =
+      new FormData(event.currentTarget as HTMLFormElement)
+        .get('domain')
+        ?.toString() || '';
+
+    const parsed = parseSearchInput(domain);
+
+    switch (parsed.type) {
+      case 'ip':
+        setState(FormStates.Initial);
+        setIpDetailsOpen(true);
         return;
-      }
+      case 'domain':
+        setState(FormStates.Initial);
+        redirectUser(parsed.value);
+        reportEvent('Search Form: Submit', {
+          domain: parsed.value,
+        });
+        return;
+      case 'invalid':
+        setState(FormStates.Invalid);
+        return;
+    }
+  };
 
-      router.push(target);
-    },
-    [setState, router, pathname, props.subpage],
-  );
-
-  const handleSubmit = useCallback(
-    (event: FormEvent) => {
-      event.preventDefault();
-      const domain =
-        new FormData(event.currentTarget as HTMLFormElement)
-          .get('domain')
-          ?.toString() || '';
-
-      const parsed = parseSearchInput(domain);
-
-      switch (parsed.type) {
-        case 'ip':
-          setState(FormStates.Initial);
-          setIpDetailsOpen(true);
-          return;
-        case 'domain':
-          setState(FormStates.Initial);
-          redirectUser(parsed.value);
-          reportEvent('Search Form: Submit', {
-            domain: parsed.value,
-          });
-          return;
-        case 'invalid':
-          setState(FormStates.Invalid);
-          return;
-      }
-    },
-    [setState, setIpDetailsOpen, redirectUser, reportEvent],
-  );
-
-  const { suggestions } = useSuggestions(domain);
+  const suggestions = useSuggestions(domain);
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(
     null,
   );
-  useEffect(() => {
+
+  const handleSelectSuggestion = (value: typeof SUGGESTION_OWN_IP | string) => {
+    setState(FormStates.Initial);
+    setSuggestionsVisible(false);
+
+    if (value === SUGGESTION_OWN_IP) {
+      if (!userIp) {
+        // This should never happen, since suggestions should not include this
+        // option, if the IP is not loaded yet
+        throw new Error('User IP is not loaded');
+      }
+
+      setDomain(userIp);
+      setIpDetailsOpen(true);
+      return;
+    }
+
+    setDomain(value);
+    redirectUser(value);
+
+    reportEvent('Search Form: Click Suggestion', {
+      domain: value,
+      isExample: !domain,
+    });
+  };
+
+  const handleInput: ChangeEventHandler<HTMLInputElement> = (event) => {
+    setDomain(event.currentTarget.value);
     setSelectedSuggestion(null);
-  }, [suggestions]);
+  };
 
-  const handleSelectSuggestion = useCallback(
-    (value: string) => {
-      setState(FormStates.Initial);
-      setDomain(value);
-      setSuggestionsVisible(false);
-      redirectUser(value);
+  const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (!(suggestionsVisible && suggestions && suggestions.length > 0)) {
+      if (event.currentTarget.value !== '') {
+        setSuggestionsVisible(true);
+      }
+      return;
+    }
 
-      reportEvent('Search Form: Click Suggestion', {
-        domain: value,
-        isExample: !domain,
-      });
-    },
-    [domain, setDomain, setState, redirectUser, reportEvent],
-  );
-
-  const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(
-    (event) => {
-      setDomain(event.currentTarget.value);
-      setSelectedSuggestion(null);
-    },
-    [setDomain],
-  );
-
-  const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
-    (event) => {
-      if (!(suggestionsVisible && suggestions && suggestions.length > 0)) {
-        if (event.currentTarget.value !== '') {
-          setSuggestionsVisible(true);
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        setSelectedSuggestion((prev) => {
+          if (prev === null) return 0;
+          if (prev === suggestions?.length - 1) return null;
+          return prev + 1;
+        });
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        setSelectedSuggestion((prev) => {
+          if (prev === null) return suggestions?.length - 1;
+          if (prev === 0) return null;
+          return prev - 1;
+        });
+        break;
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        if (selectedSuggestion !== null) {
+          event.preventDefault();
+          setSelectedSuggestion(null);
         }
-        return;
-      }
-
-      switch (event.key) {
-        case 'ArrowDown':
+        break;
+      case 'Enter':
+        if (selectedSuggestion !== null) {
           event.preventDefault();
-          setSelectedSuggestion((prev) => {
-            if (prev === null) return 0;
-            if (prev === suggestions?.length - 1) return null;
-            return prev + 1;
-          });
-          break;
-        case 'ArrowUp':
-          event.preventDefault();
-          setSelectedSuggestion((prev) => {
-            if (prev === null) return suggestions?.length - 1;
-            if (prev === 0) return null;
-            return prev - 1;
-          });
-          break;
-        case 'ArrowLeft':
-        case 'ArrowRight':
-          if (selectedSuggestion !== null) {
-            event.preventDefault();
-            setSelectedSuggestion(null);
-          }
-          break;
-        case 'Enter':
-          if (selectedSuggestion !== null) {
-            event.preventDefault();
-            handleSelectSuggestion(suggestions[selectedSuggestion]);
-          }
-          break;
-        case 'Escape':
-          setSuggestionsVisible(false);
-          if (selectedSuggestion !== null) {
-            setDomain(suggestions[selectedSuggestion]);
-            setSelectedSuggestion(null);
-          }
-          break;
-      }
-    },
-    [
-      suggestionsVisible,
-      suggestions,
-      selectedSuggestion,
-      handleSelectSuggestion,
-    ],
-  );
+          handleSelectSuggestion(suggestions[selectedSuggestion]);
+        }
+        break;
+      case 'Escape':
+        setSuggestionsVisible(false);
+        if (selectedSuggestion !== null) {
+          setSelectedSuggestion(null);
+        }
+        break;
+    }
+  };
 
-  const handleFocus = useCallback(() => {
+  const handleFocus = () => {
     // Skip the first render to avoid suggestions showing up on initial load without user interaction
     if (isFirstRender.current) return;
     setSuggestionsVisible(true);
-  }, [isFirstRender, setSuggestionsVisible]);
+  };
 
-  const handleIpDetailsOpenChange = useCallback(
-    (open: boolean) => {
-      setIpDetailsOpen(open);
-      if (!open) {
-        inputRef.current?.focus();
-      }
-    },
-    [setIpDetailsOpen, inputRef],
-  );
+  const handleIpDetailsOpenChange = (open: boolean) => {
+    setIpDetailsOpen(open);
+    if (!open) {
+      inputRef.current?.focus();
+    }
+  };
 
   return (
     <>
@@ -283,11 +282,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           }
           aria-label="Domain"
           enterKeyHint="go"
-          value={
-            selectedSuggestion !== null
-              ? suggestions?.[selectedSuggestion]
-              : domain
-          }
+          value={(() => {
+            if (selectedSuggestion !== null) {
+              const selection = suggestions?.[selectedSuggestion];
+              if (selection === SUGGESTION_OWN_IP) {
+                return domain;
+              }
+              return selection;
+            }
+            return domain;
+          })()}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
@@ -324,7 +328,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
             <ul>
               {suggestions.map((value, index) => (
                 <li
-                  key={value}
+                  key={value.toString()}
                   className={cn(
                     'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
                     {
@@ -334,13 +338,25 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                   )}
                   onClick={() => handleSelectSuggestion(value)}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    className="mr-2 inline-block size-4"
-                    src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
-                    alt=""
-                  />
-                  {value}
+                  {value === SUGGESTION_OWN_IP ? (
+                    <>
+                      <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
+                      <span>
+                        Your IP address
+                        {userIp && ` (${redactIp(userIp)})`}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        className="mr-2 inline-block size-4"
+                        src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
+                        alt=""
+                      />
+                      {value}
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
