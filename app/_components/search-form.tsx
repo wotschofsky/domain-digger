@@ -225,18 +225,14 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         }
         break;
       case 'Enter':
-        if (selectedSuggestion !== null && suggestions) {
+        if (selectedSuggestion !== null) {
           event.preventDefault();
           handleSelectSuggestion(suggestions[selectedSuggestion]);
         }
         break;
       case 'Escape':
         setSuggestionsVisible(false);
-        if (selectedSuggestion !== null && suggestions) {
-          const selected = suggestions[selectedSuggestion];
-          if (typeof selected === 'string') {
-            setDomain(selected);
-          }
+        if (selectedSuggestion !== null) {
           setSelectedSuggestion(null);
         }
         break;
@@ -339,7 +335,6 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                         },
                       )}
                       onClick={() => handleSelectSuggestion(value)}
-                      onKeyDown={() => {}}
                     >
                       <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
                       <span>
@@ -361,12 +356,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                       },
                     )}
                     onClick={() => handleSelectSuggestion(value)}
-                    onKeyDown={() => {}}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       className="mr-2 inline-block size-4"
-                      src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(stringValue)}`}
+                      src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
                       alt=""
                     />
                     {value}
