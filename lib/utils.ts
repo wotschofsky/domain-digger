@@ -4,7 +4,7 @@ import { getDomain, parse as tldtsParse } from 'tldts';
 
 export const DOMAIN_REGEX = /([a-zA-Z0-9-_]+\.)+[a-z]+\.?/gi;
 const DOMAIN_LABEL_REGEX =
-  /^(xn--)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
+  /^(?:xn--|_)?[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
 export const IPV4_REGEX =
   /(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/g;
 export const IPV6_REGEX =
@@ -36,8 +36,8 @@ export const isValidDomain = (domain: string) => {
   // Check total length (maximum 253 characters)
   if (domain.length > 253 || domain.length === 0) return false;
 
-  // Remove wildcard prefix or leading underscore, trailing dot (if fully qualified domain name)
-  const cleanedDomain = domain.replace(/^(\*\.|_)/, '').replace(/\.$/, '');
+  // Remove wildcard prefix and trailing dot (if fully qualified domain name)
+  const cleanedDomain = domain.replace(/^\*\./, '').replace(/\.$/, '');
 
   // Split domain into labels
   const labels = cleanedDomain.split('.');
