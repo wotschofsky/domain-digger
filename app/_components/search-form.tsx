@@ -35,6 +35,11 @@ const redactIp = (ip: string): string => {
   if (parts.length === 4) {
     return `${parts[0]}.xxx.xxx.xxx`;
   }
+  // For IPv6 or other formats, show first segment only
+  const colonParts = ip.split(':');
+  if (colonParts.length > 1) {
+    return `${colonParts[0]}:xxxx:xxxx:xxxx:...`;
+  }
   return ip;
 };
 
