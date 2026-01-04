@@ -114,8 +114,6 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
-  const [ipDetailsIp, setIpDetailsIp] = useState<string>('');
-  const [pendingOwnIpOpen, setPendingOwnIpOpen] = useState(false);
 
   const myIp = useMyIp();
 
@@ -188,20 +186,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     null,
   );
 
-  // Handle pending own IP modal open when IP loads
-  useEffect(() => {
-    if (pendingOwnIpOpen && myIp) {
-      setIpDetailsIp(myIp);
-      setIpDetailsOpen(true);
-      setPendingOwnIpOpen(false);
-    }
-  }, [pendingOwnIpOpen, myIp]);
-
-  // Build suggestions list for empty input (includes own IP sentinel)
-  const emptySuggestions: (string | symbol)[] = [
-    SUGGESTION_OWN_IP,
-    ...EXAMPLE_DOMAINS,
-  ];
+  // Build suggestions list for empty input (includes own IP sentinel only when IP is loaded)
+  const emptySuggestions: (string | symbol)[] = myIp
+    ? [SUGGESTION_OWN_IP, ...EXAMPLE_DOMAINS]
+    : EXAMPLE_DOMAINS;
   const displaySuggestions = domain ? suggestions : emptySuggestions;
 
   useEffect(() => {
@@ -210,14 +198,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const handleSelectSuggestion = useCallback(
     (value: string | symbol) => {
-      if (value === SUGGESTION_OWN_IP) {
+      if (value === SUGGESTION_OWN_IP && myIp) {
         setSuggestionsVisible(false);
-        if (myIp) {
-          setIpDetailsIp(myIp);
-          setIpDetailsOpen(true);
-        } else {
-          setPendingOwnIpOpen(true);
-        }
+        setDomain(myIp);
+        setIpDetailsOpen(true);
         return;
       }
 
@@ -450,15 +434,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       </form>
 
       <IpDetailsModal
-        ip={ipDetailsIp || domain.trim()}
+        ip={domain.trim()}
         open={ipDetailsOpen}
-        onOpenChange={(open) => {
-          handleIpDetailsOpenChange(open);
-          if (!open) {
-            setIpDetailsIp('');
-            setPendingOwnIpOpen(false);
-          }
-        }}
+        onOpenChange={handleIpDetailsOpenChange}
       />
     </>
   );
