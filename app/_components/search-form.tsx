@@ -321,51 +321,39 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         {suggestionsVisible && suggestions && suggestions.length > 0 && (
           <Card className="absolute top-full left-0 z-10 h-min p-1">
             <ul>
-              {suggestions.map((value, index) => {
-                if (value === SUGGESTION_OWN_IP) {
-                  return (
-                    <li
-                      key={String(value)}
-                      className={cn(
-                        'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
-                        {
-                          'bg-black/5 dark:bg-white/10':
-                            selectedSuggestion === index,
-                        },
-                      )}
-                      onClick={() => handleSelectSuggestion(value)}
-                    >
+              {suggestions.map((value, index) => (
+                <li
+                  key={value.toString()}
+                  className={cn(
+                    'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
+                    {
+                      'bg-black/5 dark:bg-white/10':
+                        selectedSuggestion === index,
+                    },
+                  )}
+                  onClick={() => handleSelectSuggestion(value)}
+                >
+                  {value === SUGGESTION_OWN_IP ? (
+                    <>
                       <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
                       <span>
                         Your IP address
                         {userIp && ` (${redactIp(userIp)})`}
                       </span>
-                    </li>
-                  );
-                }
-
-                return (
-                  <li
-                    key={value}
-                    className={cn(
-                      'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
-                      {
-                        'bg-black/5 dark:bg-white/10':
-                          selectedSuggestion === index,
-                      },
-                    )}
-                    onClick={() => handleSelectSuggestion(value)}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      className="mr-2 inline-block size-4"
-                      src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
-                      alt=""
-                    />
-                    {value}
-                  </li>
-                );
-              })}
+                    </>
+                  ) : (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        className="mr-2 inline-block size-4"
+                        src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
+                        alt=""
+                      />
+                      {value}
+                    </>
+                  )}
+                </li>
+              ))}
             </ul>
           </Card>
         )}
