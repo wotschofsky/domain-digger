@@ -27,6 +27,7 @@ import { parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 import { IpDetailsModal } from './ip-details-modal';
+import { useMyIp } from '../api/my-ip/hook';
 
 const SUGGESTION_OWN_IP = Symbol('suggestion-own-ip');
 
@@ -49,11 +50,6 @@ const redactIp = (ip: string): string => {
     return `${parts[0]}.xxx.xxx.xxx`;
   }
   return ip;
-};
-
-const useMyIp = () => {
-  const { data } = useSWRImmutable<{ ip: string }>('/api/my-ip');
-  return data?.ip;
 };
 
 const useSuggestions = (domain: string) => {
@@ -105,6 +101,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const { domain: initialValue } = useParams<{ domain: string }>();
   const [domain, setDomain] = useState(initialValue ?? '');
 
+  const myIp = useMyIp();
+
   useEffect(() => {
     if (initialValue) {
       setDomain(initialValue);
@@ -114,8 +112,6 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
-
-  const myIp = useMyIp();
 
   const [measureRef, { width: inputWidth }] = useMeasure<HTMLFormElement>();
   const inputRef = useRef<HTMLInputElement>(null);
