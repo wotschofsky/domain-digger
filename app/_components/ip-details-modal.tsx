@@ -1,6 +1,6 @@
 import type { DialogProps } from '@radix-ui/react-dialog';
 import { useWindowSize } from '@uidotdev/usehooks';
-import type { LatLngExpression } from 'leaflet';
+import type { LatLngTuple } from 'leaflet';
 import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
 import { type FC } from 'react';
@@ -36,16 +36,6 @@ const LocationMap = dynamic(
   },
 );
 
-enum EntryTypes {
-  IP,
-  Reverse,
-  Organization,
-  ISP,
-  Location,
-  Coordinates,
-  Timezone,
-}
-
 type IpDetailsModalProps = {
   ip: string;
   open: DialogProps['open'];
@@ -63,93 +53,91 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     open ? `/api/ip-details?ip=${encodeURIComponent(ip)}` : null,
   );
 
-  let mappedEntries: { label: string; value: string; type: EntryTypes }[] = [];
-  let location: LatLngExpression = [0, 0];
+  const title = `IP Details for ${ip}`;
+  const content = (() => {
+    if (error) {
+      return <p className="my-12 text-center">An error occurred!</p>;
+    }
 
-  if (data) {
-    mappedEntries = [
+    if (!data) {
+      return (
+        <div className="flex items-center justify-center">
+          <Spinner className="my-8" />
+        </div>
+      );
+    }
+
+    const mappedEntries = [
       {
-        type: EntryTypes.IP,
         label: 'IP',
-        value: ip,
+        component: (
+          <>
+            <span>{ip}</span>
+            <CopyButton value={ip} />
+          </>
+        ),
       },
       ...data.reverse
         .slice()
         .sort(naturalCompare)
         .map((address) => ({
-          type: EntryTypes.Reverse,
           label: 'Reverse',
-          value: address,
+          component: <DomainLink domain={address} />,
         })),
-      {
-        type: EntryTypes.Organization,
+      ...addIf(!!data.org, {
         label: 'Organization',
-        value: data.org,
-      },
-      {
-        type: EntryTypes.ISP,
+        component: <span>{data.org}</span>,
+      }),
+      ...addIf(!!data.isp, {
         label: 'ISP',
-        value: data.isp,
-      },
-      {
-        type: EntryTypes.Location,
+        component: <span>{data.isp}</span>,
+      }),
+      ...addIf(!!data.country || !!data.region || !!data.city, {
         label: 'Location',
-        value: `${data.country}, ${data.region}, ${data.city}`,
-      },
-      {
-        type: EntryTypes.Coordinates,
+        component: (
+          <span>
+            {[data.country, data.region, data.city].filter(Boolean).join(', ')}
+          </span>
+        ),
+      }),
+      ...addIf(!!data.lat && !!data.lon, {
         label: 'Coordinates',
-        value: `Latitude: ${data.lat}; Longitude: ${data.lon}`,
-      },
-      {
-        type: EntryTypes.Timezone,
+        component: (
+          <span>{`Latitude: ${data.lat}; Longitude: ${data.lon}`}</span>
+        ),
+      }),
+      ...addIf(!!data.timezone, {
         label: 'Timezone',
-        value: data.timezone,
-      },
+        component: <span>{data.timezone}</span>,
+      }),
     ];
 
-    location = [data.lat, data.lon];
-  }
+    const location =
+      data.lat && data.lon ? ([data.lat, data.lon] as LatLngTuple) : null;
 
-  const title = `IP Details for ${ip}`;
-  const content = error ? (
-    <p className="my-12 text-center">An error occurred!</p>
-  ) : !data ? (
-    <div className="flex items-center justify-center">
-      <Spinner className="my-8" />
-    </div>
-  ) : (
-    <>
-      <Table>
-        <TableBody>
-          {mappedEntries.map((el) => (
-            <TableRow
-              key={el.label + el.value}
-              className="hover:bg-transparent"
-            >
-              <TableCell className="pl-0">{el.label}</TableCell>
-              <TableCell className="pr-0 break-words whitespace-normal">
-                {el.type === EntryTypes.Reverse ? (
-                  <DomainLink domain={el.value} />
-                ) : (
-                  <>
-                    <span>{el.value}</span>
-                    {el.type === EntryTypes.IP && (
-                      <CopyButton value={el.value} />
-                    )}
-                  </>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    return (
+      <>
+        <Table>
+          <TableBody>
+            {mappedEntries.map((el) => (
+              <TableRow key={el.label} className="hover:bg-transparent">
+                <TableCell className="pl-0">{el.label}</TableCell>
+                <TableCell className="wrap-break-words pr-0 whitespace-normal">
+                  {el.component}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
 
-      <div className="my-4 [&_.leaflet-container]:h-80 [&_.leaflet-container]:w-full">
-        <LocationMap location={location} />
-      </div>
-    </>
-  );
+        {location && (
+          <div className="my-4 [&_.leaflet-container]:h-80 [&_.leaflet-container]:w-full">
+            <LocationMap location={location} />
+          </div>
+        )}
+      </>
+    );
+  })();
 
   if (windowWidth && windowWidth < 640) {
     return (
@@ -175,3 +163,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     </Dialog>
   );
 };
+
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
+const addIf = <T extends unknown>(condition: boolean, value: T): T[] =>
+  condition ? [value] : [];
