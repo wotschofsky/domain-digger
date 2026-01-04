@@ -8,7 +8,6 @@ import {
   type FC,
   type FormEvent,
   type KeyboardEventHandler,
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -26,23 +25,10 @@ import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
-import { IpDetailsModal } from './ip-details-modal';
 import { useMyIp } from '../api/my-ip/hook';
+import { IpDetailsModal } from './ip-details-modal';
 
 const SUGGESTION_OWN_IP = Symbol('suggestion-own-ip');
-
-export const DEFAULT_SUGGETIONS = [
-  SUGGESTION_OWN_IP,
-  'digger.tools',
-  'google.com',
-  'wikipedia.org',
-  'microsoft.com',
-  'tiktok.com',
-  'reddit.com',
-  'baidu.com',
-  'x.com',
-  'discord.com',
-];
 
 const redactIp = (ip: string): string => {
   const parts = ip.split('.');
@@ -125,7 +111,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     [inputRef],
   );
 
-  const redirectUser = useCallback(
+  const redirectUser =
     (domain: string) => {
       setState(FormStates.Submitting);
 
@@ -143,11 +129,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       }
 
       router.push(target);
-    },
-    [setState, router, pathname, props.subpage],
-  );
+    }
 
-  const handleSubmit = useCallback(
+  const handleSubmit =
     (event: FormEvent) => {
       event.preventDefault();
       const domain =
@@ -173,9 +157,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           setState(FormStates.Invalid);
           return;
       }
-    },
-    [setState, setIpDetailsOpen, redirectUser, reportEvent],
-  );
+    }
 
   const { suggestions } = useSuggestions(domain);
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(
@@ -183,7 +165,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   );
 
   // Build suggestions list for empty input (includes own IP sentinel only when IP is loaded)
-  const emptySuggestions: (string | symbol)[] = myIp
+  const emptySuggestions = myIp
     ? [SUGGESTION_OWN_IP, ...EXAMPLE_DOMAINS]
     : EXAMPLE_DOMAINS;
   const displaySuggestions = domain ? suggestions : emptySuggestions;
@@ -192,117 +174,100 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSelectedSuggestion(null);
   }, [displaySuggestions]);
 
-  const handleSelectSuggestion = useCallback(
-    (value: string | symbol) => {
-      if (value === SUGGESTION_OWN_IP && myIp) {
-        setSuggestionsVisible(false);
-        setDomain(myIp);
-        setIpDetailsOpen(true);
-        return;
-      }
-
-      const stringValue = value as string;
-      setState(FormStates.Initial);
-      setDomain(stringValue);
+  const handleSelectSuggestion = (value: string | symbol) => {
+    if (value === SUGGESTION_OWN_IP && myIp) {
       setSuggestionsVisible(false);
-      redirectUser(stringValue);
+      setDomain(myIp);
+      setIpDetailsOpen(true);
+      return;
+    }
 
-      reportEvent('Search Form: Click Suggestion', {
-        domain: stringValue,
-        isExample: !domain,
-      });
-    },
-    [domain, setDomain, setState, redirectUser, reportEvent, myIp],
-  );
+    const stringValue = value as string;
+    setState(FormStates.Initial);
+    setDomain(stringValue);
+    setSuggestionsVisible(false);
+    redirectUser(stringValue);
 
-  const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(
-    (event) => {
-      setDomain(event.currentTarget.value);
-      setSelectedSuggestion(null);
-    },
-    [setDomain],
-  );
+    reportEvent('Search Form: Click Suggestion', {
+      domain: stringValue,
+      isExample: !domain,
+    });
+  };
 
-  const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
-    (event) => {
-      if (
-        !(
-          suggestionsVisible &&
-          displaySuggestions &&
-          displaySuggestions.length > 0
-        )
-      ) {
-        if (event.currentTarget.value !== '') {
-          setSuggestionsVisible(true);
+  const handleInput: ChangeEventHandler<HTMLInputElement> = (event) => {
+    setDomain(event.currentTarget.value);
+    setSelectedSuggestion(null);
+  };
+
+  const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (
+      !(
+        suggestionsVisible &&
+        displaySuggestions &&
+        displaySuggestions.length > 0
+      )
+    ) {
+      if (event.currentTarget.value !== '') {
+        setSuggestionsVisible(true);
+      }
+      return;
+    }
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        setSelectedSuggestion((prev) => {
+          if (prev === null) return 0;
+          if (prev === (displaySuggestions?.length ?? 0) - 1) return null;
+          return prev + 1;
+        });
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        setSelectedSuggestion((prev) => {
+          if (prev === null) return (displaySuggestions?.length ?? 0) - 1;
+          if (prev === 0) return null;
+          return prev - 1;
+        });
+        break;
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        if (selectedSuggestion !== null) {
+          event.preventDefault();
+          setSelectedSuggestion(null);
         }
-        return;
-      }
-
-      switch (event.key) {
-        case 'ArrowDown':
+        break;
+      case 'Enter':
+        if (selectedSuggestion !== null && displaySuggestions) {
           event.preventDefault();
-          setSelectedSuggestion((prev) => {
-            if (prev === null) return 0;
-            if (prev === (displaySuggestions?.length ?? 0) - 1) return null;
-            return prev + 1;
-          });
-          break;
-        case 'ArrowUp':
-          event.preventDefault();
-          setSelectedSuggestion((prev) => {
-            if (prev === null) return (displaySuggestions?.length ?? 0) - 1;
-            if (prev === 0) return null;
-            return prev - 1;
-          });
-          break;
-        case 'ArrowLeft':
-        case 'ArrowRight':
-          if (selectedSuggestion !== null) {
-            event.preventDefault();
-            setSelectedSuggestion(null);
+          handleSelectSuggestion(displaySuggestions[selectedSuggestion]);
+        }
+        break;
+      case 'Escape':
+        setSuggestionsVisible(false);
+        if (selectedSuggestion !== null && displaySuggestions) {
+          const selected = displaySuggestions[selectedSuggestion];
+          if (typeof selected === 'string') {
+            setDomain(selected);
           }
-          break;
-        case 'Enter':
-          if (selectedSuggestion !== null && displaySuggestions) {
-            event.preventDefault();
-            handleSelectSuggestion(displaySuggestions[selectedSuggestion]);
-          }
-          break;
-        case 'Escape':
-          setSuggestionsVisible(false);
-          if (selectedSuggestion !== null && displaySuggestions) {
-            const selected = displaySuggestions[selectedSuggestion];
-            if (typeof selected === 'string') {
-              setDomain(selected);
-            }
-            setSelectedSuggestion(null);
-          }
-          break;
-      }
-    },
-    [
-      suggestionsVisible,
-      displaySuggestions,
-      selectedSuggestion,
-      handleSelectSuggestion,
-    ],
-  );
+          setSelectedSuggestion(null);
+        }
+        break;
+    }
+  };
 
-  const handleFocus = useCallback(() => {
+  const handleFocus = () => {
     // Skip the first render to avoid suggestions showing up on initial load without user interaction
     if (isFirstRender.current) return;
     setSuggestionsVisible(true);
-  }, [isFirstRender, setSuggestionsVisible]);
+  };
 
-  const handleIpDetailsOpenChange = useCallback(
-    (open: boolean) => {
-      setIpDetailsOpen(open);
-      if (!open) {
-        inputRef.current?.focus();
-      }
-    },
-    [setIpDetailsOpen, inputRef],
-  );
+  const handleIpDetailsOpenChange = (open: boolean) => {
+    setIpDetailsOpen(open);
+    if (!open) {
+      inputRef.current?.focus();
+    }
+  };
 
   return (
     <>
