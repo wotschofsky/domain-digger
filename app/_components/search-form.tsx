@@ -283,12 +283,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
               if (selection === SUGGESTION_OWN_IP) {
                 return domain;
               }
-              return selection
+              return selection;
             }
-            return domain
-
-          })()
-          }
+            return domain;
+          })()}
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
