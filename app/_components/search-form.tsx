@@ -158,10 +158,6 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     null,
   );
 
-  useEffect(() => {
-    setSelectedSuggestion(null);
-  }, [suggestions]);
-
   const handleSelectSuggestion = (value: typeof SUGGESTION_OWN_IP | string) => {
     setState(FormStates.Initial);
     setSuggestionsVisible(false);
@@ -205,14 +201,14 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         event.preventDefault();
         setSelectedSuggestion((prev) => {
           if (prev === null) return 0;
-          if (prev === (suggestions?.length ?? 0) - 1) return null;
+          if (prev === suggestions?.length - 1) return null;
           return prev + 1;
         });
         break;
       case 'ArrowUp':
         event.preventDefault();
         setSelectedSuggestion((prev) => {
-          if (prev === null) return (suggestions?.length ?? 0) - 1;
+          if (prev === null) return suggestions?.length - 1;
           if (prev === 0) return null;
           return prev - 1;
         });
@@ -283,9 +279,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           enterKeyHint="go"
           value={
             selectedSuggestion !== null
-              ? typeof suggestions?.[selectedSuggestion] === 'string'
-                ? suggestions[selectedSuggestion]
-                : domain
+              ? suggestions?.[selectedSuggestion].toString()
               : domain
           }
           onInput={handleInput}
