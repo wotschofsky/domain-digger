@@ -1,7 +1,7 @@
 'use client';
 
 import { useDebounce, useMeasure } from '@uidotdev/usehooks';
-import { SearchIcon } from 'lucide-react';
+import { NetworkIcon, SearchIcon } from 'lucide-react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import {
   type ChangeEventHandler,
@@ -27,6 +27,34 @@ import { parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 import { IpDetailsModal } from './ip-details-modal';
+
+const SUGGESTION_OWN_IP = Symbol('suggestion-own-ip');
+
+export const DEFAULT_SUGGETIONS = [
+  SUGGESTION_OWN_IP,
+  'digger.tools',
+  'google.com',
+  'wikipedia.org',
+  'microsoft.com',
+  'tiktok.com',
+  'reddit.com',
+  'baidu.com',
+  'x.com',
+  'discord.com',
+];
+
+const redactIp = (ip: string): string => {
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.xxx.xxx.xxx`;
+  }
+  return ip;
+};
+
+const useMyIp = () => {
+  const { data } = useSWRImmutable<{ ip: string }>('/api/my-ip');
+  return data?.ip;
+};
 
 const useSuggestions = (domain: string) => {
   const debouncedDomain = useDebounce(domain, 200);
@@ -86,6 +114,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
+  const [ipDetailsIp, setIpDetailsIp] = useState<string>('');
+  const [pendingOwnIpOpen, setPendingOwnIpOpen] = useState(false);
+
+  const myIp = useMyIp();
 
   const [measureRef, { width: inputWidth }] = useMeasure<HTMLFormElement>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -155,23 +187,52 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(
     null,
   );
+
+  // Handle pending own IP modal open when IP loads
+  useEffect(() => {
+    if (pendingOwnIpOpen && myIp) {
+      setIpDetailsIp(myIp);
+      setIpDetailsOpen(true);
+      setPendingOwnIpOpen(false);
+    }
+  }, [pendingOwnIpOpen, myIp]);
+
+  // Build suggestions list for empty input (includes own IP sentinel)
+  const emptySuggestions: (string | symbol)[] = [
+    SUGGESTION_OWN_IP,
+    ...EXAMPLE_DOMAINS,
+  ];
+  const displaySuggestions = domain ? suggestions : emptySuggestions;
+
   useEffect(() => {
     setSelectedSuggestion(null);
-  }, [suggestions]);
+  }, [displaySuggestions]);
 
   const handleSelectSuggestion = useCallback(
-    (value: string) => {
+    (value: string | symbol) => {
+      if (value === SUGGESTION_OWN_IP) {
+        setSuggestionsVisible(false);
+        if (myIp) {
+          setIpDetailsIp(myIp);
+          setIpDetailsOpen(true);
+        } else {
+          setPendingOwnIpOpen(true);
+        }
+        return;
+      }
+
+      const stringValue = value as string;
       setState(FormStates.Initial);
-      setDomain(value);
+      setDomain(stringValue);
       setSuggestionsVisible(false);
-      redirectUser(value);
+      redirectUser(stringValue);
 
       reportEvent('Search Form: Click Suggestion', {
-        domain: value,
+        domain: stringValue,
         isExample: !domain,
       });
     },
-    [domain, setDomain, setState, redirectUser, reportEvent],
+    [domain, setDomain, setState, redirectUser, reportEvent, myIp],
   );
 
   const handleInput = useCallback<ChangeEventHandler<HTMLInputElement>>(
@@ -184,7 +245,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
     (event) => {
-      if (!(suggestionsVisible && suggestions && suggestions.length > 0)) {
+      if (!(suggestionsVisible && displaySuggestions && displaySuggestions.length > 0)) {
         if (event.currentTarget.value !== '') {
           setSuggestionsVisible(true);
         }
@@ -196,14 +257,14 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           event.preventDefault();
           setSelectedSuggestion((prev) => {
             if (prev === null) return 0;
-            if (prev === suggestions?.length - 1) return null;
+            if (prev === (displaySuggestions?.length ?? 0) - 1) return null;
             return prev + 1;
           });
           break;
         case 'ArrowUp':
           event.preventDefault();
           setSelectedSuggestion((prev) => {
-            if (prev === null) return suggestions?.length - 1;
+            if (prev === null) return (displaySuggestions?.length ?? 0) - 1;
             if (prev === 0) return null;
             return prev - 1;
           });
@@ -216,15 +277,18 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           }
           break;
         case 'Enter':
-          if (selectedSuggestion !== null) {
+          if (selectedSuggestion !== null && displaySuggestions) {
             event.preventDefault();
-            handleSelectSuggestion(suggestions[selectedSuggestion]);
+            handleSelectSuggestion(displaySuggestions[selectedSuggestion]);
           }
           break;
         case 'Escape':
           setSuggestionsVisible(false);
-          if (selectedSuggestion !== null) {
-            setDomain(suggestions[selectedSuggestion]);
+          if (selectedSuggestion !== null && displaySuggestions) {
+            const selected = displaySuggestions[selectedSuggestion];
+            if (typeof selected === 'string') {
+              setDomain(selected);
+            }
             setSelectedSuggestion(null);
           }
           break;
@@ -232,7 +296,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     },
     [
       suggestionsVisible,
-      suggestions,
+      displaySuggestions,
       selectedSuggestion,
       handleSelectSuggestion,
     ],
@@ -285,7 +349,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           enterKeyHint="go"
           value={
             selectedSuggestion !== null
-              ? suggestions?.[selectedSuggestion]
+              ? typeof displaySuggestions?.[selectedSuggestion] === 'string'
+                ? displaySuggestions[selectedSuggestion]
+                : domain
               : domain
           }
           onInput={handleInput}
@@ -319,39 +385,72 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           </ClientOnly>
         )}
 
-        {suggestionsVisible && suggestions && suggestions.length > 0 && (
+        {suggestionsVisible && displaySuggestions && displaySuggestions.length > 0 && (
           <Card className="absolute top-full left-0 z-10 h-min p-1">
             <ul>
-              {suggestions.map((value, index) => (
-                <li
-                  key={value}
-                  className={cn(
-                    'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
-                    {
-                      'bg-black/5 dark:bg-white/10':
-                        selectedSuggestion === index,
-                    },
-                  )}
-                  onClick={() => handleSelectSuggestion(value)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    className="mr-2 inline-block size-4"
-                    src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}
-                    alt=""
-                  />
-                  {value}
-                </li>
-              ))}
+              {displaySuggestions.map((value, index) => {
+                if (value === SUGGESTION_OWN_IP) {
+                  return (
+                    <li
+                      key={String(value)}
+                      className={cn(
+                        'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
+                        {
+                          'bg-black/5 dark:bg-white/10':
+                            selectedSuggestion === index,
+                        },
+                      )}
+                      onClick={() => handleSelectSuggestion(value)}
+                      onKeyDown={() => {}}
+                    >
+                      <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
+                      <span>
+                        Your IP address
+                        {myIp && ` (${redactIp(myIp)})`}
+                      </span>
+                    </li>
+                  );
+                }
+
+                const stringValue = value as string;
+                return (
+                  <li
+                    key={stringValue}
+                    className={cn(
+                      'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
+                      {
+                        'bg-black/5 dark:bg-white/10':
+                          selectedSuggestion === index,
+                      },
+                    )}
+                    onClick={() => handleSelectSuggestion(stringValue)}
+                    onKeyDown={() => {}}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className="mr-2 inline-block size-4"
+                      src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(stringValue)}`}
+                      alt=""
+                    />
+                    {stringValue}
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         )}
       </form>
 
       <IpDetailsModal
-        ip={domain.trim()}
+        ip={ipDetailsIp || domain.trim()}
         open={ipDetailsOpen}
-        onOpenChange={handleIpDetailsOpenChange}
+        onOpenChange={(open) => {
+          handleIpDetailsOpenChange(open);
+          if (!open) {
+            setIpDetailsIp('');
+            setPendingOwnIpOpen(false);
+          }
+        }}
       />
     </>
   );
