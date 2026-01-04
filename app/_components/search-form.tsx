@@ -245,7 +245,13 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const handleKeyDown = useCallback<KeyboardEventHandler<HTMLInputElement>>(
     (event) => {
-      if (!(suggestionsVisible && displaySuggestions && displaySuggestions.length > 0)) {
+      if (
+        !(
+          suggestionsVisible &&
+          displaySuggestions &&
+          displaySuggestions.length > 0
+        )
+      ) {
         if (event.currentTarget.value !== '') {
           setSuggestionsVisible(true);
         }
@@ -385,14 +391,39 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           </ClientOnly>
         )}
 
-        {suggestionsVisible && displaySuggestions && displaySuggestions.length > 0 && (
-          <Card className="absolute top-full left-0 z-10 h-min p-1">
-            <ul>
-              {displaySuggestions.map((value, index) => {
-                if (value === SUGGESTION_OWN_IP) {
+        {suggestionsVisible &&
+          displaySuggestions &&
+          displaySuggestions.length > 0 && (
+            <Card className="absolute top-full left-0 z-10 h-min p-1">
+              <ul>
+                {displaySuggestions.map((value, index) => {
+                  if (value === SUGGESTION_OWN_IP) {
+                    return (
+                      <li
+                        key={String(value)}
+                        className={cn(
+                          'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
+                          {
+                            'bg-black/5 dark:bg-white/10':
+                              selectedSuggestion === index,
+                          },
+                        )}
+                        onClick={() => handleSelectSuggestion(value)}
+                        onKeyDown={() => {}}
+                      >
+                        <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
+                        <span>
+                          Your IP address
+                          {myIp && ` (${redactIp(myIp)})`}
+                        </span>
+                      </li>
+                    );
+                  }
+
+                  const stringValue = value as string;
                   return (
                     <li
-                      key={String(value)}
+                      key={stringValue}
                       className={cn(
                         'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
                         {
@@ -400,45 +431,22 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                             selectedSuggestion === index,
                         },
                       )}
-                      onClick={() => handleSelectSuggestion(value)}
+                      onClick={() => handleSelectSuggestion(stringValue)}
                       onKeyDown={() => {}}
                     >
-                      <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
-                      <span>
-                        Your IP address
-                        {myIp && ` (${redactIp(myIp)})`}
-                      </span>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        className="mr-2 inline-block size-4"
+                        src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(stringValue)}`}
+                        alt=""
+                      />
+                      {stringValue}
                     </li>
                   );
-                }
-
-                const stringValue = value as string;
-                return (
-                  <li
-                    key={stringValue}
-                    className={cn(
-                      'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
-                      {
-                        'bg-black/5 dark:bg-white/10':
-                          selectedSuggestion === index,
-                      },
-                    )}
-                    onClick={() => handleSelectSuggestion(stringValue)}
-                    onKeyDown={() => {}}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      className="mr-2 inline-block size-4"
-                      src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(stringValue)}`}
-                      alt=""
-                    />
-                    {stringValue}
-                  </li>
-                );
-              })}
-            </ul>
-          </Card>
-        )}
+                })}
+              </ul>
+            </Card>
+          )}
       </form>
 
       <IpDetailsModal
