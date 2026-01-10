@@ -5,14 +5,7 @@ import naturalCompare from 'natural-compare-lite';
 import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import {
-  type FC,
-  type RefObject,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { type FC, type RefObject, useEffect, useRef, useState } from 'react';
 import type { GlobeMethods } from 'react-globe.gl';
 
 import { cn } from '@/lib/utils';
@@ -149,19 +142,16 @@ export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
     return () => observer.disconnect();
   }, [wrapperRef]);
 
-  const handleGlobeRef = useCallback((ref: GlobeMethods) => {
+  const handleGlobeRef = (ref: GlobeMethods) => {
     if (!ref) return;
     ref.controls().enableZoom = false;
-  }, []);
+  };
 
-  const htmlElementHandler = useCallback(
-    (data: ResultsGlobeProps['markers'][number]) => {
-      const href = `/lookup/${domain}?resolver=cloudflare&location=${data.code}`;
-      const onClick = () => router.push(href);
-      return createMarker(data.name, data.results, href, onClick);
-    },
-    [domain, router],
-  );
+  const htmlElementHandler = (data: ResultsGlobeProps['markers'][number]) => {
+    const href = `/lookup/${domain}?resolver=cloudflare&location=${data.code}`;
+    const onClick = () => router.push(href);
+    return createMarker(data.name, data.results, href, onClick);
+  };
 
   return (
     <div ref={wrapperRef} className={cn(styles.wrapper, 'w-full')}>

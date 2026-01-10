@@ -1,7 +1,7 @@
 'use client';
 
 import { BookmarkIcon, DownloadIcon, ExternalLinkIcon } from 'lucide-react';
-import { type FC, type MouseEventHandler, useCallback, useState } from 'react';
+import { type FC, type MouseEventHandler, useState } from 'react';
 
 import {
   AlertDialog,
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 export const BookmarkletLink: FC = () => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const applyScript = useCallback((element: HTMLAnchorElement | null) => {
+  const applyScript = (element: HTMLAnchorElement | null) => {
     if (!element) return;
 
     const rawScript = `
@@ -33,15 +33,12 @@ export const BookmarkletLink: FC = () => {
       .join('');
 
     element.href = `javascript:${minifiedScript}`;
-  }, []);
+  };
 
-  const clickHandler = useCallback<MouseEventHandler<HTMLAnchorElement>>(
-    (event) => {
-      event.preventDefault();
-      setIsOpen(true);
-    },
-    [setIsOpen],
-  );
+  const clickHandler: MouseEventHandler<HTMLAnchorElement> = (event) => {
+    event.preventDefault();
+    setIsOpen(true);
+  };
 
   return (
     <>

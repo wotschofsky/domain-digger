@@ -2,7 +2,7 @@
 
 import { Label } from '@radix-ui/react-label';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { type FC, useCallback } from 'react';
+import type { FC } from 'react';
 
 import {
   Select,
@@ -26,23 +26,20 @@ const ProviderSelector: FC<ProviderSelectorProps> = ({ initialValue }) => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const onValueChange = useCallback(
-    (value: string) => {
-      const current = new URLSearchParams(Array.from(searchParams.entries()));
+  const onValueChange = (value: string) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
 
-      if (!value || value === 'authoritative') {
-        current.delete('resolver');
-      } else {
-        current.set('resolver', value);
-      }
+    if (!value || value === 'authoritative') {
+      current.delete('resolver');
+    } else {
+      current.set('resolver', value);
+    }
 
-      const search = current.size ? `?${current.toString()}` : '';
-      router.push(`${pathname}${search}`);
+    const search = current.size ? `?${current.toString()}` : '';
+    router.push(`${pathname}${search}`);
 
-      reportEvent('Resolver Selector: Change', { resolver: value });
-    },
-    [router, pathname, searchParams, reportEvent],
-  );
+    reportEvent('Resolver Selector: Change', { resolver: value });
+  };
 
   return (
     <Label className="flex flex-col gap-1">
@@ -81,23 +78,20 @@ const LocationSelector: FC<LocationSelectorProps> = ({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const onValueChange = useCallback(
-    (value: string) => {
-      const current = new URLSearchParams(Array.from(searchParams.entries()));
+  const onValueChange = (value: string) => {
+    const current = new URLSearchParams(Array.from(searchParams.entries()));
 
-      if (!value || value === 'auto') {
-        current.delete('location');
-      } else {
-        current.set('location', value);
-      }
+    if (!value || value === 'auto') {
+      current.delete('location');
+    } else {
+      current.set('location', value);
+    }
 
-      const search = current.size ? `?${current.toString()}` : '';
-      router.push(`${pathname}${search}`);
+    const search = current.size ? `?${current.toString()}` : '';
+    router.push(`${pathname}${search}`);
 
-      reportEvent('Location Selector: Change', { location: value });
-    },
-    [router, pathname, searchParams, reportEvent],
-  );
+    reportEvent('Location Selector: Change', { location: value });
+  };
 
   return (
     <Label className="flex flex-col gap-1">

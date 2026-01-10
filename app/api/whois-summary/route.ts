@@ -29,7 +29,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error(error)
+    console.error(error);
 
     return NextResponse.json(
       { error: true, message: 'Error fetching whois summary' },

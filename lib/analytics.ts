@@ -1,5 +1,4 @@
 import { usePlausible } from 'next-plausible';
-import { useCallback, useMemo } from 'react';
 
 type EmptyEvent = Record<string, never>;
 
@@ -21,18 +20,12 @@ type Events = {
 export const useAnalytics = () => {
   const plausible = usePlausible();
 
-  const reportEvent = useCallback(
-    <T extends keyof Events>(event: T, props: Events[T]) => {
-      console.info('Reporting event', { event, props });
-      plausible(event, { props });
-    },
-    [plausible],
-  );
+  const reportEvent = <T extends keyof Events>(event: T, props: Events[T]) => {
+    console.info('Reporting event', { event, props });
+    plausible(event, { props });
+  };
 
-  return useMemo(
-    () => ({
-      reportEvent,
-    }),
-    [reportEvent],
-  );
+  return {
+    reportEvent,
+  };
 };

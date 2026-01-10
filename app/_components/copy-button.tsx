@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckIcon, ClipboardIcon } from 'lucide-react';
-import { type FC, useCallback, useState } from 'react';
+import { type FC, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -21,7 +21,7 @@ export const CopyButton: FC<CopyButton> = ({ value }) => {
   const { reportEvent } = useAnalytics();
 
   const [wasCopied, setWasCopied] = useState(false);
-  const copy = useCallback(() => {
+  const copy = () => {
     setWasCopied(true);
     navigator.clipboard.writeText(value);
     setTimeout(() => setWasCopied(false), 2000);
@@ -29,7 +29,7 @@ export const CopyButton: FC<CopyButton> = ({ value }) => {
     toast('Copied to clipboard');
 
     reportEvent('Copy Button: Click', { value });
-  }, [value, setWasCopied, reportEvent]);
+  };
 
   if (wasCopied) {
     return <CheckIcon className="mx-1 inline-block size-4 -translate-y-0.5" />;

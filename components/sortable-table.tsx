@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useState } from 'react';
 
 import {
   Table,
@@ -43,27 +43,20 @@ export const SortableTable = <T extends Record<string, any>>({
   const [sortDirection, setSortDirection] =
     useState<SortDirection>(defaultSortDirection);
 
-  const sortedData = useMemo(
-    () =>
-      data.toSorted((a, b) => {
-        if (a[sort] > b[sort]) return sortDirection === 'asc' ? 1 : -1;
-        if (a[sort] < b[sort]) return sortDirection === 'asc' ? -1 : 1;
-        return 0;
-      }),
-    [data, sort, sortDirection],
-  );
+  const sortedData = data.toSorted((a, b) => {
+    if (a[sort] > b[sort]) return sortDirection === 'asc' ? 1 : -1;
+    if (a[sort] < b[sort]) return sortDirection === 'asc' ? -1 : 1;
+    return 0;
+  });
 
-  const handleSort = useCallback(
-    (key: keyof T) => {
-      if (sort === key) {
-        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-      } else {
-        setSort(key);
-        setSortDirection('asc');
-      }
-    },
-    [sort, sortDirection],
-  );
+  const handleSort = (key: keyof T) => {
+    if (sort === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSort(key);
+      setSortDirection('asc');
+    }
+  };
 
   return (
     <Table>

@@ -2,7 +2,7 @@
 
 import { useLocalStorage } from '@uidotdev/usehooks';
 import ms from 'ms';
-import { type FC, useCallback, useEffect, useState } from 'react';
+import { type FC, useEffect, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
 import useSWRImmutable from 'swr/immutable';
 
@@ -27,10 +27,7 @@ const SKIP_BUTTON_DELAY = ms('5s');
 export const StarReminder: FC = () => {
   const { reportEvent } = useAnalytics();
   const [_, setForceUpdate] = useState(0);
-  const forceUpdate = useCallback(
-    () => setForceUpdate((prev) => prev + 1),
-    [setForceUpdate],
-  );
+  const forceUpdate = () => setForceUpdate((prev) => prev + 1);
   const [secondsRemaining, setSecondsRemaining] = useState(
     Math.ceil(SKIP_BUTTON_DELAY / 1000),
   );
@@ -80,21 +77,18 @@ export const StarReminder: FC = () => {
     return () => clearInterval(interval);
   }, [visible]);
 
-  const handleOpenChange = useCallback(
-    (state: boolean) => {
-      if (!state) {
-        setLastDismissed(Date.now());
-        reportEvent('Star Reminder: Suppress', {});
-      }
-    },
-    [setLastDismissed, reportEvent],
-  );
+  const handleOpenChange = (state: boolean) => {
+    if (!state) {
+      setLastDismissed(Date.now());
+      reportEvent('Star Reminder: Suppress', {});
+    }
+  };
 
-  const handleClick = useCallback(() => {
+  const handleClick = () => {
     setIsStarred(true);
     window.open('https://github.com/wotschofsky/domain-digger', '_blank');
     reportEvent('Star Reminder: Click', {});
-  }, [setIsStarred, reportEvent]);
+  };
 
   useEffect(() => {
     const style = document.createElement('style');

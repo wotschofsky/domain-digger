@@ -1,7 +1,7 @@
 'use client';
 
 import { InfoIcon } from 'lucide-react';
-import { type FC, useCallback, useState } from 'react';
+import { type FC, useState } from 'react';
 
 import {
   Tooltip,
@@ -22,10 +22,10 @@ export const IpLink: FC<IpLinkProps> = ({ value }) => {
   const { reportEvent } = useAnalytics();
 
   const [isOpen, setOpen] = useState(false);
-  const open = useCallback(() => {
+  const open = () => {
     setOpen(true);
     reportEvent('IP Details: Open', { ip: value });
-  }, [setOpen, reportEvent, value]);
+  };
 
   return (
     <>

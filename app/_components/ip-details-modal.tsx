@@ -3,7 +3,7 @@ import { useWindowSize } from '@uidotdev/usehooks';
 import type { LatLngTuple } from 'leaflet';
 import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
-import { type FC } from 'react';
+import type { FC } from 'react';
 import useSWRImmutable from 'swr/immutable';
 
 import {
