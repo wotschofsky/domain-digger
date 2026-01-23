@@ -4,7 +4,6 @@ import { useLocalStorage } from '@uidotdev/usehooks';
 import ms from 'ms';
 import { type FC, useEffect, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
-import useSWRImmutable from 'swr/immutable';
 
 import {
   AlertDialog,
@@ -17,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+import { useStargazersSummary } from '@/app/api/stargazers-summary/hook';
 import { useAnalytics } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
@@ -32,13 +32,7 @@ export const StarReminder: FC = () => {
     Math.ceil(SKIP_BUTTON_DELAY / 1000),
   );
 
-  const { data } = useSWRImmutable<{
-    recentStargazers: Array<{
-      name: string;
-      avatarUrl: string;
-    }>;
-    totalStars: number;
-  }>('/api/stargazers-summary');
+  const { data } = useStargazersSummary();
 
   const [isStarred, setIsStarred] = useLocalStorage(
     'star-reminder.starred',

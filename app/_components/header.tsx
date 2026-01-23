@@ -1,12 +1,12 @@
 import { HeartIcon } from 'lucide-react';
 import type { FC } from 'react';
-import { FaGithub } from 'react-icons/fa';
 
 import { Button } from '@/components/ui/button';
 
 import { BookmarkletLink } from './bookmarklet-link';
 import { Logo } from './logo';
 import { SearchForm } from './search-form';
+import { StarButton } from './star-button';
 import { ThemeMenu } from './theme-menu';
 
 type HeaderProps = {
@@ -40,18 +40,7 @@ export const Header: FC<HeaderProps> = ({ showSearch }) => (
             <span className="sr-only md:not-sr-only">Sponsor</span>
           </a>
         </Button>
-        <Button variant="ghost" asChild className="px-2">
-          <a
-            href="https://github.com/wotschofsky/domain-digger"
-            target="_blank"
-            rel="noopener"
-          >
-            <FaGithub className="mr-1 h-6 w-4" />
-            <span className="hidden md:inline">
-              Star <span className="sr-only">on GitHub</span>
-            </span>
-          </a>
-        </Button>
+        <StarButton />
         <ThemeMenu />
       </div>
     </div>
