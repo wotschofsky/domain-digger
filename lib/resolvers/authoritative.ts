@@ -18,6 +18,8 @@ import {
   type ResolverResponse,
 } from './base';
 
+type DnsResponse = { packet: Packet; protocol: 'udp' | 'tcp' };
+
 export class AuthoritativeResolver extends DnsResolver {
   private async getRootServers() {
     const response = await fetch('https://www.internic.net/domain/named.root', {
@@ -182,11 +184,12 @@ export class AuthoritativeResolver extends DnsResolver {
     // that limit the server truncates the response and sets the TC flag,
     // signaling the client to retry over TCP where the full response (up to
     // 64 KB) can be delivered.
-    const response = await this.sendUdpRequest(domain, recordType, nameserver);
-    if ((response as Packet & { flag_tc?: boolean }).flag_tc) {
-      return this.sendTcpRequest(domain, recordType, nameserver);
+    const udpResponse = await this.sendUdpRequest(domain, recordType, nameserver);
+    if ((udpResponse as Packet & { flag_tc?: boolean }).flag_tc) {
+      const packet = await this.sendTcpRequest(domain, recordType, nameserver);
+      return { packet, protocol: 'tcp' };
     }
-    return response;
+    return { packet: udpResponse, protocol: 'udp' };
   }
 
   private requestLoader = new DataLoader<
@@ -195,7 +198,7 @@ export class AuthoritativeResolver extends DnsResolver {
       type: RecordType;
       nameserver: string;
     },
-    Packet,
+    DnsResponse,
     string
   >(
     async (keys) =>
@@ -218,7 +221,7 @@ export class AuthoritativeResolver extends DnsResolver {
     const rootServers = await this.getRootServers();
 
     const usedNameserver = nameserver || rootServers[0]; // TODO Use fallback nameservers
-    const response = await this.requestLoader.load({
+    const { packet: response, protocol } = await this.requestLoader.load({
       domain,
       type: recordType,
       nameserver: usedNameserver,
@@ -239,7 +242,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
       const fullTrace = [
         ...trace,
-        `${recordType} ${domain} @ ${usedNameserver} -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
+        `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
       ];
 
       return { records, trace: fullTrace };
@@ -259,7 +262,7 @@ export class AuthoritativeResolver extends DnsResolver {
       if (aRedirects.length) {
         return this.fetchRecords(domain, recordType, aRedirects[0].data, [
           ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
         ]);
       }
 
@@ -278,7 +281,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
         return this.fetchRecords(domain, recordType, aRecords[0].data, [
           ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
+          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
           ...subTrace,
         ]);
       }
