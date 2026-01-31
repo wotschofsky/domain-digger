@@ -4,6 +4,7 @@ import net from 'node:net';
 import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
+  type DecodedPacket,
   type Packet,
   type Question,
   type StringAnswer,
@@ -106,7 +107,7 @@ export class AuthoritativeResolver extends DnsResolver {
     const socket = dgram.createSocket('udp4');
     socket.send(packetBuffer, 0, packetBuffer.length, 53, nameserver);
 
-    return await new Promise<Packet>((resolve, reject) => {
+    return await new Promise<DecodedPacket>((resolve, reject) => {
       const timeout = setTimeout(() => {
         socket.close();
         reject(
@@ -119,7 +120,7 @@ export class AuthoritativeResolver extends DnsResolver {
       socket.on('message', (message: Buffer) => {
         socket.close();
 
-        const response: Packet = dnsPacket.decode(message);
+        const response = dnsPacket.decode(message);
 
         clearTimeout(timeout);
         resolve(response);
@@ -193,7 +194,7 @@ export class AuthoritativeResolver extends DnsResolver {
       recordType,
       nameserver,
     );
-    if ((udpResponse as Packet & { flag_tc?: boolean }).flag_tc) {
+    if (udpResponse.flag_tc) {
       const packet = await this.sendTcpRequest(domain, recordType, nameserver);
       return { packet, protocol: 'tcp', truncated: true };
     }
