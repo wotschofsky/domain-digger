@@ -1,8 +1,10 @@
 import dgram from 'node:dgram';
+import net from 'node:net';
 
 import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
+  type DecodedPacket,
   type Packet,
   type Question,
   type StringAnswer,
@@ -16,6 +18,12 @@ import {
   type RecordType,
   type ResolverResponse,
 } from './base';
+
+type DnsResponse = {
+  packet: Packet;
+  protocol: 'udp' | 'tcp';
+  truncated: boolean;
+};
 
 export class AuthoritativeResolver extends DnsResolver {
   private async getRootServers() {
@@ -85,7 +93,7 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
-  private async sendRequest(
+  private async sendUdpRequest(
     domain: string,
     recordType: RecordType,
     nameserver: string,
@@ -99,7 +107,7 @@ export class AuthoritativeResolver extends DnsResolver {
     const socket = dgram.createSocket('udp4');
     socket.send(packetBuffer, 0, packetBuffer.length, 53, nameserver);
 
-    return await new Promise<Packet>((resolve, reject) => {
+    return await new Promise<DecodedPacket>((resolve, reject) => {
       const timeout = setTimeout(() => {
         socket.close();
         reject(
@@ -112,7 +120,7 @@ export class AuthoritativeResolver extends DnsResolver {
       socket.on('message', (message: Buffer) => {
         socket.close();
 
-        const response: Packet = dnsPacket.decode(message);
+        const response = dnsPacket.decode(message);
 
         clearTimeout(timeout);
         resolve(response);
@@ -124,13 +132,82 @@ export class AuthoritativeResolver extends DnsResolver {
     });
   }
 
+  private async sendTcpRequest(
+    domain: string,
+    recordType: RecordType,
+    nameserver: string,
+  ) {
+    const packetBuffer = dnsPacket.streamEncode({
+      type: 'query',
+      id: 1,
+      questions: [{ type: recordType, name: domain } as Question],
+    });
+
+    return await new Promise<Packet>((resolve, reject) => {
+      const socket = net.createConnection(53, nameserver, () => {
+        socket.write(packetBuffer);
+      });
+
+      const timeout = setTimeout(() => {
+        socket.destroy();
+        reject(
+          new Error(
+            `TCP request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`,
+          ),
+        );
+      }, 3000);
+
+      const chunks: Buffer[] = [];
+      socket.on('data', (data: Buffer) => {
+        chunks.push(data);
+        const buf = Buffer.concat(chunks);
+        // TCP DNS messages are prefixed with a 2-byte length field
+        if (buf.length >= 2) {
+          const msgLen = buf.readUInt16BE(0);
+          if (buf.length >= 2 + msgLen) {
+            socket.destroy();
+            clearTimeout(timeout);
+            resolve(dnsPacket.streamDecode(buf));
+          }
+        }
+      });
+      socket.on('error', (error) => {
+        clearTimeout(timeout);
+        socket.destroy();
+        reject(error);
+      });
+    });
+  }
+
+  private async sendRequest(
+    domain: string,
+    recordType: RecordType,
+    nameserver: string,
+  ) {
+    // DNS queries are first attempted over UDP per convention. However, UDP
+    // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
+    // that limit the server truncates the response and sets the TC flag,
+    // signaling the client to retry over TCP where the full response (up to
+    // 64 KB) can be delivered.
+    const udpResponse = await this.sendUdpRequest(
+      domain,
+      recordType,
+      nameserver,
+    );
+    if (udpResponse.flag_tc) {
+      const packet = await this.sendTcpRequest(domain, recordType, nameserver);
+      return { packet, protocol: 'tcp', truncated: true };
+    }
+    return { packet: udpResponse, protocol: 'udp', truncated: false };
+  }
+
   private requestLoader = new DataLoader<
     {
       domain: string;
       type: RecordType;
       nameserver: string;
     },
-    Packet,
+    DnsResponse,
     string
   >(
     async (keys) =>
@@ -153,11 +230,22 @@ export class AuthoritativeResolver extends DnsResolver {
     const rootServers = await this.getRootServers();
 
     const usedNameserver = nameserver || rootServers[0]; // TODO Use fallback nameservers
-    const response = await this.requestLoader.load({
+    const {
+      packet: response,
+      protocol,
+      truncated,
+    } = await this.requestLoader.load({
       domain,
       type: recordType,
       nameserver: usedNameserver,
     });
+
+    if (truncated) {
+      trace = [
+        ...trace,
+        `${recordType} ${domain} @ ${usedNameserver} (udp) -> answer truncated, retry over tcp`,
+      ];
+    }
 
     if (response.answers?.length) {
       const filteredAnswers = response.answers.filter(
@@ -174,7 +262,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
       const fullTrace = [
         ...trace,
-        `${recordType} ${domain} @ ${usedNameserver} -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
+        `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
       ];
 
       return { records, trace: fullTrace };
@@ -194,7 +282,7 @@ export class AuthoritativeResolver extends DnsResolver {
       if (aRedirects.length) {
         return this.fetchRecords(domain, recordType, aRedirects[0].data, [
           ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
         ]);
       }
 
@@ -213,7 +301,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
         return this.fetchRecords(domain, recordType, aRecords[0].data, [
           ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
+          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
           ...subTrace,
         ]);
       }
