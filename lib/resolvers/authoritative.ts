@@ -1,4 +1,5 @@
 import dgram from 'node:dgram';
+import net from 'node:net';
 
 import DataLoader from 'dataloader';
 import dnsPacket, {
@@ -85,7 +86,7 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
-  private async sendRequest(
+  private async sendUdpRequest(
     domain: string,
     recordType: RecordType,
     nameserver: string,
@@ -122,6 +123,70 @@ export class AuthoritativeResolver extends DnsResolver {
         reject(error);
       });
     });
+  }
+
+  private async sendTcpRequest(
+    domain: string,
+    recordType: RecordType,
+    nameserver: string,
+  ) {
+    const packetBuffer = dnsPacket.streamEncode({
+      type: 'query',
+      id: 1,
+      questions: [{ type: recordType, name: domain } as Question],
+    });
+
+    return await new Promise<Packet>((resolve, reject) => {
+      const socket = net.createConnection(53, nameserver, () => {
+        socket.write(packetBuffer);
+      });
+
+      const timeout = setTimeout(() => {
+        socket.destroy();
+        reject(
+          new Error(
+            `TCP request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`,
+          ),
+        );
+      }, 3000);
+
+      const chunks: Buffer[] = [];
+      socket.on('data', (data: Buffer) => {
+        chunks.push(data);
+        const buf = Buffer.concat(chunks);
+        // TCP DNS messages are prefixed with a 2-byte length field
+        if (buf.length >= 2) {
+          const msgLen = buf.readUInt16BE(0);
+          if (buf.length >= 2 + msgLen) {
+            socket.destroy();
+            clearTimeout(timeout);
+            resolve(dnsPacket.streamDecode(buf));
+          }
+        }
+      });
+      socket.on('error', (error) => {
+        clearTimeout(timeout);
+        socket.destroy();
+        reject(error);
+      });
+    });
+  }
+
+  private async sendRequest(
+    domain: string,
+    recordType: RecordType,
+    nameserver: string,
+  ) {
+    // DNS queries are first attempted over UDP per convention. However, UDP
+    // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
+    // that limit the server truncates the response and sets the TC flag,
+    // signaling the client to retry over TCP where the full response (up to
+    // 64 KB) can be delivered.
+    const response = await this.sendUdpRequest(domain, recordType, nameserver);
+    if ((response as Packet & { flag_tc?: boolean }).flag_tc) {
+      return this.sendTcpRequest(domain, recordType, nameserver);
+    }
+    return response;
   }
 
   private requestLoader = new DataLoader<
