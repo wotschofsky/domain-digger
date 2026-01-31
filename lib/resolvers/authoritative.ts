@@ -18,7 +18,11 @@ import {
   type ResolverResponse,
 } from './base';
 
-type DnsResponse = { packet: Packet; protocol: 'udp' | 'tcp' };
+type DnsResponse = {
+  packet: Packet;
+  protocol: 'udp' | 'tcp';
+  truncated: boolean;
+};
 
 export class AuthoritativeResolver extends DnsResolver {
   private async getRootServers() {
@@ -184,12 +188,16 @@ export class AuthoritativeResolver extends DnsResolver {
     // that limit the server truncates the response and sets the TC flag,
     // signaling the client to retry over TCP where the full response (up to
     // 64 KB) can be delivered.
-    const udpResponse = await this.sendUdpRequest(domain, recordType, nameserver);
+    const udpResponse = await this.sendUdpRequest(
+      domain,
+      recordType,
+      nameserver,
+    );
     if ((udpResponse as Packet & { flag_tc?: boolean }).flag_tc) {
       const packet = await this.sendTcpRequest(domain, recordType, nameserver);
-      return { packet, protocol: 'tcp' };
+      return { packet, protocol: 'tcp', truncated: true };
     }
-    return { packet: udpResponse, protocol: 'udp' };
+    return { packet: udpResponse, protocol: 'udp', truncated: false };
   }
 
   private requestLoader = new DataLoader<
@@ -221,11 +229,22 @@ export class AuthoritativeResolver extends DnsResolver {
     const rootServers = await this.getRootServers();
 
     const usedNameserver = nameserver || rootServers[0]; // TODO Use fallback nameservers
-    const { packet: response, protocol } = await this.requestLoader.load({
+    const {
+      packet: response,
+      protocol,
+      truncated,
+    } = await this.requestLoader.load({
       domain,
       type: recordType,
       nameserver: usedNameserver,
     });
+
+    if (truncated) {
+      trace = [
+        ...trace,
+        `${recordType} ${domain} @ ${usedNameserver} (udp) -> answer truncated, retry over tcp`,
+      ];
+    }
 
     if (response.answers?.length) {
       const filteredAnswers = response.answers.filter(
