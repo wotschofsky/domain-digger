@@ -25,13 +25,26 @@ type DnsResponse = {
   truncated: boolean;
 };
 
+type FetchRecordsParams = {
+  domain: string;
+  recordType: RecordType;
+  nameserver?: string;
+  trace?: string[];
+  depth?: number;
+};
+
 export class AuthoritativeResolver extends DnsResolver {
+  private static readonly MAX_RECURSION_DEPTH = 20;
+
   private async getRootServers() {
     const response = await fetch('https://www.internic.net/domain/named.root', {
       next: {
         revalidate: 7 * 24 * 60 * 60,
       },
     });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch root servers: HTTP ${response.status}`);
+    }
     const body = await response.text();
 
     // TODO Support IPv6
@@ -100,16 +113,24 @@ export class AuthoritativeResolver extends DnsResolver {
   ) {
     const packetBuffer = dnsPacket.encode({
       type: 'query',
-      id: 1,
+      // Randomize ID to avoid response mismatch
+      id: Math.floor(Math.random() * 65535),
       questions: [{ type: recordType, name: domain } as Question],
     });
 
-    const socket = dgram.createSocket('udp4');
-    socket.send(packetBuffer, 0, packetBuffer.length, 53, nameserver);
+    return new Promise<DecodedPacket>((resolve, reject) => {
+      const socket = dgram.createSocket('udp4');
 
-    return await new Promise<DecodedPacket>((resolve, reject) => {
-      const timeout = setTimeout(() => {
+      let settled = false;
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         socket.close();
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
         reject(
           new Error(
             `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`,
@@ -118,17 +139,15 @@ export class AuthoritativeResolver extends DnsResolver {
       }, 3000);
 
       socket.on('message', (message: Buffer) => {
-        socket.close();
-
-        const response = dnsPacket.decode(message);
-
-        clearTimeout(timeout);
-        resolve(response);
+        cleanup();
+        resolve(dnsPacket.decode(message));
       });
       socket.on('error', (error) => {
-        socket.close();
+        cleanup();
         reject(error);
       });
+
+      socket.send(packetBuffer, 0, packetBuffer.length, 53, nameserver);
     });
   }
 
@@ -139,17 +158,25 @@ export class AuthoritativeResolver extends DnsResolver {
   ) {
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
-      id: 1,
+      id: Math.floor(Math.random() * 65535),
       questions: [{ type: recordType, name: domain } as Question],
     });
 
-    return await new Promise<Packet>((resolve, reject) => {
+    return new Promise<Packet>((resolve, reject) => {
       const socket = net.createConnection(53, nameserver, () => {
         socket.write(packetBuffer);
       });
 
-      const timeout = setTimeout(() => {
+      let settled = false;
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         socket.destroy();
+      };
+
+      const timeout = setTimeout(() => {
+        cleanup();
         reject(
           new Error(
             `TCP request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`,
@@ -165,15 +192,13 @@ export class AuthoritativeResolver extends DnsResolver {
         if (buf.length >= 2) {
           const msgLen = buf.readUInt16BE(0);
           if (buf.length >= 2 + msgLen) {
-            socket.destroy();
-            clearTimeout(timeout);
+            cleanup();
             resolve(dnsPacket.streamDecode(buf));
           }
         }
       });
       socket.on('error', (error) => {
-        clearTimeout(timeout);
-        socket.destroy();
+        cleanup();
         reject(error);
       });
     });
@@ -221,12 +246,19 @@ export class AuthoritativeResolver extends DnsResolver {
     },
   );
 
-  private async fetchRecords(
-    domain: string,
-    recordType: RecordType,
-    nameserver?: string,
-    trace: string[] = [],
-  ): Promise<ResolverResponse> {
+  private async fetchRecords({
+    domain,
+    recordType,
+    nameserver,
+    trace = [],
+    depth = 0,
+  }: FetchRecordsParams): Promise<ResolverResponse> {
+    if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
+      throw new Error(
+        `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
+      );
+    }
+
     const rootServers = await this.getRootServers();
 
     const usedNameserver = nameserver || rootServers[0]; // TODO Use fallback nameservers
@@ -269,41 +301,53 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     // TODO Support IPv6
-    const redirects = Object.assign(
-      [] as Answer[],
-      response.authorities,
-      response.additionals,
-    ).filter((answer) => answer.type === 'A' || answer.type === 'NS');
+    const redirects = [
+      ...(response.authorities || []),
+      ...(response.additionals || []),
+    ].filter((answer) => answer.type === 'A' || answer.type === 'NS');
 
     if (redirects.length) {
       const aRedirects = redirects.filter(
         (redirect) => redirect.type === 'A',
       ) as StringAnswer[];
       if (aRedirects.length) {
-        return this.fetchRecords(domain, recordType, aRedirects[0].data, [
-          ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
-        ]);
+        return this.fetchRecords({
+          domain,
+          recordType,
+          nameserver: aRedirects[0].data,
+          trace: [
+            ...trace,
+            `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+          ],
+          depth: depth + 1,
+        });
       }
 
       const nsRedirects = redirects.filter(
         (redirect) => redirect.type === 'NS',
       ) as StringAnswer[];
       if (nsRedirects.length) {
-        const { records: aRecords, trace: subTrace } = await this.fetchRecords(
-          nsRedirects[0].data,
-          'A',
-        );
+        const { records: aRecords, trace: subTrace } = await this.fetchRecords({
+          domain: nsRedirects[0].data,
+          recordType: 'A',
+          depth: depth + 1,
+        });
 
         if (!aRecords.length) {
           throw new Error(`Bad redirects for ${domain}`);
         }
 
-        return this.fetchRecords(domain, recordType, aRecords[0].data, [
-          ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
-          ...subTrace,
-        ]);
+        return this.fetchRecords({
+          domain,
+          recordType,
+          nameserver: aRecords[0].data,
+          trace: [
+            ...trace,
+            `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
+            ...subTrace,
+          ],
+          depth: depth + 1,
+        });
       }
 
       throw new Error(`Bad redirects for ${domain}`);
@@ -314,8 +358,8 @@ export class AuthoritativeResolver extends DnsResolver {
 
   public async resolveRecordType(
     domain: string,
-    type: RecordType,
+    recordType: RecordType,
   ): Promise<ResolverResponse> {
-    return this.fetchRecords(domain, type);
+    return this.fetchRecords({ domain, recordType });
   }
 }
