@@ -17,11 +17,11 @@ type SingleTabProps = {
 };
 
 const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
-  <li className="mr-2">
+  <li>
     <Link
       href={href}
       className={cn(
-        'relative inline-block w-max rounded-t-lg px-4 py-3 transition-colors',
+        'relative inline-block w-max rounded-t-lg px-5 py-3 transition-colors',
         selected
           ? 'text-primary'
           : 'text-zinc-600 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300',
