@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Viewport } from 'next';
 import type { FC, ReactNode } from 'react';
@@ -52,6 +53,7 @@ const RootLayout: FC<RootLayoutProps> = ({ children }) => {
 
         <Toaster />
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
