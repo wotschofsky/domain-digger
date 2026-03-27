@@ -11,6 +11,8 @@ import {
 import {
   deduplicate,
   getBaseDomain,
+  IPV4_REGEX,
+  IPV6_REGEX,
   isAppleDevice,
   isValidDomain,
   isWildcardDomain,
@@ -172,6 +174,58 @@ describe('isWildcardDomain', () => {
     expect(isWildcardDomain('*')).toBe(false);
     expect(isWildcardDomain('*.')).toBe(false);
     expect(isWildcardDomain('*.com')).toBe(true);
+  });
+});
+
+describe('IPV4_REGEX', () => {
+  it('matches IPv4 addresses in SPF records', () => {
+    const spf = 'v=spf1 ip4:166.84.6.31 ip4:166.84.7.238 ~all';
+    const matches = spf.match(IPV4_REGEX);
+    expect(matches).toEqual(['166.84.6.31', '166.84.7.238']);
+  });
+
+  it('does not match partial IPv4 from ip4: prefix in SPF records', () => {
+    const spf = 'v=spf1 ip4:166.84.6.31 ip4:166.84.7.238 ~all';
+    const matches = spf.match(IPV4_REGEX);
+    expect(matches).toEqual(['166.84.6.31', '166.84.7.238']);
+    expect(matches).not.toContain('4.166.84.6');
+  });
+
+  it('matches standard IPv4 addresses', () => {
+    expect('192.168.1.1'.match(IPV4_REGEX)).toEqual(['192.168.1.1']);
+    expect('255.255.255.255'.match(IPV4_REGEX)).toEqual(['255.255.255.255']);
+    expect('0.0.0.0'.match(IPV4_REGEX)).toEqual(['0.0.0.0']);
+  });
+});
+
+describe('IPV6_REGEX', () => {
+  it('does not match partial IPv6 from ip6: prefix in SPF records', () => {
+    const spf =
+      'v=spf1 ip4:166.84.6.31 ip6:2602:f977:800::e276:63ff:fe66:3400 ~all';
+    const matches = spf.match(IPV6_REGEX);
+    expect(matches).toEqual(['2602:f977:800::e276:63ff:fe66:3400']);
+  });
+
+  it('matches multiple IPv6 addresses in SPF records', () => {
+    const spf =
+      'v=spf1 ip6:2602:f977:800:f7f6::/64 ip6:2602:f977:800::e276:63ff:fe66:3400 ~all';
+    const matches = spf.match(IPV6_REGEX);
+    expect(matches).toEqual([
+      '2602:f977:800:f7f6::',
+      '2602:f977:800::e276:63ff:fe66:3400',
+    ]);
+  });
+
+  it('matches standard IPv6 addresses', () => {
+    expect('2001:db8::1'.match(IPV6_REGEX)).toEqual(['2001:db8::1']);
+    expect('::1'.match(IPV6_REGEX)).toEqual(['::1']);
+    expect('fe80::1%eth0'.match(IPV6_REGEX)).toEqual(['fe80::1%eth0']);
+  });
+
+  it('matches full IPv6 addresses', () => {
+    expect('2001:0db8:85a3:0000:0000:8a2e:0370:7334'.match(IPV6_REGEX)).toEqual(
+      ['2001:0db8:85a3:0000:0000:8a2e:0370:7334'],
+    );
   });
 });
 
