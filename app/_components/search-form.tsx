@@ -292,7 +292,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
             }
             return domain;
           })()}
-          onInput={handleInput}
+          onChange={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
           onClick={handleFocus}

@@ -10,22 +10,18 @@ const parseDateSafe = (date: string): Date | null => {
   return null;
 };
 
-type WhoisResult = {
-  [key: string]: {
-    __raw: string;
-    [key: string]: unknown;
-  };
-};
-
 export const lookupWhois = async (domain: string) => {
-  const result = (await whoisDomain(domain, {
+  const result = await whoisDomain(domain, {
     raw: true,
     timeout: 5000,
-  })) as WhoisResult;
+  });
 
   const mappedResults: Record<string, string> = {};
   for (const key in result) {
-    mappedResults[key] = result[key].__raw as string;
+    const raw = result[key].__raw;
+    if (raw) {
+      mappedResults[key] = Array.isArray(raw) ? raw.join('\n') : raw;
+    }
   }
 
   const filteredResults = Object.entries(mappedResults).filter(
@@ -82,10 +78,10 @@ export const getWhoisSummary = async (
   const baseDomain = getBaseDomain(domain);
 
   try {
-    const results = (await whoisDomain(baseDomain, {
+    const results = await whoisDomain(baseDomain, {
       timeout: 5000,
       raw: true,
-    })) as WhoisResult;
+    });
 
     const firstResult = getFirstResult(results);
 
