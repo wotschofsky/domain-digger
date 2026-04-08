@@ -89,9 +89,16 @@ export const getWhoisSummary = async (
       throw new Error('No valid result found for domain ' + domain);
     }
 
+    const rawValue = firstResult['__raw'];
+    const rawString = rawValue
+      ? Array.isArray(rawValue)
+        ? rawValue.join('\n')
+        : rawValue
+      : '';
+
     if (
       UNREGISTERED_INDICATORS.some((indicator) =>
-        firstResult['__raw'].toString().toLowerCase().includes(indicator),
+        rawString.toLowerCase().includes(indicator),
       )
     ) {
       return {
