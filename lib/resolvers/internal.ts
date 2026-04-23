@@ -1,5 +1,6 @@
 import { env } from '@/env';
 
+import { upstreamUserFacingError } from '../user-facing-error';
 import {
   DnsResolver,
   type RecordType,
@@ -47,10 +48,15 @@ export class InternalDoHResolver extends DnsResolver {
     url.searchParams.set('domain', domain);
 
     const response = await fetch(url, this.requestInit);
-    if (!response.ok)
-      throw new Error(
+    if (!response.ok) {
+      console.error(
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
       );
+      throw upstreamUserFacingError({
+        service: `DNS resolver (${this.location})`,
+        status: response.status,
+      });
+    }
 
     const results = (await response.json()) as ResolverMultiResponse;
 
@@ -67,10 +73,15 @@ export class InternalDoHResolver extends DnsResolver {
     url.searchParams.set('domain', domain);
 
     const response = await fetch(url, this.requestInit);
-    if (!response.ok)
-      throw new Error(
+    if (!response.ok) {
+      console.error(
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
       );
+      throw upstreamUserFacingError({
+        service: `DNS resolver (${this.location})`,
+        status: response.status,
+      });
+    }
 
     const results = (await response.json()) as ResolverMultiResponse;
 

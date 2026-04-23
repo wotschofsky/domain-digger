@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { type FC, Fragment } from 'react';
 
+import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 
@@ -47,7 +48,10 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   const results = await lookupWhois(forceOriginal ? domain : baseDomain);
 
   if (results.length === 0) {
-    throw new Error('No results found');
+    throw new UserFacingError({
+      title: 'No WHOIS results',
+      description: `No WHOIS data is available for ${forceOriginal ? domain : baseDomain}. The domain may be unregistered or the WHOIS server may not return data for this TLD.`,
+    });
   }
 
   return (

@@ -1,3 +1,5 @@
+import { upstreamUserFacingError } from './user-facing-error';
+
 export type CertsData = {
   issuer_ca_id: number;
   issuer_name: string;
@@ -11,16 +13,24 @@ export type CertsData = {
 }[];
 
 export const lookupCerts = async (domain: string): Promise<CertsData> => {
-  const response = await fetch(
-    'https://crt.sh?' +
-      new URLSearchParams({
-        Identity: domain,
-        output: 'json',
-      }),
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      'https://crt.sh?' +
+        new URLSearchParams({
+          Identity: domain,
+          output: 'json',
+        }),
+    );
+  } catch {
+    throw upstreamUserFacingError({ service: 'crt.sh' });
+  }
 
   if (!response.ok) {
-    throw new Error('Failed to fetch certs');
+    throw upstreamUserFacingError({
+      service: 'crt.sh',
+      status: response.status,
+    });
   }
 
   const data: CertsData = await response.json();

@@ -59,15 +59,14 @@ describe('lookupReverse', () => {
     expect(results).toEqual([]);
   });
 
-  it('should throw an error when the API call for DNS lookup fails', async () => {
+  it('should throw a user-facing error when the API call for DNS lookup fails', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
+      status: 503,
       statusText: 'Service Unavailable',
     });
 
-    await expect(lookupReverse('8.8.4.4')).rejects.toThrow(
-      'Error fetching DNS records: Service Unavailable',
-    );
+    await expect(lookupReverse('8.8.4.4')).rejects.toThrow(/Cloudflare DNS/);
   });
 });
 

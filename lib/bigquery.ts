@@ -2,6 +2,8 @@ import { getAccessToken } from 'web-auth-library/google';
 
 import { env } from '@/env';
 
+import { upstreamUserFacingError } from './user-facing-error';
+
 const credentials = env.GOOGLE_SERVICE_KEY_B64
   ? (JSON.parse(
       Buffer.from(env.GOOGLE_SERVICE_KEY_B64, 'base64').toString(),
@@ -46,9 +48,13 @@ export const insertRows = async ({
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(
+    console.error(
       `Failed to insert data into BigQuery: ${response.status} ${errorBody}`,
     );
+    throw upstreamUserFacingError({
+      service: 'BigQuery',
+      status: response.status,
+    });
   }
 };
 
@@ -98,9 +104,13 @@ export const query = async <T extends Record<string, any>>({
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(
+    console.error(
       `Failed to execute query in BigQuery: ${response.status} ${errorBody}`,
     );
+    throw upstreamUserFacingError({
+      service: 'BigQuery',
+      status: response.status,
+    });
   }
 
   const { schema, rows } = await response.json();

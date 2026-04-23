@@ -1,5 +1,6 @@
 import { firstResult as getFirstResult, whoisDomain } from 'whoiser';
 
+import { UserFacingError } from './user-facing-error';
 import { getBaseDomain, isValidDomain } from './utils';
 
 export const formatDate = (date: Date) => date.toISOString().split('T')[0];
@@ -11,10 +12,21 @@ const parseDateSafe = (date: string): Date | null => {
 };
 
 export const lookupWhois = async (domain: string) => {
-  const result = await whoisDomain(domain, {
-    raw: true,
-    timeout: 5000,
-  });
+  let result: Awaited<ReturnType<typeof whoisDomain>>;
+  try {
+    result = await whoisDomain(domain, {
+      raw: true,
+      timeout: 5000,
+    });
+  } catch (error) {
+    console.error('WHOIS lookup failed:', error);
+    throw new UserFacingError({
+      title: 'WHOIS lookup failed',
+      description:
+        "We couldn't reach the WHOIS server for this domain. It may be temporarily unavailable or rate limiting our requests. Please try again shortly.",
+      retryable: true,
+    });
+  }
 
   const mappedResults: Record<string, string> = {};
   for (const key in result) {
