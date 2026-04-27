@@ -12,6 +12,7 @@ import dnsPacket, {
 
 import { retry } from '@/lib/utils';
 
+import { upstreamUserFacingError } from '../user-facing-error';
 import {
   DnsResolver,
   type RawRecord,
@@ -37,13 +38,22 @@ export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
 
   private async getRootServers() {
-    const response = await fetch('https://www.internic.net/domain/named.root', {
-      next: {
-        revalidate: 7 * 24 * 60 * 60,
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://www.internic.net/domain/named.root', {
+        next: {
+          revalidate: 7 * 24 * 60 * 60,
+        },
+      });
+    } catch {
+      throw upstreamUserFacingError({ service: 'InterNIC root servers list' });
+    }
     if (!response.ok) {
-      throw new Error(`Failed to fetch root servers: HTTP ${response.status}`);
+      console.error(`Failed to fetch root servers: HTTP ${response.status}`);
+      throw upstreamUserFacingError({
+        service: 'InterNIC root servers list',
+        status: response.status,
+      });
     }
     const body = await response.text();
 
@@ -51,7 +61,8 @@ export class AuthoritativeResolver extends DnsResolver {
     const aRecords = body.match(/\sA\s+(.+)/g);
 
     if (!aRecords) {
-      throw new Error('Failed to fetch root servers');
+      console.error('Failed to parse root servers');
+      throw upstreamUserFacingError({ service: 'InterNIC root servers list' });
     }
 
     const ipAddresses = aRecords?.map(

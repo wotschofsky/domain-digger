@@ -1,4 +1,5 @@
 import { RECORD_TYPES_BY_DECIMAL } from '../data';
+import { upstreamUserFacingError } from '../user-facing-error';
 import { DnsResolver, type RecordType, type ResolverResponse } from './base';
 
 type DoHResponse = {
@@ -41,10 +42,15 @@ export abstract class BaseDoHResolver extends DnsResolver {
     type: RecordType,
   ): Promise<ResolverResponse> {
     const response = await this.sendRequest(domain, type);
-    if (!response.ok)
-      throw new Error(
+    if (!response.ok) {
+      console.error(
         `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`,
       );
+      throw upstreamUserFacingError({
+        service: 'DNS resolver',
+        status: response.status,
+      });
+    }
     const results = (await response.json()) as DoHResponse;
 
     if (!results.Answer) {

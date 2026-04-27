@@ -1,5 +1,7 @@
 import DataLoader from 'dataloader';
 
+import { upstreamUserFacingError } from './user-facing-error';
+
 type IpDetails = {
   country: string;
   countryCode: string;
@@ -17,10 +19,18 @@ type IpDetails = {
 };
 
 export const getIpDetails = async (ip: string) => {
-  const response = await fetch(`http://ip-api.com/json/${ip}`);
+  let response: Response;
+  try {
+    response = await fetch(`http://ip-api.com/json/${ip}`);
+  } catch {
+    throw upstreamUserFacingError({ service: 'ip-api.com' });
+  }
 
   if (!response.ok)
-    throw new Error(`Error fetching IP details: ${response.statusText}`);
+    throw upstreamUserFacingError({
+      service: 'ip-api.com',
+      status: response.status,
+    });
 
   const data = (await response.json()) as Record<string, any>;
   delete data.status;
@@ -58,15 +68,23 @@ export const ipToDnsName = (ip: string) =>
 export const lookupReverse = async (ip: string): Promise<string[]> => {
   const reverseDnsName = ipToDnsName(ip);
 
-  const response = await fetch(
-    `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
-    {
-      headers: { Accept: 'application/dns-json' },
-    },
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
+      {
+        headers: { Accept: 'application/dns-json' },
+      },
+    );
+  } catch {
+    throw upstreamUserFacingError({ service: 'Cloudflare DNS' });
+  }
 
   if (!response.ok)
-    throw new Error(`Error fetching DNS records: ${response.statusText}`);
+    throw upstreamUserFacingError({
+      service: 'Cloudflare DNS',
+      status: response.status,
+    });
 
   const data = await response.json();
 
