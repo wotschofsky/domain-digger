@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import isIP from 'validator/lib/isIP';
 
 type IpDetails = {
   country: string;
@@ -17,7 +18,10 @@ type IpDetails = {
 };
 
 export const getIpDetails = async (ip: string) => {
-  const response = await fetch(`http://ip-api.com/json/${ip}`);
+  if (!isIP(ip)) throw new Error('Invalid IP address');
+
+  const url = new URL(`http://ip-api.com/json/${encodeURIComponent(ip)}`);
+  const response = await fetch(url.toString());
 
   if (!response.ok)
     throw new Error(`Error fetching IP details: ${response.statusText}`);
