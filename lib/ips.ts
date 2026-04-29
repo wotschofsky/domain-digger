@@ -83,7 +83,7 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
 // 1st Regex is for IPv4
 // 2nd Regex is for IPv6
 export const normalizeIpEnding = (ip: string) =>
-  ip.replace(/\.[0-9]+$/, '.0').replace(/:([0-9a-fA-F]+)$/, ':');
+  ip.replace(/\.[0-9]+$/, '.0').replace(/:([0-9a-fA-F]+)$/, ':0');
 
 export const hostLookupLoader = new DataLoader(
   async (keys: readonly string[]) =>
