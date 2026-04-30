@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
 import isIP from 'validator/lib/isIP';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   ipToDnsName,
