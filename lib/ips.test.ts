@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import isIP from 'validator/lib/isIP';
 
 import {
   ipToDnsName,
@@ -92,5 +93,24 @@ describe('normalizeIpEnding', () => {
   it('should still normalize based on pattern even for non-standard inputs', () => {
     expect(normalizeIpEnding('999.999.999.999')).toBe('999.999.999.0');
     expect(normalizeIpEnding('abcd:ef01::3456:7890')).toBe('abcd:ef01::3456:0');
+  });
+
+  it('should produce a valid IP address for valid inputs', () => {
+    const inputs = [
+      '192.168.1.254',
+      '10.0.0.1',
+      '8.8.8.8',
+      'fe80::250:56ff:fe97:2b82',
+      '2001:db8::1428:57ab',
+      'abcd:ef01::3456:7890',
+      '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+      '::1',
+    ];
+
+    for (const ip of inputs) {
+      expect(isIP(ip), `precondition: ${ip} is a valid IP`).toBe(true);
+      const normalized = normalizeIpEnding(ip);
+      expect(isIP(normalized), `${ip} -> ${normalized}`).toBe(true);
+    }
   });
 });
