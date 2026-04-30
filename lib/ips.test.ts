@@ -90,6 +90,14 @@ describe('normalizeIpEnding', () => {
     expect(normalizeIpEnding('2001:db8::1428:0')).toBe('2001:db8::1428:0');
   });
 
+  it('should canonicalize compressed zero-tail IPv6 to the same key as the expanded form', () => {
+    expect(normalizeIpEnding('2001:db8::')).toBe(
+      normalizeIpEnding('2001:db8::0'),
+    );
+    expect(normalizeIpEnding('fe80::')).toBe(normalizeIpEnding('fe80::0'));
+    expect(normalizeIpEnding('::')).toBe(normalizeIpEnding('::0'));
+  });
+
   it('should still normalize based on pattern even for non-standard inputs', () => {
     expect(normalizeIpEnding('999.999.999.999')).toBe('999.999.999.0');
     expect(normalizeIpEnding('abcd:ef01::3456:7890')).toBe('abcd:ef01::3456:0');
