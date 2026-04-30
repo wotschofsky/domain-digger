@@ -1,4 +1,5 @@
 import DataLoader from 'dataloader';
+import isIP from 'validator/lib/isIP';
 
 import { upstreamUserFacingError } from './user-facing-error';
 
@@ -19,9 +20,12 @@ type IpDetails = {
 };
 
 export const getIpDetails = async (ip: string) => {
+  if (!isIP(ip)) throw new Error('Invalid IP address');
+
+  const url = new URL(`http://ip-api.com/json/${encodeURIComponent(ip)}`);
   let response: Response;
   try {
-    response = await fetch(`http://ip-api.com/json/${ip}`);
+    response = await fetch(url.toString());
   } catch {
     throw upstreamUserFacingError({ service: 'ip-api.com' });
   }
@@ -95,9 +99,12 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
 
 // Standardize last segment of IP address to reduce the number of requests and avoid rate limiting
 // 1st Regex is for IPv4
-// 2nd Regex is for IPv6
+// 2nd & 3rd Regexes are for IPv6 (3rd canonicalizes a trailing "::" to "::0")
 export const normalizeIpEnding = (ip: string) =>
-  ip.replace(/\.[0-9]+$/, '.0').replace(/:([0-9a-fA-F]+)$/, ':');
+  ip
+    .replace(/\.[0-9]+$/, '.0')
+    .replace(/:([0-9a-fA-F]+)$/, ':0')
+    .replace(/::$/, '::0');
 
 export const hostLookupLoader = new DataLoader(
   async (keys: readonly string[]) =>

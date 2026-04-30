@@ -1,3 +1,4 @@
+import isIP from 'validator/lib/isIP';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -76,20 +77,47 @@ describe('normalizeIpEnding', () => {
     expect(normalizeIpEnding('10.0.0.1')).toBe('10.0.0.0');
   });
 
-  it('should normalize IPv6 by removing the last segment after a colon', () => {
+  it('should normalize the last group of an IPv6 address to 0', () => {
     expect(normalizeIpEnding('fe80::250:56ff:fe97:2b82')).toBe(
-      'fe80::250:56ff:fe97:',
+      'fe80::250:56ff:fe97:0',
     );
-    expect(normalizeIpEnding('2001:db8::1428:57ab')).toBe('2001:db8::1428:');
+    expect(normalizeIpEnding('2001:db8::1428:57ab')).toBe('2001:db8::1428:0');
   });
 
   it('should not alter the IP address if there is no trailing segment to normalize', () => {
     expect(normalizeIpEnding('192.168.1.0')).toBe('192.168.1.0');
-    expect(normalizeIpEnding('2001:db8::1428:')).toBe('2001:db8::1428:');
+    expect(normalizeIpEnding('2001:db8::1428:0')).toBe('2001:db8::1428:0');
+  });
+
+  it('should canonicalize compressed zero-tail IPv6 to the same key as the expanded form', () => {
+    expect(normalizeIpEnding('2001:db8::')).toBe(
+      normalizeIpEnding('2001:db8::0'),
+    );
+    expect(normalizeIpEnding('fe80::')).toBe(normalizeIpEnding('fe80::0'));
+    expect(normalizeIpEnding('::')).toBe(normalizeIpEnding('::0'));
   });
 
   it('should still normalize based on pattern even for non-standard inputs', () => {
     expect(normalizeIpEnding('999.999.999.999')).toBe('999.999.999.0');
-    expect(normalizeIpEnding('abcd:ef01::3456:7890')).toBe('abcd:ef01::3456:');
+    expect(normalizeIpEnding('abcd:ef01::3456:7890')).toBe('abcd:ef01::3456:0');
+  });
+
+  it('should produce a valid IP address for valid inputs', () => {
+    const inputs = [
+      '192.168.1.254',
+      '10.0.0.1',
+      '8.8.8.8',
+      'fe80::250:56ff:fe97:2b82',
+      '2001:db8::1428:57ab',
+      'abcd:ef01::3456:7890',
+      '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+      '::1',
+    ];
+
+    for (const ip of inputs) {
+      expect(isIP(ip), `precondition: ${ip} is a valid IP`).toBe(true);
+      const normalized = normalizeIpEnding(ip);
+      expect(isIP(normalized), `${ip} -> ${normalized}`).toBe(true);
+    }
   });
 });
