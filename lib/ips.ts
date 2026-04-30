@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
-import { upstreamUserFacingError } from './user-facing-error';
+import { UserFacingError, upstreamUserFacingError } from './user-facing-error';
 
 type IpDetails = {
   country: string;
@@ -20,7 +20,11 @@ type IpDetails = {
 };
 
 export const getIpDetails = async (ip: string) => {
-  if (!isIP(ip)) throw new Error('Invalid IP address');
+  if (!isIP(ip))
+    throw new UserFacingError({
+      title: 'Invalid IP address',
+      description: 'The provided IP address is not valid.',
+    });
 
   const url = new URL(`http://ip-api.com/json/${encodeURIComponent(ip)}`);
   let response: Response;

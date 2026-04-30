@@ -2,6 +2,7 @@ import isIP from 'validator/lib/isIP';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  getIpDetails,
   ipToDnsName,
   ipv4ToDnsName,
   ipv6ToDnsName,
@@ -31,6 +32,18 @@ describe('ipToDnsName', () => {
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
     expect(ipToDnsName('2001:db8::1')).toBe(
       '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+});
+
+describe('getIpDetails', () => {
+  it('should throw a user-facing error for invalid IP addresses', async () => {
+    await expect(getIpDetails('not-an-ip')).rejects.toThrow(/Invalid IP address/);
+    await expect(getIpDetails('../../../etc/passwd')).rejects.toThrow(
+      /Invalid IP address/,
+    );
+    await expect(getIpDetails('999.999.999.999')).rejects.toThrow(
+      /Invalid IP address/,
     );
   });
 });
