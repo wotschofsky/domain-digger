@@ -69,7 +69,7 @@ const DnsResultsPage: FC<DnsResultsPageProps> = async ({
       0,
     ) > 0;
 
-  await recordLookupAfter(domain, hasResults);
+  await recordLookupAfter(domain, 'dns', hasResults);
 
   if (!hasResults) {
     notFound();

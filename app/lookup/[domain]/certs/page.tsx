@@ -40,7 +40,7 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
 
   const certs = await lookupRelatedCerts(domain);
 
-  await recordLookupAfter(domain, certs.length > 0);
+  await recordLookupAfter(domain, 'certs', certs.length > 0);
 
   if (!certs.length) {
     return (

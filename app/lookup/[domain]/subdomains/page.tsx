@@ -47,7 +47,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   const { results, detailsReduced, detailedResultsLimit } =
     await findSubdomains(domain, new CloudflareDoHResolver());
 
-  await recordLookupAfter(domain, results.length > 0);
+  await recordLookupAfter(domain, 'subdomains', results.length > 0);
 
   const exportFileName = `Domain Digger Subdomains Export ${domain.replaceAll(
     '.',

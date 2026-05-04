@@ -47,7 +47,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   const baseDomain = getBaseDomain(domain);
   const results = await lookupWhois(forceOriginal ? domain : baseDomain);
 
-  await recordLookupAfter(domain, results.length > 0);
+  await recordLookupAfter(domain, 'whois', results.length > 0);
 
   if (results.length === 0) {
     throw new Error('No results found');

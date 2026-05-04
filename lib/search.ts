@@ -6,12 +6,15 @@ import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
 import { getBaseDomain } from '@/lib/utils';
 
+export type LookupType = 'dns' | 'whois' | 'subdomains' | 'certs';
+
 type LookupLogPayload = {
   domain: string;
   ip: string;
   userAgent: string | null;
   isBot: boolean;
   hasResults: boolean;
+  lookupType: LookupType;
 };
 
 export const recordLookup = async (payload: LookupLogPayload) => {
@@ -28,6 +31,7 @@ export const recordLookup = async (payload: LookupLogPayload) => {
       rows: [
         {
           domain: payload.domain,
+          lookupType: payload.lookupType,
           baseDomain,
           timestamp: Math.floor(new Date().getTime() / 1000),
           ip: payload.ip,
@@ -50,6 +54,7 @@ export const recordLookup = async (payload: LookupLogPayload) => {
 
 export const recordLookupAfter = async (
   domain: string,
+  lookupType: LookupType,
   hasResults: boolean,
 ) => {
   // Resolve headers up-front; the request scope may be torn down inside after().
@@ -57,7 +62,14 @@ export const recordLookupAfter = async (
   const ip = getVisitorIp(headersList);
   const { isBot, userAgent } = isUserBot(headersList);
   after(async () => {
-    await recordLookup({ domain, ip, userAgent, isBot, hasResults });
+    await recordLookup({
+      domain,
+      ip,
+      userAgent,
+      isBot,
+      hasResults,
+      lookupType,
+    });
   });
 };
 

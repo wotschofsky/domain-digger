@@ -42,6 +42,13 @@ Use the following schema for creating the dataset:
     "fields": []
   },
   {
+    "name": "lookupType",
+    "mode": "NULLABLE",
+    "type": "STRING",
+    "description": null,
+    "fields": []
+  },
+  {
     "name": "baseDomain",
     "mode": "NULLABLE",
     "type": "STRING",
@@ -108,16 +115,18 @@ GROUP BY
 
 #### Migrating an existing dataset
 
-If you already have a `lookups` table from a previous version that lacks the `hasResults` column, run the following to bring it up to date:
+If you already have a `lookups` table from a previous version that lacks the `hasResults` and `lookupType` columns, run the following to bring it up to date. Note that BigQuery `ADD COLUMN` always appends — existing tables won't have `lookupType` in the second position, but the view and inserts use field names so order doesn't affect correctness.
 
 ```sql
--- Add the new column (NULLABLE so existing rows remain valid).
+-- Add the new columns (NULLABLE so existing rows remain valid).
 ALTER TABLE `project.dataset.lookups`
-ADD COLUMN hasResults BOOL;
+ADD COLUMN hasResults BOOL,
+ADD COLUMN lookupType STRING;
 
 -- Optional: backfill historical rows so popularity isn't reset to zero on
 -- deploy. Skip this if you'd rather have suggestions reflect only post-migration
--- traffic.
+-- traffic. lookupType is left NULL for historical rows since the original
+-- log didn't distinguish lookup kinds.
 UPDATE `project.dataset.lookups`
 SET hasResults = TRUE
 WHERE hasResults IS NULL;
