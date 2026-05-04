@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import { lookupRelatedCerts } from '@/lib/certs';
+import { recordLookupAfter } from '@/lib/search';
 
 import { CertsTable } from './_components/table';
 
@@ -38,6 +39,8 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
   const { domain } = params;
 
   const certs = await lookupRelatedCerts(domain);
+
+  await recordLookupAfter(domain, certs.length > 0);
 
   if (!certs.length) {
     return (

@@ -75,6 +75,13 @@ Use the following schema for creating the dataset:
     "type": "BOOLEAN",
     "description": null,
     "fields": []
+  },
+  {
+    "name": "hasResults",
+    "mode": "NULLABLE",
+    "type": "BOOLEAN",
+    "description": null,
+    "fields": []
   }
 ]
 ```
@@ -94,6 +101,41 @@ FROM
   `project.dataset.lookups`
 WHERE
   baseDomain IS NOT NULL
+  AND hasResults = TRUE
+GROUP BY
+  baseDomain;
+```
+
+#### Migrating an existing dataset
+
+If you already have a `lookups` table from a previous version that lacks the `hasResults` column, run the following to bring it up to date:
+
+```sql
+-- Add the new column (NULLABLE so existing rows remain valid).
+ALTER TABLE `project.dataset.lookups`
+ADD COLUMN hasResults BOOL;
+
+-- Optional: backfill historical rows so popularity isn't reset to zero on
+-- deploy. Skip this if you'd rather have suggestions reflect only post-migration
+-- traffic.
+UPDATE `project.dataset.lookups`
+SET hasResults = TRUE
+WHERE hasResults IS NULL;
+
+-- Recreate the materialized view so it picks up the new WHERE clause.
+CREATE OR REPLACE MATERIALIZED VIEW `project.dataset.popular_domains`
+OPTIONS(
+  refresh_interval_minutes = 360,
+  enable_refresh = true
+) AS
+SELECT
+  baseDomain as domain,
+  COUNT(*) AS count
+FROM
+  `project.dataset.lookups`
+WHERE
+  baseDomain IS NOT NULL
+  AND hasResults = TRUE
 GROUP BY
   baseDomain;
 ```

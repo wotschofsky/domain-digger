@@ -1,4 +1,8 @@
+import { headers } from 'next/headers';
+import { after } from 'next/server';
+
 import { env } from '@/env';
+import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
 import { getBaseDomain } from '@/lib/utils';
 
@@ -7,6 +11,7 @@ type LookupLogPayload = {
   ip: string;
   userAgent: string | null;
   isBot: boolean;
+  hasResults: boolean;
 };
 
 export const recordLookup = async (payload: LookupLogPayload) => {
@@ -28,6 +33,7 @@ export const recordLookup = async (payload: LookupLogPayload) => {
           ip: payload.ip,
           userAgent: payload.userAgent,
           isBot: payload.isBot,
+          hasResults: payload.hasResults,
         },
       ],
     })
@@ -40,6 +46,19 @@ export const recordLookup = async (payload: LookupLogPayload) => {
         console.error(error);
       }
     });
+};
+
+export const recordLookupAfter = async (
+  domain: string,
+  hasResults: boolean,
+) => {
+  // Resolve headers up-front; the request scope may be torn down inside after().
+  const headersList = await headers();
+  const ip = getVisitorIp(headersList);
+  const { isBot, userAgent } = isUserBot(headersList);
+  after(async () => {
+    await recordLookup({ domain, ip, userAgent, isBot, hasResults });
+  });
 };
 
 export const getSearchSuggestions = async (query: string) => {

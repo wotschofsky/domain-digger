@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 
 import { generateCsv } from '@/lib/csv';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
+import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
 
 import { SubdomainsInfoAlert } from './_components/info-alert';
@@ -45,6 +46,8 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 
   const { results, detailsReduced, detailedResultsLimit } =
     await findSubdomains(domain, new CloudflareDoHResolver());
+
+  await recordLookupAfter(domain, results.length > 0);
 
   const exportFileName = `Domain Digger Subdomains Export ${domain.replaceAll(
     '.',

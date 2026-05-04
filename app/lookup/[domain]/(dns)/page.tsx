@@ -5,6 +5,7 @@ import type { FC } from 'react';
 import { ALL_RECORD_TYPES } from '@/lib/data';
 import { getRecordContextEntries } from '@/lib/record-context';
 import { getResolverFromName } from '@/lib/resolvers/utils';
+import { recordLookupAfter } from '@/lib/search';
 
 import { DnsTable } from './_components/dns-table';
 
@@ -67,6 +68,8 @@ const DnsResultsPage: FC<DnsResultsPageProps> = async ({
       (prev, curr) => prev + curr.records.length,
       0,
     ) > 0;
+
+  await recordLookupAfter(domain, hasResults);
 
   if (!hasResults) {
     notFound();

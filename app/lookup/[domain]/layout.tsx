@@ -1,16 +1,12 @@
 import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
-import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { after } from 'next/server';
 import { type FC, type ReactNode } from 'react';
 
 import { Card } from '@/components/ui/card';
 
 import { ClientOnly } from '@/components/client-only';
-import { getVisitorIp, isUserBot } from '@/lib/api';
-import { recordLookup } from '@/lib/search';
 import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
 import { Footer } from '../../_components/footer';
@@ -57,13 +53,6 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
   if (!isValidDomain(domain)) {
     return notFound();
   }
-
-  const headersList = await headers();
-  const ip = getVisitorIp(headersList);
-  const { isBot, userAgent } = isUserBot(headersList);
-  after(async () => {
-    await recordLookup({ domain, ip, userAgent, isBot });
-  });
 
   return (
     <>
