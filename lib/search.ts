@@ -10,11 +10,11 @@ export type LookupType = 'dns' | 'whois' | 'subdomains' | 'certs';
 
 type LookupLogPayload = {
   domain: string;
+  lookupType: LookupType;
+  hasResults: boolean;
   ip: string;
   userAgent: string | null;
   isBot: boolean;
-  hasResults: boolean;
-  lookupType: LookupType;
 };
 
 export const recordLookup = async (payload: LookupLogPayload) => {
@@ -32,12 +32,12 @@ export const recordLookup = async (payload: LookupLogPayload) => {
         {
           domain: payload.domain,
           lookupType: payload.lookupType,
-          baseDomain,
-          timestamp: Math.floor(new Date().getTime() / 1000),
+          hasResults: payload.hasResults,
           ip: payload.ip,
           userAgent: payload.userAgent,
           isBot: payload.isBot,
-          hasResults: payload.hasResults,
+          baseDomain,
+          timestamp: Math.floor(new Date().getTime() / 1000),
         },
       ],
     })
@@ -64,11 +64,11 @@ export const recordLookupAfter = async (
   after(async () => {
     await recordLookup({
       domain,
+      lookupType,
+      hasResults,
       ip,
       userAgent,
       isBot,
-      hasResults,
-      lookupType,
     });
   });
 };

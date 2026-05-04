@@ -49,16 +49,9 @@ Use the following schema for creating the dataset:
     "fields": []
   },
   {
-    "name": "baseDomain",
+    "name": "hasResults",
     "mode": "NULLABLE",
-    "type": "STRING",
-    "description": null,
-    "fields": []
-  },
-  {
-    "name": "timestamp",
-    "mode": "NULLABLE",
-    "type": "TIMESTAMP",
+    "type": "BOOLEAN",
     "description": null,
     "fields": []
   },
@@ -84,9 +77,16 @@ Use the following schema for creating the dataset:
     "fields": []
   },
   {
-    "name": "hasResults",
+    "name": "baseDomain",
     "mode": "NULLABLE",
-    "type": "BOOLEAN",
+    "type": "STRING",
+    "description": null,
+    "fields": []
+  },
+  {
+    "name": "timestamp",
+    "mode": "NULLABLE",
+    "type": "TIMESTAMP",
     "description": null,
     "fields": []
   }
