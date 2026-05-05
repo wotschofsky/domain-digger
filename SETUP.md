@@ -93,7 +93,7 @@ Use the following schema for creating the dataset:
 ]
 ```
 
-Next, create a materialized view. Make sur to replace `project`, `dataset` with your project ID and dataset name:
+Next, create a materialized view. Make sure to replace `project`, `dataset` with your project ID and dataset name:
 
 ```sql
 CREATE OR REPLACE MATERIALIZED VIEW `project.dataset.popular_domains`
