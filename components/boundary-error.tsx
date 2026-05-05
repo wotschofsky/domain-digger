@@ -29,9 +29,9 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
 
   return (
     <div className="mt-12 flex flex-col items-center gap-2">
-      <h2 className="text-xl font-semibold">{title}</h2>
+      <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
       {description && (
-        <p className="mt-1 max-w-prose text-center text-zinc-600 dark:text-zinc-300">
+        <p className="mt-1 max-w-prose text-center text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
           {description}
         </p>
       )}
@@ -41,8 +41,8 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
         </Button>
       )}
       {error.digest && (
-        <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
-          Digest: {error.digest}
+        <p className="mt-2 text-center font-mono text-xs text-zinc-500 dark:text-zinc-400">
+          {error.digest}
         </p>
       )}
     </div>
