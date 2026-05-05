@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { type FC, Fragment } from 'react';
 
-import { UserFacingError } from '@/lib/user-facing-error';
 import { recordLookupAfter } from '@/lib/search';
+import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 

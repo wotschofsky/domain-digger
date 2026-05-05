@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
-import { UserFacingError, upstreamUserFacingError } from './user-facing-error';
+import { upstreamUserFacingError, UserFacingError } from './user-facing-error';
 
 type IpDetails = {
   country: string;

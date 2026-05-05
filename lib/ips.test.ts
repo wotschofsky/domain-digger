@@ -38,7 +38,9 @@ describe('ipToDnsName', () => {
 
 describe('getIpDetails', () => {
   it('should throw a user-facing error for invalid IP addresses', async () => {
-    await expect(getIpDetails('not-an-ip')).rejects.toThrow(/Invalid IP address/);
+    await expect(getIpDetails('not-an-ip')).rejects.toThrow(
+      /Invalid IP address/,
+    );
     await expect(getIpDetails('../../../etc/passwd')).rejects.toThrow(
       /Invalid IP address/,
     );
