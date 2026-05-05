@@ -2,11 +2,11 @@
 
 > Read [SETUP.md](./SETUP.md) for how to run the app locally or deploy it 👀
 
-Small bug fixes are always very much welcome. For features you're encouraged to open an issue first.
+Small bug fixes are always very much welcome. For features, you're encouraged to open an issue first.
 
 ## Code Style
 
-Unless otherwise required by Next.js, components are created as arrow functions annotated with `FC` and exported as named.
+Unless otherwise required by Next.js, components are created as arrow functions annotated with `FC` and exported as named exports.
 
 Files are named in kebab-case (e.g. `bookmarklet-link.tsx`).
 
@@ -18,4 +18,4 @@ The UI may remain untested for now, while the core business logic located in `/l
 
 ## Submitting changes
 
-Once submitted as PR, all changes will receive a preview deployment through Vercel.
+Once submitted as a PR, all changes will receive a preview deployment through Vercel.

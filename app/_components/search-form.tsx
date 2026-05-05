@@ -22,13 +22,14 @@ import { useUserIp } from '@/app/api/user-ip/hook';
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
-import { parseSearchInput } from '@/lib/search-parser';
+import { normalizeDomain, parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 import { useSearchSuggestions } from '../api/search-suggestions/hook';
 import { IpDetailsModal } from './ip-details-modal';
 
 const SUGGESTION_OWN_IP = Symbol('suggestion-own-ip');
+const SEARCH_SUGGESTIONS_DEBOUNCE_MS = 500;
 
 const redactIp = (ip: string): string => {
   const parts = ip.split('.');
@@ -43,13 +44,19 @@ const redactIp = (ip: string): string => {
   return ip;
 };
 
-const useSuggestions = (domain: string) => {
-  const debouncedDomain = useDebounce(domain, 200);
+const useSuggestions = (domain: string, enabled: boolean) => {
+  const normalizedDomain = normalizeDomain(domain);
+  const debouncedDomain = useDebounce(
+    normalizedDomain,
+    SEARCH_SUGGESTIONS_DEBOUNCE_MS,
+  );
 
   const userIp = useUserIp();
-  const suggestions = useSearchSuggestions(debouncedDomain);
+  const suggestions = useSearchSuggestions(
+    enabled && normalizedDomain === debouncedDomain ? debouncedDomain : '',
+  );
 
-  if (domain) return suggestions;
+  if (normalizedDomain) return suggestions;
   if (userIp) return [SUGGESTION_OWN_IP, ...EXAMPLE_DOMAINS] as const;
   return EXAMPLE_DOMAINS;
 };
@@ -158,7 +165,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     }
   };
 
-  const suggestions = useSuggestions(domain);
+  const suggestions = useSuggestions(
+    domain,
+    suggestionsVisible && state !== FormStates.Submitting,
+  );
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(
     null,
   );
