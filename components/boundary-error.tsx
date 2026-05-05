@@ -5,7 +5,7 @@ import { type FC, useEffect, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
-import { parseUserFacingError } from '@/lib/user-facing-error';
+import { parseUserFacingDigest } from '@/lib/user-facing-error';
 
 type BoundaryErrorProps = {
   error: Error & { digest?: string };
@@ -20,50 +20,52 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
 }) => {
   const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
+  const userFacing = parseUserFacingDigest(error.digest);
 
-  const userFacing = parseUserFacingError(error.message);
+  useEffect(() => {
+    if (userFacing) {
+      console.error(
+        `[UserFacingError] ${userFacing.title} — ${userFacing.description}`,
+        error,
+      );
+    } else {
+      console.error(error);
+    }
+  }, [error, userFacing]);
 
   const title = userFacing?.title ?? fallbackTitle;
   const description = userFacing?.description;
-  const canRetry = userFacing?.retryable ?? false;
+  const retryable = userFacing ? (userFacing.retryable ?? false) : true;
 
   const handleRetry = () => {
-    startTransition(() => {
-      retry();
-    });
+    startTransition(() => retry());
   };
 
   return (
-    <div className="mt-12 flex flex-col items-center gap-2">
+    <div
+      className="mt-12 flex flex-col items-center gap-2"
+      role="alert"
+      aria-live="polite"
+    >
       <h2 className="text-xl font-bold">{title}</h2>
       {description && (
         <p className="mt-1 max-w-prose text-center text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
           {description}
         </p>
       )}
-      {canRetry && (
+      {retryable && (
         <Button
           variant="outline"
           className="mt-4 min-w-28"
           onClick={handleRetry}
           disabled={isPending}
-          data-disabled={isPending ? true : undefined}
           aria-busy={isPending}
         >
-          {isPending && (
-            <Spinner
-              className="size-4"
-              aria-hidden="true"
-              aria-label={undefined}
-            />
-          )}
+          {isPending && <Spinner className="size-4" aria-hidden="true" />}
           {isPending ? 'Retrying...' : 'Try again'}
         </Button>
       )}
-      {error.digest && (
+      {!userFacing && error.digest && (
         <p className="mt-2 text-center font-mono text-xs text-zinc-500 dark:text-zinc-400">
           Error Digest: <span className="select-all">{error.digest}</span>
         </p>

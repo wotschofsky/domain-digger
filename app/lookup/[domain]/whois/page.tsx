@@ -46,14 +46,15 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
 
   const forceOriginal = force !== undefined;
   const baseDomain = getBaseDomain(domain);
-  const results = await lookupWhois(forceOriginal ? domain : baseDomain);
+  const lookupTarget = forceOriginal ? domain : baseDomain;
+  const results = await lookupWhois(lookupTarget);
 
   await recordLookupAfter(domain, 'whois', results.length > 0);
 
   if (results.length === 0) {
     throw new UserFacingError({
       title: 'No WHOIS results',
-      description: `No WHOIS data is available for ${forceOriginal ? domain : baseDomain}. The domain may be unregistered or the WHOIS server may not return data for this TLD.`,
+      description: `No WHOIS data is available for ${lookupTarget}. The domain may be unregistered or the WHOIS server may not return data for this TLD.`,
     });
   }
 
