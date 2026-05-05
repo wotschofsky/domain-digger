@@ -15,8 +15,11 @@ export type UserFacingErrorPayload = {
 export class UserFacingError extends Error {
   public readonly digest: string;
 
-  constructor(public readonly payload: UserFacingErrorPayload) {
-    super(payload.title);
+  constructor(
+    public readonly payload: UserFacingErrorPayload,
+    options?: ErrorOptions,
+  ) {
+    super(payload.title, options);
     this.name = 'UserFacingError';
     this.digest = SENTINEL + JSON.stringify(payload);
   }

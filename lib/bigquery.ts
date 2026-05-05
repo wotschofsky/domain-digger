@@ -48,15 +48,19 @@ export const insertRows = async ({
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error(
-      `Failed to insert data into BigQuery: ${response.status} ${errorBody}`,
+    throw new UserFacingError(
+      {
+        title: 'BigQuery is unavailable',
+        description:
+          'BigQuery returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `Failed to insert data into BigQuery: ${response.status} ${errorBody}`,
+        ),
+      },
     );
-    throw new UserFacingError({
-      title: 'BigQuery is unavailable',
-      description:
-        'BigQuery returned an error and may be temporarily down. Please try again shortly.',
-      retryable: true,
-    });
   }
 };
 
@@ -106,15 +110,19 @@ export const query = async <T extends Record<string, any>>({
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error(
-      `Failed to execute query in BigQuery: ${response.status} ${errorBody}`,
+    throw new UserFacingError(
+      {
+        title: 'BigQuery is unavailable',
+        description:
+          'BigQuery returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `Failed to execute query in BigQuery: ${response.status} ${errorBody}`,
+        ),
+      },
     );
-    throw new UserFacingError({
-      title: 'BigQuery is unavailable',
-      description:
-        'BigQuery returned an error and may be temporarily down. Please try again shortly.',
-      retryable: true,
-    });
   }
 
   const { schema, rows } = await response.json();

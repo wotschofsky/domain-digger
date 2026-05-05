@@ -22,22 +22,32 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
           output: 'json',
         }),
     );
-  } catch {
-    throw new UserFacingError({
-      title: "Couldn't reach crt.sh",
-      description:
-        "We couldn't complete the request to crt.sh. Please try again shortly.",
-      retryable: true,
-    });
+  } catch (error) {
+    throw new UserFacingError(
+      {
+        title: "Couldn't reach crt.sh",
+        description:
+          "We couldn't complete the request to crt.sh. Please try again shortly.",
+        retryable: true,
+      },
+      { cause: error },
+    );
   }
 
   if (!response.ok) {
-    throw new UserFacingError({
-      title: 'crt.sh is unavailable',
-      description:
-        'crt.sh returned an error and may be temporarily down. Please try again shortly.',
-      retryable: true,
-    });
+    throw new UserFacingError(
+      {
+        title: 'crt.sh is unavailable',
+        description:
+          'crt.sh returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `crt.sh responded with HTTP ${response.status} ${response.statusText}`,
+        ),
+      },
+    );
   }
 
   const data: CertsData = await response.json();

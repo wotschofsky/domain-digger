@@ -20,19 +20,11 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
 }) => {
   const [isPending, startTransition] = useTransition();
 
-  const userFacing = parseUserFacingDigest(error.digest);
-
   useEffect(() => {
-    if (userFacing) {
-      console.error(
-        `[UserFacingError] ${userFacing.title} — ${userFacing.description}`,
-        error,
-      );
-    } else {
-      console.error(error);
-    }
-  }, [error, userFacing]);
+    console.error(error);
+  }, [error]);
 
+  const userFacing = parseUserFacingDigest(error.digest);
   const title = userFacing?.title ?? fallbackTitle;
   const description = userFacing?.description;
   const retryable = userFacing ? (userFacing.retryable ?? false) : true;

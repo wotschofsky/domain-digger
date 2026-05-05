@@ -19,13 +19,15 @@ export const lookupWhois = async (domain: string) => {
       timeout: 5000,
     });
   } catch (error) {
-    console.error('WHOIS lookup failed:', error);
-    throw new UserFacingError({
-      title: 'WHOIS lookup failed',
-      description:
-        "We couldn't reach the WHOIS server for this domain. It may be temporarily unavailable or rate limiting our requests. Please try again shortly.",
-      retryable: true,
-    });
+    throw new UserFacingError(
+      {
+        title: 'WHOIS lookup failed',
+        description:
+          "We couldn't reach the WHOIS server for this domain. It may be temporarily unavailable or rate limiting our requests. Please try again shortly.",
+        retryable: true,
+      },
+      { cause: error },
+    );
   }
 
   const mappedResults: Record<string, string> = {};

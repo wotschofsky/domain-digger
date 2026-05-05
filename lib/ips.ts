@@ -30,22 +30,32 @@ export const getIpDetails = async (ip: string) => {
   let response: Response;
   try {
     response = await fetch(url.toString());
-  } catch {
-    throw new UserFacingError({
-      title: "Couldn't reach ip-api.com",
-      description:
-        "We couldn't complete the request to ip-api.com. Please try again shortly.",
-      retryable: true,
-    });
+  } catch (error) {
+    throw new UserFacingError(
+      {
+        title: "Couldn't reach ip-api.com",
+        description:
+          "We couldn't complete the request to ip-api.com. Please try again shortly.",
+        retryable: true,
+      },
+      { cause: error },
+    );
   }
 
   if (!response.ok)
-    throw new UserFacingError({
-      title: 'ip-api.com is unavailable',
-      description:
-        'ip-api.com returned an error and may be temporarily down. Please try again shortly.',
-      retryable: true,
-    });
+    throw new UserFacingError(
+      {
+        title: 'ip-api.com is unavailable',
+        description:
+          'ip-api.com returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `ip-api.com responded with HTTP ${response.status} ${response.statusText}`,
+        ),
+      },
+    );
 
   const data = (await response.json()) as Record<string, any>;
   delete data.status;
@@ -91,22 +101,32 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
         headers: { Accept: 'application/dns-json' },
       },
     );
-  } catch {
-    throw new UserFacingError({
-      title: "Couldn't reach Cloudflare DNS",
-      description:
-        "We couldn't complete the request to Cloudflare DNS. Please try again shortly.",
-      retryable: true,
-    });
+  } catch (error) {
+    throw new UserFacingError(
+      {
+        title: "Couldn't reach Cloudflare DNS",
+        description:
+          "We couldn't complete the request to Cloudflare DNS. Please try again shortly.",
+        retryable: true,
+      },
+      { cause: error },
+    );
   }
 
   if (!response.ok)
-    throw new UserFacingError({
-      title: 'Cloudflare DNS is unavailable',
-      description:
-        'Cloudflare DNS returned an error and may be temporarily down. Please try again shortly.',
-      retryable: true,
-    });
+    throw new UserFacingError(
+      {
+        title: 'Cloudflare DNS is unavailable',
+        description:
+          'Cloudflare DNS returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `Cloudflare DNS responded with HTTP ${response.status} ${response.statusText}`,
+        ),
+      },
+    );
 
   const data = await response.json();
 

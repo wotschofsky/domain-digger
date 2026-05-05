@@ -43,15 +43,19 @@ export abstract class BaseDoHResolver extends DnsResolver {
   ): Promise<ResolverResponse> {
     const response = await this.sendRequest(domain, type);
     if (!response.ok) {
-      console.error(
-        `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`,
+      throw new UserFacingError(
+        {
+          title: 'DNS resolver is unavailable',
+          description:
+            'The DNS resolver returned an error and may be temporarily down. Please try again shortly.',
+          retryable: true,
+        },
+        {
+          cause: new Error(
+            `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`,
+          ),
+        },
       );
-      throw new UserFacingError({
-        title: 'DNS resolver is unavailable',
-        description:
-          'The DNS resolver returned an error and may be temporarily down. Please try again shortly.',
-        retryable: true,
-      });
     }
     const results = (await response.json()) as DoHResponse;
 
