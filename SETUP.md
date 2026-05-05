@@ -115,39 +115,20 @@ GROUP BY
 
 #### Migrating an existing dataset
 
-If you already have a `lookups` table from a previous version that lacks the `hasResults` and `lookupType` columns, run the following to bring it up to date. Note that BigQuery `ADD COLUMN` always appends — existing tables won't have `lookupType` in the second position, but the view and inserts use field names so order doesn't affect correctness.
+If your `lookups` table predates the `hasResults` and `lookupType` columns, add them and recreate the materialized view above. Optionally backfill `hasResults` so popularity isn't reset on deploy.
 
 ```sql
--- Add the new columns (NULLABLE so existing rows remain valid).
 ALTER TABLE `project.dataset.lookups`
 ADD COLUMN hasResults BOOL,
 ADD COLUMN lookupType STRING;
 
--- Optional: backfill historical rows so popularity isn't reset to zero on
--- deploy. Skip this if you'd rather have suggestions reflect only post-migration
--- traffic. lookupType is left NULL for historical rows since the original
--- log didn't distinguish lookup kinds.
+-- Optional backfill: treat all historical rows as successful lookups.
 UPDATE `project.dataset.lookups`
 SET hasResults = TRUE
 WHERE hasResults IS NULL;
-
--- Recreate the materialized view so it picks up the new WHERE clause.
-CREATE OR REPLACE MATERIALIZED VIEW `project.dataset.popular_domains`
-OPTIONS(
-  refresh_interval_minutes = 360,
-  enable_refresh = true
-) AS
-SELECT
-  baseDomain as domain,
-  COUNT(*) AS count
-FROM
-  `project.dataset.lookups`
-WHERE
-  baseDomain IS NOT NULL
-  AND hasResults = TRUE
-GROUP BY
-  baseDomain;
 ```
+
+Then re-run the `CREATE OR REPLACE MATERIALIZED VIEW` statement from the previous section so the view picks up the new `hasResults` filter.
 
 #### Creating a service account
 
