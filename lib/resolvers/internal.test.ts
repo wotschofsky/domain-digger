@@ -56,9 +56,7 @@ describe('InternalDoHResolver', () => {
 
     await expect(
       resolver.resolveRecordType('example.com', 'A'),
-    ).rejects.toThrow(
-      'Failed to fetch results for lhr from https://example.com/api/internal/resolve/lhr?resolver=alibaba&type=A&domain=example.com: 500 Internal Server Error',
-    );
+    ).rejects.toThrow(/DNS resolver \(lhr\)/);
   });
 
   it('should handle multiple DNS record types', async () => {

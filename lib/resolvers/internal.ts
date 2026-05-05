@@ -1,5 +1,6 @@
 import { env } from '@/env';
 
+import { UserFacingError } from '../user-facing-error';
 import {
   DnsResolver,
   type RecordType,
@@ -47,10 +48,20 @@ export class InternalDoHResolver extends DnsResolver {
     url.searchParams.set('domain', domain);
 
     const response = await fetch(url, this.requestInit);
-    if (!response.ok)
-      throw new Error(
-        `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
+    if (!response.ok) {
+      throw new UserFacingError(
+        {
+          title: `DNS resolver (${this.location}) is unavailable`,
+          description: `The DNS resolver for ${this.location} returned an error and may be temporarily down. Please try again shortly.`,
+          retryable: true,
+        },
+        {
+          cause: new Error(
+            `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
+          ),
+        },
       );
+    }
 
     const results = (await response.json()) as ResolverMultiResponse;
 
@@ -67,10 +78,20 @@ export class InternalDoHResolver extends DnsResolver {
     url.searchParams.set('domain', domain);
 
     const response = await fetch(url, this.requestInit);
-    if (!response.ok)
-      throw new Error(
-        `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
+    if (!response.ok) {
+      throw new UserFacingError(
+        {
+          title: `DNS resolver (${this.location}) is unavailable`,
+          description: `The DNS resolver for ${this.location} returned an error and may be temporarily down. Please try again shortly.`,
+          retryable: true,
+        },
+        {
+          cause: new Error(
+            `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
+          ),
+        },
       );
+    }
 
     const results = (await response.json()) as ResolverMultiResponse;
 

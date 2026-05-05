@@ -2,6 +2,7 @@ import isIP from 'validator/lib/isIP';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  getIpDetails,
   ipToDnsName,
   ipv4ToDnsName,
   ipv6ToDnsName,
@@ -35,6 +36,20 @@ describe('ipToDnsName', () => {
   });
 });
 
+describe('getIpDetails', () => {
+  it('should throw a user-facing error for invalid IP addresses', async () => {
+    await expect(getIpDetails('not-an-ip')).rejects.toThrow(
+      /Invalid IP address/,
+    );
+    await expect(getIpDetails('../../../etc/passwd')).rejects.toThrow(
+      /Invalid IP address/,
+    );
+    await expect(getIpDetails('999.999.999.999')).rejects.toThrow(
+      /Invalid IP address/,
+    );
+  });
+});
+
 describe('lookupReverse', () => {
   it('should return an array of domain names from reverse DNS lookups', async () => {
     const fakeResponse = {
@@ -60,15 +75,14 @@ describe('lookupReverse', () => {
     expect(results).toEqual([]);
   });
 
-  it('should throw an error when the API call for DNS lookup fails', async () => {
+  it('should throw a user-facing error when the API call for DNS lookup fails', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: false,
+      status: 503,
       statusText: 'Service Unavailable',
     });
 
-    await expect(lookupReverse('8.8.4.4')).rejects.toThrow(
-      'Error fetching DNS records: Service Unavailable',
-    );
+    await expect(lookupReverse('8.8.4.4')).rejects.toThrow(/Cloudflare DNS/);
   });
 });
 

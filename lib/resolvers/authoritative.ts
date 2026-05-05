@@ -12,6 +12,7 @@ import dnsPacket, {
 
 import { retry } from '@/lib/utils';
 
+import { UserFacingError } from '../user-facing-error';
 import {
   DnsResolver,
   type RawRecord,
@@ -37,13 +38,38 @@ export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
 
   private async getRootServers() {
-    const response = await fetch('https://www.internic.net/domain/named.root', {
-      next: {
-        revalidate: 7 * 24 * 60 * 60,
-      },
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://www.internic.net/domain/named.root', {
+        next: {
+          revalidate: 7 * 24 * 60 * 60,
+        },
+      });
+    } catch (error) {
+      throw new UserFacingError(
+        {
+          title: "Couldn't reach InterNIC root servers list",
+          description:
+            "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
+          retryable: true,
+        },
+        { cause: error },
+      );
+    }
     if (!response.ok) {
-      throw new Error(`Failed to fetch root servers: HTTP ${response.status}`);
+      throw new UserFacingError(
+        {
+          title: 'InterNIC root servers list is unavailable',
+          description:
+            'The InterNIC root servers list returned an error and may be temporarily down. Please try again shortly.',
+          retryable: true,
+        },
+        {
+          cause: new Error(
+            `Failed to fetch root servers: HTTP ${response.status}`,
+          ),
+        },
+      );
     }
     const body = await response.text();
 
@@ -51,7 +77,15 @@ export class AuthoritativeResolver extends DnsResolver {
     const aRecords = body.match(/\sA\s+(.+)/g);
 
     if (!aRecords) {
-      throw new Error('Failed to fetch root servers');
+      throw new UserFacingError(
+        {
+          title: "Couldn't reach InterNIC root servers list",
+          description:
+            "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
+          retryable: true,
+        },
+        { cause: new Error('Failed to parse root servers') },
+      );
     }
 
     const ipAddresses = aRecords?.map(

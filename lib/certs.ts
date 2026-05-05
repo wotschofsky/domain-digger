@@ -1,3 +1,5 @@
+import { UserFacingError } from './user-facing-error';
+
 export type CertsData = {
   issuer_ca_id: number;
   issuer_name: string;
@@ -11,16 +13,41 @@ export type CertsData = {
 }[];
 
 export const lookupCerts = async (domain: string): Promise<CertsData> => {
-  const response = await fetch(
-    'https://crt.sh?' +
-      new URLSearchParams({
-        Identity: domain,
-        output: 'json',
-      }),
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      'https://crt.sh?' +
+        new URLSearchParams({
+          Identity: domain,
+          output: 'json',
+        }),
+    );
+  } catch (error) {
+    throw new UserFacingError(
+      {
+        title: "Couldn't reach crt.sh",
+        description:
+          "We couldn't complete the request to crt.sh. Please try again shortly.",
+        retryable: true,
+      },
+      { cause: error },
+    );
+  }
 
   if (!response.ok) {
-    throw new Error('Failed to fetch certs');
+    throw new UserFacingError(
+      {
+        title: 'crt.sh is unavailable',
+        description:
+          'crt.sh returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `crt.sh responded with HTTP ${response.status} ${response.statusText}`,
+        ),
+      },
+    );
   }
 
   const data: CertsData = await response.json();

@@ -168,7 +168,6 @@ export const getStargazersSummary = async (
   const result = await graphqlResponse.json();
 
   if (result.errors) {
-    console.error('GraphQL errors:', result.errors);
     throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
   }
 

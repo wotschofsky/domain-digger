@@ -1,6 +1,8 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
+import { UserFacingError } from './user-facing-error';
+
 type IpDetails = {
   country: string;
   countryCode: string;
@@ -18,13 +20,42 @@ type IpDetails = {
 };
 
 export const getIpDetails = async (ip: string) => {
-  if (!isIP(ip)) throw new Error('Invalid IP address');
+  if (!isIP(ip))
+    throw new UserFacingError({
+      title: 'Invalid IP address',
+      description: 'The provided IP address is not valid.',
+    });
 
   const url = new URL(`http://ip-api.com/json/${encodeURIComponent(ip)}`);
-  const response = await fetch(url.toString());
+  let response: Response;
+  try {
+    response = await fetch(url.toString());
+  } catch (error) {
+    throw new UserFacingError(
+      {
+        title: "Couldn't reach ip-api.com",
+        description:
+          "We couldn't complete the request to ip-api.com. Please try again shortly.",
+        retryable: true,
+      },
+      { cause: error },
+    );
+  }
 
   if (!response.ok)
-    throw new Error(`Error fetching IP details: ${response.statusText}`);
+    throw new UserFacingError(
+      {
+        title: 'ip-api.com is unavailable',
+        description:
+          'ip-api.com returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `ip-api.com responded with HTTP ${response.status} ${response.statusText}`,
+        ),
+      },
+    );
 
   const data = (await response.json()) as Record<string, any>;
   delete data.status;
@@ -60,17 +91,49 @@ export const ipToDnsName = (ip: string) =>
   ip.includes(':') ? ipv6ToDnsName(ip) : ipv4ToDnsName(ip);
 
 export const lookupReverse = async (ip: string): Promise<string[]> => {
+  if (!isIP(ip)) {
+    throw new UserFacingError({
+      title: 'Invalid IP address',
+      description: 'The provided IP address is not valid.',
+    });
+  }
+
   const reverseDnsName = ipToDnsName(ip);
 
-  const response = await fetch(
-    `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
-    {
-      headers: { Accept: 'application/dns-json' },
-    },
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(reverseDnsName)}&type=PTR`,
+      {
+        headers: { Accept: 'application/dns-json' },
+      },
+    );
+  } catch (error) {
+    throw new UserFacingError(
+      {
+        title: "Couldn't reach Cloudflare DNS",
+        description:
+          "We couldn't complete the request to Cloudflare DNS. Please try again shortly.",
+        retryable: true,
+      },
+      { cause: error },
+    );
+  }
 
   if (!response.ok)
-    throw new Error(`Error fetching DNS records: ${response.statusText}`);
+    throw new UserFacingError(
+      {
+        title: 'Cloudflare DNS is unavailable',
+        description:
+          'Cloudflare DNS returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `Cloudflare DNS responded with HTTP ${response.status} ${response.statusText}`,
+        ),
+      },
+    );
 
   const data = await response.json();
 

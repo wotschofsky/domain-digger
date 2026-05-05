@@ -2,6 +2,8 @@ import { getAccessToken } from 'web-auth-library/google';
 
 import { env } from '@/env';
 
+import { UserFacingError } from './user-facing-error';
+
 const credentials = env.GOOGLE_SERVICE_KEY_B64
   ? (JSON.parse(
       Buffer.from(env.GOOGLE_SERVICE_KEY_B64, 'base64').toString(),
@@ -46,8 +48,18 @@ export const insertRows = async ({
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(
-      `Failed to insert data into BigQuery: ${response.status} ${errorBody}`,
+    throw new UserFacingError(
+      {
+        title: 'BigQuery is unavailable',
+        description:
+          'BigQuery returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `Failed to insert data into BigQuery: ${response.status} ${errorBody}`,
+        ),
+      },
     );
   }
 };
@@ -98,8 +110,18 @@ export const query = async <T extends Record<string, any>>({
 
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(
-      `Failed to execute query in BigQuery: ${response.status} ${errorBody}`,
+    throw new UserFacingError(
+      {
+        title: 'BigQuery is unavailable',
+        description:
+          'BigQuery returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
+      },
+      {
+        cause: new Error(
+          `Failed to execute query in BigQuery: ${response.status} ${errorBody}`,
+        ),
+      },
     );
   }
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { type FC, Fragment } from 'react';
 
 import { recordLookupAfter } from '@/lib/search';
+import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 
@@ -45,12 +46,16 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
 
   const forceOriginal = force !== undefined;
   const baseDomain = getBaseDomain(domain);
-  const results = await lookupWhois(forceOriginal ? domain : baseDomain);
+  const lookupTarget = forceOriginal ? domain : baseDomain;
+  const results = await lookupWhois(lookupTarget);
 
   await recordLookupAfter(domain, 'whois', results.length > 0);
 
   if (results.length === 0) {
-    throw new Error('No results found');
+    throw new UserFacingError({
+      title: 'No WHOIS results',
+      description: `No WHOIS data is available for ${lookupTarget}. The domain may be unregistered or the WHOIS server may not return data for this TLD.`,
+    });
   }
 
   return (
