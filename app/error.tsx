@@ -6,13 +6,13 @@ import { BoundaryError } from '@/components/boundary-error';
 
 type GlobalErrorProps = {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 };
 
-const GlobalError: FC<GlobalErrorProps> = ({ error, reset }) => (
+const GlobalError: FC<GlobalErrorProps> = ({ error, unstable_retry }) => (
   <BoundaryError
     error={error}
-    reset={reset}
+    retry={unstable_retry}
     fallbackTitle="Something went VERY wrong!"
   />
 );

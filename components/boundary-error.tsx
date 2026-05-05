@@ -1,22 +1,25 @@
 'use client';
 
-import { type FC, useEffect } from 'react';
+import { type FC, useEffect, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 import { parseUserFacingError } from '@/lib/user-facing-error';
 
 type BoundaryErrorProps = {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
   fallbackTitle?: string;
 };
 
 export const BoundaryError: FC<BoundaryErrorProps> = ({
   error,
-  reset,
+  retry,
   fallbackTitle = 'Something went wrong!',
 }) => {
+  const [isPending, startTransition] = useTransition();
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -27,6 +30,12 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
   const description = userFacing?.description;
   const canRetry = userFacing?.retryable ?? false;
 
+  const handleRetry = () => {
+    startTransition(() => {
+      retry();
+    });
+  };
+
   return (
     <div className="mt-12 flex flex-col items-center gap-2">
       <h2 className="text-xl font-bold">{title}</h2>
@@ -36,8 +45,22 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
         </p>
       )}
       {canRetry && (
-        <Button variant="outline" className="mt-4" onClick={() => reset()}>
-          Try again
+        <Button
+          variant="outline"
+          className="mt-4 min-w-28"
+          onClick={handleRetry}
+          disabled={isPending}
+          data-disabled={isPending ? true : undefined}
+          aria-busy={isPending}
+        >
+          {isPending && (
+            <Spinner
+              className="size-4"
+              aria-hidden="true"
+              aria-label={undefined}
+            />
+          )}
+          {isPending ? 'Retrying...' : 'Try again'}
         </Button>
       )}
       {error.digest && (
