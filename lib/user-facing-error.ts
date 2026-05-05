@@ -39,33 +39,3 @@ export const parseUserFacingError = (
   }
   return null;
 };
-
-type UpstreamErrorOptions = {
-  service: string;
-  status?: number;
-};
-
-export const upstreamUserFacingError = ({
-  service,
-  status,
-}: UpstreamErrorOptions): UserFacingError => {
-  if (status === 429) {
-    return new UserFacingError({
-      title: 'Rate limited',
-      description: `${service} is currently rate limiting our requests. Please wait a moment and try again.`,
-      retryable: true,
-    });
-  }
-  if (status !== undefined && status >= 500) {
-    return new UserFacingError({
-      title: `${service} is unavailable`,
-      description: `${service} returned an error and may be temporarily down. Please try again shortly.`,
-      retryable: true,
-    });
-  }
-  return new UserFacingError({
-    title: `Couldn't reach ${service}`,
-    description: `We couldn't complete the request to ${service}. Please try again shortly.`,
-    retryable: true,
-  });
-};

@@ -12,7 +12,7 @@ import dnsPacket, {
 
 import { retry } from '@/lib/utils';
 
-import { upstreamUserFacingError } from '../user-facing-error';
+import { UserFacingError } from '../user-facing-error';
 import {
   DnsResolver,
   type RawRecord,
@@ -46,13 +46,20 @@ export class AuthoritativeResolver extends DnsResolver {
         },
       });
     } catch {
-      throw upstreamUserFacingError({ service: 'InterNIC root servers list' });
+      throw new UserFacingError({
+        title: "Couldn't reach InterNIC root servers list",
+        description:
+          "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
+        retryable: true,
+      });
     }
     if (!response.ok) {
       console.error(`Failed to fetch root servers: HTTP ${response.status}`);
-      throw upstreamUserFacingError({
-        service: 'InterNIC root servers list',
-        status: response.status,
+      throw new UserFacingError({
+        title: 'InterNIC root servers list is unavailable',
+        description:
+          'The InterNIC root servers list returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
       });
     }
     const body = await response.text();
@@ -62,7 +69,12 @@ export class AuthoritativeResolver extends DnsResolver {
 
     if (!aRecords) {
       console.error('Failed to parse root servers');
-      throw upstreamUserFacingError({ service: 'InterNIC root servers list' });
+      throw new UserFacingError({
+        title: "Couldn't reach InterNIC root servers list",
+        description:
+          "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
+        retryable: true,
+      });
     }
 
     const ipAddresses = aRecords?.map(

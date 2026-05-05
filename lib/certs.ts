@@ -1,4 +1,4 @@
-import { upstreamUserFacingError } from './user-facing-error';
+import { UserFacingError } from './user-facing-error';
 
 export type CertsData = {
   issuer_ca_id: number;
@@ -23,13 +23,20 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
         }),
     );
   } catch {
-    throw upstreamUserFacingError({ service: 'crt.sh' });
+    throw new UserFacingError({
+      title: "Couldn't reach crt.sh",
+      description:
+        "We couldn't complete the request to crt.sh. Please try again shortly.",
+      retryable: true,
+    });
   }
 
   if (!response.ok) {
-    throw upstreamUserFacingError({
-      service: 'crt.sh',
-      status: response.status,
+    throw new UserFacingError({
+      title: 'crt.sh is unavailable',
+      description:
+        'crt.sh returned an error and may be temporarily down. Please try again shortly.',
+      retryable: true,
     });
   }
 

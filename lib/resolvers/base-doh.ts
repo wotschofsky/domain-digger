@@ -1,5 +1,5 @@
 import { RECORD_TYPES_BY_DECIMAL } from '../data';
-import { upstreamUserFacingError } from '../user-facing-error';
+import { UserFacingError } from '../user-facing-error';
 import { DnsResolver, type RecordType, type ResolverResponse } from './base';
 
 type DoHResponse = {
@@ -46,9 +46,11 @@ export abstract class BaseDoHResolver extends DnsResolver {
       console.error(
         `Bad response from DoH Resolver: ${response.statusText} from ${response.url}`,
       );
-      throw upstreamUserFacingError({
-        service: 'DNS resolver',
-        status: response.status,
+      throw new UserFacingError({
+        title: 'DNS resolver is unavailable',
+        description:
+          'The DNS resolver returned an error and may be temporarily down. Please try again shortly.',
+        retryable: true,
       });
     }
     const results = (await response.json()) as DoHResponse;

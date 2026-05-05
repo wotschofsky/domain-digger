@@ -1,6 +1,6 @@
 import { env } from '@/env';
 
-import { upstreamUserFacingError } from '../user-facing-error';
+import { UserFacingError } from '../user-facing-error';
 import {
   DnsResolver,
   type RecordType,
@@ -52,9 +52,10 @@ export class InternalDoHResolver extends DnsResolver {
       console.error(
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
       );
-      throw upstreamUserFacingError({
-        service: `DNS resolver (${this.location})`,
-        status: response.status,
+      throw new UserFacingError({
+        title: `DNS resolver (${this.location}) is unavailable`,
+        description: `The DNS resolver for ${this.location} returned an error and may be temporarily down. Please try again shortly.`,
+        retryable: true,
       });
     }
 
@@ -77,9 +78,10 @@ export class InternalDoHResolver extends DnsResolver {
       console.error(
         `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
       );
-      throw upstreamUserFacingError({
-        service: `DNS resolver (${this.location})`,
-        status: response.status,
+      throw new UserFacingError({
+        title: `DNS resolver (${this.location}) is unavailable`,
+        description: `The DNS resolver for ${this.location} returned an error and may be temporarily down. Please try again shortly.`,
+        retryable: true,
       });
     }
 

@@ -1,7 +1,7 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
-import { upstreamUserFacingError, UserFacingError } from './user-facing-error';
+import { UserFacingError } from './user-facing-error';
 
 type IpDetails = {
   country: string;
@@ -31,13 +31,20 @@ export const getIpDetails = async (ip: string) => {
   try {
     response = await fetch(url.toString());
   } catch {
-    throw upstreamUserFacingError({ service: 'ip-api.com' });
+    throw new UserFacingError({
+      title: "Couldn't reach ip-api.com",
+      description:
+        "We couldn't complete the request to ip-api.com. Please try again shortly.",
+      retryable: true,
+    });
   }
 
   if (!response.ok)
-    throw upstreamUserFacingError({
-      service: 'ip-api.com',
-      status: response.status,
+    throw new UserFacingError({
+      title: 'ip-api.com is unavailable',
+      description:
+        'ip-api.com returned an error and may be temporarily down. Please try again shortly.',
+      retryable: true,
     });
 
   const data = (await response.json()) as Record<string, any>;
@@ -85,13 +92,20 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
       },
     );
   } catch {
-    throw upstreamUserFacingError({ service: 'Cloudflare DNS' });
+    throw new UserFacingError({
+      title: "Couldn't reach Cloudflare DNS",
+      description:
+        "We couldn't complete the request to Cloudflare DNS. Please try again shortly.",
+      retryable: true,
+    });
   }
 
   if (!response.ok)
-    throw upstreamUserFacingError({
-      service: 'Cloudflare DNS',
-      status: response.status,
+    throw new UserFacingError({
+      title: 'Cloudflare DNS is unavailable',
+      description:
+        'Cloudflare DNS returned an error and may be temporarily down. Please try again shortly.',
+      retryable: true,
     });
 
   const data = await response.json();
