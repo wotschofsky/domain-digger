@@ -42,7 +42,7 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
       )}
       {error.digest && (
         <p className="mt-2 text-center font-mono text-xs text-zinc-500 dark:text-zinc-400">
-          {error.digest}
+          Error Digest: <span className="select-all">{error.digest}</span>
         </p>
       )}
     </div>
