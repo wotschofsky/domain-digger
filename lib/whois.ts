@@ -130,8 +130,7 @@ export const getWhoisSummary = async (
       createdAt: createdAt && formatDate(createdAt),
       dnssec: firstResult['DNSSEC']?.toString() || null,
     };
-  } catch (error) {
-    console.error(error);
+  } catch {
     return {
       registered: true,
       registrar: null,
