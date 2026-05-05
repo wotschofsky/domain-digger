@@ -91,12 +91,19 @@ export const ipToDnsName = (ip: string) =>
   ip.includes(':') ? ipv6ToDnsName(ip) : ipv4ToDnsName(ip);
 
 export const lookupReverse = async (ip: string): Promise<string[]> => {
+  if (!isIP(ip)) {
+    throw new UserFacingError({
+      title: 'Invalid IP address',
+      description: 'The provided IP address is not valid.',
+    });
+  }
+
   const reverseDnsName = ipToDnsName(ip);
 
   let response: Response;
   try {
     response = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${reverseDnsName}&type=PTR`,
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(reverseDnsName)}&type=PTR`,
       {
         headers: { Accept: 'application/dns-json' },
       },

@@ -1,6 +1,6 @@
 'use client';
 
-import { type FC, useEffect, useTransition } from 'react';
+import { type FC, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -18,7 +18,7 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
   retry,
   fallbackTitle = 'Something went wrong!',
 }) => {
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
     console.error(error);
@@ -30,15 +30,12 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
   const retryable = userFacing ? (userFacing.retryable ?? false) : true;
 
   const handleRetry = () => {
-    startTransition(() => retry());
+    setIsPending(true);
+    retry();
   };
 
   return (
-    <div
-      className="mt-12 flex flex-col items-center gap-2"
-      role="alert"
-      aria-live="polite"
-    >
+    <div className="mt-12 flex flex-col items-center gap-2" role="alert">
       <h2 className="text-xl font-bold">{title}</h2>
       {description && (
         <p className="mt-1 max-w-prose text-center text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
