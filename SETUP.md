@@ -42,16 +42,16 @@ Use the following schema for creating the dataset:
     "fields": []
   },
   {
-    "name": "baseDomain",
+    "name": "lookupType",
     "mode": "NULLABLE",
     "type": "STRING",
     "description": null,
     "fields": []
   },
   {
-    "name": "timestamp",
+    "name": "hasResults",
     "mode": "NULLABLE",
-    "type": "TIMESTAMP",
+    "type": "BOOLEAN",
     "description": null,
     "fields": []
   },
@@ -75,6 +75,20 @@ Use the following schema for creating the dataset:
     "type": "BOOLEAN",
     "description": null,
     "fields": []
+  },
+  {
+    "name": "baseDomain",
+    "mode": "NULLABLE",
+    "type": "STRING",
+    "description": null,
+    "fields": []
+  },
+  {
+    "name": "timestamp",
+    "mode": "NULLABLE",
+    "type": "TIMESTAMP",
+    "description": null,
+    "fields": []
   }
 ]
 ```
@@ -94,9 +108,27 @@ FROM
   `project.dataset.lookups`
 WHERE
   baseDomain IS NOT NULL
+  AND hasResults = TRUE
 GROUP BY
   baseDomain;
 ```
+
+#### Migrating an existing dataset
+
+If your `lookups` table predates the `hasResults` and `lookupType` columns, add them and recreate the materialized view above. Optionally backfill `hasResults` so popularity isn't reset on deploy.
+
+```sql
+ALTER TABLE `project.dataset.lookups`
+ADD COLUMN hasResults BOOL,
+ADD COLUMN lookupType STRING;
+
+-- Optional backfill: treat all historical rows as successful lookups.
+UPDATE `project.dataset.lookups`
+SET hasResults = TRUE
+WHERE hasResults IS NULL;
+```
+
+Then re-run the `CREATE OR REPLACE MATERIALIZED VIEW` statement from the previous section so the view picks up the new `hasResults` filter.
 
 #### Creating a service account
 

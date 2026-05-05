@@ -1,9 +1,17 @@
+import { headers } from 'next/headers';
+import { after } from 'next/server';
+
 import { env } from '@/env';
+import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
 import { getBaseDomain } from '@/lib/utils';
 
+export type LookupType = 'dns' | 'whois' | 'subdomains' | 'certs';
+
 type LookupLogPayload = {
   domain: string;
+  lookupType: LookupType;
+  hasResults: boolean;
   ip: string;
   userAgent: string | null;
   isBot: boolean;
@@ -23,11 +31,13 @@ export const recordLookup = async (payload: LookupLogPayload) => {
       rows: [
         {
           domain: payload.domain,
-          baseDomain,
-          timestamp: Math.floor(new Date().getTime() / 1000),
+          lookupType: payload.lookupType,
+          hasResults: payload.hasResults,
           ip: payload.ip,
           userAgent: payload.userAgent,
           isBot: payload.isBot,
+          baseDomain,
+          timestamp: Math.floor(new Date().getTime() / 1000),
         },
       ],
     })
@@ -40,6 +50,27 @@ export const recordLookup = async (payload: LookupLogPayload) => {
         console.error(error);
       }
     });
+};
+
+export const recordLookupAfter = async (
+  domain: string,
+  lookupType: LookupType,
+  hasResults: boolean,
+) => {
+  // Resolve headers up-front; the request scope may be torn down inside after().
+  const headersList = await headers();
+  const ip = getVisitorIp(headersList);
+  const { isBot, userAgent } = isUserBot(headersList);
+  after(async () => {
+    await recordLookup({
+      domain,
+      lookupType,
+      hasResults,
+      ip,
+      userAgent,
+      isBot,
+    });
+  });
 };
 
 export const getSearchSuggestions = async (query: string) => {
