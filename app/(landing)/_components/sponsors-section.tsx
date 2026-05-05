@@ -70,7 +70,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
         ))}
       </div>
       <Dialog>
-        <DialogTrigger className="text-center text-sm text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400">
+        <DialogTrigger className="cursor-pointer text-center text-sm text-zinc-500 underline decoration-dotted underline-offset-4 dark:text-zinc-400">
           Add your logo
         </DialogTrigger>
         <DialogContent>
