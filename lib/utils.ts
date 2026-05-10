@@ -1,4 +1,5 @@
 import { type ClassValue, clsx } from 'clsx';
+import { log } from 'evlog';
 import { twMerge } from 'tailwind-merge';
 import { getDomain, parse as tldtsParse } from 'tldts';
 
@@ -20,7 +21,7 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
     if (maxRetries <= 0) {
       throw err;
     }
-    console.warn(err.message?.toString());
+    log.warn('retrying_after_error', { error: err.message?.toString() });
     return retry(fn, maxRetries - 1);
   });
 
@@ -28,7 +29,10 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
 export const isValidDomain = (domain: string) => {
   if (typeof domain !== 'string') {
     if (process?.env.VITEST !== 'true') {
-      console.warn('isValidDomain expects a string input, received', domain);
+      log.warn('invalid_domain_input_type', {
+        receivedType: typeof domain,
+        received: domain,
+      });
     }
     return false;
   }

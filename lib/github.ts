@@ -1,3 +1,5 @@
+import { log } from 'evlog';
+
 import { env } from '@/env';
 
 type SponsorsQueryResponse = {
@@ -23,7 +25,7 @@ type SponsorsQueryResponse = {
 
 export const getGitHubSponsors = async (username: string) => {
   if (!env.GITHUB_TOKEN) {
-    console.warn('GITHUB_TOKEN not set; skipping GitHub sponsors');
+    log.warn('github_token_missing', { context: 'sponsors' });
     return [];
   }
 
@@ -118,7 +120,7 @@ export const getStargazersSummary = async (
   limit = 5,
 ): Promise<StargazerSummary> => {
   if (!env.GITHUB_TOKEN) {
-    console.warn('GITHUB_TOKEN not set; skipping GitHub stargazers');
+    log.warn('github_token_missing', { context: 'stargazers' });
     return {
       recentStargazers: Array.from({ length: limit }).map(() => ({
         name: 'GitHub User',

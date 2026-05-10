@@ -1,3 +1,4 @@
+import { log } from 'evlog';
 import { NextResponse } from 'next/server';
 
 import { getStargazersSummary } from '@/lib/github';
@@ -18,7 +19,7 @@ export const GET = async () => {
       },
     });
   } catch (error) {
-    console.error('Failed to fetch recent stargazers:', error);
+    log.error({ message: 'stargazers_summary_failed', error });
 
     return NextResponse.json(
       { error: 'Failed to fetch recent stargazers' },
