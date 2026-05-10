@@ -2,7 +2,7 @@ import { RECORD_TYPES_BY_DECIMAL } from '../data';
 import { UserFacingError } from '../user-facing-error';
 import { DnsResolver, type RecordType, type ResolverResponse } from './base';
 
-type DoHResponse = {
+export type DoHResponse = {
   Status: number;
   TC: boolean;
   RD: boolean;
