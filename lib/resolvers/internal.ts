@@ -27,15 +27,22 @@ export class InternalDoHResolver extends DnsResolver {
   }
 
   private get requestInit() {
-    if (!env.INTERNAL_API_SECRET) {
+    const headers: Record<string, string> = {};
+
+    if (env.INTERNAL_API_SECRET) {
+      headers.Authorization = env.INTERNAL_API_SECRET;
+    }
+
+    if (env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+      headers['x-vercel-protection-bypass'] =
+        env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    }
+
+    if (Object.keys(headers).length === 0) {
       return {};
     }
 
-    return {
-      headers: {
-        Authorization: env.INTERNAL_API_SECRET,
-      },
-    };
+    return { headers };
   }
 
   public async resolveRecordType(
