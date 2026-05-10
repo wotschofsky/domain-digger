@@ -21,7 +21,10 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
     if (maxRetries <= 0) {
       throw err;
     }
-    log.warn('retrying_after_error', { error: err.message?.toString() });
+    log.warn({
+      message: 'retrying_after_error',
+      error: err.message?.toString(),
+    });
     return retry(fn, maxRetries - 1);
   });
 
@@ -29,7 +32,8 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
 export const isValidDomain = (domain: string) => {
   if (typeof domain !== 'string') {
     if (process?.env.VITEST !== 'true') {
-      log.warn('invalid_domain_input_type', {
+      log.warn({
+        message: 'invalid_domain_input_type',
         receivedType: typeof domain,
         received: domain,
       });

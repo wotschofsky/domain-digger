@@ -25,7 +25,7 @@ type SponsorsQueryResponse = {
 
 export const getGitHubSponsors = async (username: string) => {
   if (!env.GITHUB_TOKEN) {
-    log.warn('github_token_missing', { context: 'sponsors' });
+    log.warn({ message: 'github_token_missing', context: 'sponsors' });
     return [];
   }
 
@@ -120,7 +120,7 @@ export const getStargazersSummary = async (
   limit = 5,
 ): Promise<StargazerSummary> => {
   if (!env.GITHUB_TOKEN) {
-    log.warn('github_token_missing', { context: 'stargazers' });
+    log.warn({ message: 'github_token_missing', context: 'stargazers' });
     return {
       recentStargazers: Array.from({ length: limit }).map(() => ({
         name: 'GitHub User',

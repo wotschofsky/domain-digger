@@ -22,7 +22,7 @@ export const useAnalytics = () => {
   const plausible = usePlausible();
 
   const reportEvent = <T extends keyof Events>(event: T, props: Events[T]) => {
-    log.info('analytics_event', { event, props });
+    log.info({ message: 'analytics_event', event, props });
     plausible(event, { props });
   };
 
