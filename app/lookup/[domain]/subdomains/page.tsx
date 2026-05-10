@@ -12,7 +12,6 @@ import { findSubdomains } from '@/lib/subdomains';
 import { SubdomainsInfoAlert } from './_components/info-alert';
 import { SubdomainsTable } from './_components/table';
 
-export const runtime = 'edge';
 // crt.sh located in GB, always use LHR1 for lowest latency
 export const preferredRegion = 'lhr1';
 

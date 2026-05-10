@@ -10,8 +10,6 @@ import { InternalDoHResolver } from '@/lib/resolvers/internal';
 import { IconAlert } from '../_components/icon-alert';
 import { ResultsGlobe } from './_components/results-globe';
 
-export const runtime = 'edge';
-
 type MapResultsPageProps = {
   params: Promise<{
     domain: string;
