@@ -5,8 +5,10 @@ import { BaseDoHResolver, type DoHResponse } from './base-doh';
 describe('BaseDoHResolver', () => {
   const mockSendRequest = vi.fn();
 
+  class TestDoHResolver extends BaseDoHResolver {}
+
   const mockDoHResponse = (
-    answers: Partial<DoHResponse['Answer'][number]>[] = [],
+    answers: Partial<NonNullable<DoHResponse['Answer']>[number]>[] = [],
   ): DoHResponse => ({
     Status: 0,
     TC: false,
@@ -34,7 +36,7 @@ describe('BaseDoHResolver', () => {
       url: 'https://dns.google/resolve',
     });
 
-    const resolver = new BaseDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver(mockSendRequest);
     const records = await resolver.resolveRecordType('example.com', 'A');
 
     expect(records).toEqual({
@@ -58,7 +60,7 @@ describe('BaseDoHResolver', () => {
       url: 'https://dns.google/resolve',
     });
 
-    const resolver = new BaseDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver(mockSendRequest);
     const records = await resolver.resolveRecordType('example.com', 'A');
 
     expect(records).toEqual({
@@ -75,7 +77,7 @@ describe('BaseDoHResolver', () => {
       url: 'https://dns.google/resolve',
     });
 
-    const resolver = new BaseDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver(mockSendRequest);
 
     await expect(
       resolver.resolveRecordType('example.com', 'A'),
