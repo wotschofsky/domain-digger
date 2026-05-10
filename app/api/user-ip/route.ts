@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
-import { useLogger, withEvlog } from '@/lib/evlog';
 import { getVisitorIp } from '@/lib/api';
+import { useLogger, withEvlog } from '@/lib/evlog';
 
 export const GET = withEvlog(async (request: NextRequest) => {
   const log = useLogger();
