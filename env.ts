@@ -18,8 +18,6 @@ export const env = createEnv({
     SITE_URL: z.string().url().optional(),
     INTERNAL_API_SECRET: z.string().min(1),
 
-    EVLOG_SERVICE: z.string().default('domain-digger'),
-
     GOOGLE_SERVICE_KEY_B64: z.string().optional(),
     BIGQUERY_DATASET: z.string().optional(),
     BIGQUERY_LOCATION: z.string().optional(),
