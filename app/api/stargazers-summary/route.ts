@@ -22,9 +22,7 @@ export const GET = withEvlog(async () => {
       },
     });
   } catch (error) {
-    log.error(error instanceof Error ? error : new Error(String(error)), {
-      event: 'stargazers_summary_failed',
-    });
+    log.error({ event: 'stargazers_summary_failed', error });
 
     return NextResponse.json(
       { error: 'Failed to fetch recent stargazers' },

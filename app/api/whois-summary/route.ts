@@ -34,7 +34,7 @@ export const GET = withEvlog(async (request: Request) => {
       },
     });
   } catch (error) {
-    log.error(error as Error, { event: 'whois_summary_failed' });
+    log.error({ event: 'whois_summary_failed', error });
 
     return NextResponse.json(
       { error: true, message: 'Error fetching whois summary' },
