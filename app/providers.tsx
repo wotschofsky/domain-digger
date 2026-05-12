@@ -1,5 +1,6 @@
 'use client';
 
+import { EvlogProvider } from 'evlog/next/client';
 import PlausibleProvider from 'next-plausible';
 import { ThemeProvider } from 'next-themes';
 import { type FC, type ReactNode } from 'react';
@@ -41,9 +42,11 @@ type ProvidersProps = {
 };
 
 export const Providers: FC<ProvidersProps> = ({ children }) => (
-  <ThemeProvider attribute="class">
-    <SWRConfig value={{ fetcher: swrFetcher }}>
-      <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
-    </SWRConfig>
-  </ThemeProvider>
+  <EvlogProvider service="domain-digger">
+    <ThemeProvider attribute="class">
+      <SWRConfig value={{ fetcher: swrFetcher }}>
+        <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
+      </SWRConfig>
+    </ThemeProvider>
+  </EvlogProvider>
 );

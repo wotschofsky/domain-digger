@@ -1,15 +1,18 @@
 import { NextResponse } from 'next/server';
 
+import { useLogger, withEvlog } from '@/lib/evlog';
 import { getWhoisSummary } from '@/lib/whois';
 
 export type WhoisSummaryResponse = Awaited<ReturnType<typeof getWhoisSummary>>;
 export type WhoisSummaryErrorResponse = { error: true; message: string };
 
-export async function GET(request: Request) {
+export const GET = withEvlog(async (request: Request) => {
+  const log = useLogger();
   const { searchParams } = new URL(request.url);
   const domain = searchParams.get('domain');
 
   if (!domain) {
+    log.set({ status: 400, reason: 'missing_domain' });
     return NextResponse.json(
       { error: true, message: 'No domain provided' },
       {
@@ -21,6 +24,8 @@ export async function GET(request: Request) {
     );
   }
 
+  log.set({ domain });
+
   try {
     const summary = await getWhoisSummary(domain);
     return NextResponse.json(summary, {
@@ -29,7 +34,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    console.error(error);
+    log.error({ event: 'whois_summary_failed', error });
 
     return NextResponse.json(
       { error: true, message: 'Error fetching whois summary' },
@@ -41,4 +46,4 @@ export async function GET(request: Request) {
       },
     );
   }
-}
+});
