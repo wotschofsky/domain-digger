@@ -124,7 +124,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
             {mappedEntries.map((el) => (
               <TableRow key={el.label} className="hover:bg-transparent">
                 <TableCell className="pl-0">{el.label}</TableCell>
-                <TableCell className="wrap-anywhere pr-0 whitespace-normal">
+                <TableCell className="pr-0 wrap-anywhere whitespace-normal">
                   {el.component}
                 </TableCell>
               </TableRow>
