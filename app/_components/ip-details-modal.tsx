@@ -18,6 +18,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
@@ -33,6 +34,7 @@ const LocationMap = dynamic(
     })),
   {
     ssr: false,
+    loading: () => <Skeleton className="size-full rounded-none" />,
   },
 );
 
@@ -131,7 +133,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
         </Table>
 
         {location && (
-          <div className="my-4 [&_.leaflet-container]:h-80 [&_.leaflet-container]:w-full">
+          <div className="my-4 h-80 w-full [&_.leaflet-container]:size-full">
             <LocationMap location={location} />
           </div>
         )}
