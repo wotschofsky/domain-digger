@@ -14,8 +14,8 @@ export const FeaturesSection: FC<FeaturesSectionProps> = (props) => (
   <section {...props}>
     <div className="mb-12">
       <h2 className="max-w-[35ch] text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-        Everything <code>dig</code>, <code>whois</code>, and{' '}
-        <code>crt.sh</code> give you — in one tab.
+        Everything <code>dig</code>, <code>whois</code>, and <code>crt.sh</code>{' '}
+        give you — in one tab.
       </h2>
       <p className="mt-4 max-w-[60ch] text-pretty text-zinc-600 dark:text-zinc-400">
         Live, uncached, and shareable. No install. No accounts. Just paste a
@@ -45,8 +45,7 @@ export const FeaturesSection: FC<FeaturesSectionProps> = (props) => (
           </span>
         </dt>
         <dd className="mt-2 text-pretty text-zinc-600 dark:text-zinc-400">
-          A, AAAA, CNAME, MX, TXT, NS, SOA, CAA, SRV — and the obscure ones
-          too.
+          A, AAAA, CNAME, MX, TXT, NS, SOA, CAA, SRV — and the obscure ones too.
         </dd>
       </div>
 
