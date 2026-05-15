@@ -3,7 +3,7 @@ import { useWindowSize } from '@uidotdev/usehooks';
 import type { LatLngTuple } from 'leaflet';
 import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
-import { type FC, Fragment, type ReactNode } from 'react';
+import type { FC } from 'react';
 import useSWRImmutable from 'swr/immutable';
 
 import {
@@ -22,7 +22,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/ip-details/route';
-import { cn } from '@/lib/utils';
 
 import { CopyButton } from './copy-button';
 import { DomainLink } from './domain-link';
@@ -44,23 +43,16 @@ type IpDetailsModalProps = {
   onOpenChange: DialogProps['onOpenChange'];
 };
 
-const UnknownText: FC<{ displayText?: string }> = ({
-  displayText = 'unknown',
-}) => <span className="italic">{displayText}</span>;
-
 const renderField = (
   value: string | null | undefined,
   skeletonClassName: string,
   isLoading: boolean,
-) => {
-  if (isLoading) {
-    return <Skeleton className={cn('inline-block h-4', skeletonClassName)} />;
-  }
-  if (!value) {
-    return <UnknownText />;
-  }
-  return <span>{value}</span>;
-};
+) =>
+  isLoading ? (
+    <Skeleton className={`inline-block h-4 ${skeletonClassName}`} />
+  ) : (
+    value || <span className="italic">unknown</span>
+  );
 
 export const IpDetailsModal: FC<IpDetailsModalProps> = ({
   ip,
@@ -80,37 +72,17 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     }
 
     const isLoading = !data;
-
-    const reverseComponent = (() => {
-      if (isLoading) {
-        return <Skeleton className="inline-block h-4 w-64" />;
-      }
-      if (!data.reverse.length) {
-        return <UnknownText displayText="not configured" />;
-      }
-      const sorted = data.reverse.slice().sort(naturalCompare);
-      return (
-        <>
-          {sorted.map((address, idx) => (
-            <Fragment key={address}>
-              <DomainLink domain={address} />
-              {idx < sorted.length - 1 && <span>, </span>}
-            </Fragment>
-          ))}
-        </>
-      );
-    })();
-
+    const reverse = data?.reverse.slice().sort(naturalCompare) ?? [];
     const locationText = data
       ? [data.country, data.region, data.city].filter(Boolean).join(', ')
       : '';
 
     const coordinatesText =
-      data && data.lat != null && data.lon != null
+      data?.lat != null && data.lon != null
         ? `Latitude: ${data.lat}; Longitude: ${data.lon}`
         : '';
 
-    const entries: { label: string; component: ReactNode }[] = [
+    const entries = [
       {
         label: 'IP',
         component: (
@@ -122,7 +94,18 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       },
       {
         label: 'Reverse',
-        component: reverseComponent,
+        component: isLoading ? (
+          <Skeleton className="inline-block h-4 w-64" />
+        ) : reverse.length ? (
+          reverse.map((address, index) => (
+            <span key={address}>
+              <DomainLink domain={address} />
+              {index < reverse.length - 1 && ', '}
+            </span>
+          ))
+        ) : (
+          <span className="italic">not configured</span>
+        ),
       },
       {
         label: 'Organization',
@@ -147,7 +130,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     ];
 
     const location =
-      data?.lat != null && data?.lon != null
+      data?.lat != null && data.lon != null
         ? ([data.lat, data.lon] as LatLngTuple)
         : null;
 
