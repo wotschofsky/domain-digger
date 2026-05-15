@@ -21,8 +21,8 @@ export const metadata: Metadata = {
 
 const MapLandingPage: FC = () => (
   <div className="container space-y-16">
-    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col justify-between gap-10 pb-12">
-      <div className="flex flex-col gap-16">
+    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col gap-16 pb-12">
+      <div className="flex flex-col gap-20">
         <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
           <section>
             <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
