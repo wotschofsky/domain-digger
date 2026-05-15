@@ -103,7 +103,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       : '';
 
     const coordinatesText =
-      data && data.lat && data.lon
+      data && data.lat != null && data.lon != null
         ? `Latitude: ${data.lat}; Longitude: ${data.lon}`
         : '';
 
@@ -144,7 +144,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     ];
 
     const location =
-      data?.lat && data?.lon ? ([data.lat, data.lon] as LatLngTuple) : null;
+      data?.lat != null && data?.lon != null ? ([data.lat, data.lon] as LatLngTuple) : null;
 
     return (
       <>
