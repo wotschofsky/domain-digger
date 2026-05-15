@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/ip-details/route';
+import { cn } from '@/lib/utils';
 
 import { CopyButton } from './copy-button';
 import { DomainLink } from './domain-link';
@@ -51,7 +52,7 @@ const renderField = (
   isLoading: boolean,
 ) => {
   if (isLoading) {
-    return <Skeleton className={`inline-block h-4 ${skeletonClassName}`} />;
+    return <Skeleton className={cn('inline-block h-4', skeletonClassName)} />;
   }
   if (!value) {
     return <Unknown />;
@@ -144,7 +145,9 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     ];
 
     const location =
-      data?.lat != null && data?.lon != null ? ([data.lat, data.lon] as LatLngTuple) : null;
+      data?.lat != null && data?.lon != null
+        ? ([data.lat, data.lon] as LatLngTuple)
+        : null;
 
     return (
       <>
