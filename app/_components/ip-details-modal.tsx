@@ -161,9 +161,13 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
           </TableBody>
         </Table>
 
-        {location && (
+        {(isLoading || location) && (
           <div className="my-4 h-80 w-full [&_.leaflet-container]:size-full">
-            <LocationMap location={location} />
+            {isLoading ? (
+              <Skeleton className="size-full rounded-none" />
+            ) : location ? (
+              <LocationMap location={location} />
+            ) : null}
           </div>
         )}
       </>
