@@ -44,7 +44,9 @@ type IpDetailsModalProps = {
   onOpenChange: DialogProps['onOpenChange'];
 };
 
-const Unknown: FC = () => <span className="italic">unknown</span>;
+const UnknownText: FC<{ displayText?: string }> = ({
+  displayText = 'unknown',
+}) => <span className="italic">{displayText}</span>;
 
 const renderField = (
   value: string | null | undefined,
@@ -55,7 +57,7 @@ const renderField = (
     return <Skeleton className={cn('inline-block h-4', skeletonClassName)} />;
   }
   if (!value) {
-    return <Unknown />;
+    return <UnknownText />;
   }
   return <span>{value}</span>;
 };
@@ -84,7 +86,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
         return <Skeleton className="inline-block h-4 w-64" />;
       }
       if (!data.reverse.length) {
-        return <Unknown />;
+        return <UnknownText displayText="not set" />;
       }
       const sorted = data.reverse.slice().sort(naturalCompare);
       return (
