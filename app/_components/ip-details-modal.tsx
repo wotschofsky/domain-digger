@@ -86,7 +86,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
         return <Skeleton className="inline-block h-4 w-64" />;
       }
       if (!data.reverse.length) {
-        return <UnknownText displayText="not set" />;
+        return <UnknownText displayText="not configured" />;
       }
       const sorted = data.reverse.slice().sort(naturalCompare);
       return (
