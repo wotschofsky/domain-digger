@@ -43,11 +43,15 @@ type IpDetailsModalProps = {
   onOpenChange: DialogProps['onOpenChange'];
 };
 
-const renderField = (
-  value: string | null | undefined,
-  skeletonClassName: string,
-  isLoading: boolean,
-) =>
+const renderField = ({
+  value,
+  skeletonClassName,
+  isLoading,
+}: {
+  value: string | null | undefined;
+  skeletonClassName: string;
+  isLoading: boolean;
+}) =>
   isLoading ? (
     <Skeleton className={`inline-block h-4 ${skeletonClassName}`} />
   ) : (
@@ -71,17 +75,6 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       return <p className="my-12 text-center">An error occurred!</p>;
     }
 
-    const isLoading = !data;
-    const reverse = data?.reverse.slice().sort(naturalCompare) ?? [];
-    const locationText = data
-      ? [data.country, data.region, data.city].filter(Boolean).join(', ')
-      : '';
-
-    const coordinatesText =
-      data?.lat != null && data.lon != null
-        ? `Latitude: ${data.lat}; Longitude: ${data.lon}`
-        : '';
-
     const entries = [
       {
         label: 'IP',
@@ -94,13 +87,13 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       },
       {
         label: 'Reverse',
-        component: isLoading ? (
+        component: !data ? (
           <Skeleton className="inline-block h-4 w-64" />
-        ) : reverse.length ? (
-          reverse.map((address, index) => (
+        ) : data?.reverse.length ? (
+          data?.reverse.toSorted(naturalCompare).map((address, index) => (
             <span key={address}>
               <DomainLink domain={address} />
-              {index < reverse.length - 1 && ', '}
+              {index < data.reverse.length - 1 && ', '}
             </span>
           ))
         ) : (
@@ -109,23 +102,48 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       },
       {
         label: 'Organization',
-        component: renderField(data?.org, 'w-48', isLoading),
+        component: renderField({
+          value: data?.org,
+          skeletonClassName: 'w-48',
+          isLoading: !data,
+        }),
       },
       {
         label: 'ISP',
-        component: renderField(data?.isp, 'w-24', isLoading),
+        component: renderField({
+          value: data?.isp,
+          skeletonClassName: 'w-24',
+          isLoading: !data,
+        }),
       },
       {
         label: 'Location',
-        component: renderField(locationText || null, 'w-56', isLoading),
+        component: renderField({
+          value: data
+            ? [data.country, data.region, data.city].filter(Boolean).join(', ')
+            : null,
+          skeletonClassName: 'w-56',
+          isLoading: !data,
+        }),
       },
       {
         label: 'Coordinates',
-        component: renderField(coordinatesText || null, 'w-60', isLoading),
+        component: renderField({
+          value:
+            data?.lat != null && data.lon != null
+              ? `Latitude: ${data.lat}; Longitude: ${data.lon}`
+              : null,
+          skeletonClassName: 'w-60',
+          isLoading: !data,
+        }),
       },
       {
         label: 'Timezone',
-        component: renderField(data?.timezone, 'w-32', isLoading),
+        component: renderField({
+          value: data?.timezone,
+          skeletonClassName: 'w-32',
+          isLoading: !data,
+        }),
       },
     ];
 
@@ -149,9 +167,9 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
           </TableBody>
         </Table>
 
-        {(isLoading || location) && (
+        {(!data || location) && (
           <div className="my-4 h-80 w-full [&_.leaflet-container]:size-full">
-            {isLoading ? (
+            {!data ? (
               <Skeleton className="size-full rounded-none" />
             ) : location ? (
               <LocationMap location={location} />
