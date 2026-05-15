@@ -32,8 +32,8 @@ export const FeaturesSection: FC<FeaturesSectionProps> = (props) => (
           </span>
         </dt>
         <dd className="mt-2 text-pretty text-zinc-600 dark:text-zinc-400">
-          Every query hits authoritative servers directly. No cached or stale
-          results.
+          Every lookup runs in real time. We never cache results between
+          requests.
         </dd>
       </div>
 
@@ -58,7 +58,7 @@ export const FeaturesSection: FC<FeaturesSectionProps> = (props) => (
         </dt>
         <dd className="mt-2 text-pretty text-zinc-600 dark:text-zinc-400">
           Compare answers from Cloudflare, Google, your ISP, or the
-          authoritative servers themselves.
+          authoritative servers — across regions around the world.
         </dd>
       </div>
 
@@ -83,8 +83,8 @@ export const FeaturesSection: FC<FeaturesSectionProps> = (props) => (
           </span>
         </dt>
         <dd className="mt-2 text-pretty text-zinc-600 dark:text-zinc-400">
-          Surface subdomains you didn&apos;t know existed — useful for audits
-          and recon.
+          Surface subdomains you didn&apos;t know existed. Built for security
+          audits, recon, and attack-surface mapping.
         </dd>
       </div>
 
