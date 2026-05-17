@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 
 import { getStargazersSummary } from '@/lib/github';
 
-export const runtime = 'edge';
 export const preferredRegion = 'home';
 
 export const GET = async () => {
