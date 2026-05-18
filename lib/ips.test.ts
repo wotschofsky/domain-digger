@@ -11,14 +11,28 @@ import {
 } from './ips';
 
 describe('ipv4ToDnsName', () => {
+  // Intentionally omit the trailing root dot: these names are used as DNS query
+  // inputs, not DNS master-file absolute-name presentation strings.
   it('should convert an IPv4 address to a reverse DNS lookup format', () => {
     expect(ipv4ToDnsName('8.8.8.8')).toBe('8.8.8.8.in-addr.arpa');
+  });
+
+  it('should reverse non-symmetric IPv4 octets', () => {
+    expect(ipv4ToDnsName('192.0.2.1')).toBe('1.2.0.192.in-addr.arpa');
   });
 });
 
 describe('ipv6ToDnsName', () => {
+  // Intentionally omit the trailing root dot: these names are used as DNS query
+  // inputs, not DNS master-file absolute-name presentation strings.
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
     expect(ipv6ToDnsName('2001:db8::1')).toBe(
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+
+  it('should normalize uppercase IPv6 hex digits to lowercase reverse labels', () => {
+    expect(ipv6ToDnsName('2001:DB8::1')).toBe(
       '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
     );
   });
@@ -26,6 +40,30 @@ describe('ipv6ToDnsName', () => {
   it('should convert a fully expanded IPv6 address to a reverse DNS lookup format', () => {
     expect(ipv6ToDnsName('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).toBe(
       '4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+
+  it('should pad short hextets in an uncompressed IPv6 address', () => {
+    expect(ipv6ToDnsName('2001:db8:1:2:3:4:5:6')).toBe(
+      '6.0.0.0.5.0.0.0.4.0.0.0.3.0.0.0.2.0.0.0.1.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+
+  it('should expand :: when it represents exactly one zero hextet', () => {
+    expect(ipv6ToDnsName('2001:db8:0:1::2:3:4')).toBe(
+      '4.0.0.0.3.0.0.0.2.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+
+  it('should convert an IPv4-mapped IPv6 address to a reverse DNS lookup format', () => {
+    expect(ipv6ToDnsName('::ffff:192.0.2.128')).toBe(
+      '0.8.2.0.0.0.0.c.f.f.f.f.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa',
+    );
+  });
+
+  it('should convert an IPv4-embedded IPv6 address to a reverse DNS lookup format', () => {
+    expect(ipv6ToDnsName('2001:db8::192.0.2.33')).toBe(
+      '1.2.2.0.0.0.0.c.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
     );
   });
 
@@ -74,6 +112,10 @@ describe('ipv6ToDnsName', () => {
 describe('ipToDnsName', () => {
   it('should convert an IPv4 address to a reverse DNS lookup format', () => {
     expect(ipToDnsName('8.8.8.8')).toBe('8.8.8.8.in-addr.arpa');
+  });
+
+  it('should reverse non-symmetric IPv4 octets', () => {
+    expect(ipToDnsName('192.0.2.1')).toBe('1.2.0.192.in-addr.arpa');
   });
 
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
