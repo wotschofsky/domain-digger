@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import dgram from 'node:dgram';
 import net from 'node:net';
 
@@ -140,15 +141,35 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
+  private static responseMatchesQuery(
+    packet: Pick<Packet, 'id' | 'questions'>,
+    expectedId: number,
+    expectedName: string,
+    expectedType: RecordType,
+  ): boolean {
+    if (packet.id !== expectedId) return false;
+    const questions = packet.questions ?? [];
+    if (questions.length === 0) return false;
+    const normalizedName = expectedName.toLowerCase();
+    return questions.some(
+      (q) =>
+        q.type === expectedType &&
+        typeof q.name === 'string' &&
+        q.name.toLowerCase() === normalizedName,
+    );
+  }
+
   private async sendUdpRequest(
     domain: string,
     recordType: RecordType,
     nameserver: string,
   ) {
+    // Use a cryptographically secure transaction ID to make off-path
+    // spoofing meaningfully harder than Math.random allows.
+    const queryId = randomInt(0, 65536);
     const packetBuffer = dnsPacket.encode({
       type: 'query',
-      // Randomize ID to avoid response mismatch
-      id: Math.floor(Math.random() * 65535),
+      id: queryId,
       questions: [{ type: recordType, name: domain } as Question],
     });
 
@@ -172,9 +193,31 @@ export class AuthoritativeResolver extends DnsResolver {
         );
       }, 3000);
 
-      socket.on('message', (message: Buffer) => {
+      socket.on('message', (message: Buffer, rinfo: dgram.RemoteInfo) => {
+        // Ignore packets that didn't come from the queried resolver:port.
+        if (rinfo.address !== nameserver || rinfo.port !== 53) {
+          return;
+        }
+        let decoded: DecodedPacket;
+        try {
+          decoded = dnsPacket.decode(message);
+        } catch {
+          return;
+        }
+        // Ignore packets whose ID or question doesn't match the outstanding
+        // query — a legitimate reply may still arrive before the timeout.
+        if (
+          !AuthoritativeResolver.responseMatchesQuery(
+            decoded,
+            queryId,
+            domain,
+            recordType,
+          )
+        ) {
+          return;
+        }
         cleanup();
-        resolve(dnsPacket.decode(message));
+        resolve(decoded);
       });
       socket.on('error', (error) => {
         cleanup();
@@ -190,9 +233,10 @@ export class AuthoritativeResolver extends DnsResolver {
     recordType: RecordType,
     nameserver: string,
   ) {
+    const queryId = randomInt(0, 65536);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
-      id: Math.floor(Math.random() * 65535),
+      id: queryId,
       questions: [{ type: recordType, name: domain } as Question],
     });
 
@@ -226,8 +270,32 @@ export class AuthoritativeResolver extends DnsResolver {
         if (buf.length >= 2) {
           const msgLen = buf.readUInt16BE(0);
           if (buf.length >= 2 + msgLen) {
+            let decoded: Packet;
+            try {
+              decoded = dnsPacket.streamDecode(buf);
+            } catch (error) {
+              cleanup();
+              reject(error as Error);
+              return;
+            }
+            if (
+              !AuthoritativeResolver.responseMatchesQuery(
+                decoded,
+                queryId,
+                domain,
+                recordType,
+              )
+            ) {
+              cleanup();
+              reject(
+                new Error(
+                  `TCP response from ${nameserver} did not match outstanding query for ${domain} (type ${recordType})`,
+                ),
+              );
+              return;
+            }
             cleanup();
-            resolve(dnsPacket.streamDecode(buf));
+            resolve(decoded);
           }
         }
       });
