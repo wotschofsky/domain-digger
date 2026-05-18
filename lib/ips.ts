@@ -67,24 +67,18 @@ export const ipv4ToDnsName = (ipv4: string) =>
   ipv4.split('.').reverse().join('.') + '.in-addr.arpa';
 
 export const ipv6ToDnsName = (ipv6: string) => {
-  const segments = ipv6.split(':');
-  const missingSegments = 8 - segments.length + (ipv6.includes('::') ? 1 : 0);
-  const expandedSegments = segments.map((segment) => segment.padStart(4, '0'));
-  for (let i = 0; i < missingSegments; i++) {
-    expandedSegments.splice(segments.indexOf(''), 0, '0000');
-  }
+  const [head, tail] = ipv6.includes('::') ? ipv6.split('::') : [ipv6, ''];
+  const headSegments = head ? head.split(':') : [];
+  const tailSegments = tail ? tail.split(':') : [];
+  const missingSegments = 8 - headSegments.length - tailSegments.length;
+  const expandedSegments = [
+    ...headSegments,
+    ...Array<string>(missingSegments).fill('0'),
+    ...tailSegments,
+  ].map((segment) => segment.padStart(4, '0'));
   const fullAddress = expandedSegments.join('');
 
-  return (
-    fullAddress
-      .split('')
-      .reverse()
-      .join('.')
-      .replace(/:/g, '')
-      .split('.')
-      .filter((x) => x)
-      .join('.') + '.ip6.arpa'
-  );
+  return fullAddress.split('').reverse().join('.') + '.ip6.arpa';
 };
 
 export const ipToDnsName = (ip: string) =>

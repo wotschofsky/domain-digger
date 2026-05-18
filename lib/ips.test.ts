@@ -17,9 +17,45 @@ describe('ipv4ToDnsName', () => {
 });
 
 describe('ipv6ToDnsName', () => {
-  it('should convert an IPv6 address to a reverse DNS lookup format', () => {
+  it('should convert a middle-compressed IPv6 address to a reverse DNS lookup format', () => {
     expect(ipv6ToDnsName('2001:db8::1')).toBe(
-      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+
+  it('should produce exactly 32 nibbles for compressed addresses', () => {
+    const name = ipv6ToDnsName('2001:db8::1');
+    const nibbles = name.replace(/\.ip6\.arpa$/, '').split('.');
+    expect(nibbles).toHaveLength(32);
+  });
+
+  it('should expand leading "::" (e.g. ::1)', () => {
+    expect(ipv6ToDnsName('::1')).toBe(
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa',
+    );
+  });
+
+  it('should expand trailing "::" (e.g. 1::)', () => {
+    expect(ipv6ToDnsName('1::')).toBe(
+      '0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.1.0.0.0.ip6.arpa',
+    );
+  });
+
+  it('should expand the all-zero address "::"', () => {
+    expect(ipv6ToDnsName('::')).toBe(
+      '0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa',
+    );
+  });
+
+  it('should expand a link-local prefix with middle compression (fe80::1)', () => {
+    expect(ipv6ToDnsName('fe80::1')).toBe(
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.e.f.ip6.arpa',
+    );
+  });
+
+  it('should handle a fully-expanded IPv6 address', () => {
+    expect(ipv6ToDnsName('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).toBe(
+      '4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa',
     );
   });
 });
@@ -31,7 +67,7 @@ describe('ipToDnsName', () => {
 
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
     expect(ipToDnsName('2001:db8::1')).toBe(
-      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
     );
   });
 });
