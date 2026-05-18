@@ -73,11 +73,7 @@ export const ipv6ToDnsName = (ipv6: string) => {
     const headSegments = head ? head.split(':') : [];
     const tailSegments = tail ? tail.split(':') : [];
     const missing = 8 - headSegments.length - tailSegments.length;
-    segments = [
-      ...headSegments,
-      ...Array(missing).fill('0'),
-      ...tailSegments,
-    ];
+    segments = [...headSegments, ...Array(missing).fill('0'), ...tailSegments];
   } else {
     segments = ipv6.split(':');
   }
