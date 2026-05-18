@@ -19,8 +19,55 @@ describe('ipv4ToDnsName', () => {
 describe('ipv6ToDnsName', () => {
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
     expect(ipv6ToDnsName('2001:db8::1')).toBe(
-      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
     );
+  });
+
+  it('should convert a fully expanded IPv6 address to a reverse DNS lookup format', () => {
+    expect(ipv6ToDnsName('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).toBe(
+      '4.3.3.7.0.7.3.0.e.2.a.8.0.0.0.0.0.0.0.0.3.a.5.8.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+
+  it('should expand "::" to all-zero hextets', () => {
+    expect(ipv6ToDnsName('::')).toBe(
+      '0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa',
+    );
+  });
+
+  it('should expand a leading "::" prefix', () => {
+    expect(ipv6ToDnsName('::1')).toBe(
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa',
+    );
+  });
+
+  it('should expand a trailing "::" suffix', () => {
+    expect(ipv6ToDnsName('2001:db8::')).toBe(
+      '0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+    );
+  });
+
+  it('should produce exactly 32 nibbles for any valid IPv6 address', () => {
+    const inputs = [
+      '2001:db8::1',
+      '::',
+      '::1',
+      '2001:db8::',
+      '2001:0db8:85a3:0000:0000:8a2e:0370:7334',
+      'fe80::250:56ff:fe97:2b82',
+      'abcd:ef01::3456:7890',
+    ];
+
+    for (const ip of inputs) {
+      expect(isIP(ip), `precondition: ${ip} is a valid IP`).toBe(true);
+      const name = ipv6ToDnsName(ip);
+      expect(name.endsWith('.ip6.arpa'), `${ip} -> ${name}`).toBe(true);
+      const nibbles = name.slice(0, -'.ip6.arpa'.length).split('.');
+      expect(nibbles.length, `${ip} -> ${name}`).toBe(32);
+      for (const nibble of nibbles) {
+        expect(nibble, `${ip} -> ${name}`).toMatch(/^[0-9a-f]$/);
+      }
+    }
   });
 });
 
@@ -31,7 +78,7 @@ describe('ipToDnsName', () => {
 
   it('should convert an IPv6 address to a reverse DNS lookup format', () => {
     expect(ipToDnsName('2001:db8::1')).toBe(
-      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
+      '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa',
     );
   });
 });
