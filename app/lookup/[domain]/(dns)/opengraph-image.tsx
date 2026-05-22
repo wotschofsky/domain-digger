@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+
 import Image from 'next/image';
 import { ImageResponse } from 'next/og';
 
