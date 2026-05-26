@@ -12,7 +12,7 @@ import {
 
 import { SortableTable } from '@/components/sortable-table';
 
-import { getSourceLabel } from '@/lib/subfinder-sources';
+import { getSource } from '@/lib/subfinder-sources';
 
 import { DomainLink } from '../../../../_components/domain-link';
 
@@ -42,14 +42,26 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
         label: 'Found on',
         render: (value) => (
           <div className="flex flex-wrap gap-1">
-            {value.map((source) => (
-              <span
-                key={source}
-                className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-              >
-                {getSourceLabel(source)}
-              </span>
-            ))}
+            {value.map((source) => {
+              const { label, url } = getSource(source);
+              const className =
+                'inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+              return url ? (
+                <a
+                  key={source}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${className} transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-700`}
+                >
+                  {label}
+                </a>
+              ) : (
+                <span key={source} className={className}>
+                  {label}
+                </span>
+              );
+            })}
           </div>
         ),
       },
