@@ -4,7 +4,7 @@ import * as readline from 'node:readline';
 
 import type { DnsResolver } from './resolvers/base';
 import { UserFacingError } from './user-facing-error';
-import { deduplicate, isValidDomain } from './utils';
+import { isValidDomain } from './utils';
 
 const DETAILED_RESULTS_LIMIT = 500;
 const SUBFINDER_TIMEOUT_SECONDS = 8;
@@ -12,9 +12,10 @@ const SUBFINDER_TIMEOUT_SECONDS = 8;
 const SUBFINDER_BIN =
   process.env.SUBFINDER_BIN ?? path.join(process.cwd(), 'bin', 'subfinder');
 
-type SubfinderRecord = { host?: unknown };
+type SubfinderRecord = { host?: unknown; sources?: unknown };
+type Discovery = { host: string; sources: string[] };
 
-const runSubfinder = (domain: string): Promise<string[]> =>
+const runSubfinder = (domain: string): Promise<Discovery[]> =>
   new Promise((resolve, reject) => {
     const proc = spawn(
       SUBFINDER_BIN,
@@ -22,6 +23,7 @@ const runSubfinder = (domain: string): Promise<string[]> =>
         '-d',
         domain,
         '-json',
+        '-cs', // collect-sources: emit one record per host with all sources
         '-silent',
         '-timeout',
         String(SUBFINDER_TIMEOUT_SECONDS),
@@ -33,7 +35,7 @@ const runSubfinder = (domain: string): Promise<string[]> =>
       },
     );
 
-    const hosts: string[] = [];
+    const discoveries: Discovery[] = [];
     let stderr = '';
 
     const rl = readline.createInterface({ input: proc.stdout });
@@ -41,9 +43,11 @@ const runSubfinder = (domain: string): Promise<string[]> =>
       if (!line) return;
       try {
         const record = JSON.parse(line) as SubfinderRecord;
-        if (typeof record.host === 'string') {
-          hosts.push(record.host);
-        }
+        if (typeof record.host !== 'string') return;
+        const sources = Array.isArray(record.sources)
+          ? record.sources.filter((s): s is string => typeof s === 'string')
+          : [];
+        discoveries.push({ host: record.host, sources });
       } catch {
         // ignore malformed lines
       }
@@ -69,7 +73,7 @@ const runSubfinder = (domain: string): Promise<string[]> =>
 
     proc.on('close', (code) => {
       if (code === 0) {
-        resolve(hosts);
+        resolve(discoveries);
         return;
       }
       reject(
@@ -92,23 +96,23 @@ export const findSubdomains = async (
   domain: string,
   resolver: DnsResolver,
 ) => {
-  const hosts = await runSubfinder(domain);
-
-  const uniqueDomains = deduplicate(hosts)
-    .filter(isValidDomain)
-    .filter((d) => d.endsWith(`.${domain}`))
-    .toSorted((a, b) => a.localeCompare(b));
+  const discoveries = (await runSubfinder(domain))
+    .filter((d) => isValidDomain(d.host) && d.host.endsWith(`.${domain}`))
+    .toSorted((a, b) => a.host.localeCompare(b.host));
 
   const results = await Promise.all(
-    uniqueDomains.map(async (entry, index) => {
+    discoveries.map(async (entry, index) => {
+      const sources = entry.sources.toSorted();
+
       // Limited to avoid subrequest limits in serverless functions.
       if (index >= DETAILED_RESULTS_LIMIT) {
-        return { domain: entry, stillExists: null };
+        return { domain: entry.host, sources, stillExists: null };
       }
 
-      const records = await resolver.resolveRecordType(entry, 'A');
+      const records = await resolver.resolveRecordType(entry.host, 'A');
       return {
-        domain: entry,
+        domain: entry.host,
+        sources,
         stillExists: records.records.length > 0,
       };
     }),
@@ -116,7 +120,7 @@ export const findSubdomains = async (
 
   return {
     results,
-    detailsReduced: uniqueDomains.length > DETAILED_RESULTS_LIMIT,
+    detailsReduced: discoveries.length > DETAILED_RESULTS_LIMIT,
     detailedResultsLimit: DETAILED_RESULTS_LIMIT,
   };
 };

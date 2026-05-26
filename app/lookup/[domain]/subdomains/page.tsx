@@ -55,6 +55,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   const csv = generateCsv(
     results.map((r) => ({
       Domain: r.domain,
+      Sources: r.sources.join('|'),
       'Still exists':
         r.stillExists === true
           ? 'yes'
