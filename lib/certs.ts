@@ -25,9 +25,18 @@ const fetchCerts = async (domain: string) => {
     new URLSearchParams({ Identity: domain, output: 'json' });
 
   return pRetry(
-    async () => {
+    async (attemptNumber) => {
       const response = await fetch(url, {
         next: { revalidate: CRT_SH_REVALIDATE_SECONDS },
+        // React memoizes identical fetches within a single Server Component
+        // render, so without a unique key each retry would replay the prior
+        // failed Response instead of hitting the network. A per-attempt header
+        // busts the memoization key on retries while leaving the first
+        // attempt eligible for normal Data Cache hits.
+        headers:
+          attemptNumber > 1
+            ? { 'x-retry-attempt': String(attemptNumber) }
+            : undefined,
       });
       // crt.sh regularly returns brief bursts of 429s and 502s that clear
       // within seconds. Throw so p-retry backs off; non-transient statuses
