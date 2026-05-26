@@ -6,7 +6,7 @@
     "node": "24"
   },
   "scripts": {
-    "postinstall": "node scripts/install-subfinder.mjs",
+    "postinstall": "./scripts/install-subfinder.sh",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
