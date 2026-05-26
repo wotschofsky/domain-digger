@@ -8,6 +8,7 @@ import { generateCsv } from '@/lib/csv';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
+import { getSourceLabel } from '@/lib/subfinder-sources';
 
 import { SubdomainsInfoAlert } from './_components/info-alert';
 import { SubdomainsTable } from './_components/table';
@@ -55,7 +56,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   const csv = generateCsv(
     results.map((r) => ({
       Domain: r.domain,
-      Sources: r.sources.join('|'),
+      'Found on': r.sources.map(getSourceLabel).join('|'),
       'Still exists':
         r.stillExists === true
           ? 'yes'

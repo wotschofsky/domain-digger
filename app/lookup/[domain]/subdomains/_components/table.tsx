@@ -12,6 +12,8 @@ import {
 
 import { SortableTable } from '@/components/sortable-table';
 
+import { getSourceLabel } from '@/lib/subfinder-sources';
+
 import { DomainLink } from '../../../../_components/domain-link';
 
 type SubdomainsTableProps = {
@@ -37,15 +39,15 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
       },
       {
         key: 'sources',
-        label: 'Sources',
+        label: 'Found on',
         render: (value) => (
           <div className="flex flex-wrap gap-1">
             {value.map((source) => (
               <span
                 key={source}
-                className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 font-mono text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
               >
-                {source}
+                {getSourceLabel(source)}
               </span>
             ))}
           </div>

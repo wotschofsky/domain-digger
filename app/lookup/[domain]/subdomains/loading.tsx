@@ -27,7 +27,7 @@ const SubdomainsLoading: FC = () => (
       <TableHeader>
         <TableRow className="hover:bg-transparent">
           <TableHead className="pl-0">Domain Name</TableHead>
-          <TableHead>Sources</TableHead>
+          <TableHead>Found on</TableHead>
           <TableHead className="pr-0">Still exists</TableHead>
         </TableRow>
       </TableHeader>
