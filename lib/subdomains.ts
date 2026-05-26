@@ -1,7 +1,7 @@
-import * as readline from 'node:readline';
 import path from 'node:path';
 
 import { execa } from 'execa';
+import { z } from 'zod';
 
 import type { DnsResolver } from './resolvers/base';
 import { UserFacingError } from './user-facing-error';
@@ -12,55 +12,55 @@ const SUBFINDER_TIMEOUT_SECONDS = 8;
 
 const SUBFINDER_BIN = path.join(process.cwd(), 'bin', 'subfinder');
 
-type SubfinderRecord = { host?: unknown; sources?: unknown };
-type Discovery = { host: string; sources: string[] };
-
 // Some upstream sources (notably Subdomain Center) encode wildcard records
 // like `*.foo.bar` as the literal string `wildcard.foo.bar` because `*` isn't
 // a valid DNS label character. Convert back so the UI shows the asterisk.
 const denormalizeWildcard = (host: string) =>
   host.startsWith('wildcard.') ? `*.${host.slice('wildcard.'.length)}` : host;
 
-const runSubfinder = async (domain: string): Promise<Discovery[]> => {
-  const subprocess = execa(
-    SUBFINDER_BIN,
-    [
-      '-d',
-      domain,
-      '-json',
-      '-cs', // collect-sources: emit one record per host with all sources
-      '-silent',
-      '-timeout',
-      String(SUBFINDER_TIMEOUT_SECONDS),
-    ],
-    {
-      // Vercel's serverless filesystem is read-only except for /tmp; point
-      // subfinder's config dir there so first-run bootstrap can write.
-      env: { ...process.env, HOME: '/tmp' },
-    },
-  );
+const subfinderRecordSchema = z.object({
+  host: z.string().transform(denormalizeWildcard),
+  sources: z.array(z.string()).optional().default([]),
+});
 
-  const discoveries: Discovery[] = [];
-  const rl = readline.createInterface({ input: subprocess.stdout! });
+type Discovery = z.infer<typeof subfinderRecordSchema>;
 
-  rl.on('line', (line) => {
-    if (!line) return;
-    try {
-      const record = JSON.parse(line) as SubfinderRecord;
-      if (typeof record.host !== 'string') return;
-      const sources = Array.isArray(record.sources)
-        ? record.sources.filter((s): s is string => typeof s === 'string')
-        : [];
-      discoveries.push({ host: denormalizeWildcard(record.host), sources });
-    } catch {
-      // ignore malformed lines
-    }
-  });
-
-  const drained = new Promise<void>((resolve) => rl.once('close', resolve));
+const readDiscovery = (line: string) => {
+  if (!line) return null;
 
   try {
-    await subprocess;
+    const record = subfinderRecordSchema.safeParse(JSON.parse(line));
+    return record.success ? record.data : null;
+  } catch {
+    console.error('Failed to parse subfinder record:', line);
+    return null;
+  }
+};
+
+const runSubfinder = async (domain: string) => {
+  try {
+    const { stdout } = await execa(
+      SUBFINDER_BIN,
+      [
+        '-d',
+        domain,
+        '-json',
+        '-cs', // collect-sources: emit one record per host with all sources
+        '-silent',
+        '-timeout',
+        String(SUBFINDER_TIMEOUT_SECONDS),
+      ],
+      {
+        // Vercel's serverless filesystem is read-only except for /tmp; point
+        // subfinder's config dir there so first-run bootstrap can write.
+        env: { HOME: '/tmp' },
+      },
+    );
+
+    return stdout
+      .split('\n')
+      .map(readDiscovery)
+      .filter((discovery): discovery is Discovery => discovery !== null);
   } catch (error) {
     throw new UserFacingError(
       {
@@ -72,29 +72,27 @@ const runSubfinder = async (domain: string): Promise<Discovery[]> => {
       { cause: error },
     );
   }
-
-  await drained;
-  return discoveries;
 };
 
 export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
   const discoveries = (await runSubfinder(domain))
-    .filter((d) => isValidDomain(d.host) && d.host.endsWith(`.${domain}`))
-    .toSorted((a, b) => a.host.localeCompare(b.host));
+    .filter(({ host }) => isValidDomain(host) && host.endsWith(`.${domain}`))
+    .map(({ host, sources }) => ({
+      domain: host,
+      sources: sources.toSorted(),
+    }))
+    .toSorted((a, b) => a.domain.localeCompare(b.domain));
 
   const results = await Promise.all(
-    discoveries.map(async (entry, index) => {
-      const sources = entry.sources.toSorted();
-
+    discoveries.map(async (discovery, index) => {
       // Limited to avoid subrequest limits in serverless functions.
       if (index >= DETAILED_RESULTS_LIMIT) {
-        return { domain: entry.host, sources, stillExists: null };
+        return { ...discovery, stillExists: null };
       }
 
-      const records = await resolver.resolveRecordType(entry.host, 'A');
+      const records = await resolver.resolveRecordType(discovery.domain, 'A');
       return {
-        domain: entry.host,
-        sources,
+        ...discovery,
         stillExists: records.records.length > 0,
       };
     }),
