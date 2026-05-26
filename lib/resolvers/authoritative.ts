@@ -335,69 +335,73 @@ export class AuthoritativeResolver extends DnsResolver {
       return { records, trace: fullTrace };
     }
 
-    // NS records carry the delegation; A records (glue) live in additionals.
     // We must validate referrals before following them: an attacker controlling
     // a delegated zone can otherwise point our recursive query at loopback or
     // RFC1918 addresses and turn this resolver into an SSRF primitive.
-    const nsRedirects = [
-      ...(response.authorities || []),
-      ...(response.additionals || []),
-    ].filter((answer): answer is StringAnswer => answer.type === 'NS');
-
-    const delegatedNsNames = new Set(
-      nsRedirects.map((r) => r.data.toLowerCase()),
-    );
-
-    // Only trust glue A records that match a delegated NS hostname (in-bailiwick)
-    // and resolve to a publicly routable IP address.
-    const aRedirects = [
+    const redirects = [
       ...(response.authorities || []),
       ...(response.additionals || []),
     ].filter(
       (answer): answer is StringAnswer =>
-        answer.type === 'A' &&
-        delegatedNsNames.has(answer.name.toLowerCase()) &&
-        isPublicIp(answer.data),
+        answer.type === 'A' || answer.type === 'NS',
     );
 
-    if (aRedirects.length) {
-      return this.fetchRecords({
-        domain,
-        recordType,
-        nameserver: aRedirects[0].data,
-        trace: [
-          ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
-        ],
-        depth: depth + 1,
-      });
-    }
-
-    if (nsRedirects.length) {
-      const { records: aRecords, trace: subTrace } = await this.fetchRecords({
-        domain: nsRedirects[0].data,
-        recordType: 'A',
-        depth: depth + 1,
-      });
-
-      // The resolved NS address is attacker-controlled (they own the zone and
-      // can set any A record); filter to public IPs before using it.
-      const publicARecords = aRecords.filter((r) => isPublicIp(r.data));
-      if (!publicARecords.length) {
-        throw new Error(`Bad redirects for ${domain}`);
+    if (redirects.length) {
+      // Only trust glue A records that match a delegated NS hostname
+      // (in-bailiwick) and resolve to a publicly routable IP address.
+      const delegatedNsNames = new Set(
+        redirects
+          .filter((r) => r.type === 'NS')
+          .map((r) => r.data.toLowerCase()),
+      );
+      const aRedirects = redirects.filter(
+        (redirect) =>
+          redirect.type === 'A' &&
+          delegatedNsNames.has(redirect.name.toLowerCase()) &&
+          isPublicIp(redirect.data),
+      );
+      if (aRedirects.length) {
+        return this.fetchRecords({
+          domain,
+          recordType,
+          nameserver: aRedirects[0].data,
+          trace: [
+            ...trace,
+            `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+          ],
+          depth: depth + 1,
+        });
       }
 
-      return this.fetchRecords({
-        domain,
-        recordType,
-        nameserver: publicARecords[0].data,
-        trace: [
-          ...trace,
-          `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
-          ...subTrace,
-        ],
-        depth: depth + 1,
-      });
+      const nsRedirects = redirects.filter((redirect) => redirect.type === 'NS');
+      if (nsRedirects.length) {
+        const { records: aRecords, trace: subTrace } = await this.fetchRecords({
+          domain: nsRedirects[0].data,
+          recordType: 'A',
+          depth: depth + 1,
+        });
+
+        // The resolved NS address is attacker-controlled (they own the zone
+        // and can set any A record); filter to public IPs before using it.
+        const publicARecords = aRecords.filter((r) => isPublicIp(r.data));
+        if (!publicARecords.length) {
+          throw new Error(`Bad redirects for ${domain}`);
+        }
+
+        return this.fetchRecords({
+          domain,
+          recordType,
+          nameserver: publicARecords[0].data,
+          trace: [
+            ...trace,
+            `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
+            ...subTrace,
+          ],
+          depth: depth + 1,
+        });
+      }
+
+      throw new Error(`Bad redirects for ${domain}`);
     }
 
     return { records: [], trace };
