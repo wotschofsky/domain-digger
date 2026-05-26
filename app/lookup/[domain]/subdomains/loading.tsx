@@ -12,12 +12,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
-import { SubdomainsInfoAlert } from './_components/info-alert';
-
 const SubdomainsLoading: FC = () => (
   <>
-    <div className="my-12 flex items-center justify-between">
-      <SubdomainsInfoAlert />
+    <div className="my-12 flex items-center justify-end">
       <Button variant="outline" disabled>
         <ShareIcon className="mr-2 h-4 w-4" /> Export
       </Button>

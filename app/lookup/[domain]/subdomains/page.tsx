@@ -10,7 +10,6 @@ import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
 import { getSourceLabel } from '@/lib/subfinder-sources';
 
-import { SubdomainsInfoAlert } from './_components/info-alert';
 import { SubdomainsTable } from './_components/table';
 
 export const runtime = 'nodejs';
@@ -77,8 +76,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 
   return (
     <>
-      <div className="my-12 flex items-center justify-between">
-        <SubdomainsInfoAlert />
+      <div className="my-12 flex items-center justify-end">
         <Button
           className={[
             `plausible-event-name=Export`,
