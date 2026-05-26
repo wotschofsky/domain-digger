@@ -39,7 +39,7 @@ const SubdomainsLoading: FC = () => (
               <Skeleton className="h-5 w-64 rounded-sm" />
             </TableCell>
             <TableCell>
-              <Skeleton className="h-5 w-40 rounded-sm" />
+              <Skeleton className="h-5 w-80 rounded-sm" />
             </TableCell>
             <TableCell className="pr-0">
               <Skeleton className="h-5 w-5 rounded-sm" />

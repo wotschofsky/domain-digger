@@ -10,8 +10,7 @@ import { isValidDomain } from './utils';
 const DETAILED_RESULTS_LIMIT = 500;
 const SUBFINDER_TIMEOUT_SECONDS = 8;
 
-const SUBFINDER_BIN =
-  process.env.SUBFINDER_BIN ?? path.join(process.cwd(), 'bin', 'subfinder');
+const SUBFINDER_BIN = path.join(process.cwd(), 'bin', 'subfinder');
 
 type SubfinderRecord = { host?: unknown; sources?: unknown };
 type Discovery = { host: string; sources: string[] };
