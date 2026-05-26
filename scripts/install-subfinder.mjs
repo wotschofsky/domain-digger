@@ -7,6 +7,7 @@ import path from 'node:path';
 import { execa } from 'execa';
 
 const VERSION = '2.14.0';
+const CURL_TIMEOUT_SECONDS = 120;
 
 // SHA-256 of the upstream release zips, keyed by ${goPlatform}_${goArch}.
 // Copied from https://github.com/projectdiscovery/subfinder/releases/download/v${VERSION}/subfinder_${VERSION}_checksums.txt
@@ -24,15 +25,12 @@ const CHECKSUMS = {
     'f419cf27f8d04ec7de967e9661767908caf1905636276c6c05916b19027c1959',
   macOS_arm64:
     '622a711bf0dfd4aab5b0f6f1f5efe0d6d20fb75734f947a34a7f8ef1348f5435',
-  windows_386:
-    '99e8417eee045217481cd29bb9feb347cfd8666da2c9fa2e77d3dd75e8b8e6e7',
-  windows_amd64:
-    '84e8a01d3d062484bb0958445e635a5773b6671566407fb4ab48417391539681',
-  windows_arm64:
-    '31ecae1a4cfdccf850cc1f0dc15687a941b1de8582e01cde7e7d152c5693cc50',
 };
 
-const platformMap = { darwin: 'macOS', linux: 'linux', win32: 'windows' };
+// Linux + macOS only — Vercel runs Amazon Linux and most contributors are on
+// macOS. Windows is dropped because the `unzip`/`mv` shell binaries aren't
+// guaranteed there, and we'd otherwise have to keep two install paths.
+const platformMap = { darwin: 'macOS', linux: 'linux' };
 const archMap = { x64: 'amd64', arm64: 'arm64' };
 
 // Fail closed on CI/Vercel; allow local dev to fall back to a user-installed
@@ -48,7 +46,7 @@ const goArch = archMap[process.arch];
 
 if (!goPlatform || !goArch) {
   console.warn(
-    `[install-subfinder] Unsupported platform ${process.platform}/${process.arch} — skipping`,
+    `[install-subfinder] Unsupported platform ${process.platform}/${process.arch} — skipping (set SUBFINDER_BIN to use a system install)`,
   );
   process.exit(0);
 }
@@ -60,13 +58,27 @@ if (!expectedSha) {
   );
 }
 
-const binName = process.platform === 'win32' ? 'subfinder.exe' : 'subfinder';
 const binDir = path.join(process.cwd(), 'bin');
-const binPath = path.join(binDir, binName);
+const binPath = path.join(binDir, 'subfinder');
 
 if (existsSync(binPath)) {
-  console.info(`[install-subfinder] Already installed at ${binPath}`);
-  process.exit(0);
+  try {
+    const { all = '' } = await execa(binPath, ['-version'], { all: true });
+    if (all.includes(`Current Version: v${VERSION}`)) {
+      console.info(
+        `[install-subfinder] Already installed at ${binPath} (v${VERSION})`,
+      );
+      process.exit(0);
+    }
+    console.info(
+      `[install-subfinder] Existing binary at ${binPath} is not v${VERSION}, replacing`,
+    );
+  } catch {
+    console.info(
+      `[install-subfinder] Existing binary at ${binPath} did not respond to -version, replacing`,
+    );
+  }
+  rmSync(binPath, { force: true });
 }
 
 mkdirSync(binDir, { recursive: true });
@@ -79,7 +91,11 @@ mkdirSync(workDir, { recursive: true });
 
 try {
   console.info(`[install-subfinder] Downloading ${url}`);
-  await execa('curl', ['-fsSL', '-o', zipPath, url], { stdio: 'inherit' });
+  await execa(
+    'curl',
+    ['-fsSL', '--max-time', String(CURL_TIMEOUT_SECONDS), '-o', zipPath, url],
+    { stdio: 'inherit' },
+  );
 
   const actualSha = createHash('sha256')
     .update(readFileSync(zipPath))
@@ -95,12 +111,12 @@ try {
     stdio: 'inherit',
   });
 
-  await execa('mv', [path.join(workDir, binName), binPath], {
+  await execa('mv', [path.join(workDir, 'subfinder'), binPath], {
     stdio: 'inherit',
   });
   chmodSync(binPath, 0o755);
 
-  console.info(`[install-subfinder] Installed to ${binPath}`);
+  console.info(`[install-subfinder] Installed to ${binPath} (v${VERSION})`);
 } catch (error) {
   bail(`Failed: ${error instanceof Error ? error.message : error}`);
 } finally {

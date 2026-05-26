@@ -50,7 +50,9 @@ const nextConfig = {
     },
   },
   outputFileTracingIncludes: {
-    '/lookup/[domain]/subdomains': ['./bin/subfinder'],
+    // Tracing keys are picomatch globs — escape the dynamic-segment brackets
+    // so they're matched literally instead of as a character class.
+    '/lookup/\\[domain\\]/subdomains': ['./bin/subfinder'],
   },
 };
 
