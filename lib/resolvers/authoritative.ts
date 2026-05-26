@@ -19,6 +19,7 @@ import {
   type RecordType,
   type ResolverResponse,
 } from './base';
+import { isPublicIp } from './ip-filter';
 
 type DnsResponse = {
   packet: Packet;
@@ -334,16 +335,31 @@ export class AuthoritativeResolver extends DnsResolver {
       return { records, trace: fullTrace };
     }
 
-    // TODO Support IPv6
+    // We must validate referrals before following them: an attacker controlling
+    // a delegated zone can otherwise point our recursive query at loopback or
+    // RFC1918 addresses and turn this resolver into an SSRF primitive.
     const redirects = [
       ...(response.authorities || []),
       ...(response.additionals || []),
-    ].filter((answer) => answer.type === 'A' || answer.type === 'NS');
+    ].filter(
+      (answer): answer is StringAnswer =>
+        answer.type === 'A' || answer.type === 'NS',
+    );
 
     if (redirects.length) {
+      // Only trust glue A records that match a delegated NS hostname
+      // (in-bailiwick) and resolve to a publicly routable IP address.
+      const delegatedNsNames = new Set(
+        redirects
+          .filter((r) => r.type === 'NS')
+          .map((r) => r.data.toLowerCase()),
+      );
       const aRedirects = redirects.filter(
-        (redirect) => redirect.type === 'A',
-      ) as StringAnswer[];
+        (redirect) =>
+          redirect.type === 'A' &&
+          delegatedNsNames.has(redirect.name.toLowerCase()) &&
+          isPublicIp(redirect.data),
+      );
       if (aRedirects.length) {
         return this.fetchRecords({
           domain,
@@ -357,9 +373,7 @@ export class AuthoritativeResolver extends DnsResolver {
         });
       }
 
-      const nsRedirects = redirects.filter(
-        (redirect) => redirect.type === 'NS',
-      ) as StringAnswer[];
+      const nsRedirects = redirects.filter((redirect) => redirect.type === 'NS');
       if (nsRedirects.length) {
         const { records: aRecords, trace: subTrace } = await this.fetchRecords({
           domain: nsRedirects[0].data,
@@ -367,14 +381,17 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
         });
 
-        if (!aRecords.length) {
+        // The resolved NS address is attacker-controlled (they own the zone
+        // and can set any A record); filter to public IPs before using it.
+        const publicARecords = aRecords.filter((r) => isPublicIp(r.data));
+        if (!publicARecords.length) {
           throw new Error(`Bad redirects for ${domain}`);
         }
 
         return this.fetchRecords({
           domain,
           recordType,
-          nameserver: aRecords[0].data,
+          nameserver: publicARecords[0].data,
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
