@@ -45,7 +45,7 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
             {value.map((source) => {
               const { label, url } = getSource(source);
               const className =
-                'inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+                'inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs whitespace-nowrap text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
               return url ? (
                 <a
                   key={source}
