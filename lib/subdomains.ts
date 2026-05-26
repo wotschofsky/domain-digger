@@ -1,5 +1,5 @@
-import path from 'node:path';
 import * as readline from 'node:readline';
+import path from 'node:path';
 
 import { execa } from 'execa';
 
@@ -78,10 +78,7 @@ const runSubfinder = async (domain: string): Promise<Discovery[]> => {
   return discoveries;
 };
 
-export const findSubdomains = async (
-  domain: string,
-  resolver: DnsResolver,
-) => {
+export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
   const discoveries = (await runSubfinder(domain))
     .filter((d) => isValidDomain(d.host) && d.host.endsWith(`.${domain}`))
     .toSorted((a, b) => a.host.localeCompare(b.host));

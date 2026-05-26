@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/tooltip';
 
 import { SortableTable } from '@/components/sortable-table';
-
 import { getSource } from '@/lib/subfinder-sources';
 
 import { DomainLink } from '../../../../_components/domain-link';
