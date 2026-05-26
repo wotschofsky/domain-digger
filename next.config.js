@@ -49,6 +49,9 @@ const nextConfig = {
       static: 300,
     },
   },
+  outputFileTracingIncludes: {
+    '/lookup/[domain]/subdomains': ['./bin/subfinder'],
+  },
 };
 
 module.exports = nextConfig;

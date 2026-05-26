@@ -17,7 +17,6 @@ import { DomainLink } from '../../../../_components/domain-link';
 type SubdomainsTableProps = {
   results: {
     domain: string;
-    firstSeen: Date;
     stillExists: boolean | null;
   }[];
   detailedResultsLimit: number;
@@ -34,11 +33,6 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
         key: 'domain',
         label: 'Domain Name',
         render: (value) => <DomainLink domain={value} />,
-      },
-      {
-        key: 'firstSeen',
-        label: 'First seen',
-        render: (value) => new Date(value).toLocaleString('en-US'),
       },
       {
         key: 'stillExists',
@@ -63,7 +57,7 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
       },
     ]}
     keyColumn="domain"
-    defaultSort="firstSeen"
-    defaultSortDirection="desc"
+    defaultSort="domain"
+    defaultSortDirection="asc"
   />
 );

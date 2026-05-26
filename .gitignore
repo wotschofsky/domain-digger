@@ -30,6 +30,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# subfinder binary (downloaded by scripts/install-subfinder.mjs)
+/bin
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
