@@ -16,6 +16,12 @@ const SUBFINDER_BIN =
 type SubfinderRecord = { host?: unknown; sources?: unknown };
 type Discovery = { host: string; sources: string[] };
 
+// Some upstream sources (notably Subdomain Center) encode wildcard records
+// like `*.foo.bar` as the literal string `wildcard.foo.bar` because `*` isn't
+// a valid DNS label character. Convert back so the UI shows the asterisk.
+const denormalizeWildcard = (host: string) =>
+  host.startsWith('wildcard.') ? `*.${host.slice('wildcard.'.length)}` : host;
+
 const runSubfinder = async (domain: string): Promise<Discovery[]> => {
   const subprocess = execa(
     SUBFINDER_BIN,
@@ -46,7 +52,7 @@ const runSubfinder = async (domain: string): Promise<Discovery[]> => {
       const sources = Array.isArray(record.sources)
         ? record.sources.filter((s): s is string => typeof s === 'string')
         : [];
-      discoveries.push({ host: record.host, sources });
+      discoveries.push({ host: denormalizeWildcard(record.host), sources });
     } catch {
       // ignore malformed lines
     }
