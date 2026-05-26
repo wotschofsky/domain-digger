@@ -12,9 +12,6 @@ import { getSourceLabel } from '@/lib/subfinder-sources';
 
 import { SubdomainsTable } from './_components/table';
 
-export const runtime = 'nodejs';
-export const maxDuration = 30;
-
 type SubdomainsResultsPageProps = {
   params: Promise<{
     domain: string;
