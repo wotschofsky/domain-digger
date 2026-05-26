@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
+import { execa } from 'execa';
 
 const VERSION = '2.14.0';
 
@@ -78,7 +79,7 @@ mkdirSync(workDir, { recursive: true });
 
 try {
   console.info(`[install-subfinder] Downloading ${url}`);
-  execSync(`curl -fsSL -o "${zipPath}" "${url}"`, { stdio: 'inherit' });
+  await execa('curl', ['-fsSL', '-o', zipPath, url], { stdio: 'inherit' });
 
   const actualSha = createHash('sha256')
     .update(readFileSync(zipPath))
@@ -90,9 +91,11 @@ try {
   }
   console.info(`[install-subfinder] Checksum verified (sha256 ${actualSha})`);
 
-  execSync(`unzip -o -j "${zipPath}" -d "${workDir}"`, { stdio: 'inherit' });
+  await execa('unzip', ['-o', '-j', zipPath, '-d', workDir], {
+    stdio: 'inherit',
+  });
 
-  execSync(`mv "${path.join(workDir, binName)}" "${binPath}"`, {
+  await execa('mv', [path.join(workDir, binName), binPath], {
     stdio: 'inherit',
   });
   chmodSync(binPath, 0o755);
