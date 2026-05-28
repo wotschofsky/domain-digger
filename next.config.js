@@ -49,6 +49,11 @@ const nextConfig = {
       static: 300,
     },
   },
+  outputFileTracingIncludes: {
+    // Tracing keys are picomatch globs — escape the dynamic-segment brackets
+    // so they're matched literally instead of as a character class.
+    '/lookup/\\[domain\\]/subdomains': ['./bin/subfinder'],
+  },
 };
 
 module.exports = nextConfig;

@@ -8,13 +8,9 @@ import { generateCsv } from '@/lib/csv';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
+import { getSourceLabel } from '@/lib/subfinder-sources';
 
-import { SubdomainsInfoAlert } from './_components/info-alert';
 import { SubdomainsTable } from './_components/table';
-
-export const runtime = 'edge';
-// crt.sh located in GB, always use LHR1 for lowest latency
-export const preferredRegion = 'lhr1';
 
 type SubdomainsResultsPageProps = {
   params: Promise<{
@@ -54,18 +50,16 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
     '_',
   )}.csv`;
   const csv = generateCsv(
-    results
-      .toSorted((a, b) => b.firstSeen.getTime() - a.firstSeen.getTime())
-      .map((r) => ({
-        Domain: r.domain,
-        'First seen': r.firstSeen.toISOString(),
-        'Still exists':
-          r.stillExists === true
-            ? 'yes'
-            : r.stillExists === false
-              ? 'no'
-              : 'unknown',
-      })),
+    results.map((r) => ({
+      Domain: r.domain,
+      'Found on': r.sources.map(getSourceLabel).join('|'),
+      'Still exists':
+        r.stillExists === true
+          ? 'yes'
+          : r.stillExists === false
+            ? 'no'
+            : 'unknown',
+    })),
   );
   const encodedCsv = encodeURIComponent(csv);
 
@@ -79,8 +73,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 
   return (
     <>
-      <div className="my-12 flex items-center justify-between">
-        <SubdomainsInfoAlert domain={domain} />
+      <div className="my-12 flex items-center justify-end">
         <Button
           className={[
             `plausible-event-name=Export`,

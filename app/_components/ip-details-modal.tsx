@@ -18,7 +18,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import { Spinner } from '@/components/ui/spinner';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/ip-details/route';
@@ -33,6 +33,7 @@ const LocationMap = dynamic(
     })),
   {
     ssr: false,
+    loading: () => <Skeleton className="size-full rounded-none" />,
   },
 );
 
@@ -41,6 +42,21 @@ type IpDetailsModalProps = {
   open: DialogProps['open'];
   onOpenChange: DialogProps['onOpenChange'];
 };
+
+const renderField = ({
+  value,
+  skeletonClassName,
+  isLoading,
+}: {
+  value: string | null | undefined;
+  skeletonClassName: string;
+  isLoading: boolean;
+}) =>
+  isLoading ? (
+    <Skeleton className={`inline-block h-4 ${skeletonClassName}`} />
+  ) : (
+    value || <span className="italic">unknown</span>
+  );
 
 export const IpDetailsModal: FC<IpDetailsModalProps> = ({
   ip,
@@ -59,15 +75,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       return <p className="my-12 text-center">An error occurred!</p>;
     }
 
-    if (!data) {
-      return (
-        <div className="flex items-center justify-center">
-          <Spinner className="my-8" />
-        </div>
-      );
-    }
-
-    const mappedEntries = [
+    const entries = [
       {
         label: 'IP',
         component: (
@@ -77,52 +85,81 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
           </>
         ),
       },
-      ...data.reverse
-        .slice()
-        .sort(naturalCompare)
-        .map((address) => ({
-          label: 'Reverse',
-          component: <DomainLink domain={address} />,
-        })),
-      ...addIf(!!data.org, {
+      {
+        label: 'Reverse',
+        component: !data ? (
+          <Skeleton className="inline-block h-4 w-64" />
+        ) : data?.reverse.length ? (
+          data?.reverse.toSorted(naturalCompare).map((address, index) => (
+            <span key={address}>
+              <DomainLink domain={address} />
+              {index < data.reverse.length - 1 && ', '}
+            </span>
+          ))
+        ) : (
+          <span className="italic">not configured</span>
+        ),
+      },
+      {
         label: 'Organization',
-        component: <span>{data.org}</span>,
-      }),
-      ...addIf(!!data.isp, {
+        component: renderField({
+          value: data?.org,
+          skeletonClassName: 'w-48',
+          isLoading: !data,
+        }),
+      },
+      {
         label: 'ISP',
-        component: <span>{data.isp}</span>,
-      }),
-      ...addIf(!!data.country || !!data.region || !!data.city, {
+        component: renderField({
+          value: data?.isp,
+          skeletonClassName: 'w-24',
+          isLoading: !data,
+        }),
+      },
+      {
         label: 'Location',
-        component: (
-          <span>
-            {[data.country, data.region, data.city].filter(Boolean).join(', ')}
-          </span>
-        ),
-      }),
-      ...addIf(!!data.lat && !!data.lon, {
+        component: renderField({
+          value: data
+            ? [data.country, data.region, data.city].filter(Boolean).join(', ')
+            : null,
+          skeletonClassName: 'w-56',
+          isLoading: !data,
+        }),
+      },
+      {
         label: 'Coordinates',
-        component: (
-          <span>{`Latitude: ${data.lat}; Longitude: ${data.lon}`}</span>
-        ),
-      }),
-      ...addIf(!!data.timezone, {
+        component: renderField({
+          value:
+            data?.lat != null && data.lon != null
+              ? `Latitude: ${data.lat}; Longitude: ${data.lon}`
+              : null,
+          skeletonClassName: 'w-60',
+          isLoading: !data,
+        }),
+      },
+      {
         label: 'Timezone',
-        component: <span>{data.timezone}</span>,
-      }),
+        component: renderField({
+          value: data?.timezone,
+          skeletonClassName: 'w-32',
+          isLoading: !data,
+        }),
+      },
     ];
 
     const location =
-      data.lat && data.lon ? ([data.lat, data.lon] as LatLngTuple) : null;
+      data?.lat != null && data.lon != null
+        ? ([data.lat, data.lon] as LatLngTuple)
+        : null;
 
     return (
       <>
         <Table>
           <TableBody>
-            {mappedEntries.map((el) => (
+            {entries.map((el) => (
               <TableRow key={el.label} className="hover:bg-transparent">
                 <TableCell className="pl-0">{el.label}</TableCell>
-                <TableCell className="wrap-break-words pr-0 whitespace-normal">
+                <TableCell className="pr-0 wrap-anywhere whitespace-normal">
                   {el.component}
                 </TableCell>
               </TableRow>
@@ -130,9 +167,13 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
           </TableBody>
         </Table>
 
-        {location && (
-          <div className="my-4 [&_.leaflet-container]:h-80 [&_.leaflet-container]:w-full">
-            <LocationMap location={location} />
+        {(!data || location) && (
+          <div className="my-4 h-80 w-full [&_.leaflet-container]:size-full">
+            {!data ? (
+              <Skeleton className="size-full rounded-none" />
+            ) : location ? (
+              <LocationMap location={location} />
+            ) : null}
           </div>
         )}
       </>
@@ -163,7 +204,3 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
     </Dialog>
   );
 };
-
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
-const addIf = <T extends unknown>(condition: boolean, value: T): T[] =>
-  condition ? [value] : [];

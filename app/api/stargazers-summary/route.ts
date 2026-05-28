@@ -3,10 +3,9 @@ import { NextResponse } from 'next/server';
 import { useLogger, withEvlog } from '@/lib/evlog';
 import { getStargazersSummary } from '@/lib/github';
 
-export const preferredRegion = 'home';
-
 export const GET = withEvlog(async () => {
   const log = useLogger();
+
 
   try {
     const stargazers = await getStargazersSummary(

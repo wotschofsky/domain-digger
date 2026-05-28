@@ -16,7 +16,10 @@ export const env = createEnv({
     NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
 
     SITE_URL: z.string().url().optional(),
-    INTERNAL_API_SECRET: z.string().min(1),
+    INTERNAL_API_SECRET:
+      process.env.NODE_ENV === 'development'
+        ? z.string().min(1).default('dev-internal-api-secret')
+        : z.string().min(1),
 
     GOOGLE_SERVICE_KEY_B64: z.string().optional(),
     BIGQUERY_DATASET: z.string().optional(),
