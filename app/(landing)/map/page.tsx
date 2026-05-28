@@ -21,24 +21,26 @@ export const metadata: Metadata = {
 
 const MapLandingPage: FC = () => (
   <div className="container space-y-16">
-    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col justify-between gap-16 pb-12">
-      <div className="flex min-h-[40vh] flex-col justify-center py-20">
-        <section>
-          <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-            Run DNS lookups across multiple regions
-          </h1>
-          <div className="mx-auto w-full max-w-2xl">
-            <SearchForm subpage="map" autofocus />
-          </div>
-          <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-            Find all DNS records, WHOIS data, SSL/TLS certificate history,
-            subdomains and more
-          </p>
-        </section>
-        <SponsorsSection />
-      </div>
+    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col gap-16 pb-12">
+      <div className="flex flex-col gap-20">
+        <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
+          <section>
+            <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
+              Run DNS lookups across multiple regions
+            </h1>
+            <div className="mx-auto w-full max-w-2xl">
+              <SearchForm subpage="map" autofocus />
+            </div>
+            <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
+              Find all DNS records, WHOIS data, SSL/TLS certificate history,
+              subdomains and more
+            </p>
+          </section>
+          <SponsorsSection />
+        </div>
 
-      <AuthorSection />
+        <AuthorSection />
+      </div>
 
       <TrustSection subpage="map" />
     </div>

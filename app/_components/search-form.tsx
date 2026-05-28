@@ -8,6 +8,7 @@ import {
   type FC,
   type FormEvent,
   type KeyboardEventHandler,
+  type MouseEventHandler,
   useEffect,
   useRef,
   useState,
@@ -203,6 +204,13 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSelectedSuggestion(null);
   };
 
+  const handleSuggestionMouseDown: MouseEventHandler<HTMLLIElement> = (
+    event,
+  ) => {
+    // Keep the input focused so blur does not remove the option before click fires
+    event.preventDefault();
+  };
+
   const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
     if (!(suggestionsVisible && suggestions && suggestions.length > 0)) {
       if (event.currentTarget.value !== '') {
@@ -346,6 +354,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                         selectedSuggestion === index,
                     },
                   )}
+                  onMouseDown={handleSuggestionMouseDown}
                   onClick={() => handleSelectSuggestion(value)}
                 >
                   {value === SUGGESTION_OWN_IP ? (
