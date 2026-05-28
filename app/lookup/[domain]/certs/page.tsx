@@ -6,9 +6,6 @@ import { recordLookupAfter } from '@/lib/search';
 
 import { CertsTable } from './_components/table';
 
-// crt.sh located in GB, always use LHR1 for lowest latency
-export const preferredRegion = 'lhr1';
-
 type CertsResultsPageProps = {
   params: Promise<{
     domain: string;

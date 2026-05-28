@@ -12,9 +12,6 @@ import { findSubdomains } from '@/lib/subdomains';
 import { SubdomainsInfoAlert } from './_components/info-alert';
 import { SubdomainsTable } from './_components/table';
 
-// crt.sh located in GB, always use LHR1 for lowest latency
-export const preferredRegion = 'lhr1';
-
 type SubdomainsResultsPageProps = {
   params: Promise<{
     domain: string;
