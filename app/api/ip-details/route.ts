@@ -3,8 +3,6 @@ import isIP from 'validator/lib/isIP';
 
 import { getIpDetails, lookupReverse } from '@/lib/ips';
 
-export const runtime = 'edge';
-
 export type IpLookupResponse = Pick<
   Awaited<ReturnType<typeof getIpDetails>>,
   'city' | 'country' | 'isp' | 'lat' | 'lon' | 'org' | 'region' | 'timezone'
