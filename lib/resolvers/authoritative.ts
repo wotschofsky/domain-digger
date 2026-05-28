@@ -373,7 +373,9 @@ export class AuthoritativeResolver extends DnsResolver {
         });
       }
 
-      const nsRedirects = redirects.filter((redirect) => redirect.type === 'NS');
+      const nsRedirects = redirects.filter(
+        (redirect) => redirect.type === 'NS',
+      );
       if (nsRedirects.length) {
         const { records: aRecords, trace: subTrace } = await this.fetchRecords({
           domain: nsRedirects[0].data,
