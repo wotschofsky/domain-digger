@@ -6,7 +6,6 @@ import { getStargazersSummary } from '@/lib/github';
 export const GET = withEvlog(async () => {
   const log = useLogger();
 
-
   try {
     const stargazers = await getStargazersSummary(
       'wotschofsky',
@@ -21,7 +20,8 @@ export const GET = withEvlog(async () => {
       },
     });
   } catch (error) {
-    log.error({ event: 'stargazers_summary_failed', error });
+    log.set({ event: 'stargazers_summary_failed' });
+    log.error(error instanceof Error ? error : new Error(String(error)));
 
     return NextResponse.json(
       { error: 'Failed to fetch recent stargazers' },

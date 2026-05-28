@@ -32,7 +32,6 @@ const readDiscovery = (line: string) => {
     const record = subfinderRecordSchema.safeParse(JSON.parse(line));
     return record.success ? record.data : null;
   } catch {
-    console.error('Failed to parse subfinder record:', line);
     return null;
   }
 };
