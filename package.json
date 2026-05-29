@@ -36,6 +36,7 @@
     "clsx": "^2.1.1",
     "dataloader": "^2.2.3",
     "dns-packet": "^5.6.1",
+    "evlog": "^2.18.1",
     "execa": "^9.6.1",
     "hyperscript": "^2.0.2",
     "isbot": "^5.1.37",
