@@ -292,7 +292,11 @@ export class AuthoritativeResolver extends DnsResolver {
     nameserver,
     trace = [],
     depth = 0,
-  }: FetchRecordsParams): Promise<{ answers: RawAnswer[]; trace: string[] }> {
+  }: FetchRecordsParams): Promise<{
+    answers: RawAnswer[];
+    trace: string[];
+    rcode?: string;
+  }> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
         `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
@@ -312,6 +316,9 @@ export class AuthoritativeResolver extends DnsResolver {
       nameserver: usedNameserver,
     });
 
+    // dns-packet decodes the response code (e.g. 'NXDOMAIN') but @types omits it.
+    const rcode = (response as { rcode?: string }).rcode;
+
     if (truncated) {
       trace = [
         ...trace,
@@ -329,7 +336,7 @@ export class AuthoritativeResolver extends DnsResolver {
         `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
       ];
 
-      return { answers: filteredAnswers, trace: fullTrace };
+      return { answers: filteredAnswers, trace: fullTrace, rcode };
     }
 
     // We must validate referrals before following them: an attacker controlling
@@ -408,7 +415,7 @@ export class AuthoritativeResolver extends DnsResolver {
       throw new Error(`Bad redirects for ${domain}`);
     }
 
-    return { answers: [], trace };
+    return { answers: [], trace, rcode };
   }
 
   public async resolveRecordType(
@@ -437,8 +444,11 @@ export class AuthoritativeResolver extends DnsResolver {
    * digest-linkage verification. See lib/dnssec.ts for what is (and isn't)
    * verified. The resolver selector is intentionally bypassed: only an
    * authoritative walk can expose per-zone DNSKEY/DS records.
+   *
+   * Returns null when the queried domain does not exist (NXDOMAIN), so callers
+   * can render a not-found state rather than a misleading "unsigned" verdict.
    */
-  public async resolveDnssecChain(domain: string): Promise<DnssecChain> {
+  public async resolveDnssecChain(domain: string): Promise<DnssecChain | null> {
     // Walk every label suffix from the root down to the queried name, so a
     // separately-delegated (and separately-signed) subdomain gets its own zone
     // cut evaluated instead of being collapsed into its registered domain.
@@ -465,9 +475,22 @@ export class AuthoritativeResolver extends DnsResolver {
       const [keyResult, dsResult] = await Promise.all([
         this.fetchRecordsRaw({ domain: name, recordType: 'DNSKEY' }),
         isRoot
-          ? Promise.resolve({ answers: [] as RawAnswer[], trace: [] })
+          ? Promise.resolve({
+              answers: [] as RawAnswer[],
+              trace: [],
+              rcode: undefined as string | undefined,
+            })
           : this.fetchRecordsRaw({ domain: name, recordType: 'DS' }),
       ]);
+
+      // An NXDOMAIN on the registered domain itself means the name does not
+      // exist -- treat it as not-found rather than an unsigned delegation.
+      if (
+        name === base &&
+        (keyResult.rcode === 'NXDOMAIN' || dsResult.rcode === 'NXDOMAIN')
+      ) {
+        return null;
+      }
 
       const keys = keyResult.answers
         .filter((a) => a.type === 'DNSKEY')

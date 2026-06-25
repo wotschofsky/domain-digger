@@ -40,6 +40,13 @@ live('resolveDnssecChain (live)', () => {
     expect(chain.zones.at(-1)?.status).toBe('insecure');
   }, 20_000);
 
+  it('returns null for a nonexistent (NXDOMAIN) domain', async () => {
+    const chain = await resolver().resolveDnssecChain(
+      'this-domain-definitely-does-not-exist-9q7x2.com',
+    );
+    expect(chain).toBeNull();
+  }, 20_000);
+
   it('reports a DNSSEC-misconfigured domain as broken', async () => {
     // Verisign's dnssec-failed.org publishes a DS that no served DNSKEY
     // matches -- a break our digest-chain check detects.
