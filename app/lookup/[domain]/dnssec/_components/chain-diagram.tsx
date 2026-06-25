@@ -1,189 +1,146 @@
-import {
-  ArrowDownIcon,
-  CheckIcon,
-  KeyRoundIcon,
-  LinkIcon,
-  ShieldAlertIcon,
-  ShieldCheckIcon,
-  ShieldXIcon,
-  XIcon,
-} from 'lucide-react';
 import type { FC } from 'react';
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 import type { DnssecChain, DnssecStatus, DnssecZone } from '@/lib/dnssec';
 import { cn } from '@/lib/utils';
 
-// ponytail: icon-arrow + card layout, not a positioned SVG DAG. The chain is
-// effectively linear (one zone per row), so this faithfully mirrors DNSViz's
-// authentication chain without a graph library. Upgrade to SVG only if a
-// richer, edge-crossing graph is ever needed.
+// Mirrors the DNS tab's visual language: a plain-language lead, then one
+// <h2> section per zone (root -> queried domain) with the zone's keys in the
+// shared Table. The chain reads top-down; a sentence per zone explains the
+// link to its parent. See lib/dnssec.ts for what the verdict does/doesn't cover.
 
-const STATUS_STYLES: Record<
-  DnssecStatus,
-  {
-    label: string;
-    Icon: typeof ShieldCheckIcon;
-    text: string;
-    badge: string;
-    border: string;
-    arrow: string;
-  }
-> = {
-  secure: {
-    label: 'Secure',
-    Icon: ShieldCheckIcon,
-    text: 'text-emerald-700 dark:text-emerald-400',
-    badge:
-      'bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/50 dark:text-emerald-400 dark:ring-emerald-400/20',
-    border: 'border-emerald-300 dark:border-emerald-800',
-    arrow: 'text-emerald-500',
-  },
-  insecure: {
-    label: 'Insecure',
-    Icon: ShieldAlertIcon,
-    text: 'text-amber-700 dark:text-amber-400',
-    badge:
-      'bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-950/50 dark:text-amber-400 dark:ring-amber-400/20',
-    border: 'border-amber-300 dark:border-amber-800',
-    arrow: 'text-amber-500',
-  },
-  broken: {
-    label: 'Broken',
-    Icon: ShieldXIcon,
-    text: 'text-red-700 dark:text-red-400',
-    badge:
-      'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-950/50 dark:text-red-400 dark:ring-red-400/20',
-    border: 'border-red-300 dark:border-red-800',
-    arrow: 'text-red-500',
-  },
+const STATUS_DOT: Record<DnssecStatus, string> = {
+  secure: 'bg-emerald-500',
+  insecure: 'bg-zinc-400',
+  broken: 'bg-red-500',
 };
 
-const OVERALL_DESCRIPTION: Record<DnssecStatus, string> = {
+const STATUS_LABEL: Record<DnssecStatus, string> = {
+  secure: 'Secure',
+  insecure: 'Insecure',
+  broken: 'Broken',
+};
+
+const VERDICT_TITLE: Record<DnssecStatus, string> = {
+  secure: 'Chain of trust verified',
+  insecure: 'Not protected by DNSSEC',
+  broken: 'Chain of trust is broken',
+};
+
+const VERDICT_DESCRIPTION: Record<DnssecStatus, string> = {
   secure:
-    'This domain has an unbroken DNSSEC chain of trust from the root zone down to its own zone.',
+    'Every zone from the root down to this domain is signed and correctly linked to its parent, so its DNS records can be cryptographically authenticated.',
   insecure:
-    'This domain is not protected by DNSSEC — no signed delegation was found, so its records cannot be cryptographically authenticated.',
+    'No signed delegation was found for this domain, so its DNS records cannot be cryptographically authenticated.',
   broken:
-    'The DNSSEC chain of trust is broken — a DS record published by a parent zone does not match any of that zone’s DNSKEYs.',
+    'A zone in the chain publishes a DS record that does not match the keys it serves, so validation fails and the domain may be unreachable for validating resolvers.',
 };
 
-const StatusBadge: FC<{ status: DnssecStatus }> = ({ status }) => {
-  const s = STATUS_STYLES[status];
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-        s.badge,
-      )}
-    >
-      <s.Icon className="size-3.5" />
-      {s.label}
-    </span>
-  );
+const StatusDot: FC<{ status: DnssecStatus; className?: string }> = ({
+  status,
+  className,
+}) => (
+  <span
+    className={cn('inline-block rounded-full', STATUS_DOT[status], className)}
+  />
+);
+
+/** Plain-language explanation of how a zone is (or isn't) linked to its parent. */
+const linkSummary = (zone: DnssecZone): string => {
+  if (zone.name === '.') {
+    const anchor = zone.dsRecords[0];
+    return `Anchored to the IANA root trust anchor${
+      anchor ? ` (key tag ${anchor.keyTag})` : ''
+    }.`;
+  }
+
+  const matched = zone.dsRecords.find((ds) => ds.matched);
+  if (matched) {
+    return zone.status === 'secure'
+      ? `Authenticated by a DS record in the parent zone (key tag ${matched.keyTag}).`
+      : `Linked by a DS record (key tag ${matched.keyTag}), but the chain is already broken higher up.`;
+  }
+
+  if (zone.dsRecords.length) {
+    const ds = zone.dsRecords[0];
+    return zone.keys.length
+      ? `The parent zone's DS record (key tag ${ds.keyTag}) matches none of this zone's keys.`
+      : `The parent zone vouches for this zone (DS key tag ${ds.keyTag}) but it serves no DNSKEY.`;
+  }
+
+  return 'No DS record in the parent zone — the chain of trust ends here.';
 };
 
-const MatchIcon: FC<{ ok: boolean }> = ({ ok }) =>
-  ok ? (
-    <CheckIcon className="size-4 text-emerald-500" />
-  ) : (
-    <XIcon className="size-4 text-red-500" />
-  );
-
-const ZoneCard: FC<{ zone: DnssecZone }> = ({ zone }) => {
-  const s = STATUS_STYLES[zone.status];
-  const isRoot = zone.name === '.';
+const ZoneSection: FC<{ zone: DnssecZone }> = ({ zone }) => {
+  const heading = zone.name === '.' ? 'Root zone' : zone.displayName;
 
   return (
-    <div
-      className={cn(
-        'w-full rounded-xl border bg-white dark:bg-zinc-900',
-        s.border,
-      )}
-    >
-      <div className="flex items-center justify-between gap-3 border-b border-inherit px-4 py-2.5">
-        <span className="font-mono text-sm font-semibold break-all">
-          {zone.displayName}
+    <section>
+      <div className="mt-12 mb-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+          {heading}
+        </h2>
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          <StatusDot status={zone.status} className="size-2" />
+          {STATUS_LABEL[zone.status]}
         </span>
-        <StatusBadge status={zone.status} />
       </div>
 
-      <div className="space-y-3 px-4 py-3">
-        {/* Link from the parent: DS records (or the IANA anchor for the root). */}
-        <div>
-          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            <LinkIcon className="size-3.5" />
-            {isRoot
-              ? 'IANA trust anchor'
-              : 'Delegation Signer (DS) from parent'}
-          </p>
-          {zone.dsRecords.length ? (
-            <ul className="space-y-1">
-              {zone.dsRecords.map((ds, i) => (
-                <li
-                  key={i}
-                  className="flex items-center gap-2 font-mono text-xs text-zinc-700 dark:text-zinc-300"
-                >
-                  <MatchIcon ok={ds.matched} />
-                  <span>
-                    keyTag {ds.keyTag} · {ds.algorithmName} · {ds.digestName}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-zinc-500 italic dark:text-zinc-400">
-              No DS record — unsigned delegation.
-            </p>
-          )}
-        </div>
+      <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
+        {linkSummary(zone)}
+      </p>
 
-        {/* The zone's own DNSKEYs. */}
-        <div>
-          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            <KeyRoundIcon className="size-3.5" />
-            DNSKEYs
-          </p>
-          {zone.keys.length ? (
-            <ul className="space-y-1">
-              {zone.keys.map((key) => (
-                <li
-                  key={key.keyTag}
-                  className="flex flex-wrap items-center gap-2 font-mono text-xs text-zinc-700 dark:text-zinc-300"
-                >
-                  <span
-                    className={cn(
-                      'rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
-                      key.isSep
-                        ? 'bg-zinc-100 text-zinc-700 ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-700'
-                        : 'bg-transparent text-zinc-500 ring-zinc-200 dark:text-zinc-400 dark:ring-zinc-700',
-                    )}
-                  >
-                    {key.isSep ? 'KSK' : 'ZSK'}
-                  </span>
-                  <span>
-                    keyTag {key.keyTag} · {key.algorithmName}
-                  </span>
-                  {key.linked && (
-                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                      <CheckIcon className="size-3.5" /> linked
-                    </span>
-                  )}
+      {zone.keys.length ? (
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="pl-0">Key Tag</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Algorithm</TableHead>
+              <TableHead className="pr-0">Parent DS</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {zone.keys.map((key) => (
+              <TableRow key={key.keyTag} className="hover:bg-transparent">
+                <TableCell className="pl-0 font-mono">{key.keyTag}</TableCell>
+                <TableCell>
+                  {key.isSep ? 'KSK' : 'ZSK'}
                   {key.isRevoked && (
                     <span className="text-red-600 dark:text-red-400">
-                      revoked
+                      {' '}
+                      (revoked)
                     </span>
                   )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-xs text-zinc-500 italic dark:text-zinc-400">
-              No DNSKEY — zone is not signed.
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
+                </TableCell>
+                <TableCell>{key.algorithmName}</TableCell>
+                <TableCell className="pr-0">
+                  {key.linked ? (
+                    <span className="text-emerald-600 dark:text-emerald-400">
+                      Matches
+                    </span>
+                  ) : (
+                    <span className="text-zinc-400 dark:text-zinc-500">—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      ) : (
+        <p className="text-sm text-zinc-500 italic dark:text-zinc-400">
+          This zone publishes no DNSKEY.
+        </p>
+      )}
+    </section>
   );
 };
 
@@ -191,42 +148,20 @@ type ChainDiagramProps = {
   chain: DnssecChain;
 };
 
-export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
-  const overall = STATUS_STYLES[chain.overall];
-
-  return (
-    <div className="my-8 space-y-6">
-      {/* Notices / overall status */}
-      <div
-        className={cn(
-          'flex items-start gap-3 rounded-xl border p-4',
-          overall.border,
-        )}
-      >
-        <overall.Icon className={cn('mt-0.5 size-6 shrink-0', overall.text)} />
-        <div className="space-y-1">
-          <p className={cn('font-semibold', overall.text)}>
-            DNSSEC {overall.label}
-          </p>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
-            {OVERALL_DESCRIPTION[chain.overall]}
-          </p>
-        </div>
-      </div>
-
-      {/* Authentication chain, root at the top */}
-      <div className="mx-auto flex max-w-xl flex-col items-center">
-        {chain.zones.map((zone, i) => (
-          <div key={zone.name} className="flex w-full flex-col items-center">
-            {i > 0 && (
-              <ArrowDownIcon
-                className={cn('my-1 size-6', STATUS_STYLES[zone.status].arrow)}
-              />
-            )}
-            <ZoneCard zone={zone} />
-          </div>
-        ))}
-      </div>
+export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => (
+  <div>
+    <div className="flex items-center gap-2.5">
+      <StatusDot status={chain.overall} className="size-2.5" />
+      <p className="text-lg font-semibold tracking-tight">
+        {VERDICT_TITLE[chain.overall]}
+      </p>
     </div>
-  );
-};
+    <p className="mt-1.5 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
+      {VERDICT_DESCRIPTION[chain.overall]}
+    </p>
+
+    {chain.zones.map((zone) => (
+      <ZoneSection key={zone.name} zone={zone} />
+    ))}
+  </div>
+);
