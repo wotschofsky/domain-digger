@@ -95,6 +95,15 @@ describe('buildChain', () => {
     expect(chain.overall).toBe('insecure');
   });
 
+  it('marks a DS-without-DNSKEY zone as broken (not insecure)', () => {
+    const zones: RawZone[] = [
+      { name: 'example', keys: [], dsRecords: [dsFor('example')] },
+    ];
+    const chain = buildChain(zones);
+    expect(chain.zones[0].status).toBe('broken');
+    expect(chain.overall).toBe('broken');
+  });
+
   it('marks a DS that matches no key as broken', () => {
     const wrongDs: DsData = { ...RFC_DS, digest: Buffer.alloc(20, 0xaa) };
     const zones: RawZone[] = [

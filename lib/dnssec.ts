@@ -9,6 +9,13 @@ import type { DnskeyData, DsData } from 'dns-packet';
 // crypto that proves a key signed an RRset) nor NSEC/NSEC3 denial-of-existence
 // proofs. A zone marked "secure" here has an unbroken DS->DNSKEY chain to the
 // root, which is the backbone of DNSSEC validation but not the whole of it.
+//
+// It also does not classify unsigned *delegations* below the registered domain:
+// a queried name that is itself a separate, unsigned sub-delegation is shown via
+// its nearest signed ancestor zone rather than flagged insecure. Telling that
+// apart from a name simply covered by its parent zone needs NS zone-cut probing
+// plus an NSEC proof that no DS exists -- both beyond this digest-chain check.
+//
 // Full RRSIG/NSEC validation is left as a future improvement.
 
 export type DnssecStatus = 'secure' | 'insecure' | 'broken';
@@ -155,8 +162,9 @@ export function dsMatchesKey(
 /**
  * Walk the collected zones top-down and compute a per-zone and overall status.
  * `secure`   : DS (or root anchor) links a key AND every zone above is secure.
- * `insecure` : unsigned zone / unsigned delegation (no DS) -- chain stops here.
- * `broken`   : a DS exists but matches none of the zone's keys (bogus).
+ * `insecure` : no DS from the parent -- unsigned / insecure delegation.
+ * `broken`   : parent published a DS but the zone serves no matching key (bogus),
+ *              including the case where it serves no DNSKEY at all.
  */
 export function buildChain(zones: RawZone[]): DnssecChain {
   const out: DnssecZone[] = [];
@@ -191,12 +199,17 @@ export function buildChain(zones: RawZone[]): DnssecChain {
     }));
 
     let status: DnssecStatus;
-    if (keys.length === 0) {
-      status = 'insecure'; // unsigned zone
-    } else if (anchors.length === 0) {
-      status = 'insecure'; // signed but parent published no DS (insecure delegation)
+    if (anchors.length === 0) {
+      // No DS from the parent (nor a trust anchor): an unsigned / insecure
+      // delegation. With no link from above, the chain is unsigned from here
+      // down regardless of whether this zone serves its own keys.
+      status = 'insecure';
+    } else if (keys.length === 0) {
+      // Parent vouches for this zone (DS present) but it serves no DNSKEY -> bogus.
+      status = 'broken';
     } else if (!dsRecords.some((d) => d.matched)) {
-      status = 'broken'; // DS present but authenticates no key -> bogus
+      // DS present but authenticates none of the served keys -> bogus.
+      status = 'broken';
     } else if (!parentSecure) {
       status = 'insecure'; // valid link, but the chain was already lost above
     } else {

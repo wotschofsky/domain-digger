@@ -477,7 +477,9 @@ export class AuthoritativeResolver extends DnsResolver {
       // Keep the root, the registered domain (so unsigned domains still render
       // an honest "insecure"), and any deeper label that is an actual zone cut
       // (publishes DNSKEY/DS). Plain subdomains of a signed zone carry no keys
-      // of their own and are dropped -- they are covered by that zone.
+      // of their own and are dropped -- they are covered by that zone. (An
+      // unsigned sub-delegation is also dropped here; see the limitation note
+      // in lib/dnssec.ts.)
       if (isRoot || name === base || keys.length || dsRecords.length) {
         rawZones.push({ name, keys, dsRecords });
       }
