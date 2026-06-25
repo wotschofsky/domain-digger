@@ -55,6 +55,7 @@ export const Footer: FC = () => (
             <Link href="/whois">WHOIS Lookup</Link>
             <Link href="/certs">Certificate Logs</Link>
             <Link href="/subdomains">Subdomains Finder</Link>
+            <Link href="/dnssec">DNSSEC Lookup</Link>
           </div>
         </div>
 

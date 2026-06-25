@@ -6,8 +6,22 @@ import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { getTopDomains } from '@/lib/search';
 import { deduplicate } from '@/lib/utils';
 
-const LANDING_PAGES = ['', '/certs', '/map', '/subdomains', '/whois'];
-const RESULTS_SUBPATHS = ['', '/certs', '/map', '/subdomains', '/whois'];
+const LANDING_PAGES = [
+  '',
+  '/certs',
+  '/dnssec',
+  '/map',
+  '/subdomains',
+  '/whois',
+];
+const RESULTS_SUBPATHS = [
+  '',
+  '/certs',
+  '/dnssec',
+  '/map',
+  '/subdomains',
+  '/whois',
+];
 
 const getProgrammaticPaths = async () => {
   const topDomains = await getTopDomains(1000);
