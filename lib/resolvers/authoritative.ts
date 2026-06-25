@@ -5,12 +5,15 @@ import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
   type DecodedPacket,
+  type DnskeyData,
+  type DsData,
   type Packet,
   type Question,
   type StringAnswer,
 } from 'dns-packet';
 
-import { retry } from '@/lib/utils';
+import { buildChain, type DnssecChain, type RawZone } from '@/lib/dnssec';
+import { getBaseDomain, retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
 import {
@@ -20,6 +23,8 @@ import {
   type ResolverResponse,
 } from './base';
 import { isPublicIp } from './ip-filter';
+
+type RawAnswer = Extract<Answer, { type: RecordType }>;
 
 type DnsResponse = {
   packet: Packet;
@@ -281,13 +286,13 @@ export class AuthoritativeResolver extends DnsResolver {
     },
   );
 
-  private async fetchRecords({
+  private async fetchRecordsRaw({
     domain,
     recordType,
     nameserver,
     trace = [],
     depth = 0,
-  }: FetchRecordsParams): Promise<ResolverResponse> {
+  }: FetchRecordsParams): Promise<{ answers: RawAnswer[]; trace: string[] }> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
         `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
@@ -317,22 +322,14 @@ export class AuthoritativeResolver extends DnsResolver {
     if (response.answers?.length) {
       const filteredAnswers = response.answers.filter(
         (answer) => answer.name === domain && answer.type === recordType,
-      ) as Extract<Answer, { type: RecordType }>[];
-
-      const records: RawRecord[] =
-        filteredAnswers?.map((answer) => ({
-          name: answer.name,
-          type: answer.type,
-          TTL: 'ttl' in answer ? answer.ttl || 0 : 0,
-          data: this.recordToString(answer),
-        })) || [];
+      ) as RawAnswer[];
 
       const fullTrace = [
         ...trace,
         `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
       ];
 
-      return { records, trace: fullTrace };
+      return { answers: filteredAnswers, trace: fullTrace };
     }
 
     // We must validate referrals before following them: an attacker controlling
@@ -361,7 +358,7 @@ export class AuthoritativeResolver extends DnsResolver {
           isPublicIp(redirect.data),
       );
       if (aRedirects.length) {
-        return this.fetchRecords({
+        return this.fetchRecordsRaw({
           domain,
           recordType,
           nameserver: aRedirects[0].data,
@@ -377,23 +374,28 @@ export class AuthoritativeResolver extends DnsResolver {
         (redirect) => redirect.type === 'NS',
       );
       if (nsRedirects.length) {
-        const { records: aRecords, trace: subTrace } = await this.fetchRecords({
-          domain: nsRedirects[0].data,
-          recordType: 'A',
-          depth: depth + 1,
-        });
+        const { answers: aAnswers, trace: subTrace } =
+          await this.fetchRecordsRaw({
+            domain: nsRedirects[0].data,
+            recordType: 'A',
+            depth: depth + 1,
+          });
 
         // The resolved NS address is attacker-controlled (they own the zone
         // and can set any A record); filter to public IPs before using it.
-        const publicARecords = aRecords.filter((r) => isPublicIp(r.data));
-        if (!publicARecords.length) {
+        // aAnswers are all A records (filtered by record type), so
+        // recordToString yields the bare IP string for each.
+        const publicAddresses = aAnswers
+          .map((a) => this.recordToString(a))
+          .filter((ip) => isPublicIp(ip));
+        if (!publicAddresses.length) {
           throw new Error(`Bad redirects for ${domain}`);
         }
 
-        return this.fetchRecords({
+        return this.fetchRecordsRaw({
           domain,
           recordType,
-          nameserver: publicARecords[0].data,
+          nameserver: publicAddresses[0],
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
@@ -406,13 +408,78 @@ export class AuthoritativeResolver extends DnsResolver {
       throw new Error(`Bad redirects for ${domain}`);
     }
 
-    return { records: [], trace };
+    return { answers: [], trace };
   }
 
   public async resolveRecordType(
     domain: string,
     recordType: RecordType,
   ): Promise<ResolverResponse> {
-    return this.fetchRecords({ domain, recordType });
+    const { answers, trace } = await this.fetchRecordsRaw({
+      domain,
+      recordType,
+    });
+
+    const records: RawRecord[] = answers.map((answer) => ({
+      name: answer.name,
+      type: answer.type,
+      TTL: 'ttl' in answer ? answer.ttl || 0 : 0,
+      data: this.recordToString(answer),
+    }));
+
+    return { records, trace };
+  }
+
+  /**
+   * Resolve the DNSSEC authentication chain from the root down to the domain's
+   * registered (base) zone. For each zone we fetch its DNSKEYs and the DS the
+   * parent publishes for it, then hand the raw records to buildChain() for
+   * digest-linkage verification. See lib/dnssec.ts for what is (and isn't)
+   * verified. The resolver selector is intentionally bypassed: only an
+   * authoritative walk can expose per-zone DNSKEY/DS records.
+   */
+  public async resolveDnssecChain(domain: string): Promise<DnssecChain> {
+    // ponytail: chain to the base domain, not arbitrary subdomains -- a name
+    // under a signed zone is covered by that zone's keys, not its own zone cut.
+    const base = getBaseDomain(domain);
+    const labels = base.split('.').filter(Boolean);
+
+    const zoneNames = ['.'];
+    for (let i = labels.length - 1; i >= 0; i--) {
+      zoneNames.push(labels.slice(i).join('.'));
+    }
+    // e.g. wsky.dev -> ['.', 'dev', 'wsky.dev']
+
+    const rawZones: RawZone[] = [];
+    for (const name of zoneNames) {
+      const isRoot = name === '.';
+      const isLeaf = name === base;
+
+      const [keyResult, dsResult] = await Promise.all([
+        this.fetchRecordsRaw({ domain: name, recordType: 'DNSKEY' }).catch(
+          () => ({ answers: [] as RawAnswer[], trace: [] }),
+        ),
+        isRoot
+          ? Promise.resolve({ answers: [] as RawAnswer[], trace: [] })
+          : this.fetchRecordsRaw({ domain: name, recordType: 'DS' }).catch(
+              () => ({ answers: [] as RawAnswer[], trace: [] }),
+            ),
+      ]);
+
+      const keys = keyResult.answers
+        .filter((a) => a.type === 'DNSKEY')
+        .map((a) => a.data as DnskeyData);
+      const dsRecords = dsResult.answers
+        .filter((a) => a.type === 'DS')
+        .map((a) => a.data as DsData);
+
+      // Skip intermediate labels that aren't actual zone cuts; always keep the
+      // root and the leaf so unsigned domains still render an honest chain.
+      if (isRoot || isLeaf || keys.length || dsRecords.length) {
+        rawZones.push({ name, keys, dsRecords });
+      }
+    }
+
+    return buildChain(rawZones);
   }
 }

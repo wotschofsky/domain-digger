@@ -1,0 +1,48 @@
+// @vitest-environment node
+// Real UDP/fetch are needed here; happy-dom's polyfilled fetch breaks the
+// root-server lookup, so this file opts into the Node environment.
+import { describe, expect, it } from 'vitest';
+
+import { AuthoritativeResolver } from './authoritative';
+
+// Live network tests: these run the FULL DNSSEC chain walk against real
+// authoritative nameservers over UDP:53. They are gated behind an env flag so
+// the default suite stays hermetic (no other test hits the network).
+// ponytail: network-gated -- set RUN_NETWORK_TESTS=1 to exercise the live chain.
+const live = describe.skipIf(!process.env.RUN_NETWORK_TESTS);
+
+live('resolveDnssecChain (live)', () => {
+  const resolver = () => new AuthoritativeResolver();
+
+  it('reports a fully signed domain as secure', async () => {
+    const chain = await resolver().resolveDnssecChain('wsky.dev');
+    expect(chain.overall).toBe('secure');
+    expect(chain.zones.map((z) => z.displayName)).toEqual([
+      'root',
+      'dev',
+      'wsky.dev',
+    ]);
+    expect(chain.zones.every((z) => z.status === 'secure')).toBe(true);
+  }, 20_000);
+
+  it('reports another signed domain as secure', async () => {
+    const chain = await resolver().resolveDnssecChain('cloudflare.com');
+    expect(chain.overall).toBe('secure');
+  }, 20_000);
+
+  it('reports an unsigned domain as insecure', async () => {
+    // google.com is delegated under signed root/com but is itself unsigned.
+    const chain = await resolver().resolveDnssecChain('google.com');
+    expect(chain.overall).toBe('insecure');
+    // root and the TLD are signed; the leaf zone is the unsigned one.
+    expect(chain.zones[0].status).toBe('secure');
+    expect(chain.zones.at(-1)?.status).toBe('insecure');
+  }, 20_000);
+
+  it('reports a DNSSEC-misconfigured domain as broken', async () => {
+    // Verisign's dnssec-failed.org publishes a DS that no served DNSKEY
+    // matches -- a break our digest-chain check detects.
+    const chain = await resolver().resolveDnssecChain('dnssec-failed.org');
+    expect(chain.overall).toBe('broken');
+  }, 20_000);
+});

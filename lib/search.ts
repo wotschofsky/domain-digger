@@ -6,7 +6,7 @@ import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
 import { getBaseDomain } from '@/lib/utils';
 
-export type LookupType = 'dns' | 'whois' | 'subdomains' | 'certs';
+export type LookupType = 'dns' | 'whois' | 'subdomains' | 'certs' | 'dnssec';
 
 type LookupLogPayload = {
   domain: string;

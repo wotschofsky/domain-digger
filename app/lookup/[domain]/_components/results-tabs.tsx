@@ -54,6 +54,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   useHotkeys('alt+5', () => router.push(`/lookup/${domain}/subdomains`), [
     router,
   ]);
+  useHotkeys('alt+6', () => router.push(`/lookup/${domain}/dnssec`), [router]);
 
   return (
     <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
@@ -83,16 +84,21 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           href={`/lookup/${domain}/subdomains`}
           selected={selectedSegment === 'subdomains'}
         />
+        <SingleTab
+          label="DNSSEC"
+          href={`/lookup/${domain}/dnssec`}
+          selected={selectedSegment === 'dnssec'}
+        />
       </ul>
 
       <ClientOnly>
         <kbd className="pointer-events-none absolute top-1/2 right-3 hidden h-5 -translate-y-1/2 items-center gap-1 rounded border border-zinc-200 bg-white px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex dark:border-zinc-700 dark:bg-zinc-800">
           {isAppleDevice() ? (
             <>
-              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-5
+              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-6
             </>
           ) : (
-            'ctrl+1-5'
+            'ctrl+1-6'
           )}
         </kbd>
       </ClientOnly>
