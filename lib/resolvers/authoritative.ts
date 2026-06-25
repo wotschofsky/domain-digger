@@ -439,31 +439,32 @@ export class AuthoritativeResolver extends DnsResolver {
    * authoritative walk can expose per-zone DNSKEY/DS records.
    */
   public async resolveDnssecChain(domain: string): Promise<DnssecChain> {
-    // ponytail: chain to the base domain, not arbitrary subdomains -- a name
-    // under a signed zone is covered by that zone's keys, not its own zone cut.
-    const base = getBaseDomain(domain);
-    const labels = base.split('.').filter(Boolean);
+    // Walk every label suffix from the root down to the queried name, so a
+    // separately-delegated (and separately-signed) subdomain gets its own zone
+    // cut evaluated instead of being collapsed into its registered domain.
+    const fqdn = domain.replace(/^\*\./, '').replace(/\.$/, '');
+    const base = getBaseDomain(fqdn);
+    const labels = fqdn.split('.').filter(Boolean);
 
     const zoneNames = ['.'];
     for (let i = labels.length - 1; i >= 0; i--) {
       zoneNames.push(labels.slice(i).join('.'));
     }
-    // e.g. wsky.dev -> ['.', 'dev', 'wsky.dev']
+    // e.g. www.wsky.dev -> ['.', 'dev', 'wsky.dev', 'www.wsky.dev']
 
     const rawZones: RawZone[] = [];
     for (const name of zoneNames) {
       const isRoot = name === '.';
-      const isLeaf = name === base;
 
+      // Failures (timeouts, blocked UDP, bad referrals) must propagate to the
+      // error boundary -- they are NOT an unsigned zone, which comes back as an
+      // empty (non-throwing) answer set. Swallowing them would render a
+      // confident but false "insecure".
       const [keyResult, dsResult] = await Promise.all([
-        this.fetchRecordsRaw({ domain: name, recordType: 'DNSKEY' }).catch(
-          () => ({ answers: [] as RawAnswer[], trace: [] }),
-        ),
+        this.fetchRecordsRaw({ domain: name, recordType: 'DNSKEY' }),
         isRoot
           ? Promise.resolve({ answers: [] as RawAnswer[], trace: [] })
-          : this.fetchRecordsRaw({ domain: name, recordType: 'DS' }).catch(
-              () => ({ answers: [] as RawAnswer[], trace: [] }),
-            ),
+          : this.fetchRecordsRaw({ domain: name, recordType: 'DS' }),
       ]);
 
       const keys = keyResult.answers
@@ -473,9 +474,11 @@ export class AuthoritativeResolver extends DnsResolver {
         .filter((a) => a.type === 'DS')
         .map((a) => a.data as DsData);
 
-      // Skip intermediate labels that aren't actual zone cuts; always keep the
-      // root and the leaf so unsigned domains still render an honest chain.
-      if (isRoot || isLeaf || keys.length || dsRecords.length) {
+      // Keep the root, the registered domain (so unsigned domains still render
+      // an honest "insecure"), and any deeper label that is an actual zone cut
+      // (publishes DNSKEY/DS). Plain subdomains of a signed zone carry no keys
+      // of their own and are dropped -- they are covered by that zone.
+      if (isRoot || name === base || keys.length || dsRecords.length) {
         rawZones.push({ name, keys, dsRecords });
       }
     }
