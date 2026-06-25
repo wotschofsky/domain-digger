@@ -114,6 +114,19 @@ describe('buildChain', () => {
     expect(chain.overall).toBe('broken');
   });
 
+  it('treats zones below an unsigned delegation as insecure, not broken', () => {
+    // child.example would be `broken` in isolation (its DS matches no key), but
+    // because its parent is an unsigned delegation the subtree is unauthenticated.
+    const wrongDs: DsData = { ...RFC_DS, digest: Buffer.alloc(20, 0xbb) };
+    const zones: RawZone[] = [
+      { name: 'example', keys: [], dsRecords: [] },
+      { name: 'child.example', keys: [sep], dsRecords: [wrongDs] },
+    ];
+    const chain = buildChain(zones);
+    expect(chain.zones.map((z) => z.status)).toEqual(['insecure', 'insecure']);
+    expect(chain.overall).toBe('insecure');
+  });
+
   it('flags the root anchor and KSK metadata', () => {
     const chain = buildChain([{ name: '.', keys: [sep], dsRecords: [] }]);
     expect(chain.zones[0].displayName).toBe('root');

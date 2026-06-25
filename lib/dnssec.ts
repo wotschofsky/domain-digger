@@ -148,7 +148,14 @@ export function dsDigest(
     .digest();
 }
 
-/** Whether a DS record authenticates a given DNSKEY of a zone. */
+/**
+ * Whether a DS record authenticates a given DNSKEY of a zone. The digest is
+ * computed over the exact DNSKEY RDATA, so a digest match is the cryptographic
+ * proof of identity. We deliberately do NOT require ds.keyTag to equal the
+ * key's tag: per RFC 4034 §5.2 the key tag is a non-unique selection hint, and
+ * validators use it only to pick candidate keys -- since we hash every key, a
+ * digest match is authoritative even if a publisher set an inconsistent tag.
+ */
 export function dsMatchesKey(
   ds: DsData,
   key: DnskeyData,
@@ -165,10 +172,17 @@ export function dsMatchesKey(
  * `insecure` : no DS from the parent -- unsigned / insecure delegation.
  * `broken`   : parent published a DS but the zone serves no matching key (bogus),
  *              including the case where it serves no DNSKEY at all.
+ *
+ * Once the chain of trust ends, its reason propagates down: everything below an
+ * unsigned delegation is `insecure` (unauthenticated, not bogus), and everything
+ * below a bogus zone stays `broken`. A zone's own DS/DNSKEY state is only
+ * consulted while the chain above it is still secure.
  */
 export function buildChain(zones: RawZone[]): DnssecChain {
   const out: DnssecZone[] = [];
-  let parentSecure = true;
+  // Trust state carried down the chain: 'secure' while intact, otherwise the
+  // reason it ended ('insecure' for an unsigned cut, 'broken' for a bogus zone).
+  let chain: DnssecStatus = 'secure';
 
   for (const zone of zones) {
     const isRoot = zone.name === '.' || zone.name === '';
@@ -199,10 +213,15 @@ export function buildChain(zones: RawZone[]): DnssecChain {
     }));
 
     let status: DnssecStatus;
-    if (anchors.length === 0) {
+    if (chain !== 'secure') {
+      // The chain of trust already ended above this zone, so its own records are
+      // unauthenticated. Propagate the reason: insecure below an unsigned cut,
+      // broken below a bogus zone.
+      status = chain;
+    } else if (anchors.length === 0) {
       // No DS from the parent (nor a trust anchor): an unsigned / insecure
-      // delegation. With no link from above, the chain is unsigned from here
-      // down regardless of whether this zone serves its own keys.
+      // delegation. The chain is unsigned from here down regardless of whether
+      // this zone serves its own keys.
       status = 'insecure';
     } else if (keys.length === 0) {
       // Parent vouches for this zone (DS present) but it serves no DNSKEY -> bogus.
@@ -210,8 +229,6 @@ export function buildChain(zones: RawZone[]): DnssecChain {
     } else if (!dsRecords.some((d) => d.matched)) {
       // DS present but authenticates none of the served keys -> bogus.
       status = 'broken';
-    } else if (!parentSecure) {
-      status = 'insecure'; // valid link, but the chain was already lost above
     } else {
       status = 'secure';
     }
@@ -223,7 +240,8 @@ export function buildChain(zones: RawZone[]): DnssecChain {
       dsRecords,
       status,
     });
-    parentSecure = parentSecure && status === 'secure';
+    // The first non-secure zone fixes the descended trust state.
+    if (chain === 'secure') chain = status;
   }
 
   const overall: DnssecStatus = out.some((z) => z.status === 'broken')
