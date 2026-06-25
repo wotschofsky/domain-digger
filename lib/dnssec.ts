@@ -149,12 +149,12 @@ export function dsDigest(
 }
 
 /**
- * Whether a DS record authenticates a given DNSKEY of a zone. The digest is
- * computed over the exact DNSKEY RDATA, so a digest match is the cryptographic
- * proof of identity. We deliberately do NOT require ds.keyTag to equal the
- * key's tag: per RFC 4034 §5.2 the key tag is a non-unique selection hint, and
- * validators use it only to pick candidate keys -- since we hash every key, a
- * digest match is authoritative even if a publisher set an inconsistent tag.
+ * Whether a DS record authenticates a given DNSKEY of a zone. Following the
+ * validator selection rule (RFC 4035 §5.2), the DS must agree with the DNSKEY on
+ * algorithm and key tag before the digest is verified -- a real resolver picks
+ * candidate keys by tag/algorithm and never reaches the digest for a DS whose
+ * tag is wrong, so a malformed DS (right digest, wrong tag) is correctly treated
+ * as a non-match here too.
  */
 export function dsMatchesKey(
   ds: DsData,
@@ -162,6 +162,7 @@ export function dsMatchesKey(
   zoneName: string,
 ): boolean {
   if (ds.algorithm !== key.algorithm) return false;
+  if (ds.keyTag !== computeKeyTag(dnskeyRdata(key))) return false;
   const digest = dsDigest(zoneName, key, ds.digestType);
   return digest !== null && digest.equals(ds.digest);
 }

@@ -39,7 +39,9 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   // resolver, ignoring the resolver selector.
   const chain = await new AuthoritativeResolver().resolveDnssecChain(domain);
 
-  await recordLookupAfter(domain, 'dnssec', chain.overall === 'secure');
+  // A rendered chain (secure, insecure, or broken) is a successful lookup;
+  // only an empty chain counts as "no results".
+  await recordLookupAfter(domain, 'dnssec', chain.zones.length > 0);
 
   return <ChainDiagram chain={chain} />;
 };

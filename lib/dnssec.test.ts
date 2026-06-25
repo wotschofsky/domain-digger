@@ -114,6 +114,18 @@ describe('buildChain', () => {
     expect(chain.overall).toBe('broken');
   });
 
+  it('rejects a DS whose key tag does not match the DNSKEY', () => {
+    // Correct digest + algorithm but a deliberately wrong key tag: a validator
+    // would never select this key, so it must not count as a match.
+    const good = dsFor('example');
+    const tagMismatch: DsData = { ...good, keyTag: good.keyTag + 1 };
+    expect(dsMatchesKey(tagMismatch, sep, 'example')).toBe(false);
+    const chain = buildChain([
+      { name: 'example', keys: [sep], dsRecords: [tagMismatch] },
+    ]);
+    expect(chain.zones[0].status).toBe('broken');
+  });
+
   it('treats zones below an unsigned delegation as insecure, not broken', () => {
     // child.example would be `broken` in isolation (its DS matches no key), but
     // because its parent is an unsigned delegation the subtree is unauthenticated.
