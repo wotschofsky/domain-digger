@@ -483,10 +483,12 @@ export class AuthoritativeResolver extends DnsResolver {
           : this.fetchRecordsRaw({ domain: name, recordType: 'DS' }),
       ]);
 
-      // An NXDOMAIN on the registered domain itself means the name does not
-      // exist -- treat it as not-found rather than an unsigned delegation.
+      // An NXDOMAIN on the queried name itself (the leaf) means it does not
+      // exist -- treat it as not-found rather than an unsigned delegation. This
+      // covers both a nonexistent registered domain and a nonexistent subdomain
+      // under an existing one.
       if (
-        name === base &&
+        name === fqdn &&
         (keyResult.rcode === 'NXDOMAIN' || dsResult.rcode === 'NXDOMAIN')
       ) {
         return null;

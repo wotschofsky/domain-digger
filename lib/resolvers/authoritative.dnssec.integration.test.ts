@@ -52,9 +52,17 @@ live('resolveDnssecChain (live)', () => {
     expect(chain.zones.at(-1)?.status).toBe('insecure');
   }, 20_000);
 
-  it('returns null for a nonexistent (NXDOMAIN) domain', async () => {
+  it('returns null for a nonexistent (NXDOMAIN) registered domain', async () => {
     const chain = await resolver().resolveDnssecChain(
       'this-domain-definitely-does-not-exist-9q7x2.com',
+    );
+    expect(chain).toBeNull();
+  }, 20_000);
+
+  it('returns null for a nonexistent subdomain of an existing domain', async () => {
+    // cloudflare.com exists and is signed, but this leaf does not exist.
+    const chain = await resolver().resolveDnssecChain(
+      'does-not-exist-9q7x2.cloudflare.com',
     );
     expect(chain).toBeNull();
   }, 20_000);
