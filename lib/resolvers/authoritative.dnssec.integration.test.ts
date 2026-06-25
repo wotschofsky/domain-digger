@@ -32,7 +32,8 @@ live('resolveDnssecChain (live)', () => {
 
   it('reports an unsigned domain as insecure', async () => {
     // google.com is delegated under signed root/com but is itself unsigned.
-    const chain = await resolver().resolveDnssecChain('google.com');
+    // Mixed case also exercises name normalization (DNS is case-insensitive).
+    const chain = await resolver().resolveDnssecChain('GooGle.coM');
     expect(chain.overall).toBe('insecure');
     // root and the TLD are signed; the leaf zone is the unsigned one.
     expect(chain.zones[0].status).toBe('secure');

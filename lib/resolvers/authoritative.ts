@@ -442,7 +442,9 @@ export class AuthoritativeResolver extends DnsResolver {
     // Walk every label suffix from the root down to the queried name, so a
     // separately-delegated (and separately-signed) subdomain gets its own zone
     // cut evaluated instead of being collapsed into its registered domain.
-    const fqdn = domain.replace(/^\*\./, '').replace(/\.$/, '');
+    // Lowercase up front: DNS names are case-insensitive, but the query/answer
+    // name comparison and the `name === base` leaf check below are not.
+    const fqdn = domain.replace(/^\*\./, '').replace(/\.$/, '').toLowerCase();
     const base = getBaseDomain(fqdn);
     const labels = fqdn.split('.').filter(Boolean);
 
