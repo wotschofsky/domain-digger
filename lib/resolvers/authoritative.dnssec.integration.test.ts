@@ -31,6 +31,10 @@ live('resolveDnssecChain (live)', () => {
       'wsky.dev',
     ]);
     expect(chain.zones.every((z) => z.status === 'secure')).toBe(true);
+    // The leaf is probed (with the EDNS DO bit) for the record sets it signs.
+    expect(chain.zones.at(-1)?.signedTypes).toEqual(
+      expect.arrayContaining(['SOA', 'A', 'AAAA', 'NS', 'TXT']),
+    );
   }, 20_000);
 
   it('reports another signed domain as secure', async () => {

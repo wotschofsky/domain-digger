@@ -38,10 +38,28 @@ type FetchRecordsParams = {
   nameserver?: string;
   trace?: string[];
   depth?: number;
+  // Set the EDNS DNSSEC OK (DO) bit so authoritative servers include RRSIGs.
+  // Used by the leaf RRset probe to observe which record sets are signed.
+  dnssecOk?: boolean;
 };
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
+
+  // Common record types probed at the queried leaf to list its signed RRsets.
+  // Infra types (DNSKEY/DS/RRSIG) and reverse-only PTR are intentionally left out.
+  private static readonly RRSET_PROBE_TYPES: RecordType[] = [
+    'SOA',
+    'A',
+    'AAAA',
+    'NS',
+    'MX',
+    'TXT',
+    'CAA',
+    'SRV',
+    'NAPTR',
+    'CNAME',
+  ];
 
   private async getRootServers() {
     let response: Response;
@@ -146,16 +164,35 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
+  // EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
+  // returns RRSIG records alongside the answer.
+  private static dnssecOptRecord() {
+    return {
+      type: 'OPT' as const,
+      name: '.',
+      udpPayloadSize: 4096,
+      extendedRcode: 0,
+      ednsVersion: 0,
+      flags: dnsPacket.DNSSEC_OK,
+      flag_do: true,
+      options: [],
+    };
+  }
+
   private async sendUdpRequest(
     domain: string,
     recordType: RecordType,
     nameserver: string,
+    dnssecOk = false,
   ) {
     const packetBuffer = dnsPacket.encode({
       type: 'query',
       // Randomize ID to avoid response mismatch
       id: Math.floor(Math.random() * 65535),
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && {
+        additionals: [AuthoritativeResolver.dnssecOptRecord()],
+      }),
     });
 
     return new Promise<DecodedPacket>((resolve, reject) => {
@@ -195,11 +232,15 @@ export class AuthoritativeResolver extends DnsResolver {
     domain: string,
     recordType: RecordType,
     nameserver: string,
+    dnssecOk = false,
   ) {
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
       id: Math.floor(Math.random() * 65535),
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && {
+        additionals: [AuthoritativeResolver.dnssecOptRecord()],
+      }),
     });
 
     return new Promise<Packet>((resolve, reject) => {
@@ -248,6 +289,7 @@ export class AuthoritativeResolver extends DnsResolver {
     domain: string,
     recordType: RecordType,
     nameserver: string,
+    dnssecOk = false,
   ) {
     // DNS queries are first attempted over UDP per convention. However, UDP
     // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
@@ -258,9 +300,15 @@ export class AuthoritativeResolver extends DnsResolver {
       domain,
       recordType,
       nameserver,
+      dnssecOk,
     );
     if (udpResponse.flag_tc) {
-      const packet = await this.sendTcpRequest(domain, recordType, nameserver);
+      const packet = await this.sendTcpRequest(
+        domain,
+        recordType,
+        nameserver,
+        dnssecOk,
+      );
       return { packet, protocol: 'tcp', truncated: true };
     }
     return { packet: udpResponse, protocol: 'udp', truncated: false };
@@ -271,14 +319,15 @@ export class AuthoritativeResolver extends DnsResolver {
       domain: string;
       type: RecordType;
       nameserver: string;
+      dnssecOk: boolean;
     },
     DnsResponse,
     string
   >(
     async (keys) =>
       Promise.all(
-        keys.map(async ({ domain, type, nameserver }) =>
-          retry(() => this.sendRequest(domain, type, nameserver), 3),
+        keys.map(async ({ domain, type, nameserver, dnssecOk }) =>
+          retry(() => this.sendRequest(domain, type, nameserver, dnssecOk), 3),
         ),
       ),
     {
@@ -292,10 +341,16 @@ export class AuthoritativeResolver extends DnsResolver {
     nameserver,
     trace = [],
     depth = 0,
+    dnssecOk = false,
   }: FetchRecordsParams): Promise<{
     answers: RawAnswer[];
     trace: string[];
     rcode?: string;
+    // Whether an RRSIG covering recordType was present in the answer (only
+    // meaningful when queried with dnssecOk).
+    signed?: boolean;
+    // Earliest expiry (Unix seconds) among the covering RRSIGs, if signed.
+    signatureExpiration?: number;
   }> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
@@ -314,6 +369,7 @@ export class AuthoritativeResolver extends DnsResolver {
       domain,
       type: recordType,
       nameserver: usedNameserver,
+      dnssecOk,
     });
 
     // dns-packet decodes the response code (e.g. 'NXDOMAIN') but @types omits it.
@@ -331,12 +387,36 @@ export class AuthoritativeResolver extends DnsResolver {
         (answer) => answer.name === domain && answer.type === recordType,
       ) as RawAnswer[];
 
+      // RRSIGs in the answer that cover the queried type mean this RRset is
+      // signed. Works uniformly across NSEC, NSEC3, and synthesized ("black
+      // lies") zones, where the NSEC type bitmap would be unreliable.
+      const coveringSigs = response.answers.filter(
+        (answer) =>
+          answer.type === 'RRSIG' &&
+          answer.name === domain &&
+          answer.data.typeCovered === recordType,
+      );
+      const signed = coveringSigs.length > 0;
+      const signatureExpiration = signed
+        ? Math.min(
+            ...coveringSigs.map((sig) =>
+              sig.type === 'RRSIG' ? sig.data.expiration : Infinity,
+            ),
+          )
+        : undefined;
+
       const fullTrace = [
         ...trace,
         `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
       ];
 
-      return { answers: filteredAnswers, trace: fullTrace, rcode };
+      return {
+        answers: filteredAnswers,
+        trace: fullTrace,
+        rcode,
+        signed,
+        signatureExpiration,
+      };
     }
 
     // We must validate referrals before following them: an attacker controlling
@@ -374,6 +454,7 @@ export class AuthoritativeResolver extends DnsResolver {
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
           ],
           depth: depth + 1,
+          dnssecOk,
         });
       }
 
@@ -409,6 +490,7 @@ export class AuthoritativeResolver extends DnsResolver {
             ...subTrace,
           ],
           depth: depth + 1,
+          dnssecOk,
         });
       }
 
@@ -435,6 +517,35 @@ export class AuthoritativeResolver extends DnsResolver {
     }));
 
     return { records, trace };
+  }
+
+  /**
+   * Probe the queried name for which common record types are signed (carry an
+   * RRSIG) and the earliest signature expiry across them. Each type is queried
+   * with the DO bit set; a per-type failure is swallowed because this only
+   * enriches an already-verified chain with the list of protected RRsets and
+   * their freshness -- it can never turn a correct verdict wrong.
+   */
+  private async probeLeafSignatures(
+    name: string,
+  ): Promise<{ types: string[]; expiresAt?: number }> {
+    const results = await Promise.all(
+      AuthoritativeResolver.RRSET_PROBE_TYPES.map((type) =>
+        this.fetchRecordsRaw({ domain: name, recordType: type, dnssecOk: true })
+          .then(({ signed, signatureExpiration }) =>
+            signed ? { type, expiration: signatureExpiration } : null,
+          )
+          .catch(() => null),
+      ),
+    );
+    const found = results.filter((r): r is NonNullable<typeof r> => r !== null);
+    const expiries = found
+      .map((r) => r.expiration)
+      .filter((e): e is number => typeof e === 'number');
+    return {
+      types: found.map((r) => r.type),
+      expiresAt: expiries.length ? Math.min(...expiries) : undefined,
+    };
   }
 
   /**
@@ -512,6 +623,18 @@ export class AuthoritativeResolver extends DnsResolver {
       }
     }
 
-    return buildChain(rawZones);
+    const chain = buildChain(rawZones);
+
+    // Enrich the leaf with its signed RRsets (the "what's protected" list shown
+    // on the chain's bottom card). Only meaningful when the chain actually
+    // validates to the leaf, so skip the probe otherwise.
+    const leaf = chain.zones.at(-1);
+    if (leaf && leaf.status === 'secure') {
+      const { types, expiresAt } = await this.probeLeafSignatures(fqdn);
+      leaf.signedTypes = types;
+      leaf.signatureExpiresAt = expiresAt;
+    }
+
+    return chain;
   }
 }

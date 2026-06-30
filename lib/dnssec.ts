@@ -28,6 +28,8 @@ export type DnssecKey = {
   isSep: boolean; // Secure Entry Point (KSK) -- signs the DNSKEY RRset
   isRevoked: boolean;
   linked: boolean; // a parent DS / trust anchor matches this key
+  bits: number | null; // key strength in bits (RSA modulus / curve size)
+  deprecated: boolean; // uses a deprecated/weak signing algorithm
 };
 
 export type DnssecDs = {
@@ -36,7 +38,9 @@ export type DnssecDs = {
   algorithmName: string;
   digestType: number;
   digestName: string;
+  digestHex: string; // the DS digest, uppercase hex (a key fingerprint)
   matched: boolean; // this DS hashes to one of the zone's DNSKEYs
+  weakDigest: boolean; // uses a deprecated digest (SHA-1 / GOST)
 };
 
 export type DnssecZone = {
@@ -45,6 +49,12 @@ export type DnssecZone = {
   keys: DnssecKey[];
   dsRecords: DnssecDs[]; // DS published by the parent (or the root trust anchor)
   status: DnssecStatus;
+  // Record types served at this zone that carry an RRSIG (signed RRsets).
+  // Only collected for the queried leaf zone; undefined elsewhere.
+  signedTypes?: string[];
+  // Earliest RRSIG expiry (Unix seconds) across the leaf's signed RRsets.
+  // Expiring/expired signatures are the most common real DNSSEC outage.
+  signatureExpiresAt?: number;
 };
 
 export type DnssecChain = {
@@ -57,6 +67,7 @@ export type RawZone = {
   name: string;
   keys: DnskeyData[];
   dsRecords: DsData[];
+  signedTypes?: string[];
 };
 
 // IANA root zone trust anchor (KSK-2017, the currently published root KSK).
@@ -100,6 +111,60 @@ const DIGEST_HASH_ALGOS: Record<number, string> = {
   2: 'sha256',
   4: 'sha384',
 };
+
+// Signing algorithms no longer considered safe: RSAMD5, DSA, RSASHA1 (incl.
+// the NSEC3 variant), DSA-NSEC3-SHA1, ECC-GOST. RFC 8624 marks these MUST NOT
+// / NOT RECOMMENDED for signing.
+const DEPRECATED_ALGORITHMS = new Set([1, 3, 5, 6, 7, 12]);
+
+// DS digest algorithms no longer considered safe: SHA-1 and GOST.
+const WEAK_DIGEST_TYPES = new Set([1, 3]);
+
+const RSA_ALGORITHMS = new Set([1, 5, 7, 8, 10]);
+
+// Security parameter (in bits) for the fixed-size elliptic-curve / EdDSA
+// algorithms, keyed by DNSSEC algorithm number.
+const CURVE_BITS: Record<number, number> = {
+  13: 256, // ECDSA P-256
+  14: 384, // ECDSA P-384
+  15: 256, // Ed25519
+  16: 456, // Ed448
+};
+
+export function isDeprecatedAlgorithm(algorithm: number): boolean {
+  return DEPRECATED_ALGORITHMS.has(algorithm);
+}
+
+export function isWeakDigest(digestType: number): boolean {
+  return WEAK_DIGEST_TYPES.has(digestType);
+}
+
+/**
+ * Key strength in bits. For RSA this is the modulus length parsed from the
+ * RFC 3110 public-key wire format (1-byte exponent length, or 0 + 2-byte length
+ * for long exponents, then exponent, then modulus). For ECDSA/EdDSA it is the
+ * curve's security parameter. Null for unknown algorithms.
+ */
+export function keyBits(
+  key: Pick<DnskeyData, 'algorithm' | 'key'>,
+): number | null {
+  if (key.algorithm in CURVE_BITS) return CURVE_BITS[key.algorithm];
+  if (!RSA_ALGORITHMS.has(key.algorithm)) return null;
+
+  const buf = key.key;
+  if (buf.length < 1) return null;
+  let offset: number;
+  let expLen = buf[0];
+  if (expLen === 0) {
+    if (buf.length < 3) return null;
+    expLen = buf.readUInt16BE(1);
+    offset = 3;
+  } else {
+    offset = 1;
+  }
+  const modulusLen = buf.length - offset - expLen;
+  return modulusLen > 0 ? modulusLen * 8 : null;
+}
 
 /** Canonical wire-format encoding of a domain name (lowercase, length-prefixed). */
 export function wireName(name: string): Buffer {
@@ -200,6 +265,8 @@ export function buildChain(zones: RawZone[]): DnssecChain {
         isSep: (k.flags & 0x0001) !== 0,
         isRevoked: (k.flags & 0x0080) !== 0,
         linked: anchors.some((ds) => dsMatchesKey(ds, k, zone.name)),
+        bits: keyBits(k),
+        deprecated: isDeprecatedAlgorithm(k.algorithm),
       };
     });
 
@@ -210,7 +277,9 @@ export function buildChain(zones: RawZone[]): DnssecChain {
         ALGORITHM_NAMES[ds.algorithm] ?? `Algorithm ${ds.algorithm}`,
       digestType: ds.digestType,
       digestName: DIGEST_NAMES[ds.digestType] ?? `Digest ${ds.digestType}`,
+      digestHex: ds.digest.toString('hex').toUpperCase(),
       matched: zone.keys.some((k) => dsMatchesKey(ds, k, zone.name)),
+      weakDigest: isWeakDigest(ds.digestType),
     }));
 
     let status: DnssecStatus;
@@ -240,6 +309,7 @@ export function buildChain(zones: RawZone[]): DnssecChain {
       keys,
       dsRecords,
       status,
+      signedTypes: zone.signedTypes,
     });
     // The first non-secure zone fixes the descended trust state.
     if (chain === 'secure') chain = status;
