@@ -49,12 +49,12 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
 
   useHotkeys('alt+1', () => router.push(`/lookup/${domain}`), [router]);
   useHotkeys('alt+2', () => router.push(`/lookup/${domain}/map`), [router]);
-  useHotkeys('alt+3', () => router.push(`/lookup/${domain}/whois`), [router]);
-  useHotkeys('alt+4', () => router.push(`/lookup/${domain}/certs`), [router]);
-  useHotkeys('alt+5', () => router.push(`/lookup/${domain}/subdomains`), [
+  useHotkeys('alt+3', () => router.push(`/lookup/${domain}/dnssec`), [router]);
+  useHotkeys('alt+4', () => router.push(`/lookup/${domain}/whois`), [router]);
+  useHotkeys('alt+5', () => router.push(`/lookup/${domain}/certs`), [router]);
+  useHotkeys('alt+6', () => router.push(`/lookup/${domain}/subdomains`), [
     router,
   ]);
-  useHotkeys('alt+6', () => router.push(`/lookup/${domain}/dnssec`), [router]);
 
   return (
     <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
@@ -70,6 +70,11 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           selected={selectedSegment === 'map'}
         />
         <SingleTab
+          label="DNSSEC"
+          href={`/lookup/${domain}/dnssec`}
+          selected={selectedSegment === 'dnssec'}
+        />
+        <SingleTab
           label="Whois"
           href={`/lookup/${domain}/whois`}
           selected={selectedSegment === 'whois'}
@@ -83,11 +88,6 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           label="Subdomains"
           href={`/lookup/${domain}/subdomains`}
           selected={selectedSegment === 'subdomains'}
-        />
-        <SingleTab
-          label="DNSSEC"
-          href={`/lookup/${domain}/dnssec`}
-          selected={selectedSegment === 'dnssec'}
         />
       </ul>
 
