@@ -20,6 +20,8 @@ import type {
 } from '@/lib/dnssec';
 import { cn } from '@/lib/utils';
 
+import { IconAlert } from '../../_components/icon-alert';
+
 // A first-principles DNSSEC view. The single question a user has is "can this
 // domain's DNS be authenticated?", so the verdict leads the page and names
 // exactly where (and why) the chain of trust stops or breaks. The chain itself
@@ -31,8 +33,8 @@ import { cn } from '@/lib/utils';
 // cover.
 
 const STATUS_DOT: Record<DnssecStatus, string> = {
-  secure: 'bg-emerald-500',
-  insecure: 'bg-zinc-400',
+  secure: 'bg-zinc-900 dark:bg-zinc-100',
+  insecure: 'bg-zinc-300 dark:bg-zinc-600',
   broken: 'bg-red-500',
 };
 
@@ -108,8 +110,8 @@ const edgeState = (zone: DnssecZone): {
     const ds = zone.dsRecords.find((d) => d.matched);
     return {
       label: ds ? `DS matches key tag ${ds.keyTag}` : 'Anchored by trust anchor',
-      line: 'bg-emerald-500/70',
-      text: 'text-emerald-700 dark:text-emerald-400',
+      line: 'bg-zinc-300 dark:bg-zinc-600',
+      text: 'text-zinc-500 dark:text-zinc-400',
     };
   }
   if (zone.status === 'broken') {
@@ -136,41 +138,18 @@ const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
         ? ShieldAlertIcon
         : ShieldOffIcon;
 
-  const iconTone =
-    chain.overall === 'secure'
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : chain.overall === 'broken'
-        ? 'text-red-600 dark:text-red-400'
-        : 'text-zinc-500 dark:text-zinc-400';
-
   return (
-    <header
-      className={cn(
-        'flex flex-col gap-5 rounded-xl p-5 ring-1 sm:p-6',
-        chain.overall === 'secure' &&
-          'bg-emerald-50/60 ring-emerald-600/15 dark:bg-emerald-950/20 dark:ring-emerald-400/20',
-        chain.overall === 'broken' &&
-          'bg-red-50/60 ring-red-600/15 dark:bg-red-950/20 dark:ring-red-400/20',
-        chain.overall === 'insecure' &&
-          'bg-zinc-50 ring-zinc-500/10 dark:bg-zinc-900/40 dark:ring-zinc-400/15',
-      )}
+    <IconAlert
+      icon={Icon}
+      title={STATUS_LABEL[chain.overall]}
+      className="max-w-none"
     >
-      <div className="flex items-start gap-4">
-        <Icon className={cn('mt-0.5 size-9 shrink-0', iconTone)} strokeWidth={2} />
-        <div className="min-w-0">
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {STATUS_LABEL[chain.overall]}
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
-            {verdictBody(chain)}
-          </p>
-        </div>
-      </div>
-    </header>
+      {verdictBody(chain)}
+    </IconAlert>
   );
 };
 
-const FactChip: FC<{ children: ReactNode; tone?: 'warn' | 'ok' | 'muted' }> = ({
+const FactChip: FC<{ children: ReactNode; tone?: 'warn' | 'muted' }> = ({
   children,
   tone = 'muted',
 }) => (
@@ -179,8 +158,6 @@ const FactChip: FC<{ children: ReactNode; tone?: 'warn' | 'ok' | 'muted' }> = ({
       'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
       tone === 'warn' &&
         'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
-      tone === 'ok' &&
-        'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
       tone === 'muted' &&
         'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
     )}
@@ -249,7 +226,7 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
     // eslint-disable-next-line react-hooks/purity
     const expired = leaf.signatureExpiresAt < Date.now() / 1000;
     chips.push(
-      <FactChip key="sig" tone={expired ? 'warn' : 'ok'}>
+      <FactChip key="sig" tone={expired ? 'warn' : 'muted'}>
         <ClockIcon className="size-3.5" />
         {expired
           ? `signatures expired ${dateFmt.format(new Date(leaf.signatureExpiresAt * 1000))}`
@@ -268,9 +245,7 @@ const KeyRow: FC<{ k: DnssecKey }> = ({ k }) => {
       <span
         className={cn(
           'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
-          linked
-            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
-            : 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
+          'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
         )}
       >
         {linked && <CheckIcon className="size-3" />}
@@ -306,7 +281,7 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
       className={cn(
         'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
         ds.matched
-          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+          ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
           : 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
       )}
     >
@@ -412,7 +387,7 @@ const RailRow: FC<{
         <span
           className={cn(
             'mt-3.5 size-3 shrink-0 rounded-full ring-4 ring-white dark:ring-zinc-900',
-            isRoot ? 'bg-emerald-500' : STATUS_DOT[zone.status],
+            isRoot ? 'bg-zinc-900 dark:bg-zinc-100' : STATUS_DOT[zone.status],
           )}
         />
         {!isLast && (
