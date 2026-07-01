@@ -623,6 +623,21 @@ export class AuthoritativeResolver extends DnsResolver {
       }
     }
 
+    // The signed root zone always serves DNSKEY records. Getting none back means
+    // our path to authoritative DNS is compromised -- typically a network that
+    // intercepts port 53 and answers queries itself with empty NODATA responses.
+    // Any verdict built on that is false (it would render a bogus-looking
+    // "broken"), so fail loudly and retryably instead of lying.
+    const rootZone = rawZones.find((z) => z.name === '.');
+    if (!rootZone || rootZone.keys.length === 0) {
+      throw new UserFacingError({
+        title: "Couldn't retrieve the root zone's DNSSEC keys",
+        description:
+          'We could not fetch the signed root zone (DNSKEY) needed to validate the chain. This usually means the network is blocking or intercepting direct DNS queries. Please try again in a moment.',
+        retryable: true,
+      });
+    }
+
     const chain = buildChain(rawZones);
 
     // Enrich the leaf with its signed RRsets (the "what's protected" list shown
