@@ -1,10 +1,17 @@
-import type { DnskeyData, DsData } from 'dns-packet';
+import {
+  generateKeyPairSync,
+  type KeyObject,
+  sign as cryptoSign,
+} from 'node:crypto';
+
+import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
 import {
   buildChain,
   computeKeyTag,
   dnskeyRdata,
+  dnskeyToPublicKey,
   dsDigest,
   dsMatchesKey,
   isDeprecatedAlgorithm,
@@ -12,7 +19,201 @@ import {
   keyBits,
   type RawZone,
   ROOT_TRUST_ANCHORS,
+  verifyDnskeyRrsig,
+  wireName,
 } from './dnssec';
+
+const u16 = (n: number): Buffer => {
+  const b = Buffer.alloc(2);
+  b.writeUInt16BE(n);
+  return b;
+};
+const u32 = (n: number): Buffer => {
+  const b = Buffer.alloc(4);
+  b.writeUInt32BE(n >>> 0);
+  return b;
+};
+
+const dnskey = (flags: number, algorithm: number, keyB64: string): DnskeyData => ({
+  flags,
+  algorithm,
+  key: Buffer.from(keyB64, 'base64'),
+});
+
+const dsForKey = (name: string, key: DnskeyData): DsData => ({
+  keyTag: computeKeyTag(dnskeyRdata(key)),
+  algorithm: key.algorithm,
+  digestType: 2,
+  digest: dsDigest(name, key, 2)!,
+});
+
+// A live keypair whose DNSKEY we can sign with -- lets tests exercise the real
+// verify path (buildChain propagation, expiry, forgery) for keys we hold the
+// private half of. The golden vectors below independently prove the canonical
+// encoding against real-world signers (BIND root, Cloudflare), so a shared bug
+// between this signer and the verifier could not pass both.
+const genKey = (algorithm: number): { priv: KeyObject; dnskey: DnskeyData } => {
+  if (algorithm === 8) {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', {
+      modulusLength: 2048,
+    });
+    const jwk = publicKey.export({ format: 'jwk' }) as { n: string; e: string };
+    const n = Buffer.from(jwk.n, 'base64url');
+    const e = Buffer.from(jwk.e, 'base64url');
+    return {
+      priv: privateKey,
+      dnskey: {
+        flags: 257,
+        algorithm,
+        key: Buffer.concat([Buffer.from([e.length]), e, n]),
+      },
+    };
+  }
+  if (algorithm === 13) {
+    const { privateKey, publicKey } = generateKeyPairSync('ec', {
+      namedCurve: 'P-256',
+    });
+    const jwk = publicKey.export({ format: 'jwk' }) as { x: string; y: string };
+    return {
+      priv: privateKey,
+      dnskey: {
+        flags: 257,
+        algorithm,
+        key: Buffer.concat([
+          Buffer.from(jwk.x, 'base64url'),
+          Buffer.from(jwk.y, 'base64url'),
+        ]),
+      },
+    };
+  }
+  // 15 Ed25519
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const jwk = publicKey.export({ format: 'jwk' }) as { x: string };
+  return {
+    priv: privateKey,
+    dnskey: { flags: 257, algorithm, key: Buffer.from(jwk.x, 'base64url') },
+  };
+};
+
+// Sign a zone's DNSKEY RRset with `signer`, mirroring the canonical encoding in
+// dnssec.ts (RFC 4034 §3.1.8.1 / §6). `rrset` is every DNSKEY at the apex.
+const signDnskeyRrset = (
+  name: string,
+  rrset: DnskeyData[],
+  signer: { priv: KeyObject; dnskey: DnskeyData },
+  opts: { inception: number; expiration: number },
+): RrsigData => {
+  const { priv, dnskey: sk } = signer;
+  const { algorithm } = sk;
+  const keyTag = computeKeyTag(dnskeyRdata(sk));
+  const labels = name.split('.').filter(Boolean).length;
+  const prefix = Buffer.concat([
+    u16(48),
+    Buffer.from([algorithm, labels]),
+    u32(3600),
+    u32(opts.expiration),
+    u32(opts.inception),
+    u16(keyTag),
+    wireName(name),
+  ]);
+  const rrs = rrset
+    .map((k) => dnskeyRdata(k))
+    .sort(Buffer.compare)
+    .map((r) =>
+      Buffer.concat([wireName(name), u16(48), u16(1), u32(3600), u16(r.length), r]),
+    );
+  const data = Buffer.concat([prefix, ...rrs]);
+  const signature =
+    algorithm === 15
+      ? cryptoSign(null, data, priv)
+      : algorithm === 13
+        ? cryptoSign('sha256', data, { key: priv, dsaEncoding: 'ieee-p1363' })
+        : cryptoSign('sha256', data, priv);
+  return {
+    typeCovered: 'DNSKEY',
+    algorithm,
+    labels,
+    originalTTL: 3600,
+    expiration: opts.expiration,
+    inception: opts.inception,
+    keyTag,
+    signersName: name,
+    signature,
+  };
+};
+
+// --- Golden vectors: real DNSKEY RRsets + their DNSKEY RRSIGs, captured with
+// `dig +dnssec DNSKEY`. `now` is pinned inside each signature's validity window
+// so these never flake. They verify the canonical encoding against independent,
+// real-world signers for the two dominant algorithms (RSASHA256, ECDSAP256).
+
+// Root zone (RSASHA256), signed by the IANA KSK, key tag 20326.
+const ROOT_DNSKEYS: DnskeyData[] = [
+  dnskey(
+    256,
+    8,
+    'AwEAAeCYD6Z7WWKVLeuWgowKP+3g+Gs1cnLKq7a3CaQxQpv8bfuFVI0WnG33qaSH/Mw9IBgifrdzf4XY/DQLnyBJ9MfaOyAWuEaEmYJ+GQPiwVVfstGwSA1McfFJUttTgq2Huu74KARhtA8wPo/N3XcyYQtNhz+qCM5NBb3ecx/naw6sYab9LxS6f2cU0q03++BP5Ks0Uef8WJCa/1izCYE+vMkwoltV+tENa3hpXiZ7jle/xdgaZrPi5ZGmyLVI34g1XVYrNlsCCTmNvFQIfzW5STFQFsQpizczyFn9r3LzSxxPCNwdlCG84bER0BmdwqbF6Tanv+FxMOavrahkj4wIy5k=',
+  ),
+  dnskey(
+    257,
+    8,
+    'AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5xQlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b58Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU=',
+  ),
+  dnskey(
+    256,
+    8,
+    'AwEAAb5dDYffpgAJ8VUGLwQtWXPlQWsjIFJtCM00/XaKU+8ln+ofah3q2KxEIjvzQg+nqdxRj+8emtPne1mtYcbFWP4Q9E+DniOJLK09R05FuzvGbrG7DDdRDUX/cedFdV7O8pFEAYpJqYNR9BCTIAV973DO2biauKSA31b7I2lK/woxoR1tf5cqJ4SMbJUviuHicAEoUi2ATswloZNWd5T5thmEFZnxFx7D5UgKCY7oflS7+GU7dNJwEtmFnWYVETHN0kHXVz6aguouaAZp706YXNIoR/iTgQhmsR7XX+wL0Z8QM2LxQIyU6vRZ06IyuJMGRMiwkSuGElbumyBt12JZbrU=',
+  ),
+  dnskey(
+    257,
+    8,
+    'AwEAAa96jeuknZlaeSrvyAJj6ZHv28hhOKkx3rLGXVaC6rXTsDc449/cidltpkyGwCJNnOAlFNKF2jBosZBU5eeHspaQWOmOElZsjICMQMC3aeHbGiShvZsx4wMYSjH8e7Vrhbu6irwCzVBApESjbUdpWWmEnhathWu1jo+siFUiRAAxm9qyJNg/wOZqqzL/dL/q8PkcRU5oUKEpUge71M3ej2/7CPqpdVwuMoTvoB+ZOT4YeGyxMvHmbrxlFzGOHOijtzN+u1TQNatX2XBuzZNQ1K+s2CXkPIZo7s6JgZyvaBevYtxPvYLw4z9mR7K2vaF18UYH9Z9GNUUeayffKC73PYc=',
+  ),
+];
+const ROOT_DNSKEY_RRSIG: RrsigData = {
+  typeCovered: 'DNSKEY',
+  algorithm: 8,
+  labels: 0,
+  originalTTL: 172800,
+  expiration: 1784678400, // 2026-07-22 00:00:00 UTC
+  inception: 1782864000, // 2026-07-01 00:00:00 UTC
+  keyTag: 20326,
+  signersName: '.',
+  signature: Buffer.from(
+    'PIWRr97cYGmtOj+ITFeA8BqCHizd3FW/RykfcnMqVXQ7OqcE3lACjOoYfj+aj1iZfAP59iNsOWJz/J7AUAqxb7CpPIO9bJxllbhHyRkKEJhCO4M/MvlYAMmc6G8gnI4yBZEIiRPaFOP0Ux04kX/CMk4KoM89Rv4sQy02hsF7HeQb7GAowyKSW3hy0TazdwGeRyC00SjDCVZMVNCc8gPF4ZZsWgSmkpDDj3H1V5JSzLiu/mtf0k/6oHTi0IrsaBKywdQO9JgAOvayfW0hhySQ2FoQSrZC5Hb1btjvkzj49LxGTy0qvoRdHLjmnrsk8BqNlekAhJoLtIB+HEla/s1/DQ==',
+    'base64',
+  ),
+};
+const ROOT_NOW = 1782950400; // within the window
+
+// wsky.dev (ECDSAP256SHA256), signed by its KSK, key tag 2371.
+const WSKY_DNSKEYS: DnskeyData[] = [
+  dnskey(
+    257,
+    13,
+    'mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF+KkxLbxILfDLUT0rAK9iUzy1L53eKGQ==',
+  ),
+  dnskey(
+    256,
+    13,
+    'oJMRESz5E4gYzS/q6XDrvU1qMPYIjCWzJaOau8XNEZeqCYKD5ar0IRd8KqXXFJkqmVfRvMGPmM1x8fGAa2XhSA==',
+  ),
+];
+const WSKY_DNSKEY_RRSIG: RrsigData = {
+  typeCovered: 'DNSKEY',
+  algorithm: 13,
+  labels: 2,
+  originalTTL: 3600,
+  expiration: 1787564388,
+  inception: 1782293988,
+  keyTag: 2371,
+  signersName: 'wsky.dev',
+  signature: Buffer.from(
+    'bWnpt80RbJPgeMeaIM+Q+XMuXAgewTsW04P9ltGSdyZEtexlICuObJiACCFjcH4lhVZjza37kRluO+CvtZtruw==',
+    'base64',
+  ),
+};
+const WSKY_NOW = 1782380388; // within the window
 
 // RFC 4034 Appendix B worked example: dskey.example.com.
 const RFC_KEY: DnskeyData = {
@@ -86,16 +287,29 @@ describe('buildChain', () => {
     digest: dsDigest(name, sep, 1)!,
   });
 
-  it('marks a fully linked chain secure', () => {
+  it('marks a fully linked, validly-signed chain secure', () => {
+    // Real signatures required now: each zone's DNSKEY RRset must carry a valid
+    // RRSIG by a DS-linked key, so we sign with keypairs we control.
+    const parent = genKey(13);
+    const child = genKey(13);
+    const win = { inception: 1000, expiration: 2000 };
     const zones: RawZone[] = [
-      { name: 'example', keys: [sep], dsRecords: [dsFor('example')] },
+      {
+        name: 'example',
+        keys: [parent.dnskey],
+        dsRecords: [dsForKey('example', parent.dnskey)],
+        keyRrsigs: [signDnskeyRrset('example', [parent.dnskey], parent, win)],
+      },
       {
         name: 'child.example',
-        keys: [sep],
-        dsRecords: [dsFor('child.example')],
+        keys: [child.dnskey],
+        dsRecords: [dsForKey('child.example', child.dnskey)],
+        keyRrsigs: [
+          signDnskeyRrset('child.example', [child.dnskey], child, win),
+        ],
       },
     ];
-    const chain = buildChain(zones);
+    const chain = buildChain(zones, 1500);
     expect(chain.zones.map((z) => z.status)).toEqual(['secure', 'secure']);
     expect(chain.overall).toBe('secure');
   });
@@ -165,5 +379,198 @@ describe('buildChain', () => {
     expect(chain.zones[0].displayName).toBe('root');
     expect(chain.zones[0].keys[0].isSep).toBe(true);
     expect(chain.zones[0].dsRecords).toHaveLength(ROOT_TRUST_ANCHORS.length);
+  });
+});
+
+describe('dnskeyToPublicKey', () => {
+  it('reconstructs RSA, ECDSA, and Ed25519 keys', () => {
+    expect(dnskeyToPublicKey(8, ROOT_DNSKEYS[1].key)).not.toBeNull(); // RSA
+    expect(dnskeyToPublicKey(13, WSKY_DNSKEYS[0].key)).not.toBeNull(); // ECDSA
+    expect(dnskeyToPublicKey(15, genKey(15).dnskey.key)).not.toBeNull(); // Ed25519
+  });
+
+  it('returns null for unknown or malformed keys', () => {
+    expect(dnskeyToPublicKey(99, Buffer.alloc(10))).toBeNull(); // unknown alg
+    expect(dnskeyToPublicKey(13, Buffer.alloc(10))).toBeNull(); // wrong EC size
+    expect(dnskeyToPublicKey(8, Buffer.alloc(0))).toBeNull(); // empty RSA
+  });
+});
+
+describe('verifyDnskeyRrsig (golden vectors)', () => {
+  it('verifies the real root DNSKEY RRSIG (RSASHA256)', () => {
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: ROOT_DNSKEY_RRSIG,
+        keys: ROOT_DNSKEYS,
+        ownerName: '.',
+        now: ROOT_NOW,
+      }),
+    ).toBe(true);
+  });
+
+  it('verifies the real wsky.dev DNSKEY RRSIG (ECDSAP256SHA256)', () => {
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: WSKY_DNSKEY_RRSIG,
+        keys: WSKY_DNSKEYS,
+        ownerName: 'wsky.dev',
+        now: WSKY_NOW,
+      }),
+    ).toBe(true);
+  });
+
+  it('rejects an expired signature', () => {
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: ROOT_DNSKEY_RRSIG,
+        keys: ROOT_DNSKEYS,
+        ownerName: '.',
+        now: ROOT_DNSKEY_RRSIG.expiration + 1,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects a not-yet-valid signature', () => {
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: ROOT_DNSKEY_RRSIG,
+        keys: ROOT_DNSKEYS,
+        ownerName: '.',
+        now: ROOT_DNSKEY_RRSIG.inception - 1,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects a tampered signature', () => {
+    const signature = Buffer.from(ROOT_DNSKEY_RRSIG.signature);
+    signature[0] ^= 0xff;
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: { ...ROOT_DNSKEY_RRSIG, signature },
+        keys: ROOT_DNSKEYS,
+        ownerName: '.',
+        now: ROOT_NOW,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects when the RRset is altered (a DNSKEY dropped)', () => {
+    // The RRSIG covers the whole DNSKEY RRset; removing any key changes the
+    // canonical bytes and the signature no longer matches.
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: ROOT_DNSKEY_RRSIG,
+        keys: ROOT_DNSKEYS.slice(1),
+        ownerName: '.',
+        now: ROOT_NOW,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects the wrong owner name', () => {
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: WSKY_DNSKEY_RRSIG,
+        keys: WSKY_DNSKEYS,
+        ownerName: 'other.dev',
+        now: WSKY_NOW,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects when no served key has the signing tag', () => {
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: { ...ROOT_DNSKEY_RRSIG, keyTag: 11111 },
+        keys: ROOT_DNSKEYS,
+        ownerName: '.',
+        now: ROOT_NOW,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('buildChain signature enforcement', () => {
+  const win = { inception: 1000, expiration: 2000 };
+  const now = 1500;
+
+  const signedZone = (name: string, algorithm: number): RawZone => {
+    const k = genKey(algorithm);
+    return {
+      name,
+      keys: [k.dnskey],
+      dsRecords: [dsForKey(name, k.dnskey)],
+      keyRrsigs: [signDnskeyRrset(name, [k.dnskey], k, win)],
+    };
+  };
+
+  it('marks a DS-linked zone secure across RSA, ECDSA, and Ed25519', () => {
+    for (const algorithm of [8, 13, 15]) {
+      const chain = buildChain([signedZone('example', algorithm)], now);
+      expect(chain.zones[0].status).toBe('secure');
+    }
+  });
+
+  it('breaks a DS-linked zone with no DNSKEY RRSIG (bad-signature)', () => {
+    const zone = signedZone('example', 13);
+    delete zone.keyRrsigs;
+    const chain = buildChain([zone], now);
+    expect(chain.zones[0].status).toBe('broken');
+    expect(chain.zones[0].breakReason).toBe('bad-signature');
+  });
+
+  it('breaks a DS-linked zone whose DNSKEY RRSIG is expired', () => {
+    const chain = buildChain([signedZone('example', 13)], win.expiration + 1);
+    expect(chain.zones[0].status).toBe('broken');
+    expect(chain.zones[0].breakReason).toBe('bad-signature');
+  });
+
+  it('breaks when the DNSKEY RRSIG signer is not DS-authenticated', () => {
+    // Two keys in the RRset; a valid RRSIG by keyA, but the DS authenticates
+    // only keyB. A zone must not vouch for its own key set with an un-anchored
+    // key, so this is bogus even though the signature itself is valid.
+    const a = genKey(13);
+    const b = genKey(13);
+    const rrset = [a.dnskey, b.dnskey];
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: rrset,
+          dsRecords: [dsForKey('example', b.dnskey)], // links b, not a
+          keyRrsigs: [signDnskeyRrset('example', rrset, a, win)], // signed by a
+        },
+      ],
+      now,
+    );
+    expect(chain.zones[0].status).toBe('broken');
+    expect(chain.zones[0].breakReason).toBe('bad-signature');
+  });
+
+  it('accepts a valid RRSIG by a DS-authenticated key in a multi-key RRset', () => {
+    const a = genKey(13);
+    const b = genKey(13);
+    const rrset = [a.dnskey, b.dnskey];
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: rrset,
+          dsRecords: [dsForKey('example', a.dnskey)], // links the signer
+          keyRrsigs: [signDnskeyRrset('example', rrset, a, win)],
+        },
+      ],
+      now,
+    );
+    expect(chain.zones[0].status).toBe('secure');
+  });
+
+  it('propagates a broken key signature down the chain', () => {
+    const parent = signedZone('example', 13);
+    delete parent.keyRrsigs; // parent key set unsigned -> broken
+    const child = signedZone('child.example', 13);
+    const chain = buildChain([parent, child], now);
+    expect(chain.zones.map((z) => z.status)).toEqual(['broken', 'broken']);
+    expect(chain.overall).toBe('broken');
   });
 });

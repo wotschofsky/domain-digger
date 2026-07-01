@@ -26,8 +26,9 @@ import { IconAlert } from '../../_components/icon-alert';
 // domain's DNS be authenticated?", so the verdict leads the page and names
 // exactly where (and why) the chain of trust stops or breaks. The chain itself
 // is a vertical trust rail: root at the top, the queried domain at the bottom,
-// each edge colored by its link state (matched DS / no DS / broken DS) so the
-// break point is visible at a glance. Every zone's keys and DS records are
+// each edge colored by its link state (matched DS / no DS / broken DS -- the
+// last including an expired or invalid DNSKEY signature) so the break point is
+// visible at a glance. Every zone's keys and DS records are
 // shown inline -- no disclosure, no tooltips -- because the crypto evidence is
 // the whole point. See lib/dnssec.ts for what the verdict does and doesn't
 // cover.
@@ -72,7 +73,7 @@ const verdictBody = (chain: DnssecChain): string => {
   const leafName = leaf.name === '.' ? 'the root zone' : leaf.name;
 
   if (chain.overall === 'secure') {
-    return `Every link holds from the root trust anchor down to ${leafName}, so its DNS answers can be cryptographically authenticated.`;
+    return `Every link holds from the root trust anchor down to ${leafName}: each zone's key set is DS-linked and its signature verifies and is unexpired, so its DNS answers can be cryptographically authenticated.`;
   }
 
   const idx = breakIndex(chain);
@@ -86,8 +87,11 @@ const verdictBody = (chain: DnssecChain): string => {
     : 'its parent';
 
   if (chain.overall === 'broken') {
-    if (brk.keys.length === 0) {
+    if (brk.breakReason === 'no-dnskey') {
       return `${brkName} is vouched for by a DS record but serves no DNSKEY, so validating resolvers reject its answers as bogus.`;
+    }
+    if (brk.breakReason === 'bad-signature') {
+      return `${brkName}'s keys are vouched for by its parent's DS, but the signature over its DNSKEY record set is expired or invalid, so validating resolvers reject its answers as bogus.`;
     }
     const ds = brk.dsRecords[0];
     return `${brkName}'s parent publishes a DS${ds ? ` (key tag ${ds.keyTag})` : ''} that matches none of its keys, so validating resolvers reject its answers as bogus.`;
@@ -115,10 +119,14 @@ const edgeState = (zone: DnssecZone): {
     };
   }
   if (zone.status === 'broken') {
+    const label =
+      zone.breakReason === 'no-dnskey'
+        ? 'DS present, no DNSKEY served'
+        : zone.breakReason === 'bad-signature'
+          ? 'DNSKEY signature expired or invalid'
+          : 'DS matches no served key';
     return {
-      label: zone.keys.length
-        ? 'DS matches no served key'
-        : 'DS present, no DNSKEY served',
+      label,
       line: 'bg-red-500/70',
       text: 'text-red-700 dark:text-red-400',
     };
@@ -457,9 +465,12 @@ export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => (
 
     <p className="border-t border-zinc-100 pt-5 text-xs leading-relaxed text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
       This check verifies the DS-to-DNSKEY chain of trust from the IANA root
-      anchor down to the domain. It does not validate RRSIG signatures or
-      NSEC/NSEC3 denial-of-existence proofs, so a zone marked secure here has
-      an unbroken chain but not a full cryptographic validation.
+      anchor down to the domain and cryptographically validates the RRSIG over
+      each zone&apos;s DNSKEY key set, including its expiry. It does not re-verify
+      the signature on every individual leaf record set (A, MX, …), nor
+      NSEC/NSEC3 denial-of-existence proofs, so a zone marked secure here has an
+      authenticated, validly-signed key chain but not a full per-record
+      validation.
     </p>
   </div>
 );

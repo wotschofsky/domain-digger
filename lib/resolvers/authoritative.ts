@@ -9,6 +9,7 @@ import dnsPacket, {
   type DsData,
   type Packet,
   type Question,
+  type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
 
@@ -351,6 +352,9 @@ export class AuthoritativeResolver extends DnsResolver {
     signed?: boolean;
     // Earliest expiry (Unix seconds) among the covering RRSIGs, if signed.
     signatureExpiration?: number;
+    // The RRSIG records covering recordType, for cryptographic verification
+    // (populated only when queried with dnssecOk).
+    coveringRrsigs?: RrsigData[];
   }> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
@@ -404,6 +408,9 @@ export class AuthoritativeResolver extends DnsResolver {
             ),
           )
         : undefined;
+      const coveringRrsigs = coveringSigs
+        .filter((sig) => sig.type === 'RRSIG')
+        .map((sig) => sig.data as RrsigData);
 
       const fullTrace = [
         ...trace,
@@ -416,6 +423,7 @@ export class AuthoritativeResolver extends DnsResolver {
         rcode,
         signed,
         signatureExpiration,
+        coveringRrsigs,
       };
     }
 
@@ -584,7 +592,14 @@ export class AuthoritativeResolver extends DnsResolver {
       // empty (non-throwing) answer set. Swallowing them would render a
       // confident but false "insecure".
       const [keyResult, dsResult] = await Promise.all([
-        this.fetchRecordsRaw({ domain: name, recordType: 'DNSKEY' }),
+        // DO bit set so the DNSKEY RRset's covering RRSIGs come back -- we
+        // cryptographically verify the key set is validly signed, not just
+        // digest-linked. See lib/dnssec.ts.
+        this.fetchRecordsRaw({
+          domain: name,
+          recordType: 'DNSKEY',
+          dnssecOk: true,
+        }),
         isRoot
           ? Promise.resolve({
               answers: [] as RawAnswer[],
@@ -619,7 +634,12 @@ export class AuthoritativeResolver extends DnsResolver {
       // unsigned sub-delegation is also dropped here; see the limitation note
       // in lib/dnssec.ts.)
       if (isRoot || name === base || keys.length || dsRecords.length) {
-        rawZones.push({ name, keys, dsRecords });
+        rawZones.push({
+          name,
+          keys,
+          dsRecords,
+          keyRrsigs: keyResult.coveringRrsigs,
+        });
       }
     }
 

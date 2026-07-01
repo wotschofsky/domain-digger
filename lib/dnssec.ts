@@ -1,22 +1,32 @@
-import { createHash } from 'node:crypto';
+import { createHash, createPublicKey, verify as cryptoVerify } from 'node:crypto';
 
-import type { DnskeyData, DsData } from 'dns-packet';
+import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 
-// LIMITATION: This module verifies the DNSSEC *authentication chain* by digest
-// linkage only -- it confirms that a parent's DS record actually hashes to one
-// of the child zone's DNSKEYs (RFC 4034 §5.1.4), and anchors the root against
-// the IANA trust anchor. It does NOT verify RRSIG signatures (the asymmetric
-// crypto that proves a key signed an RRset) nor NSEC/NSEC3 denial-of-existence
-// proofs. A zone marked "secure" here has an unbroken DS->DNSKEY chain to the
-// root, which is the backbone of DNSSEC validation but not the whole of it.
+// WHAT THIS VERIFIES: the DNSSEC authentication chain, two ways per zone.
+// (1) Digest linkage (RFC 4034 §5.1.4): the parent's DS record actually hashes
+//     to one of the child zone's DNSKEYs, anchored at the root by the IANA
+//     trust anchor. (2) Key-set signature (RFC 4034 §3.1.8.1): the RRSIG over
+//     each zone's DNSKEY RRset cryptographically verifies against the DS-linked
+//     KSK and is within its inception/expiration window. Together these prove
+//     the zone's key set is authentic AND currently, validly signed -- so an
+//     expired or forged key-set signature (the most common real DNSSEC outage)
+//     is caught and marked broken, not shown as secure.
 //
-// It also does not classify unsigned *delegations* below the registered domain:
-// a queried name that is itself a separate, unsigned sub-delegation is shown via
-// its nearest signed ancestor zone rather than flagged insecure. Telling that
-// apart from a name simply covered by its parent zone needs NS zone-cut probing
-// plus an NSEC proof that no DS exists -- both beyond this digest-chain check.
+// WHAT IT STILL DOES NOT VERIFY (documented limitations, shown on the page):
+//   - Per-RRset data signatures below the DNSKEY RRset. We confirm each zone's
+//     *keys* are validly signed; we do not re-verify the RRSIG over every
+//     individual leaf RRset (A, MX, ...). The leaf's signed-type list and
+//     earliest data-signature expiry are surfaced for visibility, but a leaf
+//     data RRSIG that expired independently of the (still-valid) DNSKEY RRSIG
+//     is not caught here.
+//   - NSEC/NSEC3 denial-of-existence proofs (authenticated negative answers).
+//   - Unsigned *delegations* below the registered domain: a queried name that is
+//     itself a separate, unsigned sub-delegation is shown via its nearest signed
+//     ancestor zone rather than flagged insecure. Telling that apart from a name
+//     simply covered by its parent zone needs NS zone-cut probing plus an NSEC
+//     proof that no DS exists -- both beyond this check.
 //
-// Full RRSIG/NSEC validation is left as a future improvement.
+// Full per-RRset RRSIG + NSEC/NSEC3 validation is left as a future improvement.
 
 export type DnssecStatus = 'secure' | 'insecure' | 'broken';
 
@@ -49,6 +59,13 @@ export type DnssecZone = {
   keys: DnssecKey[];
   dsRecords: DnssecDs[]; // DS published by the parent (or the root trust anchor)
   status: DnssecStatus;
+  // Why a `broken` zone broke, for a precise verdict message. Undefined unless
+  // status === 'broken'.
+  //   'no-dnskey'     : parent published a DS but the zone serves no DNSKEY.
+  //   'ds-mismatch'   : the DS authenticates none of the served keys (digest).
+  //   'bad-signature' : keys link by digest, but the RRSIG over the DNSKEY RRset
+  //                     is missing, expired, or fails to verify (bogus/expired).
+  breakReason?: 'no-dnskey' | 'ds-mismatch' | 'bad-signature';
   // Record types served at this zone that carry an RRSIG (signed RRsets).
   // Only collected for the queried leaf zone; undefined elsewhere.
   signedTypes?: string[];
@@ -67,6 +84,9 @@ export type RawZone = {
   name: string;
   keys: DnskeyData[];
   dsRecords: DsData[];
+  // RRSIG records covering this zone's DNSKEY RRset (typeCovered === 'DNSKEY').
+  // Used to cryptographically verify the key set is validly signed by its KSK.
+  keyRrsigs?: RrsigData[];
   signedTypes?: string[];
 };
 
@@ -232,6 +252,213 @@ export function dsMatchesKey(
   return digest !== null && digest.equals(ds.digest);
 }
 
+// --- RRSIG signature verification (RFC 4034 §3.1.8.1) -----------------------
+
+// DNS record type numbers we build canonical RRs for. Only DNSKEY is verified
+// today (the key-set signature); kept as a map so the encoding stays general.
+const RR_TYPE: Record<string, number> = { DNSKEY: 48 };
+
+// Digest used by each signing algorithm's RRSIG (EdDSA hashes internally).
+const HASH_BY_ALGORITHM: Record<number, string> = {
+  5: 'sha1', // RSASHA1
+  7: 'sha1', // RSASHA1-NSEC3-SHA1
+  8: 'sha256', // RSASHA256
+  10: 'sha512', // RSASHA512
+  13: 'sha256', // ECDSAP256SHA256
+  14: 'sha384', // ECDSAP384SHA384
+};
+
+const EC_CURVE_NAME: Record<number, string> = { 13: 'P-256', 14: 'P-384' };
+const EC_COORD_BYTES: Record<number, number> = { 13: 32, 14: 48 };
+
+/** Split an RFC 3110 RSA public key into its exponent and modulus. */
+function rsaKeyParts(key: Buffer): { exponent: Buffer; modulus: Buffer } | null {
+  if (key.length < 1) return null;
+  let offset: number;
+  let expLen = key[0];
+  if (expLen === 0) {
+    if (key.length < 3) return null;
+    expLen = key.readUInt16BE(1);
+    offset = 3;
+  } else {
+    offset = 1;
+  }
+  const exponent = key.subarray(offset, offset + expLen);
+  const modulus = key.subarray(offset + expLen);
+  if (exponent.length === 0 || modulus.length === 0) return null;
+  return { exponent, modulus };
+}
+
+/**
+ * Turn a DNSKEY's wire-format public key into a node crypto public key, via JWK
+ * so no DER hand-encoding is needed. Returns null for unsupported/malformed keys
+ * (e.g. Ed448 where the runtime lacks support) -- a null key can never verify,
+ * so the zone is treated as unvalidated rather than trusted.
+ */
+export function dnskeyToPublicKey(
+  algorithm: number,
+  key: Buffer,
+): ReturnType<typeof createPublicKey> | null {
+  try {
+    if (RSA_ALGORITHMS.has(algorithm)) {
+      const parts = rsaKeyParts(key);
+      if (!parts) return null;
+      return createPublicKey({
+        key: {
+          kty: 'RSA',
+          n: parts.modulus.toString('base64url'),
+          e: parts.exponent.toString('base64url'),
+        },
+        format: 'jwk',
+      });
+    }
+    if (algorithm === 13 || algorithm === 14) {
+      const size = EC_COORD_BYTES[algorithm];
+      if (key.length !== size * 2) return null;
+      return createPublicKey({
+        key: {
+          kty: 'EC',
+          crv: EC_CURVE_NAME[algorithm],
+          x: key.subarray(0, size).toString('base64url'),
+          y: key.subarray(size).toString('base64url'),
+        },
+        format: 'jwk',
+      });
+    }
+    if (algorithm === 15 || algorithm === 16) {
+      return createPublicKey({
+        key: {
+          kty: 'OKP',
+          crv: algorithm === 15 ? 'Ed25519' : 'Ed448',
+          x: key.toString('base64url'),
+        },
+        format: 'jwk',
+      });
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+/** RRSIG RDATA up to (but excluding) the signature, per RFC 4034 §3.1.8.1. */
+function rrsigSigningPrefix(rrsig: RrsigData): Buffer | null {
+  const typeCovered = RR_TYPE[rrsig.typeCovered];
+  if (typeCovered === undefined) return null;
+  const head = Buffer.alloc(18);
+  head.writeUInt16BE(typeCovered, 0);
+  head.writeUInt8(rrsig.algorithm, 2);
+  head.writeUInt8(rrsig.labels, 3);
+  head.writeUInt32BE(rrsig.originalTTL >>> 0, 4);
+  head.writeUInt32BE(rrsig.expiration >>> 0, 8);
+  head.writeUInt32BE(rrsig.inception >>> 0, 12);
+  head.writeUInt16BE(rrsig.keyTag, 16);
+  // Signer's name in canonical (lowercase, uncompressed) wire form.
+  return Buffer.concat([head, wireName(rrsig.signersName)]);
+}
+
+/** One canonical RR: owner | type | class(IN) | originalTTL | rdlen | rdata. */
+function canonicalRr(
+  owner: string,
+  type: number,
+  originalTTL: number,
+  rdata: Buffer,
+): Buffer {
+  const head = Buffer.alloc(10);
+  head.writeUInt16BE(type, 0);
+  head.writeUInt16BE(1, 2); // class IN
+  head.writeUInt32BE(originalTTL >>> 0, 4);
+  head.writeUInt16BE(rdata.length, 8);
+  return Buffer.concat([wireName(owner), head, rdata]);
+}
+
+function verifySignature(
+  algorithm: number,
+  data: Buffer,
+  signature: Buffer,
+  publicKey: ReturnType<typeof createPublicKey>,
+): boolean {
+  try {
+    // EdDSA is a one-shot verify with no separate hash.
+    if (algorithm === 15 || algorithm === 16) {
+      return cryptoVerify(null, data, publicKey, signature);
+    }
+    const hash = HASH_BY_ALGORITHM[algorithm];
+    if (!hash) return false;
+    // DNSSEC ECDSA signatures are raw r||s (IEEE P1363), not DER-wrapped.
+    if (algorithm === 13 || algorithm === 14) {
+      return cryptoVerify(
+        hash,
+        data,
+        { key: publicKey, dsaEncoding: 'ieee-p1363' },
+        signature,
+      );
+    }
+    return cryptoVerify(hash, data, publicKey, signature);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Verify an RRSIG over a zone's DNSKEY RRset: the signature must be produced by
+ * one of the zone's own keys (matched by tag + algorithm), be within its
+ * validity window at `now` (Unix seconds), and cryptographically check out over
+ * the canonical DNSKEY RRset (RFC 4034 §6). The RRset is every DNSKEY in `keys`,
+ * sorted by canonical RDATA (§6.3). Returns false on any failure -- expired,
+ * forged, unsupported algorithm, or malformed key.
+ */
+export function verifyDnskeyRrsig(params: {
+  rrsig: RrsigData;
+  keys: DnskeyData[];
+  ownerName: string;
+  now: number;
+}): boolean {
+  const { rrsig, keys, ownerName, now } = params;
+  if (rrsig.typeCovered !== 'DNSKEY') return false;
+  if (now < rrsig.inception || now > rrsig.expiration) return false;
+
+  const signer = keys.find(
+    (k) =>
+      k.algorithm === rrsig.algorithm &&
+      computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
+  );
+  if (!signer) return false;
+
+  const publicKey = dnskeyToPublicKey(signer.algorithm, signer.key);
+  if (!publicKey) return false;
+
+  const prefix = rrsigSigningPrefix(rrsig);
+  if (!prefix) return false;
+
+  const rrset = keys
+    .map((k) => dnskeyRdata(k))
+    .sort(Buffer.compare)
+    .map((rdata) => canonicalRr(ownerName, RR_TYPE.DNSKEY, rrsig.originalTTL, rdata));
+
+  const signedData = Buffer.concat([prefix, ...rrset]);
+  return verifySignature(signer.algorithm, signedData, rrsig.signature, publicKey);
+}
+
+/**
+ * Whether the zone's DNSKEY RRset carries a valid, unexpired RRSIG made by a key
+ * the parent DS (or root anchor) authenticates. Only DS-linked keys are trusted
+ * signers: a zone must not vouch for its own key set with a key nothing above it
+ * has authenticated. `keys` is the already-computed metadata (for `.linked`).
+ */
+function dnskeyRrsetSigned(
+  zone: RawZone,
+  keys: DnssecKey[],
+  now: number,
+): boolean {
+  const linkedTags = new Set(keys.filter((k) => k.linked).map((k) => k.keyTag));
+  return (zone.keyRrsigs ?? []).some(
+    (rrsig) =>
+      linkedTags.has(rrsig.keyTag) &&
+      verifyDnskeyRrsig({ rrsig, keys: zone.keys, ownerName: zone.name, now }),
+  );
+}
+
 /**
  * Walk the collected zones top-down and compute a per-zone and overall status.
  * `secure`   : DS (or root anchor) links a key AND every zone above is secure.
@@ -239,12 +466,22 @@ export function dsMatchesKey(
  * `broken`   : parent published a DS but the zone serves no matching key (bogus),
  *              including the case where it serves no DNSKEY at all.
  *
+ * A zone is only `secure` when its keys link to the parent DS by digest AND the
+ * RRSIG over its DNSKEY RRset verifies against a DS-linked key and is currently
+ * valid (not expired) -- a linked-but-unsigned/expired key set is `broken`.
+ *
  * Once the chain of trust ends, its reason propagates down: everything below an
  * unsigned delegation is `insecure` (unauthenticated, not bogus), and everything
  * below a bogus zone stays `broken`. A zone's own DS/DNSKEY state is only
  * consulted while the chain above it is still secure.
+ *
+ * `now` (Unix seconds) is the instant RRSIG validity is judged against; it
+ * defaults to the current time and is injectable for deterministic tests.
  */
-export function buildChain(zones: RawZone[]): DnssecChain {
+export function buildChain(
+  zones: RawZone[],
+  now: number = Math.floor(Date.now() / 1000),
+): DnssecChain {
   const out: DnssecZone[] = [];
   // Trust state carried down the chain: 'secure' while intact, otherwise the
   // reason it ended ('insecure' for an unsigned cut, 'broken' for a bogus zone).
@@ -283,6 +520,7 @@ export function buildChain(zones: RawZone[]): DnssecChain {
     }));
 
     let status: DnssecStatus;
+    let breakReason: DnssecZone['breakReason'];
     if (chain !== 'secure') {
       // The chain of trust already ended above this zone, so its own records are
       // unauthenticated. Propagate the reason: insecure below an unsigned cut,
@@ -296,9 +534,16 @@ export function buildChain(zones: RawZone[]): DnssecChain {
     } else if (keys.length === 0) {
       // Parent vouches for this zone (DS present) but it serves no DNSKEY -> bogus.
       status = 'broken';
+      breakReason = 'no-dnskey';
     } else if (!dsRecords.some((d) => d.matched)) {
       // DS present but authenticates none of the served keys -> bogus.
       status = 'broken';
+      breakReason = 'ds-mismatch';
+    } else if (!dnskeyRrsetSigned(zone, keys, now)) {
+      // Keys link by digest, but the RRSIG over the DNSKEY RRset is missing,
+      // expired, or fails to verify -> the key set isn't validly signed (bogus).
+      status = 'broken';
+      breakReason = 'bad-signature';
     } else {
       status = 'secure';
     }
@@ -309,6 +554,7 @@ export function buildChain(zones: RawZone[]): DnssecChain {
       keys,
       dsRecords,
       status,
+      breakReason,
       signedTypes: zone.signedTypes,
     });
     // The first non-secure zone fixes the descended trust state.
