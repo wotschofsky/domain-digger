@@ -15,6 +15,9 @@ import type {
   DnssecChain,
   DnssecDs,
   DnssecKey,
+  DnssecRrset,
+  DnssecRrsetReason,
+  DnssecRrsetStatus,
   DnssecStatus,
   DnssecZone,
 } from '@/lib/dnssec';
@@ -45,6 +48,28 @@ const STATUS_LABEL: Record<DnssecStatus, string> = {
   broken: 'Broken',
 };
 
+const RRSET_STATUS_LABEL: Record<DnssecRrsetStatus, string> = {
+  secure: 'Secure',
+  unsigned: 'Unsigned',
+  bogus: 'Bogus',
+  unsupported: 'Unsupported',
+  absent: 'Absent',
+  indeterminate: 'Unknown',
+};
+
+const RRSET_REASON_LABEL: Record<DnssecRrsetReason, string> = {
+  validated: 'RRSIG validates',
+  'no-records': 'No positive answer',
+  'missing-rrsig': 'Records exist but no covering RRSIG was served',
+  'unsupported-type': 'Record type is not implemented yet',
+  'unsupported-rdata': 'Record data could not be canonicalized',
+  'unauthenticated-signer': 'RRSIG signer is not DS-authenticated',
+  expired: 'RRSIG is expired',
+  'not-yet-valid': 'RRSIG is not valid yet',
+  'invalid-signature': 'RRSIG does not verify',
+  'lookup-failed': 'Lookup failed while probing this type',
+};
+
 const dateFmt = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
 
 const decodeFlags = (flags: number): string => {
@@ -65,6 +90,12 @@ const zoneHeading = (zone: DnssecZone): string =>
 const shortDigest = (hex: string): string =>
   hex.length > 16 ? `${hex.slice(0, 8)}…${hex.slice(-6)}` : hex;
 
+const visibleRrsets = (zone: DnssecZone): DnssecRrset[] =>
+  (zone.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
+
+const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
+  zone ? visibleRrsets(zone).filter((rrset) => rrset.status !== 'secure') : [];
+
 /** Plain-language, chain-specific verdict for the header. */
 const verdictBody = (chain: DnssecChain): string => {
   const zones = chain.zones;
@@ -73,7 +104,18 @@ const verdictBody = (chain: DnssecChain): string => {
   const leafName = leaf.name === '.' ? 'the root zone' : leaf.name;
 
   if (chain.overall === 'secure') {
-    return `Every link holds from the root trust anchor down to ${leafName}: each zone's key set is DS-linked and its signature verifies and is unexpired, so its DNS answers can be cryptographically authenticated.`;
+    const problems = rrsetProblems(leaf);
+    if (problems.length > 0) {
+      const types = problems.map((rrset) => rrset.type).join(', ');
+      return `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} ${problems.length === 1 ? 'has' : 'have'} positive RRset validation issues.`;
+    }
+    const validated = visibleRrsets(leaf).filter(
+      (rrset) => rrset.status === 'secure',
+    );
+    if (validated.length > 0) {
+      return `Every link holds from the root trust anchor down to ${leafName}, and ${validated.length} existing record ${validated.length === 1 ? 'set has' : 'sets have'} valid, unexpired RRSIGs.`;
+    }
+    return `Every link holds from the root trust anchor down to ${leafName}: each zone's key set is DS-linked and its DNSKEY signature verifies and is unexpired.`;
   }
 
   const idx = breakIndex(chain);
@@ -105,7 +147,9 @@ const verdictBody = (chain: DnssecChain): string => {
 };
 
 /** Edge label + tone for the connector pointing from a parent into `zone`. */
-const edgeState = (zone: DnssecZone): {
+const edgeState = (
+  zone: DnssecZone,
+): {
   label: string;
   line: string;
   text: string;
@@ -113,7 +157,9 @@ const edgeState = (zone: DnssecZone): {
   if (zone.status === 'secure') {
     const ds = zone.dsRecords.find((d) => d.matched);
     return {
-      label: ds ? `DS matches key tag ${ds.keyTag}` : 'Anchored by trust anchor',
+      label: ds
+        ? `DS matches key tag ${ds.keyTag}`
+        : 'Anchored by trust anchor',
       line: 'bg-zinc-300 dark:bg-zinc-600',
       text: 'text-zinc-500 dark:text-zinc-400',
     };
@@ -139,19 +185,23 @@ const edgeState = (zone: DnssecZone): {
 };
 
 const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
+  const leaf = chain.zones.at(-1);
+  const problems = chain.overall === 'secure' ? rrsetProblems(leaf) : [];
   const Icon =
-    chain.overall === 'secure'
-      ? ShieldCheckIcon
-      : chain.overall === 'broken'
-        ? ShieldAlertIcon
-        : ShieldOffIcon;
+    problems.length > 0
+      ? ShieldAlertIcon
+      : chain.overall === 'secure'
+        ? ShieldCheckIcon
+        : chain.overall === 'broken'
+          ? ShieldAlertIcon
+          : ShieldOffIcon;
+  const title =
+    problems.length > 0
+      ? 'Secure chain, RRset issues'
+      : STATUS_LABEL[chain.overall];
 
   return (
-    <IconAlert
-      icon={Icon}
-      title={STATUS_LABEL[chain.overall]}
-      className="max-w-none"
-    >
+    <IconAlert icon={Icon} title={title} className="max-w-none">
       {verdictBody(chain)}
     </IconAlert>
   );
@@ -179,9 +229,7 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
   const chips: ReactNode[] = [];
 
   chips.push(
-    <FactChip key="zones">
-      {chain.zones.length} zones in chain
-    </FactChip>,
+    <FactChip key="zones">{chain.zones.length} zones in chain</FactChip>,
   );
 
   const minBits = chain.zones
@@ -196,7 +244,7 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
     chips.push(
       <FactChip key="bits" tone={weak ? 'warn' : 'muted'}>
         <KeyRoundIcon className="size-3.5" />
-        weakest {minBits}-bit
+        smallest key parameter {minBits}-bit
       </FactChip>,
     );
   }
@@ -239,6 +287,30 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
         {expired
           ? `signatures expired ${dateFmt.format(new Date(leaf.signatureExpiresAt * 1000))}`
           : `signatures valid until ${dateFmt.format(new Date(leaf.signatureExpiresAt * 1000))}`}
+      </FactChip>,
+    );
+  }
+
+  const visibleLeafRrsets = visibleRrsets(leaf ?? ({} as DnssecZone));
+  const secureRrsets = visibleLeafRrsets.filter(
+    (rrset) => rrset.status === 'secure',
+  );
+  if (secureRrsets.length > 0) {
+    chips.push(
+      <FactChip key="rrsets" tone="muted">
+        <CheckIcon className="size-3.5" />
+        {secureRrsets.length} RRsets validated
+      </FactChip>,
+    );
+  }
+
+  const problemRrsets = rrsetProblems(leaf);
+  if (problemRrsets.length > 0) {
+    chips.push(
+      <FactChip key="rrset-problems" tone="warn">
+        <TriangleAlertIcon className="size-3.5" />
+        {problemRrsets.length} RRset{' '}
+        {problemRrsets.length === 1 ? 'issue' : 'issues'}
       </FactChip>,
     );
   }
@@ -293,7 +365,11 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
           : 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
       )}
     >
-      {ds.matched ? <CheckIcon className="size-3" /> : <XIcon className="size-3" />}
+      {ds.matched ? (
+        <CheckIcon className="size-3" />
+      ) : (
+        <XIcon className="size-3" />
+      )}
       {ds.matched ? 'matches' : 'no match'}
     </span>
     <span className="font-mono text-zinc-900 dark:text-zinc-100">
@@ -312,11 +388,60 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
   </li>
 );
 
+const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
+  const isSecure = rrset.status === 'secure';
+  const isBad = rrset.status === 'bogus';
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+      <span
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
+          isSecure &&
+            'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
+          isBad &&
+            'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
+          !isSecure &&
+            !isBad &&
+            'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
+        )}
+      >
+        {isSecure ? (
+          <CheckIcon className="size-3" />
+        ) : (
+          <TriangleAlertIcon className="size-3" />
+        )}
+        {RRSET_STATUS_LABEL[rrset.status]}
+      </span>
+      <span className="font-mono text-zinc-900 dark:text-zinc-100">
+        {rrset.type}
+      </span>
+      <span className="text-zinc-500 dark:text-zinc-400">
+        {rrset.recordCount} record{rrset.recordCount === 1 ? '' : 's'}
+      </span>
+      <span className="text-zinc-500 dark:text-zinc-400">
+        {RRSET_REASON_LABEL[rrset.reason]}
+      </span>
+      {rrset.signerKeyTag !== undefined && (
+        <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+          signer tag {rrset.signerKeyTag}
+        </span>
+      )}
+      {rrset.signatureExpiresAt !== undefined && (
+        <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+          <ClockIcon className="size-3.5" />
+          until {dateFmt.format(new Date(rrset.signatureExpiresAt * 1000))}
+        </span>
+      )}
+    </li>
+  );
+};
+
 const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
   zone,
   isLeaf,
 }) => {
   const signedTypes = zone.signedTypes ?? [];
+  const rrsets = visibleRrsets(zone);
   return (
     <div className="space-y-4">
       <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
@@ -361,7 +486,21 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
         </section>
       </div>
 
-      {isLeaf && signedTypes.length > 0 && (
+      {isLeaf && rrsets.length > 0 && (
+        <section>
+          <h4 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+            <ShieldCheckIcon className="size-3.5" />
+            Positive RRsets
+          </h4>
+          <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
+            {rrsets.map((rrset) => (
+              <RrsetRow key={rrset.type} rrset={rrset} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {isLeaf && rrsets.length === 0 && signedTypes.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-zinc-500 dark:text-zinc-400">
             Signed record types:
@@ -399,20 +538,14 @@ const RailRow: FC<{
           )}
         />
         {!isLast && (
-          <span
-            aria-hidden
-            className={cn(
-              'my-1 w-px flex-1',
-              edge.line,
-            )}
-          />
+          <span aria-hidden className={cn('my-1 w-px flex-1', edge.line)} />
         )}
       </div>
 
       {/* Content column */}
       <div className="min-w-0 flex-1 pb-6">
         {!isRoot && (
-          <div className={cn('mb-1 mt-1 text-xs font-medium', edge.text)}>
+          <div className={cn('mt-1 mb-1 text-xs font-medium', edge.text)}>
             {edge.label}
           </div>
         )}
@@ -466,11 +599,10 @@ export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => (
     <p className="border-t border-zinc-100 pt-5 text-xs leading-relaxed text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
       This check verifies the DS-to-DNSKEY chain of trust from the IANA root
       anchor down to the domain and cryptographically validates the RRSIG over
-      each zone&apos;s DNSKEY key set, including its expiry. It does not re-verify
-      the signature on every individual leaf record set (A, MX, …), nor
-      NSEC/NSEC3 denial-of-existence proofs, so a zone marked secure here has an
-      authenticated, validly-signed key chain but not a full per-record
-      validation.
+      each zone&apos;s DNSKEY key set, including its expiry. For existing leaf
+      records shown above, it also validates positive RRset signatures. It does
+      not validate NSEC/NSEC3 denial-of-existence proofs, so absent names or
+      missing record types are not authenticated here.
     </p>
   </div>
 );

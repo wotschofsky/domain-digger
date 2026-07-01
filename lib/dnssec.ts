@@ -1,6 +1,14 @@
-import { createHash, createPublicKey, verify as cryptoVerify } from 'node:crypto';
+import {
+  createHash,
+  createPublicKey,
+  verify as cryptoVerify,
+} from 'node:crypto';
 
-import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
+import dnsPacket, {
+  type DnskeyData,
+  type DsData,
+  type RrsigData,
+} from 'dns-packet';
 
 // WHAT THIS VERIFIES: the DNSSEC authentication chain, two ways per zone.
 // (1) Digest linkage (RFC 4034 §5.1.4): the parent's DS record actually hashes
@@ -14,11 +22,8 @@ import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 //
 // WHAT IT STILL DOES NOT VERIFY (documented limitations, shown on the page):
 //   - Per-RRset data signatures below the DNSKEY RRset. We confirm each zone's
-//     *keys* are validly signed; we do not re-verify the RRSIG over every
-//     individual leaf RRset (A, MX, ...). The leaf's signed-type list and
-//     earliest data-signature expiry are surfaced for visibility, but a leaf
-//     data RRSIG that expired independently of the (still-valid) DNSKEY RRSIG
-//     is not caught here.
+//     *keys* are validly signed, then separately validate positive leaf RRsets
+//     that exist for common record types. Negative answers are not validated.
 //   - NSEC/NSEC3 denial-of-existence proofs (authenticated negative answers).
 //   - Unsigned *delegations* below the registered domain: a queried name that is
 //     itself a separate, unsigned sub-delegation is shown via its nearest signed
@@ -29,6 +34,42 @@ import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 // Full per-RRset RRSIG + NSEC/NSEC3 validation is left as a future improvement.
 
 export type DnssecStatus = 'secure' | 'insecure' | 'broken';
+
+export type DnssecRrsetStatus =
+  | 'secure'
+  | 'unsigned'
+  | 'bogus'
+  | 'unsupported'
+  | 'absent'
+  | 'indeterminate';
+
+export type DnssecRrsetReason =
+  | 'validated'
+  | 'no-records'
+  | 'missing-rrsig'
+  | 'unsupported-type'
+  | 'unsupported-rdata'
+  | 'unauthenticated-signer'
+  | 'expired'
+  | 'not-yet-valid'
+  | 'invalid-signature'
+  | 'lookup-failed';
+
+export type DnssecRrset = {
+  type: string;
+  status: DnssecRrsetStatus;
+  reason: DnssecRrsetReason;
+  recordCount: number;
+  signerName?: string;
+  signerKeyTag?: number;
+  signatureExpiresAt?: number;
+};
+
+type DnssecAnswerRecord = {
+  name: string;
+  type: string;
+  data: unknown;
+};
 
 export type DnssecKey = {
   keyTag: number;
@@ -72,6 +113,9 @@ export type DnssecZone = {
   // Earliest RRSIG expiry (Unix seconds) across the leaf's signed RRsets.
   // Expiring/expired signatures are the most common real DNSSEC outage.
   signatureExpiresAt?: number;
+  // Positive leaf RRsets that were probed and validated. Absent RRsets are kept
+  // in the model so the UI can distinguish "not present" from "not checked".
+  rrsets?: DnssecRrset[];
 };
 
 export type DnssecChain = {
@@ -130,6 +174,20 @@ const DIGEST_HASH_ALGOS: Record<number, string> = {
   1: 'sha1',
   2: 'sha256',
   4: 'sha384',
+};
+
+const RR_TYPE: Record<string, number> = {
+  A: 1,
+  NS: 2,
+  CNAME: 5,
+  SOA: 6,
+  MX: 15,
+  TXT: 16,
+  AAAA: 28,
+  SRV: 33,
+  NAPTR: 35,
+  DNSKEY: 48,
+  CAA: 257,
 };
 
 // Signing algorithms no longer considered safe: RSAMD5, DSA, RSASHA1 (incl.
@@ -254,10 +312,6 @@ export function dsMatchesKey(
 
 // --- RRSIG signature verification (RFC 4034 §3.1.8.1) -----------------------
 
-// DNS record type numbers we build canonical RRs for. Only DNSKEY is verified
-// today (the key-set signature); kept as a map so the encoding stays general.
-const RR_TYPE: Record<string, number> = { DNSKEY: 48 };
-
 // Digest used by each signing algorithm's RRSIG (EdDSA hashes internally).
 const HASH_BY_ALGORITHM: Record<number, string> = {
   5: 'sha1', // RSASHA1
@@ -272,7 +326,9 @@ const EC_CURVE_NAME: Record<number, string> = { 13: 'P-256', 14: 'P-384' };
 const EC_COORD_BYTES: Record<number, number> = { 13: 32, 14: 48 };
 
 /** Split an RFC 3110 RSA public key into its exponent and modulus. */
-function rsaKeyParts(key: Buffer): { exponent: Buffer; modulus: Buffer } | null {
+function rsaKeyParts(
+  key: Buffer,
+): { exponent: Buffer; modulus: Buffer } | null {
   if (key.length < 1) return null;
   let offset: number;
   let expLen = key[0];
@@ -372,6 +428,104 @@ function canonicalRr(
   return Buffer.concat([wireName(owner), head, rdata]);
 }
 
+const normalizeDomain = (name: string): string =>
+  name.replace(/\.$/, '').toLowerCase();
+
+const normalizeRdata = (type: string, data: unknown): unknown => {
+  switch (type) {
+    case 'NS':
+    case 'CNAME':
+      return typeof data === 'string' ? normalizeDomain(data) : data;
+    case 'MX':
+      return typeof data === 'object' && data !== null && 'exchange' in data
+        ? {
+            ...data,
+            exchange: normalizeDomain(String(data.exchange)),
+          }
+        : data;
+    case 'SOA':
+      return typeof data === 'object' &&
+        data !== null &&
+        'mname' in data &&
+        'rname' in data
+        ? {
+            ...data,
+            mname: normalizeDomain(String(data.mname)),
+            rname: normalizeDomain(String(data.rname)),
+          }
+        : data;
+    case 'SRV':
+      return typeof data === 'object' && data !== null && 'target' in data
+        ? {
+            ...data,
+            target: normalizeDomain(String(data.target)),
+          }
+        : data;
+    case 'NAPTR':
+      return typeof data === 'object' && data !== null && 'replacement' in data
+        ? {
+            ...data,
+            replacement: normalizeDomain(String(data.replacement)),
+          }
+        : data;
+    default:
+      return data;
+  }
+};
+
+type DnsPacketRecordEncoder = {
+  encode: ((data: unknown, buf?: Buffer, offset?: number) => Buffer) & {
+    bytes: number;
+  };
+};
+
+const dnsPacketRecord = (type: string): DnsPacketRecordEncoder =>
+  (
+    dnsPacket as unknown as {
+      record: (recordType: string) => DnsPacketRecordEncoder;
+    }
+  ).record(type);
+
+export function canonicalRdata(type: string, data: unknown): Buffer | null {
+  if (type === 'DNSKEY') {
+    const key = data as Partial<DnskeyData>;
+    if (
+      typeof key.flags !== 'number' ||
+      typeof key.algorithm !== 'number' ||
+      !Buffer.isBuffer(key.key)
+    ) {
+      return null;
+    }
+    return dnskeyRdata(key as DnskeyData);
+  }
+
+  if (RR_TYPE[type] === undefined) return null;
+
+  try {
+    const encoded = dnsPacketRecord(type).encode(normalizeRdata(type, data));
+    return encoded.subarray(2);
+  } catch {
+    return null;
+  }
+}
+
+const labelCount = (name: string): number => {
+  const clean = name.replace(/\.$/, '');
+  return clean ? clean.split('.').length : 0;
+};
+
+const canonicalOwnerForRrsig = (
+  ownerName: string,
+  rrsig: RrsigData,
+): string => {
+  const clean = ownerName.replace(/\.$/, '').toLowerCase();
+  const labels = clean ? clean.split('.') : [];
+  if (rrsig.labels >= labels.length) return clean || '.';
+
+  const suffix = labels.slice(labels.length - rrsig.labels).join('.');
+  return suffix ? `*.${suffix}` : '*';
+};
+
 function verifySignature(
   algorithm: number,
   data: Buffer,
@@ -434,10 +588,173 @@ export function verifyDnskeyRrsig(params: {
   const rrset = keys
     .map((k) => dnskeyRdata(k))
     .sort(Buffer.compare)
-    .map((rdata) => canonicalRr(ownerName, RR_TYPE.DNSKEY, rrsig.originalTTL, rdata));
+    .map((rdata) =>
+      canonicalRr(ownerName, RR_TYPE.DNSKEY, rrsig.originalTTL, rdata),
+    );
 
   const signedData = Buffer.concat([prefix, ...rrset]);
-  return verifySignature(signer.algorithm, signedData, rrsig.signature, publicKey);
+  return verifySignature(
+    signer.algorithm,
+    signedData,
+    rrsig.signature,
+    publicKey,
+  );
+}
+
+export function verifyRrsetRrsig(params: {
+  rrsig: RrsigData;
+  type: string;
+  records: DnssecAnswerRecord[];
+  ownerName: string;
+  signerName: string;
+  keys: DnskeyData[];
+  now: number;
+}): boolean {
+  const { rrsig, type, records, ownerName, signerName, keys, now } = params;
+  if (rrsig.typeCovered !== type) return false;
+  if (normalizeDomain(rrsig.signersName) !== normalizeDomain(signerName)) {
+    return false;
+  }
+  if (now < rrsig.inception || now > rrsig.expiration) return false;
+
+  const rrType = RR_TYPE[type];
+  if (rrType === undefined) return false;
+
+  const signer = keys.find(
+    (k) =>
+      k.algorithm === rrsig.algorithm &&
+      computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
+  );
+  if (!signer) return false;
+
+  const publicKey = dnskeyToPublicKey(signer.algorithm, signer.key);
+  if (!publicKey) return false;
+
+  const prefix = rrsigSigningPrefix(rrsig);
+  if (!prefix) return false;
+
+  const signedOwner = canonicalOwnerForRrsig(ownerName, rrsig);
+  const rrset = records
+    .filter((record) => record.type === type)
+    .map((record) => canonicalRdata(type, record.data))
+    .filter((rdata): rdata is Buffer => rdata !== null)
+    .sort(Buffer.compare)
+    .map((rdata) => canonicalRr(signedOwner, rrType, rrsig.originalTTL, rdata));
+
+  if (
+    rrset.length !== records.filter((record) => record.type === type).length
+  ) {
+    return false;
+  }
+
+  const signedData = Buffer.concat([prefix, ...rrset]);
+  return verifySignature(
+    signer.algorithm,
+    signedData,
+    rrsig.signature,
+    publicKey,
+  );
+}
+
+export function validatePositiveRrset(params: {
+  type: string;
+  ownerName: string;
+  records: DnssecAnswerRecord[];
+  rrsigs: RrsigData[];
+  keys: DnskeyData[];
+  authenticatedKeyTags: Set<number>;
+  signerName: string;
+  now?: number;
+}): DnssecRrset {
+  const {
+    type,
+    ownerName,
+    records,
+    rrsigs,
+    keys,
+    authenticatedKeyTags,
+    signerName,
+    now = Math.floor(Date.now() / 1000),
+  } = params;
+  const typeRecords = records.filter((record) => record.type === type);
+
+  if (typeRecords.length === 0) {
+    return { type, status: 'absent', reason: 'no-records', recordCount: 0 };
+  }
+
+  if (RR_TYPE[type] === undefined) {
+    return {
+      type,
+      status: 'unsupported',
+      reason: 'unsupported-type',
+      recordCount: typeRecords.length,
+    };
+  }
+
+  if (
+    typeRecords.some((record) => canonicalRdata(type, record.data) === null)
+  ) {
+    return {
+      type,
+      status: 'unsupported',
+      reason: 'unsupported-rdata',
+      recordCount: typeRecords.length,
+    };
+  }
+
+  const covering = rrsigs.filter((rrsig) => rrsig.typeCovered === type);
+  if (covering.length === 0) {
+    return {
+      type,
+      status: 'unsigned',
+      reason: 'missing-rrsig',
+      recordCount: typeRecords.length,
+    };
+  }
+
+  let fallbackReason: DnssecRrsetReason = 'invalid-signature';
+  for (const rrsig of covering) {
+    if (!authenticatedKeyTags.has(rrsig.keyTag)) {
+      fallbackReason = 'unauthenticated-signer';
+      continue;
+    }
+    if (now < rrsig.inception) {
+      fallbackReason = 'not-yet-valid';
+      continue;
+    }
+    if (now > rrsig.expiration) {
+      fallbackReason = 'expired';
+      continue;
+    }
+    const verified = verifyRrsetRrsig({
+      rrsig,
+      type,
+      records: typeRecords,
+      ownerName,
+      signerName,
+      keys,
+      now,
+    });
+    if (verified) {
+      return {
+        type,
+        status: 'secure',
+        reason: 'validated',
+        recordCount: typeRecords.length,
+        signerName: rrsig.signersName,
+        signerKeyTag: rrsig.keyTag,
+        signatureExpiresAt: rrsig.expiration,
+      };
+    }
+  }
+
+  return {
+    type,
+    status: 'bogus',
+    reason: fallbackReason,
+    recordCount: typeRecords.length,
+    signatureExpiresAt: Math.min(...covering.map((rrsig) => rrsig.expiration)),
+  };
 }
 
 /**

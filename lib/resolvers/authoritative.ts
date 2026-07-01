@@ -13,7 +13,14 @@ import dnsPacket, {
   type StringAnswer,
 } from 'dns-packet';
 
-import { buildChain, type DnssecChain, type RawZone } from '@/lib/dnssec';
+import {
+  buildChain,
+  type DnssecChain,
+  type DnssecKey,
+  type DnssecRrset,
+  type RawZone,
+  validatePositiveRrset,
+} from '@/lib/dnssec';
 import { getBaseDomain, retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
@@ -528,30 +535,54 @@ export class AuthoritativeResolver extends DnsResolver {
   }
 
   /**
-   * Probe the queried name for which common record types are signed (carry an
-   * RRSIG) and the earliest signature expiry across them. Each type is queried
-   * with the DO bit set; a per-type failure is swallowed because this only
-   * enriches an already-verified chain with the list of protected RRsets and
-   * their freshness -- it can never turn a correct verdict wrong.
+   * Probe the queried name for common positive RRsets and validate each RRset's
+   * covering RRSIG against the already-authenticated DNSKEYs of the signing
+   * zone. Negative answers are only recorded as absent; NSEC/NSEC3 denial
+   * proofs are a separate validation layer.
    */
-  private async probeLeafSignatures(
+  private async probeLeafRrsets(
     name: string,
-  ): Promise<{ types: string[]; expiresAt?: number }> {
+    signerName: string,
+    zoneKeys: DnskeyData[],
+    authenticatedKeys: DnssecKey[],
+  ): Promise<{ rrsets: DnssecRrset[]; expiresAt?: number }> {
+    // Once the DNSKEY RRset has been authenticated by the chain, any key in that
+    // validated key set may sign positive data RRsets. Most zones use a ZSK for
+    // data, while only the KSK is directly DS-linked.
+    const authenticatedKeyTags = new Set(
+      authenticatedKeys.map((key) => key.keyTag),
+    );
+
     const results = await Promise.all(
       AuthoritativeResolver.RRSET_PROBE_TYPES.map((type) =>
         this.fetchRecordsRaw({ domain: name, recordType: type, dnssecOk: true })
-          .then(({ signed, signatureExpiration }) =>
-            signed ? { type, expiration: signatureExpiration } : null,
+          .then(({ answers, coveringRrsigs }) =>
+            validatePositiveRrset({
+              type,
+              ownerName: name,
+              records: answers,
+              rrsigs: coveringRrsigs ?? [],
+              keys: zoneKeys,
+              authenticatedKeyTags,
+              signerName,
+            }),
           )
-          .catch(() => null),
+          .catch(
+            (): DnssecRrset => ({
+              type,
+              status: 'indeterminate',
+              reason: 'lookup-failed',
+              recordCount: 0,
+            }),
+          ),
       ),
     );
-    const found = results.filter((r): r is NonNullable<typeof r> => r !== null);
-    const expiries = found
-      .map((r) => r.expiration)
+
+    const expiries = results
+      .map((r) => r.signatureExpiresAt)
       .filter((e): e is number => typeof e === 'number');
     return {
-      types: found.map((r) => r.type),
+      rrsets: results,
       expiresAt: expiries.length ? Math.min(...expiries) : undefined,
     };
   }
@@ -660,13 +691,24 @@ export class AuthoritativeResolver extends DnsResolver {
 
     const chain = buildChain(rawZones);
 
-    // Enrich the leaf with its signed RRsets (the "what's protected" list shown
-    // on the chain's bottom card). Only meaningful when the chain actually
-    // validates to the leaf, so skip the probe otherwise.
+    // Enrich the leaf with positive RRset validation results (the "what's
+    // protected" list shown on the chain's bottom card). This is only meaningful
+    // when the key chain validates to the signing zone.
     const leaf = chain.zones.at(-1);
-    if (leaf && leaf.status === 'secure') {
-      const { types, expiresAt } = await this.probeLeafSignatures(fqdn);
-      leaf.signedTypes = types;
+    const leafRaw = leaf
+      ? rawZones.find((zone) => zone.name === leaf.name)
+      : null;
+    if (leaf && leafRaw && leaf.status === 'secure') {
+      const { rrsets, expiresAt } = await this.probeLeafRrsets(
+        fqdn,
+        leaf.name,
+        leafRaw.keys,
+        leaf.keys,
+      );
+      leaf.rrsets = rrsets;
+      leaf.signedTypes = rrsets
+        .filter((rrset) => rrset.status === 'secure')
+        .map((rrset) => rrset.type);
       leaf.signatureExpiresAt = expiresAt;
     }
 

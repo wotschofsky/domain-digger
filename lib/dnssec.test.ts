@@ -1,7 +1,7 @@
 import {
+  sign as cryptoSign,
   generateKeyPairSync,
   type KeyObject,
-  sign as cryptoSign,
 } from 'node:crypto';
 
 import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildChain,
+  canonicalRdata,
   computeKeyTag,
   dnskeyRdata,
   dnskeyToPublicKey,
@@ -19,7 +20,9 @@ import {
   keyBits,
   type RawZone,
   ROOT_TRUST_ANCHORS,
+  validatePositiveRrset,
   verifyDnskeyRrsig,
+  verifyRrsetRrsig,
   wireName,
 } from './dnssec';
 
@@ -34,7 +37,11 @@ const u32 = (n: number): Buffer => {
   return b;
 };
 
-const dnskey = (flags: number, algorithm: number, keyB64: string): DnskeyData => ({
+const dnskey = (
+  flags: number,
+  algorithm: number,
+  keyB64: string,
+): DnskeyData => ({
   flags,
   algorithm,
   key: Buffer.from(keyB64, 'base64'),
@@ -120,7 +127,14 @@ const signDnskeyRrset = (
     .map((k) => dnskeyRdata(k))
     .sort(Buffer.compare)
     .map((r) =>
-      Buffer.concat([wireName(name), u16(48), u16(1), u32(3600), u16(r.length), r]),
+      Buffer.concat([
+        wireName(name),
+        u16(48),
+        u16(1),
+        u32(3600),
+        u16(r.length),
+        r,
+      ]),
     );
   const data = Buffer.concat([prefix, ...rrs]);
   const signature =
@@ -138,6 +152,77 @@ const signDnskeyRrset = (
     inception: opts.inception,
     keyTag,
     signersName: name,
+    signature,
+  };
+};
+
+const rrTypeCode = (type: string): number => {
+  switch (type) {
+    case 'A':
+      return 1;
+    case 'DNSKEY':
+      return 48;
+    default:
+      throw new Error(`unsupported test type ${type}`);
+  }
+};
+
+const aRdata = (ip: string): Buffer => Buffer.from(ip.split('.').map(Number));
+
+const canonicalRrForTest = (
+  owner: string,
+  type: string,
+  ttl: number,
+  rdata: Buffer,
+): Buffer =>
+  Buffer.concat([
+    wireName(owner),
+    u16(rrTypeCode(type)),
+    u16(1),
+    u32(ttl),
+    u16(rdata.length),
+    rdata,
+  ]);
+
+const signARecordRrset = (
+  ownerName: string,
+  records: Array<{ name: string; type: 'A'; data: string }>,
+  signerName: string,
+  signer: { priv: KeyObject; dnskey: DnskeyData },
+  opts: { inception: number; expiration: number },
+): RrsigData => {
+  const { priv, dnskey: sk } = signer;
+  const keyTag = computeKeyTag(dnskeyRdata(sk));
+  const labels = ownerName.split('.').filter(Boolean).length;
+  const prefix = Buffer.concat([
+    u16(1),
+    Buffer.from([sk.algorithm, labels]),
+    u32(300),
+    u32(opts.expiration),
+    u32(opts.inception),
+    u16(keyTag),
+    wireName(signerName),
+  ]);
+  const rrset = records
+    .map((record) => aRdata(record.data))
+    .sort(Buffer.compare)
+    .map((rdata) => canonicalRrForTest(ownerName, 'A', 300, rdata));
+  const data = Buffer.concat([prefix, ...rrset]);
+  const signature =
+    sk.algorithm === 15
+      ? cryptoSign(null, data, priv)
+      : sk.algorithm === 13
+        ? cryptoSign('sha256', data, { key: priv, dsaEncoding: 'ieee-p1363' })
+        : cryptoSign('sha256', data, priv);
+  return {
+    typeCovered: 'A',
+    algorithm: sk.algorithm,
+    labels,
+    originalTTL: 300,
+    expiration: opts.expiration,
+    inception: opts.inception,
+    keyTag,
+    signersName: signerName,
     signature,
   };
 };
@@ -487,6 +572,189 @@ describe('verifyDnskeyRrsig (golden vectors)', () => {
         now: ROOT_NOW,
       }),
     ).toBe(false);
+  });
+});
+
+describe('positive RRset validation', () => {
+  const win = { inception: 1000, expiration: 2000 };
+  const now = 1500;
+  const ownerName = 'www.example';
+  const signerName = 'example';
+  const records = [
+    { name: ownerName, type: 'A' as const, data: '192.0.2.2' },
+    { name: ownerName, type: 'A' as const, data: '192.0.2.1' },
+  ];
+
+  it('canonicalizes supported RDATA without the DNS packet length prefix', () => {
+    expect(canonicalRdata('A', '192.0.2.1')?.toString('hex')).toBe('c0000201');
+  });
+
+  it('verifies a positive A RRset RRSIG', () => {
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
+
+    expect(
+      verifyRrsetRrsig({
+        rrsig,
+        type: 'A',
+        records,
+        ownerName,
+        signerName,
+        keys: [signer.dnskey],
+        now,
+      }),
+    ).toBe(true);
+  });
+
+  it('reports a signed positive RRset as secure', () => {
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [signer.dnskey],
+        authenticatedKeyTags: new Set([keyTag]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      type: 'A',
+      status: 'secure',
+      reason: 'validated',
+      recordCount: 2,
+      signerKeyTag: keyTag,
+      signatureExpiresAt: win.expiration,
+    });
+  });
+
+  it('accepts positive RRsets signed by any key in the authenticated DNSKEY set', () => {
+    const ksk = genKey(13);
+    const zsk = genKey(13);
+    const zskRecord: DnskeyData = { ...zsk.dnskey, flags: 256 };
+    const rrsig = signARecordRrset(
+      ownerName,
+      records,
+      signerName,
+      {
+        ...zsk,
+        dnskey: zskRecord,
+      },
+      win,
+    );
+    const zskTag = computeKeyTag(dnskeyRdata(zskRecord));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [ksk.dnskey, zskRecord],
+        authenticatedKeyTags: new Set([
+          computeKeyTag(dnskeyRdata(ksk.dnskey)),
+          zskTag,
+        ]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'secure',
+      signerKeyTag: zskTag,
+    });
+  });
+
+  it('reports existing records without a covering RRSIG as unsigned', () => {
+    const signer = genKey(13);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [],
+        keys: [signer.dnskey],
+        authenticatedKeyTags: new Set([keyTag]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'unsigned',
+      reason: 'missing-rrsig',
+      recordCount: 2,
+    });
+  });
+
+  it('reports tampered positive RRset signatures as bogus', () => {
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
+    rrsig.signature = Buffer.from(rrsig.signature);
+    rrsig.signature[0] ^= 0xff;
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [signer.dnskey],
+        authenticatedKeyTags: new Set([keyTag]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'bogus',
+      reason: 'invalid-signature',
+    });
+  });
+
+  it('rejects a positive RRset signed by an unauthenticated key', () => {
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [signer.dnskey],
+        authenticatedKeyTags: new Set(),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'bogus',
+      reason: 'unauthenticated-signer',
+    });
+  });
+
+  it('reports absent positive RRsets without pretending to prove denial', () => {
+    const signer = genKey(13);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'MX',
+        ownerName,
+        records: [],
+        rrsigs: [],
+        keys: [signer.dnskey],
+        authenticatedKeyTags: new Set([keyTag]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'absent',
+      reason: 'no-records',
+      recordCount: 0,
+    });
   });
 });
 
