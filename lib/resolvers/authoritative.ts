@@ -410,11 +410,6 @@ export class AuthoritativeResolver extends DnsResolver {
     answers: RawAnswer[];
     trace: string[];
     rcode?: string;
-    // Whether an RRSIG covering recordType was present in the answer (only
-    // meaningful when queried with dnssecOk).
-    signed?: boolean;
-    // Earliest expiry (Unix seconds) among the covering RRSIGs, if signed.
-    signatureExpiration?: number;
     // The RRSIG records covering recordType, for cryptographic verification
     // (populated only when queried with dnssecOk).
     coveringRrsigs?: RrsigData[];
@@ -489,22 +484,13 @@ export class AuthoritativeResolver extends DnsResolver {
       // RRSIGs in the answer that cover the queried type mean this RRset is
       // signed. Works uniformly across NSEC, NSEC3, and synthesized ("black
       // lies") zones, where the NSEC type bitmap would be unreliable.
-      const coveringSigs = response.answers.filter(
-        (answer) =>
-          answer.type === 'RRSIG' &&
-          answer.name === domain &&
-          answer.data.typeCovered === recordType,
-      );
-      const signed = coveringSigs.length > 0;
-      const signatureExpiration = signed
-        ? Math.min(
-            ...coveringSigs.map((sig) =>
-              sig.type === 'RRSIG' ? sig.data.expiration : Infinity,
-            ),
-          )
-        : undefined;
-      const coveringRrsigs = coveringSigs
-        .filter((sig) => sig.type === 'RRSIG')
+      const coveringRrsigs = response.answers
+        .filter(
+          (answer): answer is Extract<Answer, { type: 'RRSIG' }> =>
+            answer.type === 'RRSIG' &&
+            answer.name === domain &&
+            answer.data.typeCovered === recordType,
+        )
         .map((sig) => sig.data as RrsigData);
 
       const fullTrace = [
@@ -516,8 +502,6 @@ export class AuthoritativeResolver extends DnsResolver {
         answers: filteredAnswers,
         trace: fullTrace,
         rcode,
-        signed,
-        signatureExpiration,
         coveringRrsigs,
       };
     }
@@ -819,9 +803,6 @@ export class AuthoritativeResolver extends DnsResolver {
         leaf.keys,
       );
       leaf.rrsets = rrsets;
-      leaf.signedTypes = rrsets
-        .filter((rrset) => rrset.status === 'secure')
-        .map((rrset) => rrset.type);
       leaf.signatureExpiresAt = expiresAt;
     }
 

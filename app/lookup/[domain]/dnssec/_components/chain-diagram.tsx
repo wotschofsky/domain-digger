@@ -295,9 +295,11 @@ const edgeState = (
     };
   }
   return {
+    // 'unsupported-algorithm' covers both an unusable DS and an unimportable
+    // DS-linked key, so don't blame the DS specifically.
     label:
       zone.breakReason === 'unsupported-algorithm'
-        ? 'DS uses an unsupported algorithm'
+        ? 'Unsupported algorithm — cannot validate'
         : 'No DS — unsigned delegation',
     line: 'bg-zinc-300 dark:bg-zinc-600',
     text: 'text-zinc-500 dark:text-zinc-400',
@@ -337,10 +339,7 @@ const FactChip: FC<{ children: ReactNode; tone?: 'warn' | 'muted' }> = ({
   <span
     className={cn(
       'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
-      tone === 'warn' &&
-        'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
-      tone === 'muted' &&
-        'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+      toneClasses[tone],
     )}
   >
     {children}
@@ -483,6 +482,12 @@ const ValidationMatrix: FC<{ chain: DnssecChain }> = ({ chain }) => (
   </section>
 );
 
+const WarnBadge: FC<{ children: ReactNode }> = ({ children }) => (
+  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase dark:bg-amber-950/50 dark:text-amber-300">
+    {children}
+  </span>
+);
+
 const KeyRow: FC<{ dnsKey: DnssecKey }> = ({ dnsKey: k }) => {
   const linked = k.isSep && k.linked;
   return (
@@ -511,11 +516,7 @@ const KeyRow: FC<{ dnsKey: DnssecKey }> = ({ dnsKey: k }) => {
           revoked
         </span>
       )}
-      {k.deprecated && (
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase dark:bg-amber-950/50 dark:text-amber-300">
-          deprecated
-        </span>
-      )}
+      {k.deprecated && <WarnBadge>deprecated</WarnBadge>}
     </li>
   );
 };
@@ -545,11 +546,7 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
       <FingerprintIcon className="size-3.5" />
       {shortDigest(ds.digestHex)}
     </span>
-    {ds.weakDigest && (
-      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase dark:bg-amber-950/50 dark:text-amber-300">
-        SHA-1
-      </span>
-    )}
+    {ds.weakDigest && <WarnBadge>SHA-1</WarnBadge>}
   </li>
 );
 
@@ -652,7 +649,6 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
   zone,
   isLeaf,
 }) => {
-  const signedTypes = zone.signedTypes ?? [];
   const rrsets = visibleRrsets(zone);
   return (
     <div className="space-y-4">
@@ -711,22 +707,6 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
           </ul>
         </section>
       )}
-
-      {isLeaf && rrsets.length === 0 && signedTypes.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-zinc-500 dark:text-zinc-400">
-            Signed record types:
-          </span>
-          {signedTypes.map((type) => (
-            <span
-              key={type}
-              className="rounded-md border border-zinc-200 bg-zinc-50 px-2 py-0.5 font-mono text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-            >
-              {type}
-            </span>
-          ))}
-        </div>
-      )}
     </div>
   );
 };
@@ -767,7 +747,10 @@ const RailRow: FC<{
           </span>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
             {isRoot && zone.status === 'secure'
-              ? 'Built-in IANA trust anchor (KSK-2017, key tag 20326).'
+              ? `Built-in IANA trust anchor (key tag ${zone.dsRecords
+                  .filter((d) => d.matched)
+                  .map((d) => d.keyTag)
+                  .join(' & ')}).`
               : zone.status === 'secure'
                 ? 'authenticated'
                 : zone.status === 'broken'

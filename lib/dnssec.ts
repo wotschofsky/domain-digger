@@ -116,9 +116,6 @@ export type DnssecZone = {
     | 'ds-mismatch'
     | 'bad-signature'
     | 'unsupported-algorithm';
-  // Record types served at this zone that carry an RRSIG (signed RRsets).
-  // Only collected for the queried leaf zone; undefined elsewhere.
-  signedTypes?: string[];
   // Earliest RRSIG expiry (Unix seconds) across the leaf's signed RRsets.
   // Expiring/expired signatures are the most common real DNSSEC outage.
   signatureExpiresAt?: number;
@@ -140,7 +137,6 @@ export type RawZone = {
   // RRSIG records covering this zone's DNSKEY RRset (typeCovered === 'DNSKEY').
   // Used to cryptographically verify the key set is validly signed by its KSK.
   keyRrsigs?: RrsigData[];
-  signedTypes?: string[];
 };
 
 // IANA root zone trust anchors: KSK-2017 and its successor KSK-2024, both
@@ -226,14 +222,9 @@ const RSA_ALGORITHMS = new Set([1, 5, 7, 8, 10]);
 
 // Signing algorithms this validator can actually verify (see
 // dnskeyToPublicKey). A DS pointing at anything else must make the zone
-// insecure, not bogus (RFC 4035 §5.2).
-const SUPPORTED_SIGNING_ALGORITHMS = new Set([
-  ...RSA_ALGORITHMS,
-  13,
-  14,
-  15,
-  16,
-]);
+// insecure, not bogus (RFC 4035 §5.2). RSAMD5 (1) is excluded: it uses a
+// different key-tag algorithm (RFC 4034 App. B.1) and has no verify path here.
+const SUPPORTED_SIGNING_ALGORITHMS = new Set([5, 7, 8, 10, 13, 14, 15, 16]);
 
 // Security parameter (in bits) for the fixed-size elliptic-curve / EdDSA
 // algorithms, keyed by DNSSEC algorithm number.
@@ -390,6 +381,7 @@ export function dnskeyToPublicKey(
   algorithm: number,
   key: Buffer,
 ): ReturnType<typeof createPublicKey> | null {
+  if (!SUPPORTED_SIGNING_ALGORITHMS.has(algorithm)) return null;
   try {
     if (RSA_ALGORITHMS.has(algorithm)) {
       const parts = rsaKeyParts(key);
@@ -942,7 +934,6 @@ export function buildChain(
       dsRecords,
       status,
       breakReason,
-      signedTypes: zone.signedTypes,
     });
     // The first non-secure zone fixes the descended trust state.
     if (chain === 'secure') chain = status;

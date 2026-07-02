@@ -142,7 +142,7 @@ live('resolveDnssecChain (live)', () => {
         expect(chain.zones.at(-1)?.status).toBe('insecure'); // unsigned leaf
         expect(chain.zones.some((z) => z.status === 'broken')).toBe(false);
         // No signed RRsets are probed for an unsigned leaf.
-        expect(chain.zones.at(-1)?.signedTypes).toBeUndefined();
+        expect(chain.zones.at(-1)?.rrsets).toBeUndefined();
       },
       TIMEOUT,
     );
@@ -217,9 +217,10 @@ live('resolveDnssecChain (live)', () => {
       const chain = assertChain(await resolve('wsky.dev'));
       const leaf = chain.zones.at(-1);
       expect(leaf?.name).toBe('wsky.dev');
-      expect(leaf?.signedTypes).toEqual(
-        expect.arrayContaining(['SOA', 'A', 'NS']),
-      );
+      const secureTypes = leaf?.rrsets
+        ?.filter((rrset) => rrset.status === 'secure')
+        .map((rrset) => rrset.type);
+      expect(secureTypes).toEqual(expect.arrayContaining(['SOA', 'A', 'NS']));
       expect(leaf?.signatureExpiresAt).toBeGreaterThan(0);
 
       const ksk = leaf?.keys.find((k) => k.isSep);
