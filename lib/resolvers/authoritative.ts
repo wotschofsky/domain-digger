@@ -70,7 +70,19 @@ export class AuthoritativeResolver extends DnsResolver {
     'CNAME',
   ];
 
-  private async getRootServers() {
+  // One fetch+parse of the root hints per resolver instance; the walk calls
+  // getRootServers on every recursion step. A failed attempt is not cached.
+  private rootServersPromise?: Promise<string[]>;
+
+  private getRootServers(): Promise<string[]> {
+    this.rootServersPromise ??= this.fetchRootServers().catch((error) => {
+      this.rootServersPromise = undefined;
+      throw error;
+    });
+    return this.rootServersPromise;
+  }
+
+  private async fetchRootServers() {
     let response: Response;
     try {
       response = await fetch('https://www.internic.net/domain/named.root', {
@@ -353,6 +365,39 @@ export class AuthoritativeResolver extends DnsResolver {
     },
   );
 
+  // Zone cut -> public nameserver IPs learned from referrals during this
+  // instance's walks. Later queries for names under an already-discovered zone
+  // start there instead of re-walking from the root -- the DataLoader can't
+  // dedupe those shared hops because its key includes the final query name.
+  // First writer wins and only suffixes of the queried name are cached, so a
+  // deeper (less-trusted) server can't overwrite entries learned from the
+  // servers above it.
+  private delegationCache = new Map<string, string[]>();
+
+  private cacheDelegation(zoneCut: string, domain: string, ips: string[]) {
+    const zone = zoneCut.toLowerCase();
+    const name = domain.toLowerCase();
+    if (this.delegationCache.has(zone)) return;
+    if (name !== zone && !name.endsWith(`.${zone}`)) return;
+    this.delegationCache.set(zone, ips);
+  }
+
+  private cachedDelegation(
+    domain: string,
+    recordType: RecordType,
+  ): string[] | undefined {
+    const labels = domain.toLowerCase().split('.').filter(Boolean);
+    // DS records live in the parent zone: a child's own servers answer a DS
+    // query for their apex with NODATA, which would falsely read as "no DS".
+    // Skip the exact-name entry and start at the parent.
+    const start = recordType === 'DS' ? 1 : 0;
+    for (let i = start; i < labels.length; i++) {
+      const hit = this.delegationCache.get(labels.slice(i).join('.'));
+      if (hit) return hit;
+    }
+    return undefined;
+  }
+
   private async fetchRecordsRaw({
     domain,
     recordType,
@@ -380,14 +425,13 @@ export class AuthoritativeResolver extends DnsResolver {
       );
     }
 
-    const rootServers = await this.getRootServers();
-
     const candidateNameservers =
       nameservers && nameservers.length
         ? nameservers
         : nameserver
           ? [nameserver]
-          : rootServers.slice(0, 4);
+          : (this.cachedDelegation(domain, recordType) ??
+            (await this.getRootServers()).slice(0, 4));
     let response: Packet | null = null;
     let protocol: DnsResponse['protocol'] = 'udp';
     let truncated = false;
@@ -504,10 +548,13 @@ export class AuthoritativeResolver extends DnsResolver {
           isPublicIp(redirect.data),
       );
       if (aRedirects.length) {
+        const addresses = aRedirects.map((redirect) => redirect.data);
+        const zoneCut = redirects.find((r) => r.type === 'NS')?.name;
+        if (zoneCut) this.cacheDelegation(zoneCut, domain, addresses);
         return this.fetchRecordsRaw({
           domain,
           recordType,
-          nameservers: aRedirects.map((redirect) => redirect.data),
+          nameservers: addresses,
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
@@ -552,6 +599,11 @@ export class AuthoritativeResolver extends DnsResolver {
           throw new Error(`Bad redirects for ${domain}`);
         }
 
+        this.cacheDelegation(
+          nsRedirects[0].name,
+          domain,
+          publicAddresses.slice(0, 4),
+        );
         return this.fetchRecordsRaw({
           domain,
           recordType,
@@ -635,7 +687,11 @@ export class AuthoritativeResolver extends DnsResolver {
       ),
     );
 
+    // Only validated RRsets speak for the domain's signature freshness: a bogus
+    // RRset also carries a (possibly long-past) expiry, and letting it into the
+    // min would flip the domain-wide chip to "expired" on otherwise-valid data.
     const expiries = results
+      .filter((r) => r.status === 'secure')
       .map((r) => r.signatureExpiresAt)
       .filter((e): e is number => typeof e === 'number');
     return {
