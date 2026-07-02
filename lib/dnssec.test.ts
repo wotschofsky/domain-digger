@@ -793,6 +793,65 @@ describe('buildChain signature enforcement', () => {
     expect(chain.zones[0].breakReason).toBe('bad-signature');
   });
 
+  it('rejects a DNSKEY RRSIG whose signer name is not the zone apex', () => {
+    const k = genKey(13);
+    const rrsig = signDnskeyRrset('example', [k.dnskey], k, win);
+    // Crypto-valid signature, but the declared signer is a different zone --
+    // validating resolvers reject this (RFC 4035 §5.3.1).
+    const wrongSigner = { ...rrsig, signersName: 'other' };
+    expect(
+      verifyDnskeyRrsig({
+        rrsig: wrongSigner,
+        keys: [k.dnskey],
+        ownerName: 'example',
+        now,
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects a DNSKEY RRSIG made by a revoked key (RFC 5011)', () => {
+    const k = genKey(13);
+    const revoked: DnskeyData = { ...k.dnskey, flags: k.dnskey.flags | 0x0080 };
+    const rrsig = signDnskeyRrset(
+      'example',
+      [revoked],
+      { ...k, dnskey: revoked },
+      win,
+    );
+    expect(
+      verifyDnskeyRrsig({
+        rrsig,
+        keys: [revoked],
+        ownerName: 'example',
+        now,
+      }),
+    ).toBe(false);
+  });
+
+  it('breaks (not insecure) when a linked key of a supported algorithm is malformed', () => {
+    const k = genKey(13);
+    // Same DS (computed over the served, corrupted key) but the key material
+    // is unimportable: supported algorithm, broken configuration -> bogus,
+    // not an unsupported algorithm.
+    const malformed: DnskeyData = {
+      ...k.dnskey,
+      key: k.dnskey.key.subarray(0, 10),
+    };
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [malformed],
+          dsRecords: [dsForKey('example', malformed)],
+          keyRrsigs: [signDnskeyRrset('example', [malformed], k, win)],
+        },
+      ],
+      now,
+    );
+    expect(chain.zones[0].status).toBe('broken');
+    expect(chain.zones[0].breakReason).toBe('bad-signature');
+  });
+
   it('breaks when the DNSKEY RRSIG signer is not DS-authenticated', () => {
     // Two keys in the RRset; a valid RRSIG by keyA, but the DS authenticates
     // only keyB. A zone must not vouch for its own key set with an un-anchored

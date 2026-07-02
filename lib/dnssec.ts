@@ -589,11 +589,14 @@ function verifySignature(
  * every candidate matching the RRSIG's (algorithm, key tag) pair -- gating on
  * the pair alone would let a colliding key impersonate the real signer, and
  * picking only the first match would falsely reject the second of two
- * legitimately colliding keys.
+ * legitimately colliding keys. Keys carrying the REVOKE bit are excluded:
+ * validators must not accept signatures from a key that revokes itself
+ * (RFC 5011 §2.1).
  */
 const signerCandidates = (keys: DnskeyData[], rrsig: RrsigData): DnskeyData[] =>
   keys.filter(
     (k) =>
+      (k.flags & 0x0080) === 0 &&
       k.algorithm === rrsig.algorithm &&
       computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
   );
@@ -631,6 +634,12 @@ export function verifyDnskeyRrsig(params: {
 }): boolean {
   const { rrsig, keys, ownerName, now, signers } = params;
   if (rrsig.typeCovered !== 'DNSKEY') return false;
+  // The signer of a zone's DNSKEY RRset must be the zone itself (RFC 4035
+  // §5.3.1) -- validating resolvers reject a wrong Signer's Name even when the
+  // signature bytes verify.
+  if (normalizeDomain(rrsig.signersName) !== normalizeDomain(ownerName)) {
+    return false;
+  }
   if (now < rrsig.inception || now > rrsig.expiration) return false;
 
   const candidates = signerCandidates(signers ?? keys, rrsig);
@@ -927,13 +936,15 @@ export function buildChain(
     } else if (!dnskeyRrsetSigned(zone, keys, now)) {
       // Keys link by digest, but the RRSIG over the DNSKEY RRset is missing,
       // expired, or fails to verify -> the key set isn't validly signed (bogus).
-      // Exception: if no DS-linked key can even be imported at runtime (e.g.
-      // ECC-GOST, or Ed448 without platform support), verification never ran --
-      // the zone is unvalidatable, not bogus.
+      // Exception: if no DS-linked key even uses an algorithm this validator
+      // implements (e.g. ECC-GOST), verification never ran -- the zone is
+      // unvalidatable, not bogus. A linked key with a supported algorithm but
+      // malformed key material stays bogus: that is a broken configuration,
+      // not an unsupported one.
       if (
         zone.keys.some(
           (k, i) =>
-            keys[i].linked && dnskeyToPublicKey(k.algorithm, k.key) !== null,
+            keys[i].linked && SUPPORTED_SIGNING_ALGORITHMS.has(k.algorithm),
         )
       ) {
         status = 'broken';
