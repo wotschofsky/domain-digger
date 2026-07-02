@@ -39,6 +39,14 @@ const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   </li>
 );
 
+const TABS = [
+  { label: 'DNS', segment: '(dns)', path: '' },
+  { label: 'DNS Map', segment: 'map', path: '/map' },
+  { label: 'Whois', segment: 'whois', path: '/whois' },
+  { label: 'Certs', segment: 'certs', path: '/certs' },
+  { label: 'Subdomains', segment: 'subdomains', path: '/subdomains' },
+];
+
 type ResultsTabsProps = {
   domain: string;
 };
@@ -47,42 +55,28 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   const router = useRouter();
   const selectedSegment = useSelectedLayoutSegment();
 
-  useHotkeys('alt+1', () => router.push(`/lookup/${domain}`), [router]);
-  useHotkeys('alt+2', () => router.push(`/lookup/${domain}/map`), [router]);
-  useHotkeys('alt+3', () => router.push(`/lookup/${domain}/whois`), [router]);
-  useHotkeys('alt+4', () => router.push(`/lookup/${domain}/certs`), [router]);
-  useHotkeys('alt+5', () => router.push(`/lookup/${domain}/subdomains`), [
-    router,
-  ]);
+  useHotkeys(
+    TABS.map((_, index) => `alt+${index + 1}`).join(','),
+    (_, hotkeysEvent) => {
+      const shortcutNumber = Number(hotkeysEvent.keys?.[0]);
+      const tab = TABS[shortcutNumber - 1];
+
+      if (tab) router.push(`/lookup/${domain}${tab.path}`);
+    },
+    [router, domain],
+  );
 
   return (
     <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
       <ul className="-mb-px flex">
-        <SingleTab
-          label="DNS"
-          href={`/lookup/${domain}`}
-          selected={selectedSegment === '(dns)'}
-        />
-        <SingleTab
-          label="DNS Map"
-          href={`/lookup/${domain}/map`}
-          selected={selectedSegment === 'map'}
-        />
-        <SingleTab
-          label="Whois"
-          href={`/lookup/${domain}/whois`}
-          selected={selectedSegment === 'whois'}
-        />
-        <SingleTab
-          label="Certs"
-          href={`/lookup/${domain}/certs`}
-          selected={selectedSegment === 'certs'}
-        />
-        <SingleTab
-          label="Subdomains"
-          href={`/lookup/${domain}/subdomains`}
-          selected={selectedSegment === 'subdomains'}
-        />
+        {TABS.map((tab) => (
+          <SingleTab
+            key={tab.segment}
+            label={tab.label}
+            href={`/lookup/${domain}${tab.path}`}
+            selected={selectedSegment === tab.segment}
+          />
+        ))}
       </ul>
 
       <ClientOnly>
@@ -92,7 +86,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
               <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-5
             </>
           ) : (
-            'ctrl+1-5'
+            'alt+1-5'
           )}
         </kbd>
       </ClientOnly>
