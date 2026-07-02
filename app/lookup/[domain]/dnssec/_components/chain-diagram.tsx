@@ -71,6 +71,11 @@ const RRSET_REASON_LABEL: Record<DnssecRrsetReason, string> = {
 };
 
 const dateFmt = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
+const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: 'UTC',
+});
 
 const decodeFlags = (flags: number): string => {
   const parts: string[] = [];
@@ -94,7 +99,114 @@ const visibleRrsets = (zone: DnssecZone): DnssecRrset[] =>
   (zone.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
 
 const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
-  zone ? visibleRrsets(zone).filter((rrset) => rrset.status !== 'secure') : [];
+  zone
+    ? visibleRrsets(zone).filter((rrset) =>
+        ['bogus', 'unsigned', 'unsupported'].includes(rrset.status),
+      )
+    : [];
+
+const rrsetUnknowns = (zone: DnssecZone | undefined): DnssecRrset[] =>
+  zone
+    ? visibleRrsets(zone).filter((rrset) => rrset.status === 'indeterminate')
+    : [];
+
+type MatrixTone = 'secure' | 'warn' | 'muted' | 'broken';
+
+type MatrixItem = {
+  label: string;
+  value: string;
+  detail: string;
+  tone: MatrixTone;
+};
+
+const toneClasses: Record<MatrixTone, string> = {
+  secure:
+    'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
+  warn: 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
+  muted: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
+  broken: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
+};
+
+const matrixItems = (chain: DnssecChain): MatrixItem[] => {
+  const leaf = chain.zones.at(-1);
+  const visible = leaf ? visibleRrsets(leaf) : [];
+  const problems = rrsetProblems(leaf);
+  const unknowns = rrsetUnknowns(leaf);
+  const secure = visible.filter((rrset) => rrset.status === 'secure');
+  const keySignatureBroken = chain.zones.some(
+    (zone) => zone.breakReason === 'bad-signature',
+  );
+
+  return [
+    {
+      label: 'Delegation chain',
+      value: STATUS_LABEL[chain.overall],
+      detail:
+        chain.overall === 'secure'
+          ? 'DS links hold from the root trust anchor to the leaf zone.'
+          : chain.overall === 'insecure'
+            ? 'The chain stops at an unsigned delegation.'
+            : 'A parent DS does not authenticate the child zone.',
+      tone:
+        chain.overall === 'secure'
+          ? 'secure'
+          : chain.overall === 'broken'
+            ? 'broken'
+            : 'muted',
+    },
+    {
+      label: 'DNSKEY signatures',
+      value: keySignatureBroken
+        ? 'Broken'
+        : chain.overall === 'secure'
+          ? 'Secure'
+          : 'Not anchored',
+      detail:
+        chain.overall === 'secure'
+          ? 'Every authenticated zone has a valid DNSKEY RRset signature.'
+          : keySignatureBroken
+            ? 'A DNSKEY RRset signature is missing, expired, or invalid.'
+            : 'DNSKEY signatures below an unsigned delegation are not trusted.',
+      tone: keySignatureBroken
+        ? 'broken'
+        : chain.overall === 'secure'
+          ? 'secure'
+          : 'muted',
+    },
+    {
+      label: 'Positive RRsets',
+      value:
+        visible.length === 0
+          ? 'Not checked'
+          : problems.length > 0
+            ? `${problems.length} issue${problems.length === 1 ? '' : 's'}`
+            : unknowns.length > 0
+              ? `${secure.length} secure, ${unknowns.length} unknown`
+              : `${secure.length} secure`,
+      detail:
+        visible.length === 0
+          ? 'No existing leaf record sets were available for positive validation.'
+          : problems.length > 0
+            ? 'One or more existing record sets did not validate cleanly.'
+            : unknowns.length > 0
+              ? 'One or more record-set probes could not complete.'
+              : 'Every existing leaf record set shown below has a valid RRSIG.',
+      tone:
+        visible.length === 0
+          ? 'muted'
+          : problems.length > 0 || unknowns.length > 0
+            ? 'warn'
+            : 'secure',
+    },
+    {
+      label: 'Denial proofs',
+      value: 'Not checked',
+      detail:
+        'NSEC and NSEC3 proofs for absent names or types are not validated yet.',
+      tone: 'muted',
+    },
+  ];
+};
 
 /** Plain-language, chain-specific verdict for the header. */
 const verdictBody = (chain: DnssecChain): string => {
@@ -108,6 +220,11 @@ const verdictBody = (chain: DnssecChain): string => {
     if (problems.length > 0) {
       const types = problems.map((rrset) => rrset.type).join(', ');
       return `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} ${problems.length === 1 ? 'has' : 'have'} positive RRset validation issues.`;
+    }
+    const unknowns = rrsetUnknowns(leaf);
+    if (unknowns.length > 0) {
+      const types = unknowns.map((rrset) => rrset.type).join(', ');
+      return `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} could not be checked.`;
     }
     const validated = visibleRrsets(leaf).filter(
       (rrset) => rrset.status === 'secure',
@@ -187,6 +304,7 @@ const edgeState = (
 const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
   const leaf = chain.zones.at(-1);
   const problems = chain.overall === 'secure' ? rrsetProblems(leaf) : [];
+  const unknowns = chain.overall === 'secure' ? rrsetUnknowns(leaf) : [];
   const Icon =
     problems.length > 0
       ? ShieldAlertIcon
@@ -198,7 +316,9 @@ const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
   const title =
     problems.length > 0
       ? 'Secure chain, RRset issues'
-      : STATUS_LABEL[chain.overall];
+      : unknowns.length > 0
+        ? 'Secure chain, partial RRsets'
+        : STATUS_LABEL[chain.overall];
 
   return (
     <IconAlert icon={Icon} title={title} className="max-w-none">
@@ -315,8 +435,49 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
     );
   }
 
+  const unknownRrsets = rrsetUnknowns(leaf);
+  if (unknownRrsets.length > 0) {
+    chips.push(
+      <FactChip key="rrset-unknowns" tone="warn">
+        <TriangleAlertIcon className="size-3.5" />
+        {unknownRrsets.length} RRset{unknownRrsets.length === 1 ? '' : 's'}{' '}
+        unknown
+      </FactChip>,
+    );
+  }
+
   return <div className="flex flex-wrap gap-2">{chips}</div>;
 };
+
+const ValidationMatrix: FC<{ chain: DnssecChain }> = ({ chain }) => (
+  <section aria-label="Validation coverage">
+    <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+      Validation coverage
+    </h3>
+    <dl className="grid gap-px overflow-hidden rounded-lg border border-zinc-200 bg-zinc-200 sm:grid-cols-2 lg:grid-cols-4 dark:border-zinc-800 dark:bg-zinc-800">
+      {matrixItems(chain).map((item) => (
+        <div key={item.label} className="bg-white p-3 dark:bg-zinc-900">
+          <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            {item.label}
+          </dt>
+          <dd className="mt-2 space-y-2">
+            <span
+              className={cn(
+                'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold',
+                toneClasses[item.tone],
+              )}
+            >
+              {item.value}
+            </span>
+            <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {item.detail}
+            </p>
+          </dd>
+        </div>
+      ))}
+    </dl>
+  </section>
+);
 
 const KeyRow: FC<{ k: DnssecKey }> = ({ k }) => {
   const linked = k.isSep && k.linked;
@@ -392,46 +553,93 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
   const isSecure = rrset.status === 'secure';
   const isBad = rrset.status === 'bogus';
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
-      <span
-        className={cn(
-          'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
-          isSecure &&
-            'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
-          isBad &&
-            'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
-          !isSecure &&
-            !isBad &&
-            'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
-        )}
-      >
-        {isSecure ? (
-          <CheckIcon className="size-3" />
-        ) : (
-          <TriangleAlertIcon className="size-3" />
-        )}
-        {RRSET_STATUS_LABEL[rrset.status]}
-      </span>
-      <span className="font-mono text-zinc-900 dark:text-zinc-100">
-        {rrset.type}
-      </span>
-      <span className="text-zinc-500 dark:text-zinc-400">
-        {rrset.recordCount} record{rrset.recordCount === 1 ? '' : 's'}
-      </span>
-      <span className="text-zinc-500 dark:text-zinc-400">
-        {RRSET_REASON_LABEL[rrset.reason]}
-      </span>
-      {rrset.signerKeyTag !== undefined && (
-        <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-          signer tag {rrset.signerKeyTag}
-        </span>
-      )}
-      {rrset.signatureExpiresAt !== undefined && (
-        <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
-          <ClockIcon className="size-3.5" />
-          until {dateFmt.format(new Date(rrset.signatureExpiresAt * 1000))}
-        </span>
-      )}
+    <li className="py-2 text-sm">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 [&::-webkit-details-marker]:hidden">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
+              isSecure && toneClasses.secure,
+              isBad && toneClasses.broken,
+              !isSecure && !isBad && toneClasses.warn,
+            )}
+          >
+            {isSecure ? (
+              <CheckIcon className="size-3" />
+            ) : (
+              <TriangleAlertIcon className="size-3" />
+            )}
+            {RRSET_STATUS_LABEL[rrset.status]}
+          </span>
+          <span className="font-mono text-zinc-900 dark:text-zinc-100">
+            {rrset.type}
+          </span>
+          <span className="text-zinc-500 dark:text-zinc-400">
+            {rrset.recordCount} record{rrset.recordCount === 1 ? '' : 's'}
+          </span>
+          <span className="text-zinc-500 dark:text-zinc-400">
+            {RRSET_REASON_LABEL[rrset.reason]}
+          </span>
+          {rrset.signerKeyTag !== undefined && (
+            <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+              signer tag {rrset.signerKeyTag}
+            </span>
+          )}
+          {rrset.signatureExpiresAt !== undefined && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+              <ClockIcon className="size-3.5" />
+              until {dateFmt.format(new Date(rrset.signatureExpiresAt * 1000))}
+            </span>
+          )}
+          <span className="text-xs text-zinc-400 group-open:hidden dark:text-zinc-500">
+            Details
+          </span>
+        </summary>
+        <dl className="mt-2 grid gap-x-6 gap-y-2 rounded-md bg-zinc-50 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4 dark:bg-zinc-800/70">
+          <div>
+            <dt className="text-zinc-500 dark:text-zinc-400">Signer</dt>
+            <dd className="mt-0.5 font-mono text-zinc-800 dark:text-zinc-100">
+              {rrset.signerName ?? 'Unavailable'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500 dark:text-zinc-400">Algorithm</dt>
+            <dd className="mt-0.5 text-zinc-800 dark:text-zinc-100">
+              {rrset.signerAlgorithmName ?? 'Unavailable'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500 dark:text-zinc-400">Valid from</dt>
+            <dd className="mt-0.5 text-zinc-800 dark:text-zinc-100">
+              {rrset.signatureInceptionAt
+                ? dateTimeFmt.format(
+                    new Date(rrset.signatureInceptionAt * 1000),
+                  )
+                : 'Unavailable'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500 dark:text-zinc-400">Valid until</dt>
+            <dd className="mt-0.5 text-zinc-800 dark:text-zinc-100">
+              {rrset.signatureExpiresAt
+                ? dateTimeFmt.format(new Date(rrset.signatureExpiresAt * 1000))
+                : 'Unavailable'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500 dark:text-zinc-400">Original TTL</dt>
+            <dd className="mt-0.5 text-zinc-800 dark:text-zinc-100">
+              {rrset.signatureOriginalTtl ?? 'Unavailable'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-zinc-500 dark:text-zinc-400">Reason</dt>
+            <dd className="mt-0.5 text-zinc-800 dark:text-zinc-100">
+              {RRSET_REASON_LABEL[rrset.reason]}
+            </dd>
+          </div>
+        </dl>
+      </details>
     </li>
   );
 };
@@ -578,6 +786,8 @@ export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => (
     <VerdictHeader chain={chain} />
 
     <SummaryChips chain={chain} />
+
+    <ValidationMatrix chain={chain} />
 
     <section aria-label="Authentication chain">
       <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">

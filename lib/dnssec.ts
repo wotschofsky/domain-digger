@@ -31,7 +31,7 @@ import dnsPacket, {
 //     simply covered by its parent zone needs NS zone-cut probing plus an NSEC
 //     proof that no DS exists -- both beyond this check.
 //
-// Full per-RRset RRSIG + NSEC/NSEC3 validation is left as a future improvement.
+// NSEC/NSEC3 proof validation is left as a future improvement.
 
 export type DnssecStatus = 'secure' | 'insecure' | 'broken';
 
@@ -62,7 +62,11 @@ export type DnssecRrset = {
   recordCount: number;
   signerName?: string;
   signerKeyTag?: number;
+  signerAlgorithm?: number;
+  signerAlgorithmName?: string;
+  signatureInceptionAt?: number;
   signatureExpiresAt?: number;
+  signatureOriginalTtl?: number;
 };
 
 type DnssecAnswerRecord = {
@@ -743,17 +747,32 @@ export function validatePositiveRrset(params: {
         recordCount: typeRecords.length,
         signerName: rrsig.signersName,
         signerKeyTag: rrsig.keyTag,
+        signerAlgorithm: rrsig.algorithm,
+        signerAlgorithmName:
+          ALGORITHM_NAMES[rrsig.algorithm] ?? `Algorithm ${rrsig.algorithm}`,
+        signatureInceptionAt: rrsig.inception,
         signatureExpiresAt: rrsig.expiration,
+        signatureOriginalTtl: rrsig.originalTTL,
       };
     }
   }
 
+  const firstCovering = covering[0];
   return {
     type,
     status: 'bogus',
     reason: fallbackReason,
     recordCount: typeRecords.length,
+    signerName: firstCovering?.signersName,
+    signerKeyTag: firstCovering?.keyTag,
+    signerAlgorithm: firstCovering?.algorithm,
+    signerAlgorithmName: firstCovering
+      ? (ALGORITHM_NAMES[firstCovering.algorithm] ??
+        `Algorithm ${firstCovering.algorithm}`)
+      : undefined,
+    signatureInceptionAt: firstCovering?.inception,
     signatureExpiresAt: Math.min(...covering.map((rrsig) => rrsig.expiration)),
+    signatureOriginalTtl: firstCovering?.originalTTL,
   };
 }
 

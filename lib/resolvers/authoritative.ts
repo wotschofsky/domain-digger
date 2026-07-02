@@ -44,6 +44,7 @@ type FetchRecordsParams = {
   domain: string;
   recordType: RecordType;
   nameserver?: string;
+  nameservers?: string[];
   trace?: string[];
   depth?: number;
   // Set the EDNS DNSSEC OK (DO) bit so authoritative servers include RRSIGs.
@@ -334,9 +335,18 @@ export class AuthoritativeResolver extends DnsResolver {
   >(
     async (keys) =>
       Promise.all(
-        keys.map(async ({ domain, type, nameserver, dnssecOk }) =>
-          retry(() => this.sendRequest(domain, type, nameserver, dnssecOk), 3),
-        ),
+        keys.map(async ({ domain, type, nameserver, dnssecOk }) => {
+          try {
+            return await retry(
+              () => this.sendRequest(domain, type, nameserver, dnssecOk),
+              3,
+            );
+          } catch (error) {
+            return error instanceof Error
+              ? error
+              : new Error('DNS request failed');
+          }
+        }),
       ),
     {
       cacheKeyFn: (key) => JSON.stringify(key),
@@ -347,6 +357,7 @@ export class AuthoritativeResolver extends DnsResolver {
     domain,
     recordType,
     nameserver,
+    nameservers,
     trace = [],
     depth = 0,
     dnssecOk = false,
@@ -371,17 +382,50 @@ export class AuthoritativeResolver extends DnsResolver {
 
     const rootServers = await this.getRootServers();
 
-    const usedNameserver = nameserver || rootServers[0]; // TODO Use fallback nameservers
-    const {
-      packet: response,
-      protocol,
-      truncated,
-    } = await this.requestLoader.load({
-      domain,
-      type: recordType,
-      nameserver: usedNameserver,
-      dnssecOk,
-    });
+    const candidateNameservers =
+      nameservers && nameservers.length
+        ? nameservers
+        : nameserver
+          ? [nameserver]
+          : rootServers.slice(0, 4);
+    let response: Packet | null = null;
+    let protocol: DnsResponse['protocol'] = 'udp';
+    let truncated = false;
+    let usedNameserver = candidateNameservers[0];
+    const failedNameservers: string[] = [];
+
+    for (const candidate of candidateNameservers) {
+      try {
+        const result = await this.requestLoader.load({
+          domain,
+          type: recordType,
+          nameserver: candidate,
+          dnssecOk,
+        });
+        response = result.packet;
+        protocol = result.protocol;
+        truncated = result.truncated;
+        usedNameserver = candidate;
+        break;
+      } catch (error) {
+        failedNameservers.push(
+          `${candidate}: ${error instanceof Error ? error.message : 'request failed'}`,
+        );
+      }
+    }
+
+    if (!response) {
+      throw new Error(
+        `All nameservers failed for ${domain} ${recordType}: ${failedNameservers.join('; ')}`,
+      );
+    }
+
+    if (failedNameservers.length) {
+      trace = [
+        ...trace,
+        `${recordType} ${domain} -> skipped failed nameservers: ${failedNameservers.join('; ')}`,
+      ];
+    }
 
     // dns-packet decodes the response code (e.g. 'NXDOMAIN') but @types omits it.
     const rcode = (response as { rcode?: string }).rcode;
@@ -463,7 +507,7 @@ export class AuthoritativeResolver extends DnsResolver {
         return this.fetchRecordsRaw({
           domain,
           recordType,
-          nameserver: aRedirects[0].data,
+          nameservers: aRedirects.map((redirect) => redirect.data),
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
@@ -477,12 +521,25 @@ export class AuthoritativeResolver extends DnsResolver {
         (redirect) => redirect.type === 'NS',
       );
       if (nsRedirects.length) {
-        const { answers: aAnswers, trace: subTrace } =
-          await this.fetchRecordsRaw({
-            domain: nsRedirects[0].data,
-            recordType: 'A',
-            depth: depth + 1,
-          });
+        const aAnswers: RawAnswer[] = [];
+        const subTrace: string[] = [];
+        for (const ns of nsRedirects.slice(0, 4)) {
+          try {
+            const resolved = await this.fetchRecordsRaw({
+              domain: ns.data,
+              recordType: 'A',
+              depth: depth + 1,
+            });
+            aAnswers.push(...resolved.answers);
+            subTrace.push(...resolved.trace);
+          } catch (error) {
+            subTrace.push(
+              `A ${ns.data} -> failed: ${
+                error instanceof Error ? error.message : 'request failed'
+              }`,
+            );
+          }
+        }
 
         // The resolved NS address is attacker-controlled (they own the zone
         // and can set any A record); filter to public IPs before using it.
@@ -498,7 +555,7 @@ export class AuthoritativeResolver extends DnsResolver {
         return this.fetchRecordsRaw({
           domain,
           recordType,
-          nameserver: publicAddresses[0],
+          nameservers: publicAddresses.slice(0, 4),
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
