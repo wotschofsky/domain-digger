@@ -37,6 +37,53 @@ describe('resolveDnssecChain root guard', () => {
   });
 });
 
+// --- Offline delegation-cache tests (run always, no network) --------------
+// The cache lets queries under an already-discovered zone cut skip the
+// root re-walk; its guards (suffix-only writes, first-writer-wins, DS
+// starting at the parent) are what keep it from being a poisoning vector.
+describe('delegation cache', () => {
+  type CacheAccess = {
+    cacheDelegation: (zone: string, domain: string, ips: string[]) => void;
+    cachedDelegation: (
+      domain: string,
+      recordType: string,
+    ) => string[] | undefined;
+  };
+  const make = () => new AuthoritativeResolver() as unknown as CacheAccess;
+
+  it('serves the deepest cached zone cut for a name under it', () => {
+    const r = make();
+    r.cacheDelegation('dev', 'wsky.dev', ['1.1.1.1']);
+    r.cacheDelegation('wsky.dev', 'www.wsky.dev', ['2.2.2.2']);
+    expect(r.cachedDelegation('www.wsky.dev', 'A')).toEqual(['2.2.2.2']);
+    expect(r.cachedDelegation('other.dev', 'A')).toEqual(['1.1.1.1']);
+    expect(r.cachedDelegation('example.com', 'A')).toBeUndefined();
+  });
+
+  it('skips the exact-name entry for DS queries (DS lives in the parent zone)', () => {
+    const r = make();
+    r.cacheDelegation('dev', 'wsky.dev', ['1.1.1.1']);
+    r.cacheDelegation('wsky.dev', 'wsky.dev', ['2.2.2.2']);
+    expect(r.cachedDelegation('wsky.dev', 'DS')).toEqual(['1.1.1.1']);
+    expect(r.cachedDelegation('wsky.dev', 'DNSKEY')).toEqual(['2.2.2.2']);
+    // TLD DS: no cached parent -> falls back to the root servers.
+    expect(r.cachedDelegation('dev', 'DS')).toBeUndefined();
+  });
+
+  it('ignores writes for zones that are not a suffix of the queried name', () => {
+    const r = make();
+    r.cacheDelegation('com', 'wsky.dev', ['6.6.6.6']);
+    expect(r.cachedDelegation('anything.com', 'A')).toBeUndefined();
+  });
+
+  it('keeps the first (higher-trust) entry on repeated writes', () => {
+    const r = make();
+    r.cacheDelegation('dev', 'wsky.dev', ['1.1.1.1']);
+    r.cacheDelegation('dev', 'wsky.dev', ['6.6.6.6']);
+    expect(r.cachedDelegation('wsky.dev', 'A')).toEqual(['1.1.1.1']);
+  });
+});
+
 // --- Live network suite --------------------------------------------------
 // These run the FULL DNSSEC chain walk against real authoritative nameservers
 // over UDP/TCP:53. Gated behind an env flag so the default suite stays hermetic.
@@ -157,7 +204,6 @@ live('resolveDnssecChain (live)', () => {
       const chain = assertChain(await resolve('cloudflare.com'));
       const root = chain.zones[0];
       expect(root.name).toBe('.');
-      expect(root.displayName).toBe('root');
       expect(root.status).toBe('secure');
       expect(root.keys.some((k) => k.keyTag === 20326 && k.linked)).toBe(true);
     },

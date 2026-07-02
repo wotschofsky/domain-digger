@@ -62,7 +62,6 @@ export type DnssecRrset = {
   recordCount: number;
   signerName?: string;
   signerKeyTag?: number;
-  signerAlgorithm?: number;
   signerAlgorithmName?: string;
   signatureInceptionAt?: number;
   signatureExpiresAt?: number;
@@ -100,7 +99,6 @@ export type DnssecDs = {
 
 export type DnssecZone = {
   name: string; // '.', 'dev', 'wsky.dev'
-  displayName: string; // 'root' for '.'
   keys: DnssecKey[];
   dsRecords: DnssecDs[]; // DS published by the parent (or the root trust anchor)
   status: DnssecStatus;
@@ -145,15 +143,27 @@ export type RawZone = {
   signedTypes?: string[];
 };
 
-// IANA root zone trust anchor (KSK-2017, the currently published root KSK).
-// https://www.iana.org/dnssec/files
+// IANA root zone trust anchors: KSK-2017 and its successor KSK-2024, both
+// currently valid (https://data.iana.org/root-anchors/root-anchors.xml).
+// Carrying both means the verdict survives the root KSK rollover -- with only
+// KSK-2017 pinned, the first root DNSKEY RRset signed by KSK-2024 would render
+// every domain "broken".
 export const ROOT_TRUST_ANCHORS: DsData[] = [
   {
-    keyTag: 20326,
+    keyTag: 20326, // KSK-2017
     algorithm: 8, // RSASHA256
     digestType: 2, // SHA-256
     digest: Buffer.from(
       'E06D44B80B8F1D39A95C0B0D7C65D08458E880409BBC683457104237C7F8EC8D',
+      'hex',
+    ),
+  },
+  {
+    keyTag: 38696, // KSK-2024
+    algorithm: 8, // RSASHA256
+    digestType: 2, // SHA-256
+    digest: Buffer.from(
+      '683D2D0ACB8C9B712A1948B27F741219298D0A450D612C483AF444A4C0FB2B16',
       'hex',
     ),
   },
@@ -173,6 +183,9 @@ export const ALGORITHM_NAMES: Record<number, string> = {
   15: 'ED25519',
   16: 'ED448',
 };
+
+const algorithmName = (algorithm: number): string =>
+  ALGORITHM_NAMES[algorithm] ?? `Algorithm ${algorithm}`;
 
 export const DIGEST_NAMES: Record<number, string> = {
   1: 'SHA-1',
@@ -262,19 +275,8 @@ export function keyBits(
   if (key.algorithm in CURVE_BITS) return CURVE_BITS[key.algorithm];
   if (!RSA_ALGORITHMS.has(key.algorithm)) return null;
 
-  const buf = key.key;
-  if (buf.length < 1) return null;
-  let offset: number;
-  let expLen = buf[0];
-  if (expLen === 0) {
-    if (buf.length < 3) return null;
-    expLen = buf.readUInt16BE(1);
-    offset = 3;
-  } else {
-    offset = 1;
-  }
-  const modulusLen = buf.length - offset - expLen;
-  return modulusLen > 0 ? modulusLen * 8 : null;
+  const parts = rsaKeyParts(key.key);
+  return parts ? parts.modulus.length * 8 : null;
 }
 
 /** Canonical wire-format encoding of a domain name (lowercase, length-prefixed). */
@@ -776,9 +778,7 @@ export function validatePositiveRrset(params: {
         recordCount: typeRecords.length,
         signerName: rrsig.signersName,
         signerKeyTag: rrsig.keyTag,
-        signerAlgorithm: rrsig.algorithm,
-        signerAlgorithmName:
-          ALGORITHM_NAMES[rrsig.algorithm] ?? `Algorithm ${rrsig.algorithm}`,
+        signerAlgorithmName: algorithmName(rrsig.algorithm),
         signatureInceptionAt: rrsig.inception,
         signatureExpiresAt: rrsig.expiration,
         signatureOriginalTtl: rrsig.originalTTL,
@@ -794,10 +794,8 @@ export function validatePositiveRrset(params: {
     recordCount: typeRecords.length,
     signerName: firstCovering?.signersName,
     signerKeyTag: firstCovering?.keyTag,
-    signerAlgorithm: firstCovering?.algorithm,
     signerAlgorithmName: firstCovering
-      ? (ALGORITHM_NAMES[firstCovering.algorithm] ??
-        `Algorithm ${firstCovering.algorithm}`)
+      ? algorithmName(firstCovering.algorithm)
       : undefined,
     signatureInceptionAt: firstCovering?.inception,
     signatureExpiresAt: Math.min(...covering.map((rrsig) => rrsig.expiration)),
@@ -861,8 +859,7 @@ export function buildChain(
       return {
         keyTag: computeKeyTag(rdata),
         algorithm: k.algorithm,
-        algorithmName:
-          ALGORITHM_NAMES[k.algorithm] ?? `Algorithm ${k.algorithm}`,
+        algorithmName: algorithmName(k.algorithm),
         flags: k.flags,
         isSep: (k.flags & 0x0001) !== 0,
         isRevoked: (k.flags & 0x0080) !== 0,
@@ -875,8 +872,7 @@ export function buildChain(
     const dsRecords: DnssecDs[] = anchors.map((ds) => ({
       keyTag: ds.keyTag,
       algorithm: ds.algorithm,
-      algorithmName:
-        ALGORITHM_NAMES[ds.algorithm] ?? `Algorithm ${ds.algorithm}`,
+      algorithmName: algorithmName(ds.algorithm),
       digestType: ds.digestType,
       digestName: DIGEST_NAMES[ds.digestType] ?? `Digest ${ds.digestType}`,
       digestHex: ds.digest.toString('hex').toUpperCase(),
@@ -942,7 +938,6 @@ export function buildChain(
 
     out.push({
       name: zone.name,
-      displayName: isRoot ? 'root' : zone.name,
       keys,
       dsRecords,
       status,

@@ -461,7 +461,6 @@ describe('buildChain', () => {
 
   it('flags the root anchor and KSK metadata', () => {
     const chain = buildChain([{ name: '.', keys: [sep], dsRecords: [] }]);
-    expect(chain.zones[0].displayName).toBe('root');
     expect(chain.zones[0].keys[0].isSep).toBe(true);
     expect(chain.zones[0].dsRecords).toHaveLength(ROOT_TRUST_ANCHORS.length);
   });
