@@ -86,7 +86,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
               <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-5
             </>
           ) : (
-            'alt+1-5'
+            'ctrl+1-5'
           )}
         </kbd>
       </ClientOnly>
