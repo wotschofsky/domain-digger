@@ -59,9 +59,11 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   const selectedSegment = useSelectedLayoutSegment();
 
   useHotkeys(
-    TABS.map((_, i) => `alt+${i + 1}`).join(','),
+    TABS.map((_, index) => `alt+${index + 1}`).join(','),
     (_, hotkeysEvent) => {
-      const tab = TABS[Number(hotkeysEvent.keys?.join('')) - 1];
+      const shortcutNumber = Number(hotkeysEvent.keys?.[0]);
+      const tab = TABS[shortcutNumber - 1];
+
       if (tab) router.push(`/lookup/${domain}${tab.path}`);
     },
     [router, domain],

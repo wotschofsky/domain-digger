@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import isIP from 'validator/lib/isIP';
 
+import { useLogger, withEvlog } from '@/lib/evlog';
 import { getIpDetails, lookupReverse } from '@/lib/ips';
-
-export const runtime = 'edge';
 
 export type IpLookupResponse = Pick<
   Awaited<ReturnType<typeof getIpDetails>>,
@@ -12,11 +11,13 @@ export type IpLookupResponse = Pick<
   reverse: string[];
 };
 
-export async function GET(request: Request) {
+export const GET = withEvlog(async (request: Request) => {
+  const log = useLogger();
   const { searchParams } = new URL(request.url);
   const ip = searchParams.get('ip');
 
   if (!ip || !isIP(ip)) {
+    log.set({ status: 400, reason: 'invalid_ip', hasIp: Boolean(ip) });
     return NextResponse.json(
       {
         error: true,
@@ -35,6 +36,13 @@ export async function GET(request: Request) {
     getIpDetails(ip),
     lookupReverse(ip),
   ]);
+
+  log.set({
+    ip,
+    reverseCount: reverse.length,
+    country: data.country,
+    region: data.regionName,
+  });
 
   return NextResponse.json(
     {
@@ -56,4 +64,4 @@ export async function GET(request: Request) {
       },
     },
   );
-}
+});
