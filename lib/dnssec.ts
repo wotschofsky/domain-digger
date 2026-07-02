@@ -295,6 +295,13 @@ export function dnskeyRdata(
 }
 
 /** Key tag computation per RFC 4034 Appendix B (general case). */
+/**
+ * Identity used to gate trusted signers. The 16-bit key tag alone can collide
+ * across algorithms, so trust decisions pair it with the algorithm number.
+ */
+export const signerId = (algorithm: number, keyTag: number): string =>
+  `${algorithm}:${keyTag}`;
+
 export function computeKeyTag(rdata: Buffer): number {
   let ac = 0;
   for (let i = 0; i < rdata.length; i++) {
@@ -536,11 +543,6 @@ export function canonicalRdata(type: string, data: unknown): Buffer | null {
   }
 }
 
-const labelCount = (name: string): number => {
-  const clean = name.replace(/\.$/, '');
-  return clean ? clean.split('.').length : 0;
-};
-
 const canonicalOwnerForRrsig = (
   ownerName: string,
   rrsig: RrsigData,
@@ -582,32 +584,57 @@ function verifySignature(
 }
 
 /**
+ * A 16-bit key tag is a checksum, not an identifier: distinct keys can share a
+ * tag (and an attacker can craft one that does), so signer selection must try
+ * every candidate matching the RRSIG's (algorithm, key tag) pair -- gating on
+ * the pair alone would let a colliding key impersonate the real signer, and
+ * picking only the first match would falsely reject the second of two
+ * legitimately colliding keys.
+ */
+const signerCandidates = (keys: DnskeyData[], rrsig: RrsigData): DnskeyData[] =>
+  keys.filter(
+    (k) =>
+      k.algorithm === rrsig.algorithm &&
+      computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
+  );
+
+const verifiedByAnyCandidate = (
+  candidates: DnskeyData[],
+  rrsig: RrsigData,
+  signedData: Buffer,
+): boolean =>
+  candidates.some((signer) => {
+    const publicKey = dnskeyToPublicKey(signer.algorithm, signer.key);
+    return (
+      publicKey !== null &&
+      verifySignature(signer.algorithm, signedData, rrsig.signature, publicKey)
+    );
+  });
+
+/**
  * Verify an RRSIG over a zone's DNSKEY RRset: the signature must be produced by
- * one of the zone's own keys (matched by tag + algorithm), be within its
- * validity window at `now` (Unix seconds), and cryptographically check out over
- * the canonical DNSKEY RRset (RFC 4034 §6). The RRset is every DNSKEY in `keys`,
- * sorted by canonical RDATA (§6.3). Returns false on any failure -- expired,
- * forged, unsupported algorithm, or malformed key.
+ * one of the trusted `signers` (matched by tag + algorithm; defaults to all of
+ * `keys`), be within its validity window at `now` (Unix seconds), and
+ * cryptographically check out over the canonical DNSKEY RRset (RFC 4034 §6).
+ * The RRset is every DNSKEY in `keys`, sorted by canonical RDATA (§6.3).
+ * Returns false on any failure -- expired, forged, unsupported algorithm, or
+ * malformed key.
  */
 export function verifyDnskeyRrsig(params: {
   rrsig: RrsigData;
   keys: DnskeyData[];
   ownerName: string;
   now: number;
+  // Keys allowed to vouch for the RRset (e.g. only DS-linked ones). The
+  // signature is still computed over the full `keys` RRset.
+  signers?: DnskeyData[];
 }): boolean {
-  const { rrsig, keys, ownerName, now } = params;
+  const { rrsig, keys, ownerName, now, signers } = params;
   if (rrsig.typeCovered !== 'DNSKEY') return false;
   if (now < rrsig.inception || now > rrsig.expiration) return false;
 
-  const signer = keys.find(
-    (k) =>
-      k.algorithm === rrsig.algorithm &&
-      computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
-  );
-  if (!signer) return false;
-
-  const publicKey = dnskeyToPublicKey(signer.algorithm, signer.key);
-  if (!publicKey) return false;
+  const candidates = signerCandidates(signers ?? keys, rrsig);
+  if (!candidates.length) return false;
 
   const prefix = rrsigSigningPrefix(rrsig);
   if (!prefix) return false;
@@ -620,12 +647,7 @@ export function verifyDnskeyRrsig(params: {
     );
 
   const signedData = Buffer.concat([prefix, ...rrset]);
-  return verifySignature(
-    signer.algorithm,
-    signedData,
-    rrsig.signature,
-    publicKey,
-  );
+  return verifiedByAnyCandidate(candidates, rrsig, signedData);
 }
 
 export function verifyRrsetRrsig(params: {
@@ -647,15 +669,8 @@ export function verifyRrsetRrsig(params: {
   const rrType = RR_TYPE[type];
   if (rrType === undefined) return false;
 
-  const signer = keys.find(
-    (k) =>
-      k.algorithm === rrsig.algorithm &&
-      computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
-  );
-  if (!signer) return false;
-
-  const publicKey = dnskeyToPublicKey(signer.algorithm, signer.key);
-  if (!publicKey) return false;
+  const candidates = signerCandidates(keys, rrsig);
+  if (!candidates.length) return false;
 
   const prefix = rrsigSigningPrefix(rrsig);
   if (!prefix) return false;
@@ -675,12 +690,7 @@ export function verifyRrsetRrsig(params: {
   }
 
   const signedData = Buffer.concat([prefix, ...rrset]);
-  return verifySignature(
-    signer.algorithm,
-    signedData,
-    rrsig.signature,
-    publicKey,
-  );
+  return verifiedByAnyCandidate(candidates, rrsig, signedData);
 }
 
 export function validatePositiveRrset(params: {
@@ -689,7 +699,8 @@ export function validatePositiveRrset(params: {
   records: DnssecAnswerRecord[];
   rrsigs: RrsigData[];
   keys: DnskeyData[];
-  authenticatedKeyTags: Set<number>;
+  // signerId()s of the keys in the DS-authenticated DNSKEY RRset.
+  authenticatedKeyIds: Set<string>;
   signerName: string;
   now?: number;
 }): DnssecRrset {
@@ -699,7 +710,7 @@ export function validatePositiveRrset(params: {
     records,
     rrsigs,
     keys,
-    authenticatedKeyTags,
+    authenticatedKeyIds,
     signerName,
     now = Math.floor(Date.now() / 1000),
   } = params;
@@ -741,7 +752,7 @@ export function validatePositiveRrset(params: {
 
   let fallbackReason: DnssecRrsetReason = 'invalid-signature';
   for (const rrsig of covering) {
-    if (!authenticatedKeyTags.has(rrsig.keyTag)) {
+    if (!authenticatedKeyIds.has(signerId(rrsig.algorithm, rrsig.keyTag))) {
       fallbackReason = 'unauthenticated-signer';
       continue;
     }
@@ -806,11 +817,18 @@ function dnskeyRrsetSigned(
   keys: DnssecKey[],
   now: number,
 ): boolean {
-  const linkedTags = new Set(keys.filter((k) => k.linked).map((k) => k.keyTag));
-  return (zone.keyRrsigs ?? []).some(
-    (rrsig) =>
-      linkedTags.has(rrsig.keyTag) &&
-      verifyDnskeyRrsig({ rrsig, keys: zone.keys, ownerName: zone.name, now }),
+  // Restrict signer candidates to the DS-linked keys themselves (by identity,
+  // not by 16-bit tag): a colliding unanchored key must not be able to vouch
+  // for the key set. `keys` is index-aligned with zone.keys.
+  const linkedKeys = zone.keys.filter((_, i) => keys[i].linked);
+  return (zone.keyRrsigs ?? []).some((rrsig) =>
+    verifyDnskeyRrsig({
+      rrsig,
+      keys: zone.keys,
+      ownerName: zone.name,
+      now,
+      signers: linkedKeys,
+    }),
   );
 }
 

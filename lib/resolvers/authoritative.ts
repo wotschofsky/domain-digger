@@ -19,6 +19,7 @@ import {
   type DnssecKey,
   type DnssecRrset,
   type RawZone,
+  signerId,
   validatePositiveRrset,
 } from '@/lib/dnssec';
 import { getBaseDomain, retry } from '@/lib/utils';
@@ -434,19 +435,23 @@ export class AuthoritativeResolver extends DnsResolver {
     const failedNameservers: string[] = [];
 
     for (const candidate of candidateNameservers) {
+      const loaderKey = {
+        domain,
+        type: recordType,
+        nameserver: candidate,
+        dnssecOk,
+      };
       try {
-        const result = await this.requestLoader.load({
-          domain,
-          type: recordType,
-          nameserver: candidate,
-          dnssecOk,
-        });
+        const result = await this.requestLoader.load(loaderKey);
         response = result.packet;
         protocol = result.protocol;
         truncated = result.truncated;
         usedNameserver = candidate;
         break;
       } catch (error) {
+        // DataLoader caches rejections; clear the key so a transient failure
+        // doesn't poison every later identical query in this walk.
+        this.requestLoader.clear(loaderKey);
         failedNameservers.push(
           `${candidate}: ${error instanceof Error ? error.message : 'request failed'}`,
         );
@@ -532,7 +537,11 @@ export class AuthoritativeResolver extends DnsResolver {
           isPublicIp(redirect.data),
       );
       if (aRedirects.length) {
-        const addresses = aRedirects.map((redirect) => redirect.data);
+        // Cap like the sibling NS-resolution/root paths: each candidate costs
+        // up to 3 retries x 3s, and the glue set is attacker-influenced.
+        const addresses = aRedirects
+          .map((redirect) => redirect.data)
+          .slice(0, 4);
         const zoneCut = redirects.find((r) => r.type === 'NS')?.name;
         if (zoneCut) this.cacheDelegation(zoneCut, domain, addresses);
         return this.fetchRecordsRaw({
@@ -642,8 +651,8 @@ export class AuthoritativeResolver extends DnsResolver {
     // Once the DNSKEY RRset has been authenticated by the chain, any key in that
     // validated key set may sign positive data RRsets. Most zones use a ZSK for
     // data, while only the KSK is directly DS-linked.
-    const authenticatedKeyTags = new Set(
-      authenticatedKeys.map((key) => key.keyTag),
+    const authenticatedKeyIds = new Set(
+      authenticatedKeys.map((key) => signerId(key.algorithm, key.keyTag)),
     );
 
     const results = await Promise.all(
@@ -656,7 +665,7 @@ export class AuthoritativeResolver extends DnsResolver {
               records: answers,
               rrsigs: coveringRrsigs ?? [],
               keys: zoneKeys,
-              authenticatedKeyTags,
+              authenticatedKeyIds,
               signerName,
             }),
           )
@@ -701,7 +710,11 @@ export class AuthoritativeResolver extends DnsResolver {
     // cut evaluated instead of being collapsed into its registered domain.
     // Lowercase up front: DNS names are case-insensitive, but the query/answer
     // name comparison and the `name === base` leaf check below are not.
-    const fqdn = domain.replace(/^\*\./, '').replace(/\.$/, '').toLowerCase();
+    // The zone walk strips a wildcard prefix (`*.` is not a zone cut), but the
+    // leaf RRset probe must keep it: the user asked about the wildcard owner,
+    // and its records differ from the parent name's.
+    const probeName = domain.replace(/\.$/, '').toLowerCase();
+    const fqdn = probeName.replace(/^\*\./, '');
     const base = getBaseDomain(fqdn);
     const labels = fqdn.split('.').filter(Boolean);
 
@@ -797,7 +810,7 @@ export class AuthoritativeResolver extends DnsResolver {
       : null;
     if (leaf && leafRaw && leaf.status === 'secure') {
       const { rrsets, expiresAt } = await this.probeLeafRrsets(
-        fqdn,
+        probeName,
         leaf.name,
         leafRaw.keys,
         leaf.keys,

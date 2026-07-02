@@ -263,9 +263,15 @@ const verdictBody = (chain: DnssecChain): string => {
   return `The chain of trust stops at ${parentName}: ${brkName} is an unsigned delegation, so nothing below it (including ${leafName}) can be authenticated.`;
 };
 
-/** Edge label + tone for the connector pointing from a parent into `zone`. */
+/**
+ * Edge label + tone for the connector pointing from a parent into `zone`.
+ * `inherited` marks zones below the first break: their status is propagated,
+ * so the label must not restate the break zone's specific failure as if it
+ * were this zone's own.
+ */
 const edgeState = (
   zone: DnssecZone,
+  inherited = false,
 ): {
   label: string;
   line: string;
@@ -282,8 +288,9 @@ const edgeState = (
     };
   }
   if (zone.status === 'broken') {
-    const label =
-      zone.breakReason === 'no-dnskey'
+    const label = inherited
+      ? 'Below a broken zone — not validated'
+      : zone.breakReason === 'no-dnskey'
         ? 'DS present, no DNSKEY served'
         : zone.breakReason === 'bad-signature'
           ? 'DNSKEY signature expired or invalid'
@@ -297,8 +304,9 @@ const edgeState = (
   return {
     // 'unsupported-algorithm' covers both an unusable DS and an unimportable
     // DS-linked key, so don't blame the DS specifically.
-    label:
-      zone.breakReason === 'unsupported-algorithm'
+    label: inherited
+      ? 'Below an unsigned delegation — not validated'
+      : zone.breakReason === 'unsupported-algorithm'
         ? 'Unsupported algorithm — cannot validate'
         : 'No DS — unsigned delegation',
     line: 'bg-zinc-300 dark:bg-zinc-600',
@@ -663,7 +671,11 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
           {zone.keys.length ? (
             <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
               {zone.keys.map((k) => (
-                <KeyRow key={k.keyTag} dnsKey={k} />
+                // Key tags are 16-bit checksums, not unique IDs.
+                <KeyRow
+                  key={`${k.keyTag}-${k.algorithm}-${k.flags}`}
+                  dnsKey={k}
+                />
               ))}
             </ul>
           ) : (
@@ -714,9 +726,13 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
 const RailRow: FC<{
   zone: DnssecZone;
   isLast: boolean;
-  isLeaf: boolean;
-}> = ({ zone, isLast, isLeaf }) => {
-  const edge = edgeState(zone);
+  inherited: boolean;
+  // Line class of the edge spanning down into the NEXT zone -- coloring this
+  // segment by the child's edge state puts the red/zinc on the actual break
+  // edge instead of one segment too high.
+  connectorLine?: string;
+}> = ({ zone, isLast, inherited, connectorLine }) => {
+  const edge = edgeState(zone, inherited);
   const isRoot = zone.name === '.';
 
   return (
@@ -729,8 +745,8 @@ const RailRow: FC<{
             STATUS_DOT[zone.status],
           )}
         />
-        {!isLast && (
-          <span aria-hidden className={cn('my-1 w-px flex-1', edge.line)} />
+        {connectorLine && (
+          <span aria-hidden className={cn('my-1 w-px flex-1', connectorLine)} />
         )}
       </div>
 
@@ -758,7 +774,7 @@ const RailRow: FC<{
                   : 'unauthenticated'}
           </span>
         </div>
-        <ZoneDetail zone={zone} isLeaf={isLeaf} />
+        <ZoneDetail zone={zone} isLeaf={isLast} />
       </div>
     </div>
   );
@@ -768,38 +784,49 @@ type ChainDiagramProps = {
   chain: DnssecChain;
 };
 
-export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => (
-  <div className="space-y-6">
-    <VerdictHeader chain={chain} />
+export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
+  const firstBreak = breakIndex(chain);
+  const isInherited = (i: number) => firstBreak !== -1 && i > firstBreak;
 
-    <SummaryChips chain={chain} />
+  return (
+    <div className="space-y-6">
+      <VerdictHeader chain={chain} />
 
-    <ValidationMatrix chain={chain} />
+      <SummaryChips chain={chain} />
 
-    <section aria-label="Authentication chain">
-      <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-        Chain of trust · root to {chain.zones.at(-1)?.name ?? 'domain'}
-      </h3>
-      <ol className="m-0 list-none p-0">
-        {chain.zones.map((zone, i) => (
-          <li key={zone.name}>
-            <RailRow
-              zone={zone}
-              isLast={i === chain.zones.length - 1}
-              isLeaf={i === chain.zones.length - 1}
-            />
-          </li>
-        ))}
-      </ol>
-    </section>
+      <ValidationMatrix chain={chain} />
 
-    <p className="border-t border-zinc-100 pt-5 text-xs leading-relaxed text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
-      This check verifies the DS-to-DNSKEY chain of trust from the IANA root
-      anchor down to the domain and cryptographically validates the RRSIG over
-      each zone&apos;s DNSKEY key set, including its expiry. For existing leaf
-      records shown above, it also validates positive RRset signatures. It does
-      not validate NSEC/NSEC3 denial-of-existence proofs, so absent names or
-      missing record types are not authenticated here.
-    </p>
-  </div>
-);
+      <section aria-label="Authentication chain">
+        <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+          Chain of trust · root to {chain.zones.at(-1)?.name ?? 'domain'}
+        </h3>
+        <ol className="m-0 list-none p-0">
+          {chain.zones.map((zone, i) => {
+            const next = chain.zones[i + 1];
+            return (
+              <li key={zone.name}>
+                <RailRow
+                  zone={zone}
+                  isLast={!next}
+                  inherited={isInherited(i)}
+                  connectorLine={
+                    next ? edgeState(next, isInherited(i + 1)).line : undefined
+                  }
+                />
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
+      <p className="border-t border-zinc-100 pt-5 text-xs leading-relaxed text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
+        This check verifies the DS-to-DNSKEY chain of trust from the IANA root
+        anchor down to the domain and cryptographically validates the RRSIG over
+        each zone&apos;s DNSKEY key set, including its expiry. For existing leaf
+        records shown above, it also validates positive RRset signatures. It
+        does not validate NSEC/NSEC3 denial-of-existence proofs, so absent names
+        or missing record types are not authenticated here.
+      </p>
+    </div>
+  );
+};
