@@ -39,6 +39,17 @@ const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   </li>
 );
 
+// Single source of truth for the tab set: hotkeys (alt+index), tab order, and
+// the shortcut hint are all derived from this list.
+const TABS = [
+  { label: 'DNS', segment: '(dns)', path: '' },
+  { label: 'DNS Map', segment: 'map', path: '/map' },
+  { label: 'DNSSEC', segment: 'dnssec', path: '/dnssec' },
+  { label: 'Whois', segment: 'whois', path: '/whois' },
+  { label: 'Certs', segment: 'certs', path: '/certs' },
+  { label: 'Subdomains', segment: 'subdomains', path: '/subdomains' },
+];
+
 type ResultsTabsProps = {
   domain: string;
 };
@@ -47,58 +58,37 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   const router = useRouter();
   const selectedSegment = useSelectedLayoutSegment();
 
-  useHotkeys('alt+1', () => router.push(`/lookup/${domain}`), [router]);
-  useHotkeys('alt+2', () => router.push(`/lookup/${domain}/map`), [router]);
-  useHotkeys('alt+3', () => router.push(`/lookup/${domain}/dnssec`), [router]);
-  useHotkeys('alt+4', () => router.push(`/lookup/${domain}/whois`), [router]);
-  useHotkeys('alt+5', () => router.push(`/lookup/${domain}/certs`), [router]);
-  useHotkeys('alt+6', () => router.push(`/lookup/${domain}/subdomains`), [
-    router,
-  ]);
+  useHotkeys(
+    TABS.map((_, i) => `alt+${i + 1}`).join(','),
+    (_, hotkeysEvent) => {
+      const tab = TABS[Number(hotkeysEvent.keys?.join('')) - 1];
+      if (tab) router.push(`/lookup/${domain}${tab.path}`);
+    },
+    [router, domain],
+  );
 
   return (
     <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
       <ul className="-mb-px flex">
-        <SingleTab
-          label="DNS"
-          href={`/lookup/${domain}`}
-          selected={selectedSegment === '(dns)'}
-        />
-        <SingleTab
-          label="DNS Map"
-          href={`/lookup/${domain}/map`}
-          selected={selectedSegment === 'map'}
-        />
-        <SingleTab
-          label="DNSSEC"
-          href={`/lookup/${domain}/dnssec`}
-          selected={selectedSegment === 'dnssec'}
-        />
-        <SingleTab
-          label="Whois"
-          href={`/lookup/${domain}/whois`}
-          selected={selectedSegment === 'whois'}
-        />
-        <SingleTab
-          label="Certs"
-          href={`/lookup/${domain}/certs`}
-          selected={selectedSegment === 'certs'}
-        />
-        <SingleTab
-          label="Subdomains"
-          href={`/lookup/${domain}/subdomains`}
-          selected={selectedSegment === 'subdomains'}
-        />
+        {TABS.map((tab) => (
+          <SingleTab
+            key={tab.segment}
+            label={tab.label}
+            href={`/lookup/${domain}${tab.path}`}
+            selected={selectedSegment === tab.segment}
+          />
+        ))}
       </ul>
 
       <ClientOnly>
         <kbd className="pointer-events-none absolute top-1/2 right-3 hidden h-5 -translate-y-1/2 items-center gap-1 rounded border border-zinc-200 bg-white px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex dark:border-zinc-700 dark:bg-zinc-800">
           {isAppleDevice() ? (
             <>
-              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-6
+              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-
+              {TABS.length}
             </>
           ) : (
-            'ctrl+1-6'
+            `alt+1-${TABS.length}`
           )}
         </kbd>
       </ClientOnly>
