@@ -104,13 +104,20 @@ export type DnssecZone = {
   keys: DnssecKey[];
   dsRecords: DnssecDs[]; // DS published by the parent (or the root trust anchor)
   status: DnssecStatus;
-  // Why a `broken` zone broke, for a precise verdict message. Undefined unless
-  // status === 'broken'.
+  // Why the chain could not continue at this zone, for a precise verdict
+  // message. Undefined for secure zones and plain unsigned delegations.
   //   'no-dnskey'     : parent published a DS but the zone serves no DNSKEY.
   //   'ds-mismatch'   : the DS authenticates none of the served keys (digest).
   //   'bad-signature' : keys link by digest, but the RRSIG over the DNSKEY RRset
   //                     is missing, expired, or fails to verify (bogus/expired).
-  breakReason?: 'no-dnskey' | 'ds-mismatch' | 'bad-signature';
+  //   'unsupported-algorithm' : this validator supports none of the DS digest /
+  //                     signing algorithms, so the zone is unvalidatable and
+  //                     treated as insecure, not bogus (RFC 4035 §5.2).
+  breakReason?:
+    | 'no-dnskey'
+    | 'ds-mismatch'
+    | 'bad-signature'
+    | 'unsupported-algorithm';
   // Record types served at this zone that carry an RRSIG (signed RRsets).
   // Only collected for the queried leaf zone; undefined elsewhere.
   signedTypes?: string[];
@@ -204,6 +211,17 @@ const WEAK_DIGEST_TYPES = new Set([1, 3]);
 
 const RSA_ALGORITHMS = new Set([1, 5, 7, 8, 10]);
 
+// Signing algorithms this validator can actually verify (see
+// dnskeyToPublicKey). A DS pointing at anything else must make the zone
+// insecure, not bogus (RFC 4035 §5.2).
+const SUPPORTED_SIGNING_ALGORITHMS = new Set([
+  ...RSA_ALGORITHMS,
+  13,
+  14,
+  15,
+  16,
+]);
+
 // Security parameter (in bits) for the fixed-size elliptic-curve / EdDSA
 // algorithms, keyed by DNSSEC algorithm number.
 const CURVE_BITS: Record<number, number> = {
@@ -215,6 +233,17 @@ const CURVE_BITS: Record<number, number> = {
 
 export function isDeprecatedAlgorithm(algorithm: number): boolean {
   return DEPRECATED_ALGORITHMS.has(algorithm);
+}
+
+/**
+ * Whether a key's strength is considered weak. The 2048-bit floor only applies
+ * to RSA moduli -- fixed-size curve algorithms (P-256, Ed25519, ...) are strong
+ * at their nominal size and must not be judged by RSA thresholds.
+ */
+export function isWeakKey(key: Pick<DnssecKey, 'algorithm' | 'bits'>): boolean {
+  return (
+    RSA_ALGORITHMS.has(key.algorithm) && key.bits !== null && key.bits < 2048
+  );
 }
 
 export function isWeakDigest(digestType: number): boolean {
@@ -872,14 +901,41 @@ export function buildChain(
       status = 'broken';
       breakReason = 'no-dnskey';
     } else if (!dsRecords.some((d) => d.matched)) {
-      // DS present but authenticates none of the served keys -> bogus.
-      status = 'broken';
-      breakReason = 'ds-mismatch';
+      // A DS whose digest or signing algorithm this validator doesn't support
+      // must be ignored, not scored as a mismatch: if no usable DS remains, the
+      // zone is unvalidatable -> insecure, not bogus (RFC 4035 §5.2).
+      if (
+        anchors.some(
+          (ds) =>
+            ds.digestType in DIGEST_HASH_ALGOS &&
+            SUPPORTED_SIGNING_ALGORITHMS.has(ds.algorithm),
+        )
+      ) {
+        // DS present but authenticates none of the served keys -> bogus.
+        status = 'broken';
+        breakReason = 'ds-mismatch';
+      } else {
+        status = 'insecure';
+        breakReason = 'unsupported-algorithm';
+      }
     } else if (!dnskeyRrsetSigned(zone, keys, now)) {
       // Keys link by digest, but the RRSIG over the DNSKEY RRset is missing,
       // expired, or fails to verify -> the key set isn't validly signed (bogus).
-      status = 'broken';
-      breakReason = 'bad-signature';
+      // Exception: if no DS-linked key can even be imported at runtime (e.g.
+      // ECC-GOST, or Ed448 without platform support), verification never ran --
+      // the zone is unvalidatable, not bogus.
+      if (
+        zone.keys.some(
+          (k, i) =>
+            keys[i].linked && dnskeyToPublicKey(k.algorithm, k.key) !== null,
+        )
+      ) {
+        status = 'broken';
+        breakReason = 'bad-signature';
+      } else {
+        status = 'insecure';
+        breakReason = 'unsupported-algorithm';
+      }
     } else {
       status = 'secure';
     }

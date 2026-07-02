@@ -11,15 +11,16 @@ import {
 } from 'lucide-react';
 import type { FC, ReactNode } from 'react';
 
-import type {
-  DnssecChain,
-  DnssecDs,
-  DnssecKey,
-  DnssecRrset,
-  DnssecRrsetReason,
-  DnssecRrsetStatus,
-  DnssecStatus,
-  DnssecZone,
+import {
+  type DnssecChain,
+  type DnssecDs,
+  type DnssecKey,
+  type DnssecRrset,
+  type DnssecRrsetReason,
+  type DnssecRrsetStatus,
+  type DnssecStatus,
+  type DnssecZone,
+  isWeakKey,
 } from '@/lib/dnssec';
 import { cn } from '@/lib/utils';
 
@@ -257,6 +258,9 @@ const verdictBody = (chain: DnssecChain): string => {
   }
 
   // insecure
+  if (brk.breakReason === 'unsupported-algorithm') {
+    return `${brkName} is signed with an algorithm this checker can't verify, so validation stops at ${parentName}. Per RFC 4035 the zone is treated as insecure, not bogus.`;
+  }
   if (brk.dsRecords.length === 0 && brk.keys.length === 0) {
     return `No DS record vouches for ${brkName}, so the chain of trust stops at ${parentName}. Its DNS records can't be authenticated — the default state for most domains.`;
   }
@@ -295,7 +299,10 @@ const edgeState = (
     };
   }
   return {
-    label: 'No DS — unsigned delegation',
+    label:
+      zone.breakReason === 'unsupported-algorithm'
+        ? 'DS uses an unsupported algorithm'
+        : 'No DS — unsigned delegation',
     line: 'bg-zinc-300 dark:bg-zinc-600',
     text: 'text-zinc-500 dark:text-zinc-400',
   };
@@ -360,7 +367,8 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
       null,
     );
   if (minBits !== null) {
-    const weak = minBits < 2048;
+    // Weakness is algorithm-relative: 256-bit ECDSA/EdDSA keys are strong.
+    const weak = chain.zones.some((z) => z.keys.some(isWeakKey));
     chips.push(
       <FactChip key="bits" tone={weak ? 'warn' : 'muted'}>
         <KeyRoundIcon className="size-3.5" />
@@ -742,7 +750,7 @@ const RailRow: FC<{
         <span
           className={cn(
             'mt-3.5 size-3 shrink-0 rounded-full ring-4 ring-white dark:ring-zinc-900',
-            isRoot ? 'bg-zinc-900 dark:bg-zinc-100' : STATUS_DOT[zone.status],
+            STATUS_DOT[zone.status],
           )}
         />
         {!isLast && (
@@ -762,7 +770,7 @@ const RailRow: FC<{
             {zoneHeading(zone)}
           </span>
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            {isRoot
+            {isRoot && zone.status === 'secure'
               ? 'Built-in IANA trust anchor (KSK-2017, key tag 20326).'
               : zone.status === 'secure'
                 ? 'authenticated'
