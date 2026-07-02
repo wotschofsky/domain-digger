@@ -52,10 +52,10 @@ export const Footer: FC = () => (
           <div className="flex flex-col gap-1 text-sm underline decoration-dotted underline-offset-4 lg:flex-row lg:gap-4">
             <Link href="/">DNS Lookup</Link>
             <Link href="/map">Global DNS Lookup</Link>
+            <Link href="/dnssec">DNSSEC Lookup</Link>
             <Link href="/whois">WHOIS Lookup</Link>
             <Link href="/certs">Certificate Logs</Link>
             <Link href="/subdomains">Subdomains Finder</Link>
-            <Link href="/dnssec">DNSSEC Lookup</Link>
           </div>
         </div>
 

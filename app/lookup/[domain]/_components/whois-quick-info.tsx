@@ -73,9 +73,10 @@ export const WhoisQuickInfo: FC<WhoisQuickInfoProps> = ({ domain }) => {
         title="Creation Date"
         value={data?.createdAt || 'Unavailable'}
       />
-      {data?.dnssec && (
-        <WhoisQuickInfoTile title="DNSSEC" value={data.dnssec} />
-      )}
+      <WhoisQuickInfoTile
+        title="DNSSEC"
+        value={data?.dnssec || 'Unavailable'}
+      />
     </div>
   );
 };

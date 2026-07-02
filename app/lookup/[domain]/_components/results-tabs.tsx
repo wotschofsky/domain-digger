@@ -39,8 +39,6 @@ const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   </li>
 );
 
-// Single source of truth for the tab set: hotkeys (alt+index), tab order, and
-// the shortcut hint are all derived from this list.
 const TABS = [
   { label: 'DNS', segment: '(dns)', path: '' },
   { label: 'DNS Map', segment: 'map', path: '/map' },
@@ -90,7 +88,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
               {TABS.length}
             </>
           ) : (
-            `alt+1-${TABS.length}`
+            `ctrl+1-${TABS.length}`
           )}
         </kbd>
       </ClientOnly>
