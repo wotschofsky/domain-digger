@@ -96,20 +96,16 @@ const zoneHeading = (zone: DnssecZone): string =>
 const shortDigest = (hex: string): string =>
   hex.length > 16 ? `${hex.slice(0, 8)}…${hex.slice(-6)}` : hex;
 
-const visibleRrsets = (zone: DnssecZone): DnssecRrset[] =>
-  (zone.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
+const visibleRrsets = (zone: DnssecZone | undefined): DnssecRrset[] =>
+  (zone?.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
 
 const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
-  zone
-    ? visibleRrsets(zone).filter((rrset) =>
-        ['bogus', 'unsigned', 'unsupported'].includes(rrset.status),
-      )
-    : [];
+  visibleRrsets(zone).filter((rrset) =>
+    ['bogus', 'unsigned', 'unsupported'].includes(rrset.status),
+  );
 
 const rrsetUnknowns = (zone: DnssecZone | undefined): DnssecRrset[] =>
-  zone
-    ? visibleRrsets(zone).filter((rrset) => rrset.status === 'indeterminate')
-    : [];
+  visibleRrsets(zone).filter((rrset) => rrset.status === 'indeterminate');
 
 type MatrixTone = 'secure' | 'warn' | 'muted' | 'broken';
 
@@ -419,7 +415,7 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
     );
   }
 
-  const visibleLeafRrsets = visibleRrsets(leaf ?? ({} as DnssecZone));
+  const visibleLeafRrsets = visibleRrsets(leaf);
   const secureRrsets = visibleLeafRrsets.filter(
     (rrset) => rrset.status === 'secure',
   );
@@ -487,7 +483,7 @@ const ValidationMatrix: FC<{ chain: DnssecChain }> = ({ chain }) => (
   </section>
 );
 
-const KeyRow: FC<{ k: DnssecKey }> = ({ k }) => {
+const KeyRow: FC<{ dnsKey: DnssecKey }> = ({ dnsKey: k }) => {
   const linked = k.isSep && k.linked;
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
@@ -671,7 +667,7 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
           {zone.keys.length ? (
             <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
               {zone.keys.map((k) => (
-                <KeyRow key={k.keyTag} k={k} />
+                <KeyRow key={k.keyTag} dnsKey={k} />
               ))}
             </ul>
           ) : (
