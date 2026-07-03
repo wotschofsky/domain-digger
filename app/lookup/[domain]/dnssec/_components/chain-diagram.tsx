@@ -195,13 +195,6 @@ const matrixItems = (chain: DnssecChain): MatrixItem[] => {
             ? 'warn'
             : 'secure',
     },
-    {
-      label: 'Denial proofs',
-      value: 'Not checked',
-      detail:
-        'NSEC and NSEC3 proofs for absent names or types are not validated yet.',
-      tone: 'muted',
-    },
   ];
 };
 
@@ -362,14 +355,11 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
     <FactChip key="zones">{chain.zones.length} zones in chain</FactChip>,
   );
 
-  const minBits = chain.zones
+  const allBits = chain.zones
     .flatMap((z) => z.keys.map((k) => k.bits))
-    .filter((b): b is number => b !== null)
-    .reduce<number | null>(
-      (min, b) => (min === null || b < min ? b : min),
-      null,
-    );
-  if (minBits !== null) {
+    .filter((b): b is number => b !== null);
+  if (allBits.length > 0) {
+    const minBits = Math.min(...allBits);
     // Weakness is algorithm-relative: 256-bit ECDSA/EdDSA keys are strong.
     const weak = chain.zones.some((z) => z.keys.some(isWeakKey));
     chips.push(
@@ -418,41 +408,6 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
         {expired
           ? `signatures expired ${dateFmt.format(new Date(leaf.signatureExpiresAt * 1000))}`
           : `signatures valid until ${dateFmt.format(new Date(leaf.signatureExpiresAt * 1000))}`}
-      </FactChip>,
-    );
-  }
-
-  const visibleLeafRrsets = visibleRrsets(leaf);
-  const secureRrsets = visibleLeafRrsets.filter(
-    (rrset) => rrset.status === 'secure',
-  );
-  if (secureRrsets.length > 0) {
-    chips.push(
-      <FactChip key="rrsets" tone="muted">
-        <CheckIcon className="size-3.5" />
-        {secureRrsets.length} RRsets validated
-      </FactChip>,
-    );
-  }
-
-  const problemRrsets = rrsetProblems(leaf);
-  if (problemRrsets.length > 0) {
-    chips.push(
-      <FactChip key="rrset-problems" tone="warn">
-        <TriangleAlertIcon className="size-3.5" />
-        {problemRrsets.length} RRset{' '}
-        {problemRrsets.length === 1 ? 'issue' : 'issues'}
-      </FactChip>,
-    );
-  }
-
-  const unknownRrsets = rrsetUnknowns(leaf);
-  if (unknownRrsets.length > 0) {
-    chips.push(
-      <FactChip key="rrset-unknowns" tone="warn">
-        <TriangleAlertIcon className="size-3.5" />
-        {unknownRrsets.length} RRset{unknownRrsets.length === 1 ? '' : 's'}{' '}
-        unknown
       </FactChip>,
     );
   }

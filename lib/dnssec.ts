@@ -9,6 +9,7 @@ import dnsPacket, {
   type DsData,
   type RrsigData,
 } from 'dns-packet';
+import { toType } from 'dns-packet/types';
 
 // WHAT THIS VERIFIES: the DNSSEC authentication chain, two ways per zone.
 // (1) Digest linkage (RFC 4034 §5.1.4): the parent's DS record actually hashes
@@ -165,7 +166,7 @@ export const ROOT_TRUST_ANCHORS: DsData[] = [
   },
 ];
 
-export const ALGORITHM_NAMES: Record<number, string> = {
+const ALGORITHM_NAMES: Record<number, string> = {
   1: 'RSAMD5',
   3: 'DSA',
   5: 'RSASHA1',
@@ -183,7 +184,7 @@ export const ALGORITHM_NAMES: Record<number, string> = {
 const algorithmName = (algorithm: number): string =>
   ALGORITHM_NAMES[algorithm] ?? `Algorithm ${algorithm}`;
 
-export const DIGEST_NAMES: Record<number, string> = {
+const DIGEST_NAMES: Record<number, string> = {
   1: 'SHA-1',
   2: 'SHA-256',
   3: 'GOST R 34.11-94',
@@ -194,20 +195,6 @@ const DIGEST_HASH_ALGOS: Record<number, string> = {
   1: 'sha1',
   2: 'sha256',
   4: 'sha384',
-};
-
-const RR_TYPE: Record<string, number> = {
-  A: 1,
-  NS: 2,
-  CNAME: 5,
-  SOA: 6,
-  MX: 15,
-  TXT: 16,
-  AAAA: 28,
-  SRV: 33,
-  NAPTR: 35,
-  DNSKEY: 48,
-  CAA: 257,
 };
 
 // Signing algorithms no longer considered safe: RSAMD5, DSA, RSASHA1 (incl.
@@ -433,8 +420,9 @@ export function dnskeyToPublicKey(
 
 /** RRSIG RDATA up to (but excluding) the signature, per RFC 4034 §3.1.8.1. */
 function rrsigSigningPrefix(rrsig: RrsigData): Buffer | null {
-  const typeCovered = RR_TYPE[rrsig.typeCovered];
-  if (typeCovered === undefined) return null;
+  // dns-packet's toType returns 0 for names it doesn't know.
+  const typeCovered = toType(rrsig.typeCovered);
+  if (!typeCovered) return null;
   const head = Buffer.alloc(18);
   head.writeUInt16BE(typeCovered, 0);
   head.writeUInt8(rrsig.algorithm, 2);
@@ -507,18 +495,12 @@ const normalizeRdata = (type: string, data: unknown): unknown => {
   }
 };
 
-type DnsPacketRecordEncoder = {
-  encode: ((data: unknown, buf?: Buffer, offset?: number) => Buffer) & {
-    bytes: number;
-  };
-};
-
-const dnsPacketRecord = (type: string): DnsPacketRecordEncoder =>
-  (
-    dnsPacket as unknown as {
-      record: (recordType: string) => DnsPacketRecordEncoder;
-    }
-  ).record(type);
+// @types/dns-packet omits the record() rdata codec.
+const dnsPacketRecord = (
+  dnsPacket as unknown as {
+    record: (type: string) => { encode: (data: unknown) => Buffer };
+  }
+).record;
 
 export function canonicalRdata(type: string, data: unknown): Buffer | null {
   if (type === 'DNSKEY') {
@@ -533,7 +515,7 @@ export function canonicalRdata(type: string, data: unknown): Buffer | null {
     return dnskeyRdata(key as DnskeyData);
   }
 
-  if (RR_TYPE[type] === undefined) return null;
+  if (!toType(type)) return null;
 
   try {
     const encoded = dnsPacketRecord(type).encode(normalizeRdata(type, data));
@@ -652,7 +634,7 @@ export function verifyDnskeyRrsig(params: {
     .map((k) => dnskeyRdata(k))
     .sort(Buffer.compare)
     .map((rdata) =>
-      canonicalRr(ownerName, RR_TYPE.DNSKEY, rrsig.originalTTL, rdata),
+      canonicalRr(ownerName, toType('DNSKEY'), rrsig.originalTTL, rdata),
     );
 
   const signedData = Buffer.concat([prefix, ...rrset]);
@@ -675,8 +657,8 @@ export function verifyRrsetRrsig(params: {
   }
   if (now < rrsig.inception || now > rrsig.expiration) return false;
 
-  const rrType = RR_TYPE[type];
-  if (rrType === undefined) return false;
+  const rrType = toType(type);
+  if (!rrType) return false;
 
   const candidates = signerCandidates(keys, rrsig);
   if (!candidates.length) return false;
@@ -729,7 +711,7 @@ export function validatePositiveRrset(params: {
     return { type, status: 'absent', reason: 'no-records', recordCount: 0 };
   }
 
-  if (RR_TYPE[type] === undefined) {
+  if (!toType(type)) {
     return {
       type,
       status: 'unsupported',

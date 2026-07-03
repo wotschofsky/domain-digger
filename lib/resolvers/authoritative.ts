@@ -35,6 +35,19 @@ import { isPublicIp } from './ip-filter';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
+// EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
+// returns RRSIG records alongside the answer.
+const DNSSEC_OPT_RECORD = {
+  type: 'OPT' as const,
+  name: '.',
+  udpPayloadSize: 4096,
+  extendedRcode: 0,
+  ednsVersion: 0,
+  flags: dnsPacket.DNSSEC_OK,
+  flag_do: true,
+  options: [],
+};
+
 type DnsResponse = {
   packet: Packet;
   protocol: 'udp' | 'tcp';
@@ -186,21 +199,6 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
-  // EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
-  // returns RRSIG records alongside the answer.
-  private static dnssecOptRecord() {
-    return {
-      type: 'OPT' as const,
-      name: '.',
-      udpPayloadSize: 4096,
-      extendedRcode: 0,
-      ednsVersion: 0,
-      flags: dnsPacket.DNSSEC_OK,
-      flag_do: true,
-      options: [],
-    };
-  }
-
   private async sendUdpRequest(
     domain: string,
     recordType: RecordType,
@@ -212,9 +210,7 @@ export class AuthoritativeResolver extends DnsResolver {
       // Randomize ID to avoid response mismatch
       id: Math.floor(Math.random() * 65535),
       questions: [{ type: recordType, name: domain } as Question],
-      ...(dnssecOk && {
-        additionals: [AuthoritativeResolver.dnssecOptRecord()],
-      }),
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<DecodedPacket>((resolve, reject) => {
@@ -260,9 +256,7 @@ export class AuthoritativeResolver extends DnsResolver {
       type: 'query',
       id: Math.floor(Math.random() * 65535),
       questions: [{ type: recordType, name: domain } as Question],
-      ...(dnssecOk && {
-        additionals: [AuthoritativeResolver.dnssecOptRecord()],
-      }),
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<Packet>((resolve, reject) => {
