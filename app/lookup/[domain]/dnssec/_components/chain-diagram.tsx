@@ -34,7 +34,7 @@ import { IconAlert } from '../../_components/icon-alert';
 // last including an expired or invalid DNSKEY signature) so the break point is
 // visible at a glance. Every zone's keys and DS records are
 // shown inline -- no disclosure, no tooltips -- because the crypto evidence is
-// the whole point. See lib/dnssec.ts for what the verdict does and doesn't
+// the whole point. See lib/dnssec for what the verdict does and doesn't
 // cover.
 
 const STATUS_DOT: Record<DnssecStatus, string> = {

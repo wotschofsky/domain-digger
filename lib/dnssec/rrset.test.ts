@@ -1,0 +1,168 @@
+import type { DnskeyData } from 'dns-packet';
+import { describe, expect, it } from 'vitest';
+
+import { signerId, validatePositiveRrset } from './rrset';
+import { genKey, signARecordRrset } from './test-helpers';
+import { computeKeyTag, dnskeyRdata } from './wire';
+
+describe('positive RRset validation', () => {
+  const win = { inception: 1000, expiration: 2000 };
+  const now = 1500;
+  const ownerName = 'www.example';
+  const signerName = 'example';
+  const records = [
+    { name: ownerName, type: 'A' as const, data: '192.0.2.2' },
+    { name: ownerName, type: 'A' as const, data: '192.0.2.1' },
+  ];
+
+  it('reports a signed positive RRset as secure', () => {
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      type: 'A',
+      status: 'secure',
+      reason: 'validated',
+      recordCount: 2,
+      signerKeyTag: keyTag,
+      signatureExpiresAt: win.expiration,
+    });
+  });
+
+  it('accepts positive RRsets signed by any key in the authenticated DNSKEY set', () => {
+    const ksk = genKey(13);
+    const zsk = genKey(13);
+    const zskRecord: DnskeyData = { ...zsk.dnskey, flags: 256 };
+    const rrsig = signARecordRrset(
+      ownerName,
+      records,
+      signerName,
+      {
+        ...zsk,
+        dnskey: zskRecord,
+      },
+      win,
+    );
+    const zskTag = computeKeyTag(dnskeyRdata(zskRecord));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [ksk.dnskey, zskRecord],
+        authenticatedKeyIds: new Set([
+          signerId(13, computeKeyTag(dnskeyRdata(ksk.dnskey))),
+          signerId(13, zskTag),
+        ]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'secure',
+      signerKeyTag: zskTag,
+    });
+  });
+
+  it('reports existing records without a covering RRSIG as unsigned', () => {
+    const signer = genKey(13);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'unsigned',
+      reason: 'missing-rrsig',
+      recordCount: 2,
+    });
+  });
+
+  it('reports tampered positive RRset signatures as bogus', () => {
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
+    rrsig.signature = Buffer.from(rrsig.signature);
+    rrsig.signature[0] ^= 0xff;
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'bogus',
+      reason: 'invalid-signature',
+    });
+  });
+
+  it('rejects a positive RRset signed by an unauthenticated key', () => {
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set<string>(),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'bogus',
+      reason: 'unauthenticated-signer',
+    });
+  });
+
+  it('reports absent positive RRsets without pretending to prove denial', () => {
+    const signer = genKey(13);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+
+    expect(
+      validatePositiveRrset({
+        type: 'MX',
+        ownerName,
+        records: [],
+        rrsigs: [],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'absent',
+      reason: 'no-records',
+      recordCount: 0,
+    });
+  });
+});

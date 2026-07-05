@@ -691,7 +691,7 @@ export class AuthoritativeResolver extends DnsResolver {
    * Resolve the DNSSEC authentication chain from the root down to the domain's
    * registered (base) zone. For each zone we fetch its DNSKEYs and the DS the
    * parent publishes for it, then hand the raw records to buildChain() for
-   * digest-linkage verification. See lib/dnssec.ts for what is (and isn't)
+   * digest-linkage verification. See lib/dnssec for what is (and isn't)
    * verified. The resolver selector is intentionally bypassed: only an
    * authoritative walk can expose per-zone DNSKEY/DS records.
    *
@@ -729,7 +729,7 @@ export class AuthoritativeResolver extends DnsResolver {
       const [keyResult, dsResult] = await Promise.all([
         // DO bit set so the DNSKEY RRset's covering RRSIGs come back -- we
         // cryptographically verify the key set is validly signed, not just
-        // digest-linked. See lib/dnssec.ts.
+        // digest-linked. See lib/dnssec.
         this.fetchRecordsRaw({
           domain: name,
           recordType: 'DNSKEY',
@@ -767,7 +767,7 @@ export class AuthoritativeResolver extends DnsResolver {
       // (publishes DNSKEY/DS). Plain subdomains of a signed zone carry no keys
       // of their own and are dropped -- they are covered by that zone. (An
       // unsigned sub-delegation is also dropped here; see the limitation note
-      // in lib/dnssec.ts.)
+      // in lib/dnssec.)
       if (isRoot || name === base || keys.length || dsRecords.length) {
         rawZones.push({
           name,
