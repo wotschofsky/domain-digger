@@ -5,24 +5,14 @@ import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
   type DecodedPacket,
-  type DnskeyData,
-  type DsData,
   type Packet,
   type Question,
   type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
 
-import {
-  buildChain,
-  type DnssecChain,
-  type DnssecKey,
-  type DnssecRrset,
-  type RawZone,
-  signerId,
-  validatePositiveRrset,
-} from '@/lib/dnssec';
-import { getBaseDomain, retry } from '@/lib/utils';
+import { type DnssecChain, resolveDnssecChain } from '@/lib/dnssec';
+import { retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
 import {
@@ -68,21 +58,6 @@ type FetchRecordsParams = {
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
-
-  // Common record types probed at the queried leaf to list its signed RRsets.
-  // Infra types (DNSKEY/DS/RRSIG) and reverse-only PTR are intentionally left out.
-  private static readonly RRSET_PROBE_TYPES: RecordType[] = [
-    'SOA',
-    'A',
-    'AAAA',
-    'NS',
-    'MX',
-    'TXT',
-    'CAA',
-    'SRV',
-    'NAPTR',
-    'CNAME',
-  ];
 
   // One fetch+parse of the root hints per resolver instance; the walk calls
   // getRootServers on every recursion step. A failed attempt is not cached.
@@ -465,8 +440,7 @@ export class AuthoritativeResolver extends DnsResolver {
       ];
     }
 
-    // dns-packet decodes the response code (e.g. 'NXDOMAIN') but @types omits it.
-    const rcode = (response as { rcode?: string }).rcode;
+    const rcode = response.rcode;
 
     if (truncated) {
       trace = [
@@ -631,188 +605,13 @@ export class AuthoritativeResolver extends DnsResolver {
   }
 
   /**
-   * Probe the queried name for common positive RRsets and validate each RRset's
-   * covering RRSIG against the already-authenticated DNSKEYs of the signing
-   * zone. Negative answers are only recorded as absent; NSEC/NSEC3 denial
-   * proofs are a separate validation layer.
+   * The DNSSEC tab always walks authoritatively (bypassing the resolver
+   * selector): this instance supplies the transport, lib/dnssec/resolve.ts
+   * owns the walk. See lib/dnssec for what is (and isn't) verified.
    */
-  private async probeLeafRrsets(
-    name: string,
-    signerName: string,
-    zoneKeys: DnskeyData[],
-    authenticatedKeys: DnssecKey[],
-  ): Promise<{ rrsets: DnssecRrset[]; expiresAt?: number }> {
-    // Once the DNSKEY RRset has been authenticated by the chain, any key in that
-    // validated key set may sign positive data RRsets. Most zones use a ZSK for
-    // data, while only the KSK is directly DS-linked.
-    const authenticatedKeyIds = new Set(
-      authenticatedKeys.map((key) => signerId(key.algorithm, key.keyTag)),
+  public resolveDnssecChain(domain: string): Promise<DnssecChain | null> {
+    return resolveDnssecChain(domain, (name, type, dnssecOk) =>
+      this.fetchRecordsRaw({ domain: name, recordType: type, dnssecOk }),
     );
-
-    const results = await Promise.all(
-      AuthoritativeResolver.RRSET_PROBE_TYPES.map((type) =>
-        this.fetchRecordsRaw({ domain: name, recordType: type, dnssecOk: true })
-          .then(({ answers, coveringRrsigs }) =>
-            validatePositiveRrset({
-              type,
-              ownerName: name,
-              records: answers,
-              rrsigs: coveringRrsigs ?? [],
-              keys: zoneKeys,
-              authenticatedKeyIds,
-              signerName,
-            }),
-          )
-          .catch(
-            (): DnssecRrset => ({
-              type,
-              status: 'indeterminate',
-              reason: 'lookup-failed',
-              recordCount: 0,
-            }),
-          ),
-      ),
-    );
-
-    // Only validated RRsets speak for the domain's signature freshness: a bogus
-    // RRset also carries a (possibly long-past) expiry, and letting it into the
-    // min would flip the domain-wide chip to "expired" on otherwise-valid data.
-    const expiries = results
-      .filter((r) => r.status === 'secure')
-      .map((r) => r.signatureExpiresAt)
-      .filter((e): e is number => typeof e === 'number');
-    return {
-      rrsets: results,
-      expiresAt: expiries.length ? Math.min(...expiries) : undefined,
-    };
-  }
-
-  /**
-   * Resolve the DNSSEC authentication chain from the root down to the domain's
-   * registered (base) zone. For each zone we fetch its DNSKEYs and the DS the
-   * parent publishes for it, then hand the raw records to buildChain() for
-   * digest-linkage verification. See lib/dnssec for what is (and isn't)
-   * verified. The resolver selector is intentionally bypassed: only an
-   * authoritative walk can expose per-zone DNSKEY/DS records.
-   *
-   * Returns null when the queried domain does not exist (NXDOMAIN), so callers
-   * can render a not-found state rather than a misleading "unsigned" verdict.
-   */
-  public async resolveDnssecChain(domain: string): Promise<DnssecChain | null> {
-    // Walk every label suffix from the root down to the queried name, so a
-    // separately-delegated (and separately-signed) subdomain gets its own zone
-    // cut evaluated instead of being collapsed into its registered domain.
-    // Lowercase up front: DNS names are case-insensitive, but the query/answer
-    // name comparison and the `name === base` leaf check below are not.
-    // The zone walk strips a wildcard prefix (`*.` is not a zone cut), but the
-    // leaf RRset probe must keep it: the user asked about the wildcard owner,
-    // and its records differ from the parent name's.
-    const probeName = domain.replace(/\.$/, '').toLowerCase();
-    const fqdn = probeName.replace(/^\*\./, '');
-    const base = getBaseDomain(fqdn);
-    const labels = fqdn.split('.').filter(Boolean);
-
-    const zoneNames = ['.'];
-    for (let i = labels.length - 1; i >= 0; i--) {
-      zoneNames.push(labels.slice(i).join('.'));
-    }
-    // e.g. www.wsky.dev -> ['.', 'dev', 'wsky.dev', 'www.wsky.dev']
-
-    const rawZones: RawZone[] = [];
-    for (const name of zoneNames) {
-      const isRoot = name === '.';
-
-      // Failures (timeouts, blocked UDP, bad referrals) must propagate to the
-      // error boundary -- they are NOT an unsigned zone, which comes back as an
-      // empty (non-throwing) answer set. Swallowing them would render a
-      // confident but false "insecure".
-      const [keyResult, dsResult] = await Promise.all([
-        // DO bit set so the DNSKEY RRset's covering RRSIGs come back -- we
-        // cryptographically verify the key set is validly signed, not just
-        // digest-linked. See lib/dnssec.
-        this.fetchRecordsRaw({
-          domain: name,
-          recordType: 'DNSKEY',
-          dnssecOk: true,
-        }),
-        isRoot
-          ? Promise.resolve({
-              answers: [] as RawAnswer[],
-              trace: [],
-              rcode: undefined as string | undefined,
-            })
-          : this.fetchRecordsRaw({ domain: name, recordType: 'DS' }),
-      ]);
-
-      // An NXDOMAIN on the queried name itself (the leaf) means it does not
-      // exist -- treat it as not-found rather than an unsigned delegation. This
-      // covers both a nonexistent registered domain and a nonexistent subdomain
-      // under an existing one.
-      if (
-        name === fqdn &&
-        (keyResult.rcode === 'NXDOMAIN' || dsResult.rcode === 'NXDOMAIN')
-      ) {
-        return null;
-      }
-
-      const keys = keyResult.answers
-        .filter((a) => a.type === 'DNSKEY')
-        .map((a) => a.data as DnskeyData);
-      const dsRecords = dsResult.answers
-        .filter((a) => a.type === 'DS')
-        .map((a) => a.data as DsData);
-
-      // Keep the root, the registered domain (so unsigned domains still render
-      // an honest "insecure"), and any deeper label that is an actual zone cut
-      // (publishes DNSKEY/DS). Plain subdomains of a signed zone carry no keys
-      // of their own and are dropped -- they are covered by that zone. (An
-      // unsigned sub-delegation is also dropped here; see the limitation note
-      // in lib/dnssec.)
-      if (isRoot || name === base || keys.length || dsRecords.length) {
-        rawZones.push({
-          name,
-          keys,
-          dsRecords,
-          keyRrsigs: keyResult.coveringRrsigs,
-        });
-      }
-    }
-
-    // The signed root zone always serves DNSKEY records. Getting none back means
-    // our path to authoritative DNS is compromised -- typically a network that
-    // intercepts port 53 and answers queries itself with empty NODATA responses.
-    // Any verdict built on that is false (it would render a bogus-looking
-    // "broken"), so fail loudly and retryably instead of lying.
-    const rootZone = rawZones.find((z) => z.name === '.');
-    if (!rootZone || rootZone.keys.length === 0) {
-      throw new UserFacingError({
-        title: "Couldn't retrieve the root zone's DNSSEC keys",
-        description:
-          'We could not fetch the signed root zone (DNSKEY) needed to validate the chain. This usually means the network is blocking or intercepting direct DNS queries. Please try again in a moment.',
-        retryable: true,
-      });
-    }
-
-    const chain = buildChain(rawZones);
-
-    // Enrich the leaf with positive RRset validation results (the "what's
-    // protected" list shown on the chain's bottom card). This is only meaningful
-    // when the key chain validates to the signing zone.
-    const leaf = chain.zones.at(-1);
-    const leafRaw = leaf
-      ? rawZones.find((zone) => zone.name === leaf.name)
-      : null;
-    if (leaf && leafRaw && leaf.status === 'secure') {
-      const { rrsets, expiresAt } = await this.probeLeafRrsets(
-        probeName,
-        leaf.name,
-        leafRaw.keys,
-        leaf.keys,
-      );
-      leaf.rrsets = rrsets;
-      leaf.signatureExpiresAt = expiresAt;
-    }
-
-    return chain;
   }
 }

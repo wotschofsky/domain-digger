@@ -30,6 +30,7 @@
 //   rrsig.ts      -- RRSIG verification over canonical RRsets
 //   rrset.ts      -- positive leaf RRset validation and classification
 //   chain.ts      -- root trust anchors and the top-down chain walk
+//   resolve.ts    -- the zone walk over an injected, transport-agnostic query
 
 export {
   isDeprecatedAlgorithm,
@@ -38,6 +39,11 @@ export {
   keyBits,
 } from './algorithms';
 export { buildChain, ROOT_TRUST_ANCHORS } from './chain';
+export {
+  type DnssecQuery,
+  type DnssecQueryResult,
+  resolveDnssecChain,
+} from './resolve';
 export type {
   DnssecChain,
   DnssecDs,

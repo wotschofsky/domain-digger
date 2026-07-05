@@ -7,6 +7,7 @@ import type {
   DnssecAnswerRecord,
   DnssecRrset,
   DnssecRrsetReason,
+  DnssecRrsetStatus,
 } from './types';
 import { canonicalRdata } from './wire';
 
@@ -20,6 +21,27 @@ import { canonicalRdata } from './wire';
  */
 export const signerId = (algorithm: number, keyTag: number): string =>
   `${algorithm}:${keyTag}`;
+
+// An RRset's status is fully determined by its reason; constructing results
+// through rrsetResult keeps impossible pairs (e.g. secure + expired) out of
+// the model.
+const STATUS_BY_REASON: Record<DnssecRrsetReason, DnssecRrsetStatus> = {
+  validated: 'secure',
+  'no-records': 'absent',
+  'missing-rrsig': 'unsigned',
+  'unsupported-type': 'unsupported',
+  'unsupported-rdata': 'unsupported',
+  'unauthenticated-signer': 'bogus',
+  expired: 'bogus',
+  'not-yet-valid': 'bogus',
+  'invalid-signature': 'bogus',
+  'lookup-failed': 'indeterminate',
+};
+
+export const rrsetResult = (
+  reason: DnssecRrsetReason,
+  fields: Omit<DnssecRrset, 'status' | 'reason'>,
+): DnssecRrset => ({ reason, status: STATUS_BY_REASON[reason], ...fields });
 
 export function validatePositiveRrset(params: {
   type: string;
@@ -45,37 +67,31 @@ export function validatePositiveRrset(params: {
   const typeRecords = records.filter((record) => record.type === type);
 
   if (typeRecords.length === 0) {
-    return { type, status: 'absent', reason: 'no-records', recordCount: 0 };
+    return rrsetResult('no-records', { type, recordCount: 0 });
   }
 
   if (!toType(type)) {
-    return {
+    return rrsetResult('unsupported-type', {
       type,
-      status: 'unsupported',
-      reason: 'unsupported-type',
       recordCount: typeRecords.length,
-    };
+    });
   }
 
   if (
     typeRecords.some((record) => canonicalRdata(type, record.data) === null)
   ) {
-    return {
+    return rrsetResult('unsupported-rdata', {
       type,
-      status: 'unsupported',
-      reason: 'unsupported-rdata',
       recordCount: typeRecords.length,
-    };
+    });
   }
 
   const covering = rrsigs.filter((rrsig) => rrsig.typeCovered === type);
   if (covering.length === 0) {
-    return {
+    return rrsetResult('missing-rrsig', {
       type,
-      status: 'unsigned',
-      reason: 'missing-rrsig',
       recordCount: typeRecords.length,
-    };
+    });
   }
 
   let fallbackReason: DnssecRrsetReason = 'invalid-signature';
@@ -102,10 +118,8 @@ export function validatePositiveRrset(params: {
       now,
     });
     if (verified) {
-      return {
+      return rrsetResult('validated', {
         type,
-        status: 'secure',
-        reason: 'validated',
         recordCount: typeRecords.length,
         signerName: rrsig.signersName,
         signerKeyTag: rrsig.keyTag,
@@ -113,15 +127,13 @@ export function validatePositiveRrset(params: {
         signatureInceptionAt: rrsig.inception,
         signatureExpiresAt: rrsig.expiration,
         signatureOriginalTtl: rrsig.originalTTL,
-      };
+      });
     }
   }
 
   const firstCovering = covering[0];
-  return {
+  return rrsetResult(fallbackReason, {
     type,
-    status: 'bogus',
-    reason: fallbackReason,
     recordCount: typeRecords.length,
     signerName: firstCovering?.signersName,
     signerKeyTag: firstCovering?.keyTag,
@@ -131,5 +143,5 @@ export function validatePositiveRrset(params: {
     signatureInceptionAt: firstCovering?.inception,
     signatureExpiresAt: Math.min(...covering.map((rrsig) => rrsig.expiration)),
     signatureOriginalTtl: firstCovering?.originalTTL,
-  };
+  });
 }
