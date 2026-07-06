@@ -2,7 +2,12 @@
 
 import { useDebounce, useMeasure } from '@uidotdev/usehooks';
 import { NetworkIcon, SearchIcon } from 'lucide-react';
-import { useParams, usePathname, useRouter } from 'next/navigation';
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSelectedLayoutSegment,
+} from 'next/navigation';
 import {
   type ChangeEventHandler,
   type FC,
@@ -92,6 +97,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const router = useRouter();
   const pathname = usePathname();
+  const selectedSegment = useSelectedLayoutSegment();
 
   const { domain: initialValue } = useParams<{ domain: string }>();
   const [domain, setDomain] = useState(initialValue ?? '');
@@ -123,9 +129,17 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const redirectUser = (domain: string) => {
     setState(FormStates.Submitting);
 
+    // Keep the current tab when searching from a results page. Route groups
+    // (e.g. the DNS tab's "(dns)") map to no path segment.
+    const subpage =
+      props.subpage ??
+      (selectedSegment && !selectedSegment.startsWith('(')
+        ? selectedSegment
+        : undefined);
+
     let target = `/lookup/${domain}`;
-    if (props.subpage) {
-      target += `/${props.subpage}`;
+    if (subpage) {
+      target += `/${subpage}`;
     }
 
     if (pathname === target) {
