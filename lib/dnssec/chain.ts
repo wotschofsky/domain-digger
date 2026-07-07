@@ -52,25 +52,32 @@ export const ROOT_TRUST_ANCHORS: DsData[] = [
  * the parent DS (or root anchor) authenticates. Only DS-linked keys are trusted
  * signers: a zone must not vouch for its own key set with a key nothing above it
  * has authenticated. `keys` is the already-computed metadata (for `.linked`).
+ *
+ * Returns the expiration (Unix seconds) of the verifying RRSIG -- the max
+ * across all that verify, since a rollover legitimately serves several -- or
+ * null when none does.
  */
-function dnskeyRrsetSigned(
+function dnskeyRrsetSignedUntil(
   zone: RawZone,
   keys: DnssecKey[],
   now: number,
-): boolean {
+): number | null {
   // Restrict signer candidates to the DS-linked keys themselves (by identity,
   // not by 16-bit tag): a colliding unanchored key must not be able to vouch
   // for the key set. `keys` is index-aligned with zone.keys.
   const linkedKeys = zone.keys.filter((_, i) => keys[i].linked);
-  return (zone.keyRrsigs ?? []).some((rrsig) =>
-    verifyDnskeyRrsig({
-      rrsig,
-      keys: zone.keys,
-      ownerName: zone.name,
-      now,
-      signers: linkedKeys,
-    }),
-  );
+  const expiries = (zone.keyRrsigs ?? [])
+    .filter((rrsig) =>
+      verifyDnskeyRrsig({
+        rrsig,
+        keys: zone.keys,
+        ownerName: zone.name,
+        now,
+        signers: linkedKeys,
+      }),
+    )
+    .map((rrsig) => rrsig.expiration);
+  return expiries.length ? Math.max(...expiries) : null;
 }
 
 /**
@@ -133,6 +140,7 @@ export function buildChain(
 
     let status: DnssecStatus;
     let breakReason: DnssecZone['breakReason'];
+    let signatureExpiresAt: number | undefined;
     if (chain !== 'secure') {
       // The chain of trust already ended above this zone, so its own records are
       // unauthenticated. Propagate the reason: insecure below an unsigned cut,
@@ -165,28 +173,32 @@ export function buildChain(
         status = 'insecure';
         breakReason = 'unsupported-algorithm';
       }
-    } else if (!dnskeyRrsetSigned(zone, keys, now)) {
-      // Keys link by digest, but the RRSIG over the DNSKEY RRset is missing,
-      // expired, or fails to verify -> the key set isn't validly signed (bogus).
-      // Exception: if no DS-linked key even uses an algorithm this validator
-      // implements (e.g. ECC-GOST), verification never ran -- the zone is
-      // unvalidatable, not bogus. A linked key with a supported algorithm but
-      // malformed key material stays bogus: that is a broken configuration,
-      // not an unsupported one.
-      if (
-        zone.keys.some(
-          (k, i) =>
-            keys[i].linked && SUPPORTED_SIGNING_ALGORITHMS.has(k.algorithm),
-        )
-      ) {
-        status = 'broken';
-        breakReason = 'bad-signature';
-      } else {
-        status = 'insecure';
-        breakReason = 'unsupported-algorithm';
-      }
     } else {
-      status = 'secure';
+      const signedUntil = dnskeyRrsetSignedUntil(zone, keys, now);
+      if (signedUntil === null) {
+        // Keys link by digest, but the RRSIG over the DNSKEY RRset is missing,
+        // expired, or fails to verify -> the key set isn't validly signed (bogus).
+        // Exception: if no DS-linked key even uses an algorithm this validator
+        // implements (e.g. ECC-GOST), verification never ran -- the zone is
+        // unvalidatable, not bogus. A linked key with a supported algorithm but
+        // malformed key material stays bogus: that is a broken configuration,
+        // not an unsupported one.
+        if (
+          zone.keys.some(
+            (k, i) =>
+              keys[i].linked && SUPPORTED_SIGNING_ALGORITHMS.has(k.algorithm),
+          )
+        ) {
+          status = 'broken';
+          breakReason = 'bad-signature';
+        } else {
+          status = 'insecure';
+          breakReason = 'unsupported-algorithm';
+        }
+      } else {
+        status = 'secure';
+        signatureExpiresAt = signedUntil;
+      }
     }
 
     out.push({
@@ -195,6 +207,7 @@ export function buildChain(
       dsRecords,
       status,
       breakReason,
+      signatureExpiresAt,
     });
     // The first non-secure zone fixes the descended trust state.
     if (chain === 'secure') chain = status;

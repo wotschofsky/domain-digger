@@ -9,6 +9,7 @@ import {
   TriangleAlertIcon,
   XIcon,
 } from 'lucide-react';
+import Link from 'next/link';
 import type { FC, ReactNode } from 'react';
 
 import {
@@ -25,6 +26,7 @@ import {
 import { cn } from '@/lib/utils';
 
 import { IconAlert } from '../../_components/icon-alert';
+import { RecheckButton } from './recheck-button';
 
 // A first-principles DNSSEC view. The single question a user has is "can this
 // domain's DNS be authenticated?", so the verdict leads the page and names
@@ -41,12 +43,6 @@ const STATUS_DOT: Record<DnssecStatus, string> = {
   secure: 'bg-zinc-900 dark:bg-zinc-100',
   insecure: 'bg-zinc-300 dark:bg-zinc-600',
   broken: 'bg-red-500',
-};
-
-const STATUS_LABEL: Record<DnssecStatus, string> = {
-  secure: 'Secure',
-  insecure: 'Insecure',
-  broken: 'Broken',
 };
 
 const RRSET_STATUS_LABEL: Record<DnssecRrsetStatus, string> = {
@@ -77,6 +73,18 @@ const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
   timeStyle: 'short',
   timeZone: 'UTC',
 });
+const timeFmt = new Intl.DateTimeFormat('en-US', {
+  timeStyle: 'short',
+  timeZone: 'UTC',
+});
+
+const relFmt = new Intl.RelativeTimeFormat('en-US');
+const relativeTime = (seconds: number): string =>
+  seconds < 2 * 3600
+    ? relFmt.format(Math.round(seconds / 60), 'minute')
+    : seconds < 2 * 86400
+      ? relFmt.format(Math.round(seconds / 3600), 'hour')
+      : relFmt.format(Math.round(seconds / 86400), 'day');
 
 const decodeFlags = (flags: number): string => {
   const parts: string[] = [];
@@ -107,95 +115,12 @@ const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
 const rrsetUnknowns = (zone: DnssecZone | undefined): DnssecRrset[] =>
   visibleRrsets(zone).filter((rrset) => rrset.status === 'indeterminate');
 
-type MatrixTone = 'secure' | 'warn' | 'muted' | 'broken';
-
-type MatrixItem = {
-  label: string;
-  value: string;
-  detail: string;
-  tone: MatrixTone;
-};
-
-const toneClasses: Record<MatrixTone, string> = {
+const toneClasses = {
   secure:
     'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
   warn: 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
   muted: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
   broken: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
-};
-
-const matrixItems = (chain: DnssecChain): MatrixItem[] => {
-  const leaf = chain.zones.at(-1);
-  const visible = leaf ? visibleRrsets(leaf) : [];
-  const problems = rrsetProblems(leaf);
-  const unknowns = rrsetUnknowns(leaf);
-  const secure = visible.filter((rrset) => rrset.status === 'secure');
-  const keySignatureBroken = chain.zones.some(
-    (zone) => zone.breakReason === 'bad-signature',
-  );
-
-  return [
-    {
-      label: 'Delegation chain',
-      value: STATUS_LABEL[chain.overall],
-      detail:
-        chain.overall === 'secure'
-          ? 'DS links hold from the root trust anchor to the leaf zone.'
-          : chain.overall === 'insecure'
-            ? 'The chain stops at an unsigned delegation.'
-            : 'A parent DS does not authenticate the child zone.',
-      tone:
-        chain.overall === 'secure'
-          ? 'secure'
-          : chain.overall === 'broken'
-            ? 'broken'
-            : 'muted',
-    },
-    {
-      label: 'DNSKEY signatures',
-      value: keySignatureBroken
-        ? 'Broken'
-        : chain.overall === 'secure'
-          ? 'Secure'
-          : 'Not anchored',
-      detail:
-        chain.overall === 'secure'
-          ? 'Every authenticated zone has a valid DNSKEY RRset signature.'
-          : keySignatureBroken
-            ? 'A DNSKEY RRset signature is missing, expired, or invalid.'
-            : 'DNSKEY signatures below an unsigned delegation are not trusted.',
-      tone: keySignatureBroken
-        ? 'broken'
-        : chain.overall === 'secure'
-          ? 'secure'
-          : 'muted',
-    },
-    {
-      label: 'Positive RRsets',
-      value:
-        visible.length === 0
-          ? 'Not checked'
-          : problems.length > 0
-            ? `${problems.length} issue${problems.length === 1 ? '' : 's'}`
-            : unknowns.length > 0
-              ? `${secure.length} secure, ${unknowns.length} unknown`
-              : `${secure.length} secure`,
-      detail:
-        visible.length === 0
-          ? 'No existing leaf record sets were available for positive validation.'
-          : problems.length > 0
-            ? 'One or more existing record sets did not validate cleanly.'
-            : unknowns.length > 0
-              ? 'One or more record-set probes could not complete.'
-              : 'Every existing leaf record set shown below has a valid RRSIG.',
-      tone:
-        visible.length === 0
-          ? 'muted'
-          : problems.length > 0 || unknowns.length > 0
-            ? 'warn'
-            : 'secure',
-    },
-  ];
 };
 
 /** Plain-language, chain-specific verdict for the header. */
@@ -255,6 +180,61 @@ const verdictBody = (chain: DnssecChain): string => {
   }
   return `The chain of trust stops at ${parentName}: ${brkName} is an unsigned delegation, so nothing below it (including ${leafName}) can be authenticated.`;
 };
+
+/**
+ * Headline verdict. Unsigned is the default state for most domains, so it must
+ * not read as an alarm ("Insecure") — but an unsupported algorithm means the
+ * zone IS signed, just not verifiable here, so "not enabled" would be wrong.
+ */
+const verdictTitle = (chain: DnssecChain): string => {
+  if (chain.overall === 'secure') return 'Secure';
+  if (chain.overall === 'broken') return 'Broken';
+  const brk = chain.zones[breakIndex(chain)];
+  return brk?.breakReason === 'unsupported-algorithm'
+    ? 'Cannot validate'
+    : 'DNSSEC not enabled';
+};
+
+/**
+ * Where to act, keyed off the break reason. DS records live at the parent and
+ * are managed via the registrar; keys and signatures live at the DNS host —
+ * the one split a non-expert can't derive from the rail itself.
+ */
+const remediation = (chain: DnssecChain): string | null => {
+  if (chain.overall === 'secure') return null;
+  const idx = breakIndex(chain);
+  const brk = chain.zones[idx];
+
+  if (chain.overall === 'broken') {
+    if (brk.breakReason === 'no-dnskey') {
+      return 'To fix: re-enable DNSSEC signing at the DNS host, or remove the stale DS record via the registrar to return the zone to unsigned (but resolving) state.';
+    }
+    if (brk.breakReason === 'bad-signature') {
+      return 'To fix: have the DNS host re-sign the zone — the signature over its key set is expired or invalid. With managed DNS this means contacting the provider.';
+    }
+    // ds-mismatch
+    const expected = [...new Set(brk.dsRecords.map((d) => d.keyTag))].join(
+      ', ',
+    );
+    const served =
+      [...new Set(brk.keys.map((k) => k.keyTag))].join(', ') || 'none';
+    return `To fix: update the DS record via the registrar to match a currently served key (the DS expects key tag ${expected}; served key tags: ${served}), or restore the matching key at the DNS host.`;
+  }
+
+  // Insecure is only actionable when the unsigned zone is the queried domain
+  // itself — an unsigned ancestor (e.g. the TLD) is outside the owner's control.
+  if (
+    brk.breakReason !== 'unsupported-algorithm' &&
+    idx === chain.zones.length - 1
+  ) {
+    return 'To enable DNSSEC: turn on signing at the DNS host (most managed providers have a one-click option), then publish the DS record it produces via the registrar.';
+  }
+  return null;
+};
+
+const leafAlias = (chain: DnssecChain): string | undefined =>
+  chain.zones.at(-1)?.rrsets?.find((rrset) => rrset.type === 'CNAME')
+    ?.cnameTarget;
 
 /**
  * Edge label + tone for the connector pointing from a parent into `zone`.
@@ -324,19 +304,35 @@ const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
       ? 'Secure chain, RRset issues'
       : unknowns.length > 0
         ? 'Secure chain, partial RRsets'
-        : STATUS_LABEL[chain.overall];
+        : verdictTitle(chain);
+  const alias = leafAlias(chain);
+  const fix = remediation(chain);
 
   return (
     <IconAlert icon={Icon} title={title} className="max-w-none">
       {verdictBody(chain)}
+      {alias && (
+        <p className="mt-2">
+          This name is an alias (CNAME) for{' '}
+          <Link
+            className="font-medium underline underline-offset-4"
+            href={`/lookup/${alias}/dnssec`}
+          >
+            {alias}
+          </Link>
+          . Its data lives at the target, whose own chain of trust is not
+          validated here.
+        </p>
+      )}
+      {fix && <p className="mt-2">{fix}</p>}
     </IconAlert>
   );
 };
 
-const FactChip: FC<{ children: ReactNode; tone?: 'warn' | 'muted' }> = ({
-  children,
-  tone = 'muted',
-}) => (
+const FactChip: FC<{
+  children: ReactNode;
+  tone?: keyof typeof toneClasses;
+}> = ({ children, tone = 'muted' }) => (
   <span
     className={cn(
       'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
@@ -348,7 +344,6 @@ const FactChip: FC<{ children: ReactNode; tone?: 'warn' | 'muted' }> = ({
 );
 
 const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
-  const leaf = chain.zones.at(-1);
   const chips: ReactNode[] = [];
 
   chips.push(
@@ -398,52 +393,50 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
       </FactChip>,
     );
 
-  if (leaf?.signatureExpiresAt !== undefined) {
+  // Expiring RRSIGs are the most common real DNSSEC outage, so warn ahead of
+  // time on the earliest expiry anywhere in the chain, not just the leaf.
+  const expiries = chain.zones
+    .map((zone) => zone.signatureExpiresAt)
+    .filter((expiry): expiry is number => expiry !== undefined);
+  let expiryNote: string | null = null;
+  if (expiries.length > 0) {
+    const earliest = Math.min(...expiries);
     // Request-time wall-clock read in a server component (intentional, not memoized).
     // eslint-disable-next-line react-hooks/purity
-    const expired = leaf.signatureExpiresAt < Date.now() / 1000;
+    const secondsLeft = earliest - Date.now() / 1000;
+    const tone =
+      secondsLeft < 86400
+        ? 'broken'
+        : secondsLeft < 7 * 86400
+          ? 'warn'
+          : 'muted';
     chips.push(
-      <FactChip key="sig" tone={expired ? 'warn' : 'muted'}>
+      <FactChip key="sig" tone={tone}>
         <ClockIcon className="size-3.5" />
-        {expired
-          ? `signatures expired ${dateFmt.format(new Date(leaf.signatureExpiresAt * 1000))}`
-          : `signatures valid until ${dateFmt.format(new Date(leaf.signatureExpiresAt * 1000))}`}
+        {secondsLeft < 0
+          ? `signatures expired ${dateFmt.format(new Date(earliest * 1000))}`
+          : tone === 'muted'
+            ? `signatures valid until ${dateFmt.format(new Date(earliest * 1000))}`
+            : `signatures expire ${relativeTime(secondsLeft)}`}
       </FactChip>,
     );
+    if (tone !== 'muted' && secondsLeft >= 0) {
+      expiryNote =
+        'Short signature windows are normal for providers that re-sign continuously (some sign only 2–3 days ahead); expiry only matters if re-signing has stopped.';
+    }
   }
 
-  return <div className="flex flex-wrap gap-2">{chips}</div>;
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2">{chips}</div>
+      {expiryNote && (
+        <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+          {expiryNote}
+        </p>
+      )}
+    </div>
+  );
 };
-
-const ValidationMatrix: FC<{ chain: DnssecChain }> = ({ chain }) => (
-  <section aria-label="Validation coverage">
-    <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-      Validation coverage
-    </h3>
-    <dl className="grid gap-px overflow-hidden rounded-lg border border-zinc-200 bg-zinc-200 sm:grid-cols-2 lg:grid-cols-4 dark:border-zinc-800 dark:bg-zinc-800">
-      {matrixItems(chain).map((item) => (
-        <div key={item.label} className="bg-white p-3 dark:bg-zinc-900">
-          <dt className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            {item.label}
-          </dt>
-          <dd className="mt-2 space-y-2">
-            <span
-              className={cn(
-                'inline-flex rounded-md px-2 py-0.5 text-xs font-semibold',
-                toneClasses[item.tone],
-              )}
-            >
-              {item.value}
-            </span>
-            <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-              {item.detail}
-            </p>
-          </dd>
-        </div>
-      ))}
-    </dl>
-  </section>
-);
 
 const WarnBadge: FC<{ children: ReactNode }> = ({ children }) => (
   <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase dark:bg-amber-950/50 dark:text-amber-300">
@@ -538,6 +531,11 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
           <span className="font-mono text-zinc-900 dark:text-zinc-100">
             {rrset.type}
           </span>
+          {rrset.cnameTarget && (
+            <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+              → {rrset.cnameTarget}
+            </span>
+          )}
           <span className="text-zinc-500 dark:text-zinc-400">
             {rrset.recordCount} record{rrset.recordCount === 1 ? '' : 's'}
           </span>
@@ -737,19 +735,26 @@ const RailRow: FC<{
 
 type ChainDiagramProps = {
   chain: DnssecChain;
+  checkedAt: number; // Unix ms — when this walk ran
 };
 
-export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
+export const ChainDiagram: FC<ChainDiagramProps> = ({ chain, checkedAt }) => {
   const firstBreak = breakIndex(chain);
   const isInherited = (i: number) => firstBreak !== -1 && i > firstBreak;
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
+          Checked live against the authoritative servers at{' '}
+          {timeFmt.format(new Date(checkedAt))} UTC — results are never cached.
+        </p>
+        <RecheckButton />
+      </div>
+
       <VerdictHeader chain={chain} />
 
       <SummaryChips chain={chain} />
-
-      <ValidationMatrix chain={chain} />
 
       <section aria-label="Authentication chain">
         <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">

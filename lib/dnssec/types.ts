@@ -27,6 +27,9 @@ export type DnssecRrset = {
   status: DnssecRrsetStatus;
   reason: DnssecRrsetReason;
   recordCount: number;
+  // CNAME only: the alias target. The target's own chain is not validated
+  // here, so the UI must surface the alias instead of implying full coverage.
+  cnameTarget?: string;
   signerName?: string;
   signerKeyTag?: number;
   signerAlgorithmName?: string;
@@ -83,8 +86,10 @@ export type DnssecZone = {
     | 'ds-mismatch'
     | 'bad-signature'
     | 'unsupported-algorithm';
-  // Earliest RRSIG expiry (Unix seconds) across the leaf's signed RRsets.
-  // Expiring/expired signatures are the most common real DNSSEC outage.
+  // Earliest relevant RRSIG expiry (Unix seconds): for every secure zone, the
+  // expiry of the RRSIG validating its DNSKEY RRset; for the leaf, additionally
+  // min'd with its validated positive RRsets. Expiring/expired signatures are
+  // the most common real DNSSEC outage, so the UI warns ahead of time.
   signatureExpiresAt?: number;
   // Positive leaf RRsets that were probed and validated. Absent RRsets are kept
   // in the model so the UI can distinguish "not present" from "not checked".

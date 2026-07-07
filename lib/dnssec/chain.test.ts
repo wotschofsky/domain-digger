@@ -45,6 +45,8 @@ describe('buildChain', () => {
     const chain = buildChain(zones, 1500);
     expect(chain.zones.map((z) => z.status)).toEqual(['secure', 'secure']);
     expect(chain.overall).toBe('secure');
+    // Every secure zone carries its DNSKEY RRSIG's expiry for expiry warnings.
+    expect(chain.zones.map((z) => z.signatureExpiresAt)).toEqual([2000, 2000]);
   });
 
   it('enforces the real root trust anchor (fake root key -> broken)', () => {

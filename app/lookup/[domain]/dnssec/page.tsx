@@ -48,7 +48,14 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
     notFound();
   }
 
-  return <ChainDiagram chain={chain} />;
+  return (
+    <ChainDiagram
+      chain={chain}
+      // Request-time wall-clock read (intentional: it stamps this live walk).
+      // eslint-disable-next-line react-hooks/purity
+      checkedAt={Date.now()}
+    />
+  );
 };
 
 export default DnssecResultsPage;

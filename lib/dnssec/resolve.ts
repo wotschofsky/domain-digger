@@ -72,8 +72,8 @@ async function probeLeafRrsets(
   const results = await Promise.all(
     RRSET_PROBE_TYPES.map((type) =>
       query(name, type, true)
-        .then(({ answers, coveringRrsigs }) =>
-          validatePositiveRrset({
+        .then(({ answers, coveringRrsigs }) => {
+          const rrset = validatePositiveRrset({
             type,
             ownerName: name,
             records: answers,
@@ -82,8 +82,15 @@ async function probeLeafRrsets(
             authenticatedKeyIds,
             signerName,
             now,
-          }),
-        )
+          });
+          // Surface the alias target: a validated CNAME only authenticates the
+          // pointer, not the target's chain, and the UI must say so.
+          const target = answers.find((a) => a.type === 'CNAME')?.data;
+          if (type === 'CNAME' && typeof target === 'string') {
+            rrset.cnameTarget = target.replace(/\.$/, '').toLowerCase();
+          }
+          return rrset;
+        })
         .catch(() => rrsetResult('lookup-failed', { type, recordCount: 0 })),
     ),
   );
@@ -230,7 +237,14 @@ export async function resolveDnssecChain(
       now,
     );
     leaf.rrsets = rrsets;
-    leaf.signatureExpiresAt = expiresAt;
+    // The leaf's freshness is the earliest of its DNSKEY RRSIG expiry (set by
+    // buildChain) and its validated positive RRsets' expiries.
+    if (expiresAt !== undefined) {
+      leaf.signatureExpiresAt = Math.min(
+        leaf.signatureExpiresAt ?? Infinity,
+        expiresAt,
+      );
+    }
   }
 
   return chain;
