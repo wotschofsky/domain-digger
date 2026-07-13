@@ -76,12 +76,19 @@ const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
 });
 const relFmt = new Intl.RelativeTimeFormat('en-US');
-const relativeTime = (seconds: number): string =>
-  seconds < 2 * 3600
-    ? relFmt.format(Math.round(seconds / 60), 'minute')
-    : seconds < 2 * 86400
-      ? relFmt.format(Math.round(seconds / 3600), 'hour')
-      : relFmt.format(Math.round(seconds / 86400), 'day');
+export const relativeTime = (seconds: number): string =>
+  Math.abs(seconds) < 2 * 60
+    ? relFmt.format(Math.round(seconds), 'second')
+    : Math.abs(seconds) < 2 * 3600
+      ? relFmt.format(Math.round(seconds / 60), 'minute')
+      : Math.abs(seconds) < 2 * 86400
+        ? relFmt.format(Math.round(seconds / 3600), 'hour')
+        : relFmt.format(Math.round(seconds / 86400), 'day');
+
+export const signatureExpiryTone = (
+  secondsLeft: number,
+): 'broken' | 'warn' | 'muted' =>
+  secondsLeft < 0 ? 'broken' : secondsLeft < 7 * 86400 ? 'warn' : 'muted';
 
 const decodeFlags = (flags: number): string => {
   const parts: string[] = [];
@@ -147,7 +154,7 @@ const BREAK_PRESENTATION: Record<DnssecBreakReason, BreakPresentation> = {
     body: ({ zoneName, parentName }) =>
       `${zoneName}'s DS record set could not be authenticated with ${parentName}'s keys, so it cannot establish a trusted link to this zone.`,
     remediation: () =>
-      'To fix: ask the registrar or registry operator to restore a valid signature over the parent-side DS record set.',
+      'To fix: the operator of the parent zone must restore a valid signature over the DS record set.',
     edgeLabel: 'DS record-set signature missing or invalid',
   },
   'no-dnskey': {
@@ -483,12 +490,7 @@ const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
     // Request-time wall-clock read in a server component (intentional, not memoized).
     // eslint-disable-next-line react-hooks/purity
     const secondsLeft = earliest - Date.now() / 1000;
-    const tone =
-      secondsLeft < 86400
-        ? 'broken'
-        : secondsLeft < 7 * 86400
-          ? 'warn'
-          : 'muted';
+    const tone = signatureExpiryTone(secondsLeft);
     chips.push(
       <FactChip key="sig" tone={tone}>
         <ClockIcon className="size-3.5" />

@@ -32,8 +32,8 @@ const DnssecLandingPage: FC = () => (
               <SearchForm subpage="dnssec" autofocus />
             </div>
             <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-              Find all DNS records, WHOIS data, SSL/TLS certificate history,
-              subdomains and more
+              Trace the chain from the IANA root anchor to the domain and find
+              exactly where DNSSEC authentication holds or breaks
             </p>
           </section>
           <SponsorsSection />

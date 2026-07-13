@@ -34,6 +34,25 @@ export type DnssecQuery = (
   dnssecOk?: boolean,
 ) => Promise<DnssecQueryResult>;
 
+const isErrorRcode = (rcode: string | undefined): rcode is string =>
+  rcode !== undefined && rcode !== 'NOERROR' && rcode !== 'NXDOMAIN';
+
+const assertUsableDnssecResponse = (
+  name: string,
+  type: RecordType,
+  result: DnssecQueryResult,
+): void => {
+  if (!isErrorRcode(result.rcode)) return;
+  throw new UserFacingError(
+    {
+      title: 'Authoritative DNS servers returned an error',
+      description: `The ${type} lookup for ${name} returned DNS ${result.rcode}, so the DNSSEC chain cannot be determined reliably. Please try again shortly.`,
+      retryable: true,
+    },
+    { cause: new Error(`DNS ${result.rcode} for ${name} ${type}`) },
+  );
+};
+
 // Common record types probed at the queried leaf to list its signed RRsets.
 // Infra types (DNSKEY/DS/RRSIG) and reverse-only PTR are intentionally left out.
 const RRSET_PROBE_TYPES: RecordType[] = [
@@ -80,6 +99,11 @@ async function probeLeafRrsets(
     RRSET_PROBE_TYPES.map((type) =>
       query(name, type, true)
         .then(({ answers, coveringRrsigs, rcode }) => {
+          // Some injected transports return DNS error rcodes instead of
+          // throwing. They are indeterminate lookups, never proof of NODATA.
+          if (isErrorRcode(rcode)) {
+            throw new Error(`DNS ${rcode} for ${name} ${type}`);
+          }
           const rrset = validatePositiveRrset({
             type,
             ownerName: name,
@@ -179,6 +203,8 @@ export async function resolveDnssecChain(
           ? Promise.resolve<DnssecQueryResult>({ answers: [] })
           : query(name, 'DS', true),
       ]);
+      assertUsableDnssecResponse(name, 'DNSKEY', keyResult);
+      if (name !== '.') assertUsableDnssecResponse(name, 'DS', dsResult);
       return { name, keyResult, dsResult };
     }),
   );

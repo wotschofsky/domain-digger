@@ -77,6 +77,8 @@ const normalizeRdata = (type: string, data: unknown): unknown => {
   switch (type) {
     case 'NS':
     case 'CNAME':
+    case 'PTR':
+    case 'DNAME':
       return typeof data === 'string' ? normalizeDomain(data) : data;
     case 'MX':
       return typeof data === 'object' && data !== null && 'exchange' in data
@@ -110,10 +112,51 @@ const normalizeRdata = (type: string, data: unknown): unknown => {
             replacement: normalizeDomain(String(data.replacement)),
           }
         : data;
+    case 'RP':
+      return typeof data === 'object' &&
+        data !== null &&
+        'mbox' in data &&
+        'txt' in data
+        ? {
+            ...data,
+            mbox: normalizeDomain(String(data.mbox)),
+            txt: normalizeDomain(String(data.txt)),
+          }
+        : data;
+    case 'NSEC':
+      return typeof data === 'object' && data !== null && 'nextDomain' in data
+        ? {
+            ...data,
+            nextDomain: normalizeDomain(String(data.nextDomain)),
+          }
+        : data;
+    case 'RRSIG':
+      return typeof data === 'object' && data !== null && 'signersName' in data
+        ? {
+            ...data,
+            signersName: normalizeDomain(String(data.signersName)),
+          }
+        : data;
     default:
       return data;
   }
 };
+
+// dns-packet exposes these legacy name-bearing RDATA formats as opaque bytes,
+// so their embedded domain names cannot be lowercased safely. Reject them
+// instead of silently generating a non-canonical signature input. Supporting
+// them requires a structured wire codec for every embedded name.
+const OPAQUE_NAME_RDATA_TYPES = new Set([
+  'AFSDB',
+  'KX',
+  'MB',
+  'MD',
+  'MF',
+  'MG',
+  'MINFO',
+  'MR',
+  'PX',
+]);
 
 // @types/dns-packet omits the record() rdata codec.
 const dnsPacketRecord = (
@@ -134,6 +177,8 @@ export function canonicalRdata(type: string, data: unknown): Buffer | null {
     }
     return dnskeyRdata(key as DnskeyData);
   }
+
+  if (OPAQUE_NAME_RDATA_TYPES.has(type)) return null;
 
   if (!toType(type)) return null;
 

@@ -456,7 +456,7 @@ export class AuthoritativeResolver extends DnsResolver {
     let truncated = false;
     let usedNameserver = candidateNameservers[0];
     const failedNameservers: string[] = [];
-    let errorRcode: string | undefined;
+    const errorRcodes: string[] = [];
 
     for (const candidate of candidateNameservers) {
       const loaderKey = {
@@ -474,7 +474,7 @@ export class AuthoritativeResolver extends DnsResolver {
           resultRcode !== 'NXDOMAIN'
         ) {
           failedNameservers.push(`${candidate}: DNS ${resultRcode}`);
-          errorRcode = resultRcode;
+          errorRcodes.push(resultRcode);
           continue;
         }
         response = result.packet;
@@ -493,19 +493,23 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     if (!response) {
-      // Every server answered, just with an error rcode (e.g. Cloudflare
-      // REFUSES direct RRSIG queries). For plain record browsing that's an
-      // empty result, not a dead-nameserver failure worth 500ing the page.
-      // DNSSEC-walk queries (dnssecOk) still fail loud: an unanswered
+      // Some authoritatives REFUSE direct RRSIG browsing. Tolerate that one
+      // definitive policy response only when every attempted server returned
+      // it. SERVFAIL/FORMERR/NOTIMP and mixed transport failures remain
+      // retryable errors rather than masquerading as an empty RRset.
+      // DNSSEC-walk queries (dnssecOk) always fail loud: an unanswered
       // DNSKEY/DS must stay indeterminate, not read as a missing record.
-      if (errorRcode && !dnssecOk) {
+      const allRefused =
+        errorRcodes.length === candidateNameservers.length &&
+        errorRcodes.every((rcode) => rcode === 'REFUSED');
+      if (allRefused && !dnssecOk) {
         return {
           answers: [],
           trace: [
             ...trace,
             `${recordType} ${domain} -> all nameservers returned an error: ${failedNameservers.join('; ')}`,
           ],
-          rcode: errorRcode,
+          rcode: 'REFUSED',
         };
       }
       throw new UserFacingError(

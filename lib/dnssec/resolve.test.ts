@@ -107,6 +107,19 @@ describe('resolveDnssecChain', () => {
     ).rejects.toThrow('socket timeout');
   });
 
+  it('rejects returned error rcodes instead of treating them as NODATA', async () => {
+    const query = queryFrom({
+      '.': SIGNED_ROOT,
+      'example.com': { rcode: 'SERVFAIL' },
+    });
+
+    await expect(
+      resolveDnssecChain('example.com', query, ROOT_NOW),
+    ).rejects.toMatchObject({
+      payload: expect.objectContaining({ retryable: true }),
+    });
+  });
+
   it('requests DS RRsets with DNSSEC records enabled', async () => {
     const calls: Array<{ type: string; dnssecOk: boolean | undefined }> = [];
     const baseQuery = queryFrom({ '.': SIGNED_ROOT });

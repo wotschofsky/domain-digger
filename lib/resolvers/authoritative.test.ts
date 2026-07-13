@@ -65,16 +65,12 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
-  it('returns empty records when every nameserver answers with an error rcode', async () => {
+  it('returns empty records when every nameserver refuses a plain query', async () => {
     // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
     // 500 the records page.
     const transport = vi.fn<AuthoritativeTransport>(
-      async ({ domain, recordType, nameserver }) => ({
-        packet: response(
-          domain,
-          recordType,
-          nameserver === '192.0.2.1' ? 'SERVFAIL' : 'REFUSED',
-        ),
+      async ({ domain, recordType }) => ({
+        packet: response(domain, recordType, 'REFUSED'),
         protocol: 'udp',
         truncated: false,
       }),
@@ -87,6 +83,24 @@ describe('AuthoritativeResolver transport policy', () => {
     await expect(
       resolver.resolveRecordType('example.com', 'RRSIG'),
     ).resolves.toEqual(expect.objectContaining({ records: [] }));
+  });
+
+  it('surfaces all-SERVFAIL plain queries as retryable failures', async () => {
+    const transport = vi.fn<AuthoritativeTransport>(
+      async ({ domain, recordType }) => ({
+        packet: response(domain, recordType, 'SERVFAIL'),
+        protocol: 'udp',
+        truncated: false,
+      }),
+    );
+    const resolver = new AuthoritativeResolver({
+      transport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
   });
 
   it('fails indeterminately when a DNSSEC-walk query only gets error rcodes', async () => {
