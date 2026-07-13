@@ -2,14 +2,15 @@ import type { DnskeyData, RrsigData } from 'dns-packet';
 import { toType } from 'dns-packet/types';
 
 import { algorithmName, SUPPORTED_SIGNING_ALGORITHMS } from './algorithms';
-import { verifyRrsetRrsig } from './rrsig';
+import { rrsigMetadataIssue, verifyRrsetRrsig } from './rrsig';
 import type {
   DnssecAnswerRecord,
   DnssecRrset,
+  DnssecRrsetFields,
   DnssecRrsetReason,
-  DnssecRrsetStatus,
 } from './types';
-import { canonicalRdata } from './wire';
+import { RRSET_STATUS_BY_REASON } from './types';
+import { canonicalRdata, computeKeyTag, dnskeyRdata } from './wire';
 
 // Positive leaf RRset validation: classify an answered RRset (secure /
 // unsigned / bogus / ...) by checking its covering RRSIGs against the zone's
@@ -22,27 +23,15 @@ import { canonicalRdata } from './wire';
 export const signerId = (algorithm: number, keyTag: number): string =>
   `${algorithm}:${keyTag}`;
 
-// An RRset's status is fully determined by its reason; constructing results
-// through rrsetResult keeps impossible pairs (e.g. secure + expired) out of
-// the model.
-const STATUS_BY_REASON: Record<DnssecRrsetReason, DnssecRrsetStatus> = {
-  validated: 'secure',
-  'no-records': 'absent',
-  'missing-rrsig': 'unsigned',
-  'unsupported-type': 'unsupported',
-  'unsupported-rdata': 'unsupported',
-  'unsupported-algorithm': 'unsupported',
-  'unauthenticated-signer': 'bogus',
-  expired: 'bogus',
-  'not-yet-valid': 'bogus',
-  'invalid-signature': 'bogus',
-  'lookup-failed': 'indeterminate',
-};
-
-export const rrsetResult = (
-  reason: DnssecRrsetReason,
-  fields: Omit<DnssecRrset, 'status' | 'reason'>,
-): DnssecRrset => ({ reason, status: STATUS_BY_REASON[reason], ...fields });
+export const rrsetResult = <Reason extends DnssecRrsetReason>(
+  reason: Reason,
+  fields: DnssecRrsetFields,
+): Extract<DnssecRrset, { reason: Reason }> =>
+  ({
+    reason,
+    status: RRSET_STATUS_BY_REASON[reason],
+    ...fields,
+  }) as Extract<DnssecRrset, { reason: Reason }>;
 
 export function validatePositiveRrset(params: {
   type: string;
@@ -95,31 +84,49 @@ export function validatePositiveRrset(params: {
     });
   }
 
+  const authenticatedKeys = keys.filter((key) =>
+    authenticatedKeyIds.has(
+      signerId(key.algorithm, computeKeyTag(dnskeyRdata(key))),
+    ),
+  );
   let sawAuthenticatedSigner = false;
+  let sawUnsupportedSigner = false;
   let sawSupportedSigner = false;
-  let supportedFailure: DnssecRrsetReason = 'invalid-signature';
+  let failureReason: DnssecRrsetReason = 'invalid-signature';
   for (const rrsig of covering) {
     if (!authenticatedKeyIds.has(signerId(rrsig.algorithm, rrsig.keyTag))) {
       continue;
     }
     sawAuthenticatedSigner = true;
-    if (!SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm)) continue;
+    const metadataIssue = rrsigMetadataIssue({
+      rrsig,
+      type,
+      ownerName,
+      signerName,
+      keys: authenticatedKeys,
+      now,
+    });
+    if (metadataIssue) {
+      failureReason =
+        metadataIssue === 'not-yet-valid'
+          ? 'not-yet-valid'
+          : metadataIssue === 'expired'
+            ? 'expired'
+            : 'invalid-signature';
+      continue;
+    }
+    if (!SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm)) {
+      sawUnsupportedSigner = true;
+      continue;
+    }
     sawSupportedSigner = true;
-    if (now < rrsig.inception) {
-      supportedFailure = 'not-yet-valid';
-      continue;
-    }
-    if (now > rrsig.expiration) {
-      supportedFailure = 'expired';
-      continue;
-    }
     const verified = verifyRrsetRrsig({
       rrsig,
       type,
       records: typeRecords,
       ownerName,
       signerName,
-      keys,
+      keys: authenticatedKeys,
       now,
     });
     if (verified) {
@@ -137,10 +144,12 @@ export function validatePositiveRrset(params: {
   }
 
   const fallbackReason: DnssecRrsetReason = sawSupportedSigner
-    ? supportedFailure
-    : sawAuthenticatedSigner
+    ? failureReason
+    : sawUnsupportedSigner
       ? 'unsupported-algorithm'
-      : 'unauthenticated-signer';
+      : sawAuthenticatedSigner
+        ? failureReason
+        : 'unauthenticated-signer';
   const firstCovering = covering[0];
   return rrsetResult(fallbackReason, {
     type,

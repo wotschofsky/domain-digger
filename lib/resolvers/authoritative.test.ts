@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { UserFacingError } from '../user-facing-error';
 import {
   AuthoritativeResolver,
+  type AuthoritativeTcpTransport,
   type AuthoritativeTransport,
   type AuthoritativeUdpTransport,
   isMatchingDnsResponse,
@@ -31,11 +32,11 @@ const response = (
 describe('AuthoritativeResolver transport policy', () => {
   it('tries the next nameserver after a retryable DNS rcode', async () => {
     const transport = vi.fn<AuthoritativeTransport>(
-      async (domain, type, nameserver) => ({
+      async ({ domain, recordType, nameserver }) => ({
         packet:
           nameserver === '192.0.2.1'
-            ? response(domain, type, 'SERVFAIL')
-            : response(domain, type, 'NOERROR', [
+            ? response(domain, recordType, 'SERVFAIL')
+            : response(domain, recordType, 'NOERROR', [
                 {
                   name: domain,
                   type: 'A',
@@ -59,20 +60,19 @@ describe('AuthoritativeResolver transport policy', () => {
         records: [expect.objectContaining({ data: '203.0.113.10' })],
       }),
     );
-    expect(transport.mock.calls.map((call) => call[2])).toEqual([
-      '192.0.2.1',
-      '192.0.2.2',
-    ]);
+    expect(transport.mock.calls.map(([request]) => request.nameserver)).toEqual(
+      ['192.0.2.1', '192.0.2.2'],
+    );
   });
 
   it('returns empty records when every nameserver answers with an error rcode', async () => {
     // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
     // 500 the records page.
     const transport = vi.fn<AuthoritativeTransport>(
-      async (domain, type, nameserver) => ({
+      async ({ domain, recordType, nameserver }) => ({
         packet: response(
           domain,
-          type,
+          recordType,
           nameserver === '192.0.2.1' ? 'SERVFAIL' : 'REFUSED',
         ),
         protocol: 'udp',
@@ -90,18 +90,19 @@ describe('AuthoritativeResolver transport policy', () => {
   });
 
   it('fails indeterminately when a DNSSEC-walk query only gets error rcodes', async () => {
-    const transport = vi.fn<AuthoritativeTransport>(async (domain, type) => ({
-      packet: response(domain, type, 'REFUSED'),
-      protocol: 'udp',
-      truncated: false,
-    }));
+    const transport = vi.fn<AuthoritativeTransport>(
+      async ({ domain, recordType }) => ({
+        packet: response(domain, recordType, 'REFUSED'),
+        protocol: 'udp',
+        truncated: false,
+      }),
+    );
     const resolver = new AuthoritativeResolver({
       transport,
       rootServers: async () => ['192.0.2.1', '192.0.2.2'],
     });
 
     await expect(
-      // eslint-disable-next-line @typescript-eslint/dot-notation -- private, but the dnssecOk branch is only reachable through it
       resolver['fetchRecordsRaw']({
         domain: 'example.com',
         recordType: 'DNSKEY',
@@ -112,21 +113,22 @@ describe('AuthoritativeResolver transport policy', () => {
 
   it('retries a truncated UDP answer over TCP', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
-      async (domain, type) =>
+      async ({ domain, recordType }) =>
         ({
-          ...response(domain, type, 'NOERROR'),
+          ...response(domain, recordType, 'NOERROR'),
           flag_tc: true,
         }) as DecodedPacket,
     );
-    const tcpTransport = vi.fn(async (domain: string, type: RecordType) =>
-      response(domain, type, 'NOERROR', [
-        {
-          name: domain,
-          type: 'A',
-          ttl: 300,
-          data: '203.0.113.11',
-        },
-      ]),
+    const tcpTransport = vi.fn<AuthoritativeTcpTransport>(
+      async ({ domain, recordType }) =>
+        response(domain, recordType, 'NOERROR', [
+          {
+            name: domain,
+            type: 'A',
+            ttl: 300,
+            data: '203.0.113.11',
+          },
+        ]),
     );
     const resolver = new AuthoritativeResolver({
       udpTransport,
@@ -143,11 +145,11 @@ describe('AuthoritativeResolver transport policy', () => {
 
   it('follows matching public glue from a referral', async () => {
     const transport = vi.fn<AuthoritativeTransport>(
-      async (domain, type, nameserver) => ({
+      async ({ domain, recordType, nameserver }) => ({
         packet:
           nameserver === '192.0.2.1'
             ? ({
-                ...response(domain, type, 'NOERROR'),
+                ...response(domain, recordType, 'NOERROR'),
                 authorities: [
                   {
                     name: 'example.com',
@@ -165,7 +167,7 @@ describe('AuthoritativeResolver transport policy', () => {
                   },
                 ],
               } as Packet)
-            : response(domain, type, 'NOERROR', [
+            : response(domain, recordType, 'NOERROR', [
                 {
                   name: domain,
                   type: 'A',
@@ -185,10 +187,9 @@ describe('AuthoritativeResolver transport policy', () => {
     const result = await resolver.resolveRecordType('www.example.com', 'A');
 
     expect(result.records[0]?.data).toBe('203.0.113.12');
-    expect(transport.mock.calls.map((call) => call[2])).toEqual([
-      '192.0.2.1',
-      '8.8.8.8',
-    ]);
+    expect(transport.mock.calls.map(([request]) => request.nameserver)).toEqual(
+      ['192.0.2.1', '8.8.8.8'],
+    );
   });
 });
 

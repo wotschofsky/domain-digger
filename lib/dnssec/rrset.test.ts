@@ -153,6 +153,67 @@ describe('positive RRset validation', () => {
     });
   });
 
+  it('does not call an unsupported signature authenticated when its key is ineligible', () => {
+    const signer = genKey(13);
+    const nonZoneKey: DnskeyData = {
+      ...signer.dnskey,
+      flags: 0,
+      algorithm: 12,
+    };
+    const keyTag = computeKeyTag(dnskeyRdata(nonZoneKey));
+    const rrsig = {
+      ...signARecordRrset(ownerName, records, signerName, signer, win),
+      algorithm: 12,
+      keyTag,
+    };
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [nonZoneKey],
+        authenticatedKeyIds: new Set([signerId(12, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'bogus',
+      reason: 'invalid-signature',
+    });
+  });
+
+  it('reports an expired unsupported signature as expired, not unsupported', () => {
+    const signer = genKey(13);
+    const unsupportedKey: DnskeyData = {
+      ...signer.dnskey,
+      algorithm: 12,
+    };
+    const keyTag = computeKeyTag(dnskeyRdata(unsupportedKey));
+    const rrsig = {
+      ...signARecordRrset(ownerName, records, signerName, signer, win),
+      algorithm: 12,
+      keyTag,
+    };
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [unsupportedKey],
+        authenticatedKeyIds: new Set([signerId(12, keyTag)]),
+        signerName,
+        now: win.expiration + 1,
+      }),
+    ).toMatchObject({
+      status: 'bogus',
+      reason: 'expired',
+    });
+  });
+
   it('rejects a positive RRset signed by an unauthenticated key', () => {
     const signer = genKey(13);
     const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);

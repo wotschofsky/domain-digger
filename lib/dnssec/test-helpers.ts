@@ -100,11 +100,11 @@ export const signDnskeyRrset = (
   name: string,
   rrset: DnskeyData[],
   signer: { priv: KeyObject; dnskey: DnskeyData },
-  opts: { inception: number; expiration: number },
+  opts: { inception: number; expiration: number; labels?: number },
 ): RrsigData => {
   const { algorithm } = signer.dnskey;
   const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
-  const labels = name.split('.').filter(Boolean).length;
+  const labels = opts.labels ?? name.split('.').filter(Boolean).length;
   const prefix = Buffer.concat([
     u16(48),
     Buffer.from([algorithm, labels]),

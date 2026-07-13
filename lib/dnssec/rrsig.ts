@@ -35,6 +35,60 @@ const signerCandidates = (keys: DnskeyData[], rrsig: RrsigData): DnskeyData[] =>
       computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
   );
 
+export type RrsigMetadataIssue =
+  | 'wrong-type'
+  | 'wrong-signer'
+  | 'invalid-label-count'
+  | 'not-yet-valid'
+  | 'expired'
+  | 'ineligible-signer';
+
+const labelCount = (name: string): number => {
+  const normalized = normalizeDomain(name);
+  return normalized ? normalized.split('.').length : 0;
+};
+
+/**
+ * Validate every RRSIG condition that does not require running its signing
+ * algorithm. This is also used before classifying an algorithm as unsupported:
+ * an arbitrary RRSIG must not downgrade bogus data merely by naming an
+ * algorithm the checker cannot execute.
+ */
+export function rrsigMetadataIssue(params: {
+  rrsig: RrsigData;
+  type: string;
+  ownerName: string;
+  signerName: string;
+  keys: DnskeyData[];
+  now: number;
+  allowWildcard?: boolean;
+}): RrsigMetadataIssue | null {
+  const {
+    rrsig,
+    type,
+    ownerName,
+    signerName,
+    keys,
+    now,
+    allowWildcard = true,
+  } = params;
+  if (rrsig.typeCovered !== type) return 'wrong-type';
+  if (normalizeDomain(rrsig.signersName) !== normalizeDomain(signerName)) {
+    return 'wrong-signer';
+  }
+  const ownerLabels = labelCount(ownerName);
+  if (
+    rrsig.labels > ownerLabels ||
+    (!allowWildcard && rrsig.labels !== ownerLabels)
+  ) {
+    return 'invalid-label-count';
+  }
+  if (now < rrsig.inception) return 'not-yet-valid';
+  if (now > rrsig.expiration) return 'expired';
+  if (!signerCandidates(keys, rrsig).length) return 'ineligible-signer';
+  return null;
+}
+
 const verifiedByAnyCandidate = (
   candidates: DnskeyData[],
   rrsig: RrsigData,
@@ -67,17 +121,23 @@ export function verifyDnskeyRrsig(params: {
   signers?: DnskeyData[];
 }): boolean {
   const { rrsig, keys, ownerName, now, signers } = params;
-  if (rrsig.typeCovered !== 'DNSKEY') return false;
-  // The signer of a zone's DNSKEY RRset must be the zone itself (RFC 4035
-  // §5.3.1) -- validating resolvers reject a wrong Signer's Name even when the
-  // signature bytes verify.
-  if (normalizeDomain(rrsig.signersName) !== normalizeDomain(ownerName)) {
+  const candidateKeys = signers ?? keys;
+  if (
+    rrsigMetadataIssue({
+      rrsig,
+      type: 'DNSKEY',
+      ownerName,
+      signerName: ownerName,
+      keys: candidateKeys,
+      now,
+      // DNSKEY is the zone-apex key set, never a wildcard expansion.
+      allowWildcard: false,
+    })
+  ) {
     return false;
   }
-  if (now < rrsig.inception || now > rrsig.expiration) return false;
 
-  const candidates = signerCandidates(signers ?? keys, rrsig);
-  if (!candidates.length) return false;
+  const candidates = signerCandidates(candidateKeys, rrsig);
 
   const prefix = rrsigSigningPrefix(rrsig);
   if (!prefix) return false;
@@ -101,24 +161,42 @@ export function verifyRrsetRrsig(params: {
   signerName: string;
   keys: DnskeyData[];
   now: number;
+  allowWildcard?: boolean;
 }): boolean {
-  const { rrsig, type, records, ownerName, signerName, keys, now } = params;
-  if (rrsig.typeCovered !== type) return false;
-  if (normalizeDomain(rrsig.signersName) !== normalizeDomain(signerName)) {
+  const {
+    rrsig,
+    type,
+    records,
+    ownerName,
+    signerName,
+    keys,
+    now,
+    allowWildcard = true,
+  } = params;
+  if (
+    rrsigMetadataIssue({
+      rrsig,
+      type,
+      ownerName,
+      signerName,
+      keys,
+      now,
+      allowWildcard,
+    })
+  ) {
     return false;
   }
-  if (now < rrsig.inception || now > rrsig.expiration) return false;
 
   const rrType = toType(type);
   if (!rrType) return false;
 
   const candidates = signerCandidates(keys, rrsig);
-  if (!candidates.length) return false;
 
   const prefix = rrsigSigningPrefix(rrsig);
   if (!prefix) return false;
 
   const signedOwner = canonicalOwnerForRrsig(ownerName, rrsig);
+  if (signedOwner === null) return false;
   const rrset = records
     .filter((record) => record.type === type)
     .map((record) => canonicalRdata(type, record.data))

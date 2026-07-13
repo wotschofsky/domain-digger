@@ -48,6 +48,10 @@ describe('resolveDnssecChain', () => {
     const chain = await resolveDnssecChain('nope.example.com', query, ROOT_NOW);
     expect(chain.coverage.negativeProofs).toBe('not-implemented');
     expect(chain.status).toBe('insecure');
+    expect(chain.query).toEqual({
+      name: 'nope.example.com',
+      observation: 'unproved-nxdomain',
+    });
   });
 
   it('fails loudly when the root zone serves no DNSKEY (intercepted DNS)', async () => {

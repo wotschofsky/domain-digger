@@ -148,10 +148,13 @@ export function canonicalRdata(type: string, data: unknown): Buffer | null {
 export const canonicalOwnerForRrsig = (
   ownerName: string,
   rrsig: RrsigData,
-): string => {
+): string | null => {
   const clean = ownerName.replace(/\.$/, '').toLowerCase();
   const labels = clean ? clean.split('.') : [];
-  if (rrsig.labels >= labels.length) return clean || '.';
+  // RFC 4035 section 5.3.1: an RRSIG claiming more labels than the owner has
+  // is protocol-invalid and MUST NOT authenticate the RRset.
+  if (rrsig.labels > labels.length) return null;
+  if (rrsig.labels === labels.length) return clean || '.';
 
   const suffix = labels.slice(labels.length - rrsig.labels).join('.');
   return suffix ? `*.${suffix}` : '*';

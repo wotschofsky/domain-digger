@@ -13,12 +13,14 @@ import Link from 'next/link';
 import type { FC, ReactNode } from 'react';
 
 import {
+  type DnssecBreakReason,
   type DnssecChain,
   type DnssecDs,
   type DnssecKey,
   type DnssecRrset,
   type DnssecRrsetReason,
   type DnssecRrsetStatus,
+  type DnssecSignatureEvidence,
   type DnssecStatus,
   type DnssecZone,
   isWeakKey,
@@ -118,36 +120,157 @@ const toneClasses = {
   broken: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
 };
 
-/** Plain-language, chain-specific verdict for the header. */
-const verdictBody = (chain: DnssecChain): string => {
+type BreakContext = {
+  zone: DnssecZone;
+  zoneName: string;
+  parentName: string;
+};
+
+type BreakPresentation = {
+  body: (context: BreakContext) => string;
+  remediation: (context: BreakContext) => string | null;
+  edgeLabel: string;
+};
+
+const signatureFailureTime = (
+  signature: DnssecSignatureEvidence | undefined,
+): string =>
+  signature?.status === 'expired' && signature.expiresAt !== undefined
+    ? ` expired ${dateTimeFmt.format(new Date(signature.expiresAt * 1000))}`
+    : ' expired or failed validation';
+
+// One exhaustive policy table owns the copy and remediation for every break
+// reason. Adding a reason cannot silently fall through to "DS mismatch" in one
+// of several independent switch cascades.
+const BREAK_PRESENTATION: Record<DnssecBreakReason, BreakPresentation> = {
+  'bad-ds-signature': {
+    body: ({ zoneName, parentName }) =>
+      `${zoneName}'s DS record set could not be authenticated with ${parentName}'s keys, so it cannot establish a trusted link to this zone.`,
+    remediation: () =>
+      'To fix: ask the registrar or registry operator to restore a valid signature over the parent-side DS record set.',
+    edgeLabel: 'DS record-set signature missing or invalid',
+  },
+  'no-dnskey': {
+    body: ({ zoneName }) =>
+      `${zoneName} is vouched for by a DS record but serves no DNSKEY, so validating resolvers reject its answers as bogus.`,
+    remediation: () =>
+      'To fix: re-enable DNSSEC signing at the DNS host, or remove the stale DS record via the registrar to return the zone to unsigned (but resolving) state.',
+    edgeLabel: 'DS present, no DNSKEY served',
+  },
+  'bad-signature': {
+    body: ({ zone, zoneName }) =>
+      `${zoneName}'s keys are vouched for by its parent's DS, but the DNSKEY signature${signatureFailureTime(zone.dnskeySignature)}, so validating resolvers reject its answers as bogus.`,
+    remediation: () =>
+      'To fix: have the DNS host re-sign the zone. With managed DNS this means contacting the provider.',
+    edgeLabel: 'DNSKEY signature expired or invalid',
+  },
+  'ds-mismatch': {
+    body: ({ zone, zoneName }) => {
+      const ds = zone.dsRecords[0];
+      return `${zoneName}'s parent publishes a DS${ds ? ` (key tag ${ds.keyTag})` : ''} that matches none of its keys, so validating resolvers reject its answers as bogus.`;
+    },
+    remediation: ({ zone }) => {
+      const expected = [...new Set(zone.dsRecords.map((ds) => ds.keyTag))].join(
+        ', ',
+      );
+      const served =
+        [...new Set(zone.keys.map((key) => key.keyTag))].join(', ') || 'none';
+      return `To fix: update the DS record via the registrar to match a currently served key (the DS expects key tag ${expected}; served key tags: ${served}), or restore the matching key at the DNS host.`;
+    },
+    edgeLabel: 'DS matches no served key',
+  },
+  'unsupported-algorithm': {
+    body: ({ zoneName, parentName }) =>
+      `${zoneName} is signed with an authenticated algorithm this checker can't verify, so validation stops at ${parentName}. Per RFC 4035 the zone is treated as insecure, not bogus.`,
+    remediation: () => null,
+    edgeLabel: 'Unsupported algorithm — cannot validate',
+  },
+};
+
+const queryObservationSentence = (chain: DnssecChain): string | null => {
+  const name = chain.query.name;
+  switch (chain.query.observation) {
+    case 'unproved-nxdomain':
+      return `The authoritative servers returned NXDOMAIN for ${name}, but NSEC/NSEC3 proofs are not validated yet, so the name's nonexistence is not authenticated.`;
+    case 'unproved-nodata':
+      return `No common positive record set was observed at ${name}; without negative-proof validation, that absence is not authenticated.`;
+    case 'indeterminate':
+      return `The positive records at ${name} could not be checked reliably.`;
+    case 'positive':
+    case 'not-checked':
+      return null;
+  }
+};
+
+type VerdictPresentation = {
+  title: string;
+  body: string;
+  remediation: string | null;
+};
+
+/** Plain-language verdict derived once for the header. */
+export const verdictPresentation = (
+  chain: DnssecChain,
+): VerdictPresentation => {
   const zones = chain.zones;
   const leaf = zones.at(-1);
-  if (!leaf) return '';
+  if (!leaf) return { title: 'Unknown', body: '', remediation: null };
   const leafName = leaf.name === '.' ? 'the root zone' : leaf.name;
+  const observation = queryObservationSentence(chain);
 
   if (chain.status === 'secure') {
+    if (chain.query.observation === 'unproved-nxdomain') {
+      return {
+        title: 'NXDOMAIN observed — not proven',
+        body: `The DNSSEC chain is authenticated to ${leafName}. ${observation}`,
+        remediation: null,
+      };
+    }
+    if (chain.query.observation === 'unproved-nodata') {
+      return {
+        title: 'Secure chain, no records observed',
+        body: `The DNSSEC chain is authenticated to ${leafName}. ${observation}`,
+        remediation: null,
+      };
+    }
     const problems = rrsetProblems(leaf);
     if (problems.length > 0) {
       const types = problems.map((rrset) => rrset.type).join(', ');
-      return `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} ${problems.length === 1 ? 'has' : 'have'} positive RRset validation issues.`;
+      return {
+        title: 'Secure chain, RRset issues',
+        body: `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} ${problems.length === 1 ? 'has' : 'have'} positive RRset validation issues.`,
+        remediation: null,
+      };
     }
     const unknowns = rrsetUnknowns(leaf);
     if (unknowns.length > 0) {
       const types = unknowns.map((rrset) => rrset.type).join(', ');
-      return `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} could not be checked.`;
+      return {
+        title: 'Secure chain, partial RRsets',
+        body: `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} could not be checked.`,
+        remediation: null,
+      };
     }
     const validated = visibleRrsets(leaf).filter(
       (rrset) => rrset.status === 'secure',
     );
     if (validated.length > 0) {
-      return `Every link holds from the root trust anchor down to ${leafName}, and ${validated.length} existing record ${validated.length === 1 ? 'set has' : 'sets have'} valid, unexpired RRSIGs.`;
+      return {
+        title: 'Secure',
+        body: `Every link holds from the root trust anchor down to ${leafName}, and ${validated.length} existing record ${validated.length === 1 ? 'set has' : 'sets have'} valid, unexpired RRSIGs.`,
+        remediation: null,
+      };
     }
-    return `Every link holds from the root trust anchor down to ${leafName}: each zone's key set is DS-linked and its DNSKEY signature verifies and is unexpired.`;
+    return {
+      title: 'Secure',
+      body: `Every link holds from the root trust anchor down to ${leafName}: each zone's key set is DS-linked and its DNSKEY signature verifies and is unexpired.${observation ? ` ${observation}` : ''}`,
+      remediation: null,
+    };
   }
 
   const idx = breakIndex(chain);
   const brk = zones[idx];
-  const brkName = brk.name === '.' ? 'the root zone' : brk.name;
+  const zoneName = brk.name === '.' ? 'the root zone' : brk.name;
   const parent = zones[idx - 1];
   const parentName = parent
     ? parent.name === '.'
@@ -155,81 +278,36 @@ const verdictBody = (chain: DnssecChain): string => {
       : parent.name
     : 'its parent';
 
-  if (chain.status === 'broken') {
-    if (brk.breakReason === 'bad-ds-signature') {
-      return `${brkName}'s DS record set could not be authenticated with ${parentName}'s keys, so it cannot establish a trusted link to this zone.`;
-    }
-    if (brk.breakReason === 'no-dnskey') {
-      return `${brkName} is vouched for by a DS record but serves no DNSKEY, so validating resolvers reject its answers as bogus.`;
-    }
-    if (brk.breakReason === 'bad-signature') {
-      return `${brkName}'s keys are vouched for by its parent's DS, but the signature over its DNSKEY record set is expired or invalid, so validating resolvers reject its answers as bogus.`;
-    }
-    const ds = brk.dsRecords[0];
-    return `${brkName}'s parent publishes a DS${ds ? ` (key tag ${ds.keyTag})` : ''} that matches none of its keys, so validating resolvers reject its answers as bogus.`;
+  if (brk.breakReason) {
+    const presentation = BREAK_PRESENTATION[brk.breakReason];
+    const context = { zone: brk, zoneName, parentName };
+    return {
+      title:
+        brk.breakReason === 'unsupported-algorithm'
+          ? 'Cannot validate'
+          : 'Broken',
+      body: `${presentation.body(context)}${observation ? ` ${observation}` : ''}`,
+      remediation: presentation.remediation(context),
+    };
   }
 
-  // insecure
-  if (brk.breakReason === 'unsupported-algorithm') {
-    return `${brkName} is signed with an algorithm this checker can't verify, so validation stops at ${parentName}. Per RFC 4035 the zone is treated as insecure, not bogus.`;
-  }
+  // An insecure zone with no reason is the observed unsigned cut. A broken
+  // zone without a reason can only be inherited and cannot be the first break.
   if (brk.dsRecords.length === 0 && brk.keys.length === 0) {
-    return `No DS record was observed for ${brkName}, so the chain of trust stops at ${parentName}. Because negative DNSSEC proofs are not checked yet, this is an observation rather than cryptographic proof that DNSSEC is disabled.`;
+    return {
+      title: 'No DS observed',
+      body: `No DS record was observed for ${zoneName}, so the chain of trust stops at ${parentName}. Because negative DNSSEC proofs are not checked yet, this is an observation rather than cryptographic proof that DNSSEC is disabled.${observation ? ` ${observation}` : ''}`,
+      remediation:
+        idx === chain.zones.length - 1
+          ? 'To enable DNSSEC: turn on signing at the DNS host (most managed providers have a one-click option), then publish the DS record it produces via the registrar.'
+          : null,
+    };
   }
-  return `No authenticated DS link was observed from ${parentName} to ${brkName}, so nothing below it (including ${leafName}) can be authenticated. Negative proof validation is outside this check's current scope.`;
-};
-
-/**
- * Headline verdict. An absent DS is only observed until NSEC/NSEC3 proves it,
- * while an unsupported algorithm means signed data was present but uncheckable.
- */
-const verdictTitle = (chain: DnssecChain): string => {
-  if (chain.status === 'secure') return 'Secure';
-  if (chain.status === 'broken') return 'Broken';
-  const brk = chain.zones[breakIndex(chain)];
-  return brk?.breakReason === 'unsupported-algorithm'
-    ? 'Cannot validate'
-    : 'No DS observed';
-};
-
-/**
- * Where to act, keyed off the break reason. DS records live at the parent and
- * are managed via the registrar; keys and signatures live at the DNS host —
- * the one split a non-expert can't derive from the rail itself.
- */
-const remediation = (chain: DnssecChain): string | null => {
-  if (chain.status === 'secure') return null;
-  const idx = breakIndex(chain);
-  const brk = chain.zones[idx];
-
-  if (chain.status === 'broken') {
-    if (brk.breakReason === 'bad-ds-signature') {
-      return 'To fix: ask the registrar or registry operator to restore a valid signature over the parent-side DS record set.';
-    }
-    if (brk.breakReason === 'no-dnskey') {
-      return 'To fix: re-enable DNSSEC signing at the DNS host, or remove the stale DS record via the registrar to return the zone to unsigned (but resolving) state.';
-    }
-    if (brk.breakReason === 'bad-signature') {
-      return 'To fix: have the DNS host re-sign the zone — the signature over its key set is expired or invalid. With managed DNS this means contacting the provider.';
-    }
-    // ds-mismatch
-    const expected = [...new Set(brk.dsRecords.map((d) => d.keyTag))].join(
-      ', ',
-    );
-    const served =
-      [...new Set(brk.keys.map((k) => k.keyTag))].join(', ') || 'none';
-    return `To fix: update the DS record via the registrar to match a currently served key (the DS expects key tag ${expected}; served key tags: ${served}), or restore the matching key at the DNS host.`;
-  }
-
-  // Insecure is only actionable when the unsigned zone is the queried domain
-  // itself — an unsigned ancestor (e.g. the TLD) is outside the owner's control.
-  if (
-    brk.breakReason !== 'unsupported-algorithm' &&
-    idx === chain.zones.length - 1
-  ) {
-    return 'To enable DNSSEC: turn on signing at the DNS host (most managed providers have a one-click option), then publish the DS record it produces via the registrar.';
-  }
-  return null;
+  return {
+    title: chain.status === 'broken' ? 'Broken' : 'No DS observed',
+    body: `No authenticated DS link was observed from ${parentName} to ${zoneName}, so nothing below it (including ${leafName}) can be authenticated. Negative proof validation is outside this check's current scope.${observation ? ` ${observation}` : ''}`,
+    remediation: null,
+  };
 };
 
 const leafAlias = (chain: DnssecChain): string | undefined =>
@@ -263,13 +341,9 @@ const edgeState = (
   if (zone.status === 'broken') {
     const label = inherited
       ? 'Below a broken zone — not validated'
-      : zone.breakReason === 'bad-ds-signature'
-        ? 'DS record-set signature missing or invalid'
-        : zone.breakReason === 'no-dnskey'
-          ? 'DS present, no DNSKEY served'
-          : zone.breakReason === 'bad-signature'
-            ? 'DNSKEY signature expired or invalid'
-            : 'DS matches no served key';
+      : zone.breakReason
+        ? BREAK_PRESENTATION[zone.breakReason].edgeLabel
+        : 'Authentication failed';
     return {
       label,
       line: 'bg-red-500/70',
@@ -281,8 +355,8 @@ const edgeState = (
     // DS-linked key, so don't blame the DS specifically.
     label: inherited
       ? 'Below an unauthenticated link — not validated'
-      : zone.breakReason === 'unsupported-algorithm'
-        ? 'Unsupported algorithm — cannot validate'
+      : zone.breakReason
+        ? BREAK_PRESENTATION[zone.breakReason].edgeLabel
         : 'No DS observed — absence not proven',
     line: 'bg-zinc-300 dark:bg-zinc-600',
     text: 'text-zinc-500 dark:text-zinc-400',
@@ -290,29 +364,26 @@ const edgeState = (
 };
 
 const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
-  const leaf = chain.zones.at(-1);
-  const problems = chain.status === 'secure' ? rrsetProblems(leaf) : [];
-  const unknowns = chain.status === 'secure' ? rrsetUnknowns(leaf) : [];
+  const presentation = verdictPresentation(chain);
+  const problems =
+    chain.status === 'secure' ? rrsetProblems(chain.zones.at(-1)) : [];
+  const hasUnprovedNegative =
+    chain.query.observation === 'unproved-nxdomain' ||
+    chain.query.observation === 'unproved-nodata' ||
+    chain.query.observation === 'indeterminate';
   const Icon =
-    problems.length > 0
+    problems.length > 0 || (chain.status === 'secure' && hasUnprovedNegative)
       ? ShieldAlertIcon
       : chain.status === 'secure'
         ? ShieldCheckIcon
         : chain.status === 'broken'
           ? ShieldAlertIcon
           : ShieldOffIcon;
-  const title =
-    problems.length > 0
-      ? 'Secure chain, RRset issues'
-      : unknowns.length > 0
-        ? 'Secure chain, partial RRsets'
-        : verdictTitle(chain);
   const alias = leafAlias(chain);
-  const fix = remediation(chain);
 
   return (
-    <IconAlert icon={Icon} title={title} className="max-w-none">
-      {verdictBody(chain)}
+    <IconAlert icon={Icon} title={presentation.title} className="max-w-none">
+      {presentation.body}
       {alias && (
         <p className="mt-2">
           This name is an alias (CNAME) for{' '}
@@ -326,7 +397,9 @@ const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
           validated here.
         </p>
       )}
-      {fix && <p className="mt-2">{fix}</p>}
+      {presentation.remediation && (
+        <p className="mt-2">{presentation.remediation}</p>
+      )}
     </IconAlert>
   );
 };
@@ -617,6 +690,45 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
   );
 };
 
+const SignatureEvidenceRow: FC<{
+  label: string;
+  evidence: DnssecSignatureEvidence;
+}> = ({ label, evidence }) => {
+  const detail = (() => {
+    switch (evidence.status) {
+      case 'valid':
+        return evidence.expiresAt !== undefined
+          ? `valid until ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+          : 'valid';
+      case 'expired':
+        return evidence.expiresAt !== undefined
+          ? `expired ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+          : 'expired';
+      case 'not-yet-valid':
+        return evidence.inceptionAt !== undefined
+          ? `not valid until ${dateTimeFmt.format(new Date(evidence.inceptionAt * 1000))}`
+          : 'not yet valid';
+      case 'missing':
+        return 'no covering RRSIG observed';
+      case 'unsupported':
+        return evidence.expiresAt !== undefined
+          ? `algorithm unsupported · observed expiry ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+          : 'algorithm unsupported';
+      case 'invalid':
+        return evidence.expiresAt !== undefined
+          ? `invalid · observed expiry ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+          : 'invalid';
+    }
+  })();
+
+  return (
+    <div className="flex gap-1.5">
+      <dt>{label}:</dt>
+      <dd>{detail}</dd>
+    </div>
+  );
+};
+
 const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
   zone,
   isLeaf,
@@ -673,28 +785,19 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
         </section>
       </div>
 
-      {(zone.dsSignatureExpiresAt !== undefined ||
-        zone.dnskeySignatureExpiresAt !== undefined) && (
+      {(zone.dsSignature || zone.dnskeySignature) && (
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {zone.dsSignatureExpiresAt !== undefined && (
-            <div className="flex gap-1.5">
-              <dt>Parent DS RRSIG:</dt>
-              <dd>
-                valid until{' '}
-                {dateTimeFmt.format(new Date(zone.dsSignatureExpiresAt * 1000))}
-              </dd>
-            </div>
+          {zone.dsSignature && (
+            <SignatureEvidenceRow
+              label="Parent DS RRSIG"
+              evidence={zone.dsSignature}
+            />
           )}
-          {zone.dnskeySignatureExpiresAt !== undefined && (
-            <div className="flex gap-1.5">
-              <dt>DNSKEY RRSIG:</dt>
-              <dd>
-                valid until{' '}
-                {dateTimeFmt.format(
-                  new Date(zone.dnskeySignatureExpiresAt * 1000),
-                )}
-              </dd>
-            </div>
+          {zone.dnskeySignature && (
+            <SignatureEvidenceRow
+              label="DNSKEY RRSIG"
+              evidence={zone.dnskeySignature}
+            />
           )}
         </dl>
       )}

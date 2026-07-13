@@ -44,25 +44,23 @@ export type DnsResponse = {
   truncated: boolean;
 };
 
+export type AuthoritativeRequest = {
+  domain: string;
+  recordType: RecordType;
+  nameserver: string;
+  dnssecOk: boolean;
+};
+
 export type AuthoritativeTransport = (
-  domain: string,
-  recordType: RecordType,
-  nameserver: string,
-  dnssecOk: boolean,
+  request: AuthoritativeRequest,
 ) => Promise<DnsResponse>;
 
 export type AuthoritativeUdpTransport = (
-  domain: string,
-  recordType: RecordType,
-  nameserver: string,
-  dnssecOk: boolean,
+  request: AuthoritativeRequest,
 ) => Promise<DecodedPacket>;
 
 export type AuthoritativeTcpTransport = (
-  domain: string,
-  recordType: RecordType,
-  nameserver: string,
-  dnssecOk: boolean,
+  request: AuthoritativeRequest,
 ) => Promise<Packet>;
 
 export type AuthoritativeResolverOptions = {
@@ -227,12 +225,12 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
-  private async sendUdpRequest(
-    domain: string,
-    recordType: RecordType,
-    nameserver: string,
-    dnssecOk = false,
-  ) {
+  private async sendUdpRequest({
+    domain,
+    recordType,
+    nameserver,
+    dnssecOk,
+  }: AuthoritativeRequest) {
     const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.encode({
       type: 'query',
@@ -283,12 +281,12 @@ export class AuthoritativeResolver extends DnsResolver {
     });
   }
 
-  private async sendTcpRequest(
-    domain: string,
-    recordType: RecordType,
-    nameserver: string,
-    dnssecOk = false,
-  ) {
+  private async sendTcpRequest({
+    domain,
+    recordType,
+    nameserver,
+    dnssecOk,
+  }: AuthoritativeRequest) {
     const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
@@ -345,59 +343,39 @@ export class AuthoritativeResolver extends DnsResolver {
     });
   }
 
-  private async sendRequest(
-    domain: string,
-    recordType: RecordType,
-    nameserver: string,
-    dnssecOk = false,
-  ) {
+  private async sendRequest(request: AuthoritativeRequest) {
     // DNS queries are first attempted over UDP per convention. However, UDP
     // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
     // that limit the server truncates the response and sets the TC flag,
     // signaling the client to retry over TCP where the full response (up to
     // 64 KB) can be delivered.
     const udpResponse = this.options.udpTransport
-      ? await this.options.udpTransport(
-          domain,
-          recordType,
-          nameserver,
-          dnssecOk,
-        )
-      : await this.sendUdpRequest(domain, recordType, nameserver, dnssecOk);
+      ? await this.options.udpTransport(request)
+      : await this.sendUdpRequest(request);
     if (udpResponse.flag_tc) {
       const packet = this.options.tcpTransport
-        ? await this.options.tcpTransport(
-            domain,
-            recordType,
-            nameserver,
-            dnssecOk,
-          )
-        : await this.sendTcpRequest(domain, recordType, nameserver, dnssecOk);
+        ? await this.options.tcpTransport(request)
+        : await this.sendTcpRequest(request);
       return { packet, protocol: 'tcp', truncated: true };
     }
     return { packet: udpResponse, protocol: 'udp', truncated: false };
   }
 
   private requestLoader = new DataLoader<
-    {
-      domain: string;
-      type: RecordType;
-      nameserver: string;
-      dnssecOk: boolean;
-    },
+    AuthoritativeRequest,
     DnsResponse,
     string
   >(
     async (keys) =>
       Promise.all(
-        keys.map(async ({ domain, type, nameserver, dnssecOk }) => {
+        keys.map(async (request) => {
           try {
             return await retry(() => {
               const transport =
                 this.options.transport ??
-                ((...args: Parameters<AuthoritativeTransport>) =>
-                  this.sendRequest(...args));
-              return transport(domain, type, nameserver, dnssecOk);
+                ((nextRequest: AuthoritativeRequest) =>
+                  this.sendRequest(nextRequest));
+              return transport(request);
             }, 3);
           } catch (error) {
             return error instanceof Error
@@ -483,7 +461,7 @@ export class AuthoritativeResolver extends DnsResolver {
     for (const candidate of candidateNameservers) {
       const loaderKey = {
         domain,
-        type: recordType,
+        recordType,
         nameserver: candidate,
         dnssecOk,
       };

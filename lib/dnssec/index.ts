@@ -15,6 +15,8 @@
 //     *keys* are validly signed, then separately validate positive leaf RRsets
 //     that exist for common record types. Negative answers are not validated.
 //   - NSEC/NSEC3 denial-of-existence proofs (authenticated negative answers).
+//     Bare NXDOMAIN/NODATA responses are retained only as explicitly unproved
+//     observations so the UI cannot turn them into a secure/nonexistent claim.
 //   - Unsigned *delegations* below the registered domain: a queried name that is
 //     itself a separate, unsigned sub-delegation is shown via its nearest signed
 //     ancestor zone rather than flagged insecure. Telling that apart from a name
@@ -52,9 +54,12 @@ export type {
   DnssecCoverage,
   DnssecDs,
   DnssecKey,
+  DnssecQueryObservation,
   DnssecRrset,
   DnssecRrsetReason,
   DnssecRrsetStatus,
+  DnssecSignatureEvidence,
+  DnssecSignatureStatus,
   DnssecStatus,
   DnssecZone,
   DnssecZoneState,

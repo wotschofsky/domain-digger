@@ -172,16 +172,21 @@ live('resolveDnssecChain (live)', () => {
         );
         expect(chain.status).toBe('insecure');
         expect(chain.coverage.negativeProofs).toBe('not-implemented');
+        expect(chain.query.observation).toBe('unproved-nxdomain');
       },
       TIMEOUT,
     );
 
     it(
-      'reports only the authenticated ancestor for an unproved NXDOMAIN subdomain',
+      'reports only the authenticated ancestor for an unproved negative subdomain response',
       async () => {
         const chain = await resolve('does-not-exist-9q7x2z.cloudflare.com');
         expect(chain.status).toBe('secure');
         expect(chain.zones.at(-1)?.name).toBe('cloudflare.com');
+        expect(chain.query).toEqual({
+          name: 'does-not-exist-9q7x2z.cloudflare.com',
+          observation: 'unproved-nodata',
+        });
         expect(
           chain.zones
             .at(-1)

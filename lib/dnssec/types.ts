@@ -2,31 +2,26 @@ import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 
 export type DnssecStatus = 'secure' | 'insecure' | 'broken';
 
+export const RRSET_STATUS_BY_REASON = {
+  validated: 'secure',
+  'no-records': 'absent',
+  'missing-rrsig': 'unsigned',
+  'unsupported-type': 'unsupported',
+  'unsupported-rdata': 'unsupported',
+  'unsupported-algorithm': 'unsupported',
+  'unauthenticated-signer': 'bogus',
+  expired: 'bogus',
+  'not-yet-valid': 'bogus',
+  'invalid-signature': 'bogus',
+  'lookup-failed': 'indeterminate',
+} as const;
+
+export type DnssecRrsetReason = keyof typeof RRSET_STATUS_BY_REASON;
 export type DnssecRrsetStatus =
-  | 'secure'
-  | 'unsigned'
-  | 'bogus'
-  | 'unsupported'
-  | 'absent'
-  | 'indeterminate';
+  (typeof RRSET_STATUS_BY_REASON)[DnssecRrsetReason];
 
-export type DnssecRrsetReason =
-  | 'validated'
-  | 'no-records'
-  | 'missing-rrsig'
-  | 'unsupported-type'
-  | 'unsupported-rdata'
-  | 'unsupported-algorithm'
-  | 'unauthenticated-signer'
-  | 'expired'
-  | 'not-yet-valid'
-  | 'invalid-signature'
-  | 'lookup-failed';
-
-export type DnssecRrset = {
+export type DnssecRrsetFields = {
   type: string;
-  status: DnssecRrsetStatus;
-  reason: DnssecRrsetReason;
   recordCount: number;
   // CNAME only: the alias target. The target's own chain is not validated
   // here, so the UI must surface the alias instead of implying full coverage.
@@ -38,6 +33,17 @@ export type DnssecRrset = {
   signatureExpiresAt?: number;
   signatureOriginalTtl?: number;
 };
+
+type DnssecRrsetState = {
+  [Reason in DnssecRrsetReason]: {
+    readonly reason: Reason;
+    readonly status: (typeof RRSET_STATUS_BY_REASON)[Reason];
+  };
+}[DnssecRrsetReason];
+
+// A reason has exactly one status, so values such as `secure + expired` are
+// unrepresentable even for consumers constructing this exported type.
+export type DnssecRrset = DnssecRrsetFields & DnssecRrsetState;
 
 export type DnssecAnswerRecord = {
   name: string;
@@ -75,13 +81,37 @@ export type DnssecBreakReason =
   | 'bad-signature'
   | 'unsupported-algorithm';
 
+export type DnssecSignatureStatus =
+  | 'valid'
+  | 'missing'
+  | 'expired'
+  | 'not-yet-valid'
+  | 'invalid'
+  | 'unsupported';
+
+export type DnssecSignatureEvidence = {
+  status: DnssecSignatureStatus;
+  // These are observed fields, even when the signature is invalid. The UI
+  // must only call the timestamp "valid until" when status is `valid`.
+  inceptionAt?: number;
+  expiresAt?: number;
+};
+
+export type DnssecQueryObservation =
+  | 'not-checked'
+  | 'positive'
+  | 'unproved-nxdomain'
+  | 'unproved-nodata'
+  | 'indeterminate';
+
 type DnssecZoneEvidence = {
   name: string; // '.', 'dev', 'wsky.dev'
   keys: DnssecKey[];
   dsRecords: DnssecDs[]; // DS published by the parent (or the root trust anchor)
-  // Parent-signed DS evidence is absent for the root trust anchor.
-  dsSignatureExpiresAt?: number;
-  dnskeySignatureExpiresAt?: number;
+  // Parent-signed DS evidence is absent for the root trust anchor. Evidence is
+  // retained on failures so an expired signature remains diagnosable.
+  dsSignature?: DnssecSignatureEvidence;
+  dnskeySignature?: DnssecSignatureEvidence;
   // Earliest relevant RRSIG expiry for the zone: parent DS, DNSKEY, and for the
   // leaf its validated positive RRsets.
   signatureExpiresAt?: number;
@@ -121,6 +151,10 @@ export type DnssecChain = {
   // Chain-only status. Positive leaf RRset results are reported separately.
   status: DnssecStatus;
   coverage: DnssecCoverage;
+  query: {
+    name: string;
+    observation: DnssecQueryObservation;
+  };
 };
 
 /** Raw per-zone records collected by the resolver, ordered root -> leaf. */

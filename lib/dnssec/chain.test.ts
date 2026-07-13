@@ -175,6 +175,11 @@ describe('buildChain signature enforcement', () => {
     const chain = buildChain([signedZone('example', 13)], win.expiration + 1);
     expect(chain.zones[0].status).toBe('broken');
     expect(chain.zones[0].breakReason).toBe('bad-signature');
+    expect(chain.zones[0].dnskeySignature).toEqual({
+      status: 'expired',
+      inceptionAt: win.inception,
+      expiresAt: win.expiration,
+    });
   });
 
   it('breaks (not insecure) when a linked key of a supported algorithm is malformed', () => {
@@ -199,6 +204,31 @@ describe('buildChain signature enforcement', () => {
     );
     expect(chain.zones[0].status).toBe('broken');
     expect(chain.zones[0].breakReason).toBe('bad-signature');
+  });
+
+  it('does not treat an unsupported but non-ZONE linked key as eligible', () => {
+    const generated = genKey(13);
+    const ineligible: DnskeyData = {
+      ...generated.dnskey,
+      flags: 1,
+      algorithm: 12,
+    };
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [ineligible],
+          dsRecords: [dsForKey('example', ineligible)],
+        },
+      ],
+      now,
+    );
+
+    expect(chain.zones[0]).toMatchObject({
+      status: 'broken',
+      breakReason: 'bad-signature',
+      dnskeySignature: { status: 'missing' },
+    });
   });
 
   it('breaks when the DNSKEY RRSIG signer is not DS-authenticated', () => {
@@ -266,6 +296,48 @@ describe('buildChain signature enforcement', () => {
     expect(chain.zones[1]).toMatchObject({
       status: 'broken',
       breakReason: 'bad-ds-signature',
+      dsSignature: { status: 'missing' },
+    });
+  });
+
+  it('retains the expiry of an expired parent DS signature', () => {
+    const parent = genKey(13);
+    const child = genKey(13);
+    const childDs = dsForKey('child.example', child.dnskey);
+    const parentWin = { inception: 1000, expiration: 3000 };
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [parent.dnskey],
+          dsRecords: [dsForKey('example', parent.dnskey)],
+          keyRrsigs: [
+            signDnskeyRrset('example', [parent.dnskey], parent, parentWin),
+          ],
+        },
+        {
+          name: 'child.example',
+          keys: [child.dnskey],
+          dsRecords: [childDs],
+          dsRrsigs: [
+            signDsRrset('child.example', [childDs], 'example', parent, win),
+          ],
+          keyRrsigs: [
+            signDnskeyRrset('child.example', [child.dnskey], child, parentWin),
+          ],
+        },
+      ],
+      win.expiration + 1,
+    );
+
+    expect(chain.zones[1]).toMatchObject({
+      status: 'broken',
+      breakReason: 'bad-ds-signature',
+      dsSignature: {
+        status: 'expired',
+        inceptionAt: win.inception,
+        expiresAt: win.expiration,
+      },
     });
   });
 
@@ -308,6 +380,43 @@ describe('buildChain signature enforcement', () => {
     expect(chain.zones[1]).toMatchObject({
       status: 'insecure',
       breakReason: 'unsupported-algorithm',
+    });
+  });
+
+  it('does not let an arbitrary unsupported RRSIG downgrade a bad DS signature', () => {
+    const parent = genKey(13);
+    const child = genKey(13);
+    const childDs = dsForKey('child.example', child.dnskey);
+    const forged = {
+      ...signDsRrset('child.example', [childDs], 'example', parent, win),
+      algorithm: 12,
+      keyTag: 60000,
+    };
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [parent.dnskey],
+          dsRecords: [dsForKey('example', parent.dnskey)],
+          keyRrsigs: [signDnskeyRrset('example', [parent.dnskey], parent, win)],
+        },
+        {
+          name: 'child.example',
+          keys: [child.dnskey],
+          dsRecords: [childDs],
+          dsRrsigs: [forged],
+          keyRrsigs: [
+            signDnskeyRrset('child.example', [child.dnskey], child, win),
+          ],
+        },
+      ],
+      now,
+    );
+
+    expect(chain.zones[1]).toMatchObject({
+      status: 'broken',
+      breakReason: 'bad-ds-signature',
+      dsSignature: { status: 'invalid' },
     });
   });
 

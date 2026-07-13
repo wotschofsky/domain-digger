@@ -10,6 +10,7 @@ import type {
   DnssecAnswerRecord,
   DnssecChain,
   DnssecKey,
+  DnssecQueryObservation,
   DnssecRrset,
   RawZone,
 } from './types';
@@ -61,18 +62,24 @@ async function probeLeafRrsets(
   authenticatedKeys: DnssecKey[],
   query: DnssecQuery,
   now?: number,
-): Promise<{ rrsets: DnssecRrset[]; expiresAt?: number }> {
+): Promise<{
+  rrsets: DnssecRrset[];
+  expiresAt?: number;
+  observation: DnssecQueryObservation;
+}> {
   // Once the DNSKEY RRset has been authenticated by the chain, any key in that
   // validated key set may sign positive data RRsets. Most zones use a ZSK for
   // data, while only the KSK is directly DS-linked.
   const authenticatedKeyIds = new Set(
-    authenticatedKeys.map((key) => signerId(key.algorithm, key.keyTag)),
+    authenticatedKeys
+      .filter((key) => (key.flags & 0x0100) !== 0 && !key.isRevoked)
+      .map((key) => signerId(key.algorithm, key.keyTag)),
   );
 
-  const results = await Promise.all(
+  const probes = await Promise.all(
     RRSET_PROBE_TYPES.map((type) =>
       query(name, type, true)
-        .then(({ answers, coveringRrsigs }) => {
+        .then(({ answers, coveringRrsigs, rcode }) => {
           const rrset = validatePositiveRrset({
             type,
             ownerName: name,
@@ -89,11 +96,24 @@ async function probeLeafRrsets(
           if (type === 'CNAME' && typeof target === 'string') {
             rrset.cnameTarget = target.replace(/\.$/, '').toLowerCase();
           }
-          return rrset;
+          return { rrset, rcode };
         })
-        .catch(() => rrsetResult('lookup-failed', { type, recordCount: 0 })),
+        .catch(() => ({
+          rrset: rrsetResult('lookup-failed', { type, recordCount: 0 }),
+          rcode: undefined,
+        })),
     ),
   );
+  const results = probes.map(({ rrset }) => rrset);
+  const observation: DnssecQueryObservation = results.some(
+    (rrset) => rrset.recordCount > 0,
+  )
+    ? 'positive'
+    : probes.some(({ rcode }) => rcode === 'NXDOMAIN')
+      ? 'unproved-nxdomain'
+      : results.every((rrset) => rrset.status === 'indeterminate')
+        ? 'indeterminate'
+        : 'unproved-nodata';
 
   // Only validated RRsets speak for the domain's signature freshness: a bogus
   // RRset also carries a (possibly long-past) expiry, and letting it into the
@@ -105,6 +125,7 @@ async function probeLeafRrsets(
   return {
     rrsets: results,
     expiresAt: expiries.length ? Math.min(...expiries) : undefined,
+    observation,
   };
 }
 
@@ -204,6 +225,18 @@ export async function resolveDnssecChain(
   }
 
   const chain = buildChain(rawZones, now);
+  const exactZoneResult =
+    probeName === fqdn
+      ? zoneRecords.find(({ name }) => name === fqdn)
+      : undefined;
+  chain.query = {
+    name: probeName,
+    observation:
+      exactZoneResult?.keyResult.rcode === 'NXDOMAIN' ||
+      exactZoneResult?.dsResult.rcode === 'NXDOMAIN'
+        ? 'unproved-nxdomain'
+        : 'not-checked',
+  };
 
   // Enrich the leaf with positive RRset validation results (the "what's
   // protected" list shown on the chain's bottom card). This is only meaningful
@@ -214,7 +247,7 @@ export async function resolveDnssecChain(
     : null;
   if (leaf && leafRaw && leaf.status === 'secure') {
     chain.coverage.checkedPositiveRrsetTypes = [...RRSET_PROBE_TYPES];
-    const { rrsets, expiresAt } = await probeLeafRrsets(
+    const { rrsets, expiresAt, observation } = await probeLeafRrsets(
       probeName,
       leaf.name,
       leafRaw.keys,
@@ -222,6 +255,15 @@ export async function resolveDnssecChain(
       query,
       now,
     );
+    // DNSKEY/DS questions for the exact name may already have observed
+    // NXDOMAIN. Do not erase that stronger negative response merely because a
+    // later type probe came back as NODATA; a positive answer does override it.
+    if (
+      chain.query.observation !== 'unproved-nxdomain' ||
+      observation === 'positive'
+    ) {
+      chain.query.observation = observation;
+    }
     leaf.rrsets = rrsets;
     // The leaf's freshness is the earliest of its DNSKEY RRSIG expiry (set by
     // buildChain) and its validated positive RRsets' expiries.

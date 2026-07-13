@@ -161,6 +161,24 @@ describe('verifyDnskeyRrsig (golden vectors)', () => {
       }),
     ).toBe(false);
   });
+
+  it('rejects a crypto-valid DNSKEY RRSIG with an invalid Labels count', () => {
+    const signer = genKey(13);
+    const rrsig = signDnskeyRrset('example', [signer.dnskey], signer, {
+      inception: 1000,
+      expiration: 2000,
+      labels: 2,
+    });
+
+    expect(
+      verifyDnskeyRrsig({
+        rrsig,
+        keys: [signer.dnskey],
+        ownerName: 'example',
+        now: 1500,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('verifyRrsetRrsig', () => {
@@ -215,5 +233,31 @@ describe('verifyRrsetRrsig', () => {
         now: 1500,
       }),
     ).toBe(true);
+  });
+
+  it('rejects a crypto-valid RRSIG whose Labels count exceeds the owner', () => {
+    const ownerName = 'www.example';
+    const signerName = 'example';
+    const records = [
+      { name: ownerName, type: 'A' as const, data: '192.0.2.1' },
+    ];
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, {
+      inception: 1000,
+      expiration: 2000,
+      labels: 3,
+    });
+
+    expect(
+      verifyRrsetRrsig({
+        rrsig,
+        type: 'A',
+        records,
+        ownerName,
+        signerName,
+        keys: [signer.dnskey],
+        now: 1500,
+      }),
+    ).toBe(false);
   });
 });
