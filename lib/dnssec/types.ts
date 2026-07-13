@@ -71,6 +71,7 @@ export type DnssecDs = {
   digestName: string;
   digestHex: string; // the DS digest, uppercase hex (a key fingerprint)
   matched: boolean; // this DS hashes to one of the zone's DNSKEYs
+  matchedKeyIndexes: number[]; // exact DNSKEY positions; key tags alone can collide
   weakDigest: boolean; // uses a deprecated digest (SHA-1 / GOST)
 };
 

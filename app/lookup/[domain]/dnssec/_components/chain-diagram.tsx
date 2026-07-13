@@ -1,4 +1,5 @@
 import {
+  ArrowRightIcon,
   CheckIcon,
   ClockIcon,
   FingerprintIcon,
@@ -28,6 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 
 import { IconAlert } from '../../_components/icon-alert';
+import { InfoTooltip } from './info-tooltip';
 
 // A first-principles DNSSEC view. The single question a user has is "can this
 // domain's DNS be authenticated?", so the verdict leads the page and names
@@ -336,11 +338,10 @@ const edgeState = (
   text: string;
 } => {
   if (zone.status === 'secure') {
-    const ds = zone.dsRecords.find((d) => d.matched);
     return {
-      label: ds
-        ? `DS matches key tag ${ds.keyTag}`
-        : 'Anchored by trust anchor',
+      // The paired DS → DNSKEY row carries the exact match. Repeating the key
+      // tag on the rail adds noise without adding evidence.
+      label: '',
       line: 'bg-zinc-300 dark:bg-zinc-600',
       text: 'text-zinc-500 dark:text-zinc-400',
     };
@@ -528,7 +529,7 @@ const WarnBadge: FC<{ children: ReactNode }> = ({ children }) => (
 const KeyRow: FC<{ dnsKey: DnssecKey }> = ({ dnsKey: k }) => {
   const linked = k.isSep && k.linked;
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
       <span
         className={cn(
           'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
@@ -554,27 +555,12 @@ const KeyRow: FC<{ dnsKey: DnssecKey }> = ({ dnsKey: k }) => {
         </span>
       )}
       {k.deprecated && <WarnBadge>deprecated</WarnBadge>}
-    </li>
+    </div>
   );
 };
 
 const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
-  <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
-        ds.matched
-          ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
-          : 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
-      )}
-    >
-      {ds.matched ? (
-        <CheckIcon className="size-3" />
-      ) : (
-        <XIcon className="size-3" />
-      )}
-      {ds.matched ? 'matches' : 'no match'}
-    </span>
+  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
     <span className="font-mono text-zinc-900 dark:text-zinc-100">
       tag {ds.keyTag}
     </span>
@@ -589,6 +575,32 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
       {shortDigest(ds.digestHex)}
     </span>
     {ds.weakDigest && <WarnBadge>SHA-1</WarnBadge>}
+  </div>
+);
+
+const TrustLinkRow: FC<{ ds: DnssecDs; dnsKey?: DnssecKey }> = ({
+  ds,
+  dnsKey,
+}) => (
+  <li className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+    <DsRow ds={ds} />
+    <ArrowRightIcon
+      aria-label={dnsKey ? 'matches' : 'does not match'}
+      className={cn(
+        'size-4',
+        dnsKey
+          ? 'text-emerald-600 dark:text-emerald-400'
+          : 'text-red-600 dark:text-red-400',
+      )}
+    />
+    {dnsKey ? (
+      <KeyRow dnsKey={dnsKey} />
+    ) : (
+      <div className="flex items-center gap-1.5 py-2 text-sm font-medium text-red-600 dark:text-red-400">
+        <XIcon className="size-3.5" />
+        No matching DNSKEY
+      </div>
+    )}
   </li>
 );
 
@@ -692,68 +704,151 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
   );
 };
 
-const SignatureEvidenceRow: FC<{
+const signatureEvidenceDetail = (evidence: DnssecSignatureEvidence): string => {
+  switch (evidence.status) {
+    case 'valid':
+      return evidence.expiresAt !== undefined
+        ? `valid until ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+        : 'valid';
+    case 'expired':
+      return evidence.expiresAt !== undefined
+        ? `expired ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+        : 'expired';
+    case 'not-yet-valid':
+      return evidence.inceptionAt !== undefined
+        ? `not valid until ${dateTimeFmt.format(new Date(evidence.inceptionAt * 1000))}`
+        : 'not yet valid';
+    case 'missing':
+      return 'no covering RRSIG observed';
+    case 'unsupported':
+      return evidence.expiresAt !== undefined
+        ? `algorithm unsupported · observed expiry ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+        : 'algorithm unsupported';
+    case 'invalid':
+      return evidence.expiresAt !== undefined
+        ? `invalid · observed expiry ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
+        : 'invalid';
+  }
+};
+
+const SignatureEvidence: FC<{
   label: string;
   evidence: DnssecSignatureEvidence;
-}> = ({ label, evidence }) => {
-  const detail = (() => {
-    switch (evidence.status) {
-      case 'valid':
-        return evidence.expiresAt !== undefined
-          ? `valid until ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
-          : 'valid';
-      case 'expired':
-        return evidence.expiresAt !== undefined
-          ? `expired ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
-          : 'expired';
-      case 'not-yet-valid':
-        return evidence.inceptionAt !== undefined
-          ? `not valid until ${dateTimeFmt.format(new Date(evidence.inceptionAt * 1000))}`
-          : 'not yet valid';
-      case 'missing':
-        return 'no covering RRSIG observed';
-      case 'unsupported':
-        return evidence.expiresAt !== undefined
-          ? `algorithm unsupported · observed expiry ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
-          : 'algorithm unsupported';
-      case 'invalid':
-        return evidence.expiresAt !== undefined
-          ? `invalid · observed expiry ${dateTimeFmt.format(new Date(evidence.expiresAt * 1000))}`
-          : 'invalid';
-    }
-  })();
-
-  return (
-    <div className="flex gap-1.5">
-      <dt>{label}:</dt>
-      <dd>{detail}</dd>
-    </div>
-  );
-};
+}> = ({ label, evidence }) => (
+  <div className="flex min-w-0 items-start gap-1.5 py-2 text-xs text-zinc-500 dark:text-zinc-400">
+    <ClockIcon
+      className={cn(
+        'mt-0.5 size-3.5 shrink-0',
+        evidence.status === 'valid'
+          ? 'text-emerald-600 dark:text-emerald-400'
+          : evidence.status === 'unsupported' ||
+              evidence.status === 'not-yet-valid'
+            ? 'text-amber-600 dark:text-amber-400'
+            : 'text-red-600 dark:text-red-400',
+      )}
+      aria-hidden
+    />
+    <span className="min-w-0">
+      <span className="block font-medium text-zinc-700 dark:text-zinc-300">
+        {label}
+      </span>
+      <span className="block">{signatureEvidenceDetail(evidence)}</span>
+    </span>
+  </div>
+);
 
 const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
   zone,
   isLeaf,
 }) => {
   const rrsets = visibleRrsets(zone);
+  const linkedKeyIndexes = new Set(
+    zone.dsRecords.flatMap((ds) => ds.matchedKeyIndexes),
+  );
+  const otherKeys = zone.keys.filter(
+    (_key, index) => !linkedKeyIndexes.has(index),
+  );
+  const standaloneKeys = zone.dsRecords.length > 0 ? otherKeys : zone.keys;
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+      {zone.dsRecords.length > 0 && (
         <section>
-          <h4 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-            <KeyRoundIcon className="size-3.5" />
-            {zone.keys.length > 0
-              ? `${zone.keys.length} key${zone.keys.length > 1 ? 's' : ''}`
-              : 'Keys'}
-          </h4>
-          {zone.keys.length ? (
+          <div className="flex items-center gap-1">
+            <h4 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+              <FingerprintIcon className="size-3.5" />
+              {zone.name === '.'
+                ? 'Trust anchor → Root DNSKEY'
+                : 'Parent DS → Child DNSKEY'}
+            </h4>
+            <InfoTooltip
+              label={
+                zone.name === '.'
+                  ? 'trust anchor to root DNSKEY'
+                  : 'parent DS to child DNSKEY'
+              }
+            >
+              {zone.name === '.'
+                ? 'DNSSEC needs a starting fact that is trusted without DNS proof. Domain Digger ships IANA’s root DS fingerprints as that trust anchor and checks that each one matches a root DNSKEY. The key-set signature below confirms that the root DNSKEY set is currently signed.'
+                : 'A DS record is a fingerprint of a child zone’s DNSKEY, published by its parent. A match passes trust from the parent to the child; no match breaks the chain. The signatures below prove that the DS came from the parent and that the child’s DNSKEY set is signed.'}
+            </InfoTooltip>
+          </div>
+          <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
+            {zone.dsRecords.map((ds) => (
+              <TrustLinkRow
+                key={`${ds.keyTag}-${ds.algorithm}-${ds.digestType}-${ds.digestHex}`}
+                ds={ds}
+                dnsKey={zone.keys[ds.matchedKeyIndexes[0]]}
+              />
+            ))}
+          </ul>
+          {(zone.dsSignature || zone.dnskeySignature) && (
+            <div className="grid grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] gap-3 border-t border-zinc-100 dark:border-zinc-800">
+              <div>
+                {zone.dsSignature && (
+                  <SignatureEvidence
+                    label="Parent signature"
+                    evidence={zone.dsSignature}
+                  />
+                )}
+              </div>
+              <span aria-hidden />
+              <div>
+                {zone.dnskeySignature && (
+                  <SignatureEvidence
+                    label="Key-set signature"
+                    evidence={zone.dnskeySignature}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {(zone.dsRecords.length === 0 || standaloneKeys.length > 0) && (
+        <section>
+          <div className="flex items-center gap-1">
+            <h4 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+              <KeyRoundIcon className="size-3.5" />
+              {zone.dsRecords.length > 0
+                ? `${standaloneKeys.length} other DNSKEY${standaloneKeys.length === 1 ? '' : 's'} in this zone`
+                : `${standaloneKeys.length} DNSKEY${standaloneKeys.length === 1 ? '' : 's'} in this zone`}
+            </h4>
+            <InfoTooltip
+              label={zone.dsRecords.length > 0 ? 'other DNSKEYs' : 'DNSKEYs'}
+            >
+              {zone.dsRecords.length > 0
+                ? 'These keys are not directly referenced by the parent. They can still be trusted because the matched KSK signs the whole DNSKEY set. Most are ZSKs that sign the zone’s records; extra KSKs may appear during key rollovers.'
+                : 'DNSKEYs are the zone’s public keys. KSKs authenticate the DNSKEY set; ZSKs usually sign the zone’s DNS records.'}
+            </InfoTooltip>
+          </div>
+          {standaloneKeys.length > 0 ? (
             <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
-              {zone.keys.map((k, index) => (
-                // Key tags are 16-bit checksums, not unique IDs.
-                <KeyRow
-                  key={`${k.keyTag}-${k.algorithm}-${k.flags}-${index}`}
-                  dnsKey={k}
-                />
+              {standaloneKeys.map((key) => (
+                <li key={`${key.keyTag}-${key.algorithm}-${key.flags}`}>
+                  <KeyRow dnsKey={key} />
+                </li>
               ))}
             </ul>
           ) : (
@@ -762,47 +857,25 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
             </p>
           )}
         </section>
-
-        <section>
-          <h4 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
-            <FingerprintIcon className="size-3.5" />
-            {zone.name === '.'
-              ? 'Trust anchor'
-              : `${zone.dsRecords.length} DS from parent`}
-          </h4>
-          {zone.dsRecords.length ? (
-            <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800">
-              {zone.dsRecords.map((d) => (
-                <DsRow
-                  key={`${d.keyTag}-${d.algorithm}-${d.digestType}-${d.digestHex}`}
-                  ds={d}
-                />
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1 py-2 text-sm text-zinc-500 italic dark:text-zinc-400">
-              No DS observed; absence not cryptographically proven.
-            </p>
-          )}
-        </section>
-      </div>
-
-      {(zone.dsSignature || zone.dnskeySignature) && (
-        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
-          {zone.dsSignature && (
-            <SignatureEvidenceRow
-              label="Parent DS RRSIG"
-              evidence={zone.dsSignature}
-            />
-          )}
-          {zone.dnskeySignature && (
-            <SignatureEvidenceRow
-              label="DNSKEY RRSIG"
-              evidence={zone.dnskeySignature}
-            />
-          )}
-        </dl>
       )}
+
+      {zone.dsRecords.length === 0 &&
+        (zone.dsSignature || zone.dnskeySignature) && (
+          <div className="flex flex-wrap gap-x-6">
+            {zone.dsSignature && (
+              <SignatureEvidence
+                label="Parent signature"
+                evidence={zone.dsSignature}
+              />
+            )}
+            {zone.dnskeySignature && (
+              <SignatureEvidence
+                label="Key-set signature"
+                evidence={zone.dnskeySignature}
+              />
+            )}
+          </div>
+        )}
 
       {isLeaf && rrsets.length > 0 && (
         <section>
@@ -850,7 +923,7 @@ const RailRow: FC<{
 
       {/* Content column */}
       <div className="min-w-0 flex-1 pb-6">
-        {!isRoot && (
+        {!isRoot && edge.label && (
           <div className={cn('mt-1 mb-1 text-xs font-medium', edge.text)}>
             {edge.label}
           </div>

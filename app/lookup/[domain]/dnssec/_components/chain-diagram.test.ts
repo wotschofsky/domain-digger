@@ -1,8 +1,11 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import type { DnssecChain } from '@/lib/dnssec';
 
 import {
+  ChainDiagram,
   relativeTime,
   signatureExpiryTone,
   verdictPresentation,
@@ -60,6 +63,53 @@ describe('DNSSEC verdict presentation', () => {
     expect(verdictPresentation(chain).remediation).toBe(
       'To fix: the operator of the parent zone must restore a valid signature over the DS record set.',
     );
+  });
+});
+
+describe('DNSSEC chain presentation', () => {
+  it('pairs the parent DS with its child DNSKEY without repeating either record', () => {
+    const chain = secureChain('positive');
+    chain.zones[0] = {
+      ...chain.zones[0],
+      keys: [
+        {
+          keyTag: 2371,
+          algorithm: 13,
+          algorithmName: 'ECDSAP256SHA256',
+          flags: 257,
+          isSep: true,
+          isRevoked: false,
+          linked: true,
+          bits: 256,
+          deprecated: false,
+        },
+      ],
+      dsRecords: [
+        {
+          keyTag: 2371,
+          algorithm: 13,
+          algorithmName: 'ECDSAP256SHA256',
+          digestType: 2,
+          digestName: 'SHA-256',
+          digestHex: '15D9766CF2CEE3',
+          matched: true,
+          matchedKeyIndexes: [0],
+          weakDigest: false,
+        },
+      ],
+      dsSignature: { status: 'valid', expiresAt: 1785103200 },
+      dnskeySignature: { status: 'valid', expiresAt: 1785705840 },
+    };
+
+    const html = renderToStaticMarkup(createElement(ChainDiagram, { chain }));
+
+    expect(html).toContain('Parent DS → Child DNSKEY');
+    expect(html).toContain('aria-label="Explain parent DS to child DNSKEY"');
+    expect(html.match(/tag 2371/g)).toHaveLength(2);
+    expect(html).toContain('Parent signature');
+    expect(html).toContain('Key-set signature');
+    expect(html).not.toContain('Parent DS RRSIG');
+    expect(html).not.toContain('other DNSKEY');
   });
 });
 

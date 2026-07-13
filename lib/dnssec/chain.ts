@@ -309,16 +309,22 @@ export function buildChain(
       };
     });
 
-    const dsRecords: DnssecDs[] = anchors.map((ds) => ({
-      keyTag: ds.keyTag,
-      algorithm: ds.algorithm,
-      algorithmName: algorithmName(ds.algorithm),
-      digestType: ds.digestType,
-      digestName: DIGEST_NAMES[ds.digestType] ?? `Digest ${ds.digestType}`,
-      digestHex: ds.digest.toString('hex').toUpperCase(),
-      matched: zone.keys.some((k) => dsMatchesKey(ds, k, zone.name)),
-      weakDigest: isWeakDigest(ds.digestType),
-    }));
+    const dsRecords: DnssecDs[] = anchors.map((ds) => {
+      const matchedKeyIndexes = zone.keys.flatMap((key, index) =>
+        dsMatchesKey(ds, key, zone.name) ? [index] : [],
+      );
+      return {
+        keyTag: ds.keyTag,
+        algorithm: ds.algorithm,
+        algorithmName: algorithmName(ds.algorithm),
+        digestType: ds.digestType,
+        digestName: DIGEST_NAMES[ds.digestType] ?? `Digest ${ds.digestType}`,
+        digestHex: ds.digest.toString('hex').toUpperCase(),
+        matched: matchedKeyIndexes.length > 0,
+        matchedKeyIndexes,
+        weakDigest: isWeakDigest(ds.digestType),
+      };
+    });
 
     let state: DnssecZoneState;
     let dnskeySignatureExpiresAt: number | undefined;
