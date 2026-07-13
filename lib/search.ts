@@ -5,9 +5,10 @@ import { after } from 'next/server';
 import { env } from '@/env';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
+import type { LookupType } from '@/lib/lookup-features';
 import { getBaseDomain } from '@/lib/utils';
 
-export type LookupType = 'dns' | 'whois' | 'subdomains' | 'certs' | 'dnssec';
+export type { LookupType } from '@/lib/lookup-features';
 
 type LookupLogPayload = {
   domain: string;

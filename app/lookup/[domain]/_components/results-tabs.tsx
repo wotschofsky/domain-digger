@@ -8,6 +8,7 @@ import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { ClientOnly } from '@/components/client-only';
+import { LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 type SingleTabProps = {
@@ -39,14 +40,7 @@ const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   </li>
 );
 
-const TABS = [
-  { label: 'DNS', segment: '(dns)', path: '' },
-  { label: 'DNS Map', segment: 'map', path: '/map' },
-  { label: 'DNSSEC', segment: 'dnssec', path: '/dnssec' },
-  { label: 'Whois', segment: 'whois', path: '/whois' },
-  { label: 'Certs', segment: 'certs', path: '/certs' },
-  { label: 'Subdomains', segment: 'subdomains', path: '/subdomains' },
-];
+const TABS = LOOKUP_FEATURES;
 
 type ResultsTabsProps = {
   domain: string;
@@ -88,7 +82,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
               {TABS.length}
             </>
           ) : (
-            `ctrl+1-${TABS.length}`
+            `alt+1-${TABS.length}`
           )}
         </kbd>
       </ClientOnly>

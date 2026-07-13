@@ -29,6 +29,7 @@ import {
 const signerCandidates = (keys: DnskeyData[], rrsig: RrsigData): DnskeyData[] =>
   keys.filter(
     (k) =>
+      (k.flags & 0x0100) !== 0 &&
       (k.flags & 0x0080) === 0 &&
       k.algorithm === rrsig.algorithm &&
       computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,

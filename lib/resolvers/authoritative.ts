@@ -38,11 +38,56 @@ const DNSSEC_OPT_RECORD = {
   options: [],
 };
 
-type DnsResponse = {
+export type DnsResponse = {
   packet: Packet;
   protocol: 'udp' | 'tcp';
   truncated: boolean;
 };
+
+export type AuthoritativeTransport = (
+  domain: string,
+  recordType: RecordType,
+  nameserver: string,
+  dnssecOk: boolean,
+) => Promise<DnsResponse>;
+
+export type AuthoritativeUdpTransport = (
+  domain: string,
+  recordType: RecordType,
+  nameserver: string,
+  dnssecOk: boolean,
+) => Promise<DecodedPacket>;
+
+export type AuthoritativeTcpTransport = (
+  domain: string,
+  recordType: RecordType,
+  nameserver: string,
+  dnssecOk: boolean,
+) => Promise<Packet>;
+
+export type AuthoritativeResolverOptions = {
+  transport?: AuthoritativeTransport;
+  udpTransport?: AuthoritativeUdpTransport;
+  tcpTransport?: AuthoritativeTcpTransport;
+  rootServers?: () => Promise<string[]>;
+};
+
+export const isMatchingDnsResponse = (
+  packet: Packet,
+  id: number,
+  domain: string,
+  recordType: RecordType,
+): boolean =>
+  packet.type === 'response' &&
+  packet.id === id &&
+  Boolean(
+    packet.questions?.some(
+      (question) =>
+        question.type === recordType &&
+        question.name.replace(/\.$/, '').toLowerCase() ===
+          domain.replace(/\.$/, '').toLowerCase(),
+    ),
+  );
 
 type FetchRecordsParams = {
   domain: string;
@@ -59,12 +104,20 @@ type FetchRecordsParams = {
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
 
+  public constructor(
+    private readonly options: AuthoritativeResolverOptions = {},
+  ) {
+    super();
+  }
+
   // One fetch+parse of the root hints per resolver instance; the walk calls
   // getRootServers on every recursion step. A failed attempt is not cached.
   private rootServersPromise?: Promise<string[]>;
 
   private getRootServers(): Promise<string[]> {
-    this.rootServersPromise ??= this.fetchRootServers().catch((error) => {
+    const loadRootServers =
+      this.options.rootServers ?? (() => this.fetchRootServers());
+    this.rootServersPromise ??= loadRootServers().catch((error) => {
       this.rootServersPromise = undefined;
       throw error;
     });
@@ -180,10 +233,11 @@ export class AuthoritativeResolver extends DnsResolver {
     nameserver: string,
     dnssecOk = false,
   ) {
+    const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.encode({
       type: 'query',
       // Randomize ID to avoid response mismatch
-      id: Math.floor(Math.random() * 65535),
+      id,
       questions: [{ type: recordType, name: domain } as Question],
       ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
@@ -208,9 +262,17 @@ export class AuthoritativeResolver extends DnsResolver {
         );
       }, 3000);
 
-      socket.on('message', (message: Buffer) => {
+      socket.on('message', (message: Buffer, remote) => {
+        if (remote.address !== nameserver || remote.port !== 53) return;
+        let packet: DecodedPacket;
+        try {
+          packet = dnsPacket.decode(message);
+        } catch {
+          return;
+        }
+        if (!isMatchingDnsResponse(packet, id, domain, recordType)) return;
         cleanup();
-        resolve(dnsPacket.decode(message));
+        resolve(packet);
       });
       socket.on('error', (error) => {
         cleanup();
@@ -227,9 +289,10 @@ export class AuthoritativeResolver extends DnsResolver {
     nameserver: string,
     dnssecOk = false,
   ) {
+    const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
-      id: Math.floor(Math.random() * 65535),
+      id,
       questions: [{ type: recordType, name: domain } as Question],
       ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
@@ -264,8 +327,14 @@ export class AuthoritativeResolver extends DnsResolver {
         if (buf.length >= 2) {
           const msgLen = buf.readUInt16BE(0);
           if (buf.length >= 2 + msgLen) {
+            const packet = dnsPacket.streamDecode(buf);
+            if (!isMatchingDnsResponse(packet, id, domain, recordType)) {
+              cleanup();
+              reject(new Error('DNS response did not match the TCP query'));
+              return;
+            }
             cleanup();
-            resolve(dnsPacket.streamDecode(buf));
+            resolve(packet);
           }
         }
       });
@@ -287,19 +356,23 @@ export class AuthoritativeResolver extends DnsResolver {
     // that limit the server truncates the response and sets the TC flag,
     // signaling the client to retry over TCP where the full response (up to
     // 64 KB) can be delivered.
-    const udpResponse = await this.sendUdpRequest(
-      domain,
-      recordType,
-      nameserver,
-      dnssecOk,
-    );
+    const udpResponse = this.options.udpTransport
+      ? await this.options.udpTransport(
+          domain,
+          recordType,
+          nameserver,
+          dnssecOk,
+        )
+      : await this.sendUdpRequest(domain, recordType, nameserver, dnssecOk);
     if (udpResponse.flag_tc) {
-      const packet = await this.sendTcpRequest(
-        domain,
-        recordType,
-        nameserver,
-        dnssecOk,
-      );
+      const packet = this.options.tcpTransport
+        ? await this.options.tcpTransport(
+            domain,
+            recordType,
+            nameserver,
+            dnssecOk,
+          )
+        : await this.sendTcpRequest(domain, recordType, nameserver, dnssecOk);
       return { packet, protocol: 'tcp', truncated: true };
     }
     return { packet: udpResponse, protocol: 'udp', truncated: false };
@@ -319,10 +392,13 @@ export class AuthoritativeResolver extends DnsResolver {
       Promise.all(
         keys.map(async ({ domain, type, nameserver, dnssecOk }) => {
           try {
-            return await retry(
-              () => this.sendRequest(domain, type, nameserver, dnssecOk),
-              3,
-            );
+            return await retry(() => {
+              const transport =
+                this.options.transport ??
+                ((...args: Parameters<AuthoritativeTransport>) =>
+                  this.sendRequest(...args));
+              return transport(domain, type, nameserver, dnssecOk);
+            }, 3);
           } catch (error) {
             return error instanceof Error
               ? error
@@ -412,6 +488,15 @@ export class AuthoritativeResolver extends DnsResolver {
       };
       try {
         const result = await this.requestLoader.load(loaderKey);
+        const resultRcode = result.packet.rcode;
+        if (
+          resultRcode !== undefined &&
+          resultRcode !== 'NOERROR' &&
+          resultRcode !== 'NXDOMAIN'
+        ) {
+          failedNameservers.push(`${candidate}: DNS ${resultRcode}`);
+          continue;
+        }
         response = result.packet;
         protocol = result.protocol;
         truncated = result.truncated;
@@ -428,8 +513,18 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     if (!response) {
-      throw new Error(
-        `All nameservers failed for ${domain} ${recordType}: ${failedNameservers.join('; ')}`,
+      throw new UserFacingError(
+        {
+          title: 'Authoritative DNS servers did not answer',
+          description:
+            'Every available authoritative nameserver failed or returned a retryable DNS error. No DNSSEC verdict was produced; please try again shortly.',
+          retryable: true,
+        },
+        {
+          cause: new Error(
+            `All nameservers failed for ${domain} ${recordType}: ${failedNameservers.join('; ')}`,
+          ),
+        },
       );
     }
 
@@ -609,7 +704,7 @@ export class AuthoritativeResolver extends DnsResolver {
    * selector): this instance supplies the transport, lib/dnssec/resolve.ts
    * owns the walk. See lib/dnssec for what is (and isn't) verified.
    */
-  public resolveDnssecChain(domain: string): Promise<DnssecChain | null> {
+  public resolveDnssecChain(domain: string): Promise<DnssecChain> {
     return resolveDnssecChain(domain, (name, type, dnssecOk) =>
       this.fetchRecordsRaw({ domain: name, recordType: type, dnssecOk }),
     );

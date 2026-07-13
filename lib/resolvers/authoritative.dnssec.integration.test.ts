@@ -8,11 +8,7 @@ import type { DnssecChain } from '@/lib/dnssec';
 import { UserFacingError } from '../user-facing-error';
 import { AuthoritativeResolver } from './authoritative';
 
-// Narrows the nullable result (null = NXDOMAIN) for the cases that expect a chain.
-const assertChain = (chain: DnssecChain | null): DnssecChain => {
-  if (!chain) throw new Error('expected a DNSSEC chain, got null (NXDOMAIN)');
-  return chain;
-};
+const assertChain = (chain: DnssecChain): DnssecChain => chain;
 
 // --- Offline guard test (runs always, no network) ------------------------
 // The root zone always serves DNSKEY. If a query path returns none (e.g. a
@@ -111,7 +107,7 @@ live('resolveDnssecChain (live)', () => {
       'reports %s as secure with an unbroken chain',
       async (domain) => {
         const chain = assertChain(await resolve(domain));
-        expect(chain.overall).toBe('secure');
+        expect(chain.status).toBe('secure');
         expect(chain.zones[0].name).toBe('.');
         expect(chain.zones.at(-1)?.name).toBe(domain);
         expect(chain.zones.every((z) => z.status === 'secure')).toBe(true);
@@ -137,7 +133,7 @@ live('resolveDnssecChain (live)', () => {
       'reports %s as insecure, not broken',
       async (domain) => {
         const chain = assertChain(await resolve(domain));
-        expect(chain.overall).toBe('insecure');
+        expect(chain.status).toBe('insecure');
         expect(chain.zones[0].status).toBe('secure'); // signed root
         expect(chain.zones.at(-1)?.status).toBe('insecure'); // unsigned leaf
         expect(chain.zones.some((z) => z.status === 'broken')).toBe(false);
@@ -155,7 +151,7 @@ live('resolveDnssecChain (live)', () => {
       async () => {
         // Verisign's canonical test domain: its DS matches no served DNSKEY.
         const chain = assertChain(await resolve('dnssec-failed.org'));
-        expect(chain.overall).toBe('broken');
+        expect(chain.status).toBe('broken');
         const broken = chain.zones.find((z) => z.status === 'broken');
         expect(broken).toBeDefined();
         // The break is at the misconfigured zone, and its parent chain was fine.
@@ -165,24 +161,32 @@ live('resolveDnssecChain (live)', () => {
     );
   });
 
-  // Nonexistent names resolve to null so the page can render not-found.
+  // Negative DNS answers remain observational until NSEC/NSEC3 proof
+  // validation is implemented; a bare NXDOMAIN header is not authenticated.
   describe('nonexistent names', () => {
     it(
-      'returns null for an NXDOMAIN registered domain',
+      'does not turn an unproved NXDOMAIN registered domain into a 404',
       async () => {
-        expect(
-          await resolve('this-domain-definitely-does-not-exist-9q7x2z.com'),
-        ).toBeNull();
+        const chain = await resolve(
+          'this-domain-definitely-does-not-exist-9q7x2z.com',
+        );
+        expect(chain.status).toBe('insecure');
+        expect(chain.coverage.negativeProofs).toBe('not-implemented');
       },
       TIMEOUT,
     );
 
     it(
-      'returns null for an NXDOMAIN subdomain of a signed domain',
+      'reports only the authenticated ancestor for an unproved NXDOMAIN subdomain',
       async () => {
+        const chain = await resolve('does-not-exist-9q7x2z.cloudflare.com');
+        expect(chain.status).toBe('secure');
+        expect(chain.zones.at(-1)?.name).toBe('cloudflare.com');
         expect(
-          await resolve('does-not-exist-9q7x2z.cloudflare.com'),
-        ).toBeNull();
+          chain.zones
+            .at(-1)
+            ?.rrsets?.every((rrset) => rrset.status === 'absent'),
+        ).toBe(true);
       },
       TIMEOUT,
     );
@@ -192,7 +196,7 @@ live('resolveDnssecChain (live)', () => {
     'normalizes mixed-case names (DNS is case-insensitive)',
     async () => {
       const chain = assertChain(await resolve('GooGle.CoM'));
-      expect(chain.overall).toBe('insecure');
+      expect(chain.status).toBe('insecure');
     },
     TIMEOUT,
   );
@@ -237,7 +241,7 @@ live('resolveDnssecChain (live)', () => {
     'evaluates a subdomain of a signed apex as secure',
     async () => {
       const chain = assertChain(await resolve('www.cloudflare.com'));
-      expect(chain.overall).toBe('secure');
+      expect(chain.status).toBe('secure');
       expect(chain.zones.some((z) => z.name === 'cloudflare.com')).toBe(true);
     },
     TIMEOUT,

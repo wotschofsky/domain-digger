@@ -142,6 +142,25 @@ describe('verifyDnskeyRrsig (golden vectors)', () => {
       }),
     ).toBe(false);
   });
+
+  it('rejects a DNSKEY RRSIG made by a key without the ZONE flag', () => {
+    const k = genKey(13);
+    const nonZone: DnskeyData = { ...k.dnskey, flags: 1 };
+    const rrsig = signDnskeyRrset(
+      'example',
+      [nonZone],
+      { ...k, dnskey: nonZone },
+      { inception: 1000, expiration: 2000 },
+    );
+    expect(
+      verifyDnskeyRrsig({
+        rrsig,
+        keys: [nonZone],
+        ownerName: 'example',
+        now: 1500,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('verifyRrsetRrsig', () => {
@@ -156,6 +175,33 @@ describe('verifyRrsetRrsig', () => {
     const rrsig = signARecordRrset(ownerName, records, signerName, signer, {
       inception: 1000,
       expiration: 2000,
+    });
+
+    expect(
+      verifyRrsetRrsig({
+        rrsig,
+        type: 'A',
+        records,
+        ownerName,
+        signerName,
+        keys: [signer.dnskey],
+        now: 1500,
+      }),
+    ).toBe(true);
+  });
+
+  it('verifies a wildcard-expanded positive RRset', () => {
+    const ownerName = 'www.example';
+    const signerName = 'example';
+    const records = [
+      { name: ownerName, type: 'A' as const, data: '192.0.2.1' },
+    ];
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, {
+      inception: 1000,
+      expiration: 2000,
+      labels: 1,
+      signedOwnerName: '*.example',
     });
 
     expect(

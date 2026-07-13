@@ -1,12 +1,18 @@
 import type { DnskeyData, DsData } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
-import { buildChain, ROOT_TRUST_ANCHORS } from './chain';
+import { buildChain as buildDnssecChain, ROOT_TRUST_ANCHORS } from './chain';
 import { dsDigest } from './ds';
-import { dsForKey, genKey, signDnskeyRrset } from './test-helpers';
+import { dsForKey, genKey, signDnskeyRrset, signDsRrset } from './test-helpers';
 import { RFC_DS, RFC_KEY } from './test-vectors';
 import type { RawZone } from './types';
 import { computeKeyTag, dnskeyRdata } from './wire';
+
+const buildChain = (zones: RawZone[], now?: number) =>
+  buildDnssecChain(zones, now, {
+    initialTrustAnchors:
+      zones[0] && zones[0].name !== '.' ? zones[0].dsRecords : undefined,
+  });
 
 describe('buildChain', () => {
   const sep: DnskeyData = { ...RFC_KEY, flags: 257 }; // SEP/KSK bit set
@@ -20,12 +26,30 @@ describe('buildChain', () => {
     digest: dsDigest(name, sep, 1)!,
   });
 
+  it('does not trust a non-root first zone without an explicit trust anchor', () => {
+    const key = genKey(13);
+    const zone: RawZone = {
+      name: 'example',
+      keys: [key.dnskey],
+      dsRecords: [dsForKey('example', key.dnskey)],
+      keyRrsigs: [
+        signDnskeyRrset('example', [key.dnskey], key, {
+          inception: 1000,
+          expiration: 2000,
+        }),
+      ],
+    };
+
+    expect(buildDnssecChain([zone], 1500).status).toBe('insecure');
+  });
+
   it('marks a fully linked, validly-signed chain secure', () => {
     // Real signatures required now: each zone's DNSKEY RRset must carry a valid
     // RRSIG by a DS-linked key, so we sign with keypairs we control.
     const parent = genKey(13);
     const child = genKey(13);
     const win = { inception: 1000, expiration: 2000 };
+    const childDs = dsForKey('child.example', child.dnskey);
     const zones: RawZone[] = [
       {
         name: 'example',
@@ -36,7 +60,10 @@ describe('buildChain', () => {
       {
         name: 'child.example',
         keys: [child.dnskey],
-        dsRecords: [dsForKey('child.example', child.dnskey)],
+        dsRecords: [childDs],
+        dsRrsigs: [
+          signDsRrset('child.example', [childDs], 'example', parent, win),
+        ],
         keyRrsigs: [
           signDnskeyRrset('child.example', [child.dnskey], child, win),
         ],
@@ -44,7 +71,7 @@ describe('buildChain', () => {
     ];
     const chain = buildChain(zones, 1500);
     expect(chain.zones.map((z) => z.status)).toEqual(['secure', 'secure']);
-    expect(chain.overall).toBe('secure');
+    expect(chain.status).toBe('secure');
     // Every secure zone carries its DNSKEY RRSIG's expiry for expiry warnings.
     expect(chain.zones.map((z) => z.signatureExpiresAt)).toEqual([2000, 2000]);
   });
@@ -52,7 +79,7 @@ describe('buildChain', () => {
   it('enforces the real root trust anchor (fake root key -> broken)', () => {
     const chain = buildChain([{ name: '.', keys: [sep], dsRecords: [] }]);
     expect(chain.zones[0].status).toBe('broken');
-    expect(chain.overall).toBe('broken');
+    expect(chain.status).toBe('broken');
   });
 
   it('marks an unsigned zone insecure and propagates', () => {
@@ -62,7 +89,7 @@ describe('buildChain', () => {
     ];
     const chain = buildChain(zones);
     expect(chain.zones[0].status).toBe('insecure');
-    expect(chain.overall).toBe('insecure');
+    expect(chain.status).toBe('insecure');
   });
 
   it('marks a DS-without-DNSKEY zone as broken (not insecure)', () => {
@@ -71,7 +98,7 @@ describe('buildChain', () => {
     ];
     const chain = buildChain(zones);
     expect(chain.zones[0].status).toBe('broken');
-    expect(chain.overall).toBe('broken');
+    expect(chain.status).toBe('broken');
   });
 
   it('marks a DS that matches no key as broken', () => {
@@ -81,7 +108,7 @@ describe('buildChain', () => {
     ];
     const chain = buildChain(zones);
     expect(chain.zones[0].status).toBe('broken');
-    expect(chain.overall).toBe('broken');
+    expect(chain.status).toBe('broken');
   });
 
   it('marks a zone broken when the DS key tag matches no served key', () => {
@@ -105,7 +132,7 @@ describe('buildChain', () => {
     ];
     const chain = buildChain(zones);
     expect(chain.zones.map((z) => z.status)).toEqual(['insecure', 'insecure']);
-    expect(chain.overall).toBe('insecure');
+    expect(chain.status).toBe('insecure');
   });
 
   it('flags the root anchor and KSK metadata', () => {
@@ -214,12 +241,82 @@ describe('buildChain signature enforcement', () => {
     expect(chain.zones[0].status).toBe('secure');
   });
 
+  it('rejects a child DS RRset that is not signed by the authenticated parent', () => {
+    const parent = genKey(13);
+    const child = genKey(13);
+    const childDs = dsForKey('child.example', child.dnskey);
+    const zones: RawZone[] = [
+      {
+        name: 'example',
+        keys: [parent.dnskey],
+        dsRecords: [dsForKey('example', parent.dnskey)],
+        keyRrsigs: [signDnskeyRrset('example', [parent.dnskey], parent, win)],
+      },
+      {
+        name: 'child.example',
+        keys: [child.dnskey],
+        dsRecords: [childDs],
+        keyRrsigs: [
+          signDnskeyRrset('child.example', [child.dnskey], child, win),
+        ],
+      },
+    ];
+
+    const chain = buildChain(zones, now);
+    expect(chain.zones[1]).toMatchObject({
+      status: 'broken',
+      breakReason: 'bad-ds-signature',
+    });
+  });
+
+  it('treats a DS RRset signed only with an unsupported algorithm as unvalidatable', () => {
+    const parent = genKey(13);
+    const unsupportedParentKey: DnskeyData = {
+      flags: 256,
+      algorithm: 12,
+      key: Buffer.alloc(64, 7),
+    };
+    const child = genKey(13);
+    const childDs = dsForKey('child.example', child.dnskey);
+    const unsupportedRrsig = {
+      ...signDsRrset('child.example', [childDs], 'example', parent, win),
+      algorithm: 12,
+      keyTag: computeKeyTag(dnskeyRdata(unsupportedParentKey)),
+    };
+    const parentRrset = [parent.dnskey, unsupportedParentKey];
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: parentRrset,
+          dsRecords: [dsForKey('example', parent.dnskey)],
+          keyRrsigs: [signDnskeyRrset('example', parentRrset, parent, win)],
+        },
+        {
+          name: 'child.example',
+          keys: [child.dnskey],
+          dsRecords: [childDs],
+          dsRrsigs: [unsupportedRrsig],
+          keyRrsigs: [
+            signDnskeyRrset('child.example', [child.dnskey], child, win),
+          ],
+        },
+      ],
+      now,
+    );
+
+    expect(chain.zones[1]).toMatchObject({
+      status: 'insecure',
+      breakReason: 'unsupported-algorithm',
+    });
+  });
+
   it('propagates a broken key signature down the chain', () => {
     const parent = signedZone('example', 13);
     delete parent.keyRrsigs; // parent key set unsigned -> broken
     const child = signedZone('child.example', 13);
     const chain = buildChain([parent, child], now);
     expect(chain.zones.map((z) => z.status)).toEqual(['broken', 'broken']);
-    expect(chain.overall).toBe('broken');
+    expect(chain.status).toBe('broken');
   });
 });

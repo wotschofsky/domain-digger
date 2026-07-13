@@ -114,9 +114,6 @@ async function probeLeafRrsets(
  * it, then hand the raw records to buildChain() for verification. See index.ts
  * for what is (and isn't) verified.
  *
- * Returns null when the queried domain does not exist (NXDOMAIN), so callers
- * can render a not-found state rather than a misleading "unsigned" verdict.
- *
  * `now` (Unix seconds) is the instant RRSIG validity is judged against; it
  * defaults to the current time and is injectable for deterministic tests.
  */
@@ -124,7 +121,7 @@ export async function resolveDnssecChain(
   domain: string,
   query: DnssecQuery,
   now?: number,
-): Promise<DnssecChain | null> {
+): Promise<DnssecChain> {
   // Walk every label suffix from the root down to the queried name, so a
   // separately-delegated (and separately-signed) subdomain gets its own zone
   // cut evaluated instead of being collapsed into its registered domain.
@@ -159,24 +156,11 @@ export async function resolveDnssecChain(
         // The root has no parent to publish a DS; its anchors are built in.
         name === '.'
           ? Promise.resolve<DnssecQueryResult>({ answers: [] })
-          : query(name, 'DS'),
+          : query(name, 'DS', true),
       ]);
       return { name, keyResult, dsResult };
     }),
   );
-
-  // An NXDOMAIN on the queried name itself (the leaf) means it does not
-  // exist -- treat it as not-found rather than an unsigned delegation. This
-  // covers both a nonexistent registered domain and a nonexistent subdomain
-  // under an existing one.
-  const leafRecords = zoneRecords[zoneRecords.length - 1];
-  if (
-    leafRecords.name === fqdn &&
-    (leafRecords.keyResult.rcode === 'NXDOMAIN' ||
-      leafRecords.dsResult.rcode === 'NXDOMAIN')
-  ) {
-    return null;
-  }
 
   const rawZones: RawZone[] = [];
   for (const { name, keyResult, dsResult } of zoneRecords) {
@@ -199,6 +183,7 @@ export async function resolveDnssecChain(
         keys,
         dsRecords,
         keyRrsigs: keyResult.coveringRrsigs,
+        dsRrsigs: dsResult.coveringRrsigs,
       });
     }
   }
@@ -228,6 +213,7 @@ export async function resolveDnssecChain(
     ? rawZones.find((zone) => zone.name === leaf.name)
     : null;
   if (leaf && leafRaw && leaf.status === 'secure') {
+    chain.coverage.checkedPositiveRrsetTypes = [...RRSET_PROBE_TYPES];
     const { rrsets, expiresAt } = await probeLeafRrsets(
       probeName,
       leaf.name,

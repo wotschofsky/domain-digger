@@ -1,7 +1,7 @@
 import type { DnskeyData, RrsigData } from 'dns-packet';
 import { toType } from 'dns-packet/types';
 
-import { algorithmName } from './algorithms';
+import { algorithmName, SUPPORTED_SIGNING_ALGORITHMS } from './algorithms';
 import { verifyRrsetRrsig } from './rrsig';
 import type {
   DnssecAnswerRecord,
@@ -31,6 +31,7 @@ const STATUS_BY_REASON: Record<DnssecRrsetReason, DnssecRrsetStatus> = {
   'missing-rrsig': 'unsigned',
   'unsupported-type': 'unsupported',
   'unsupported-rdata': 'unsupported',
+  'unsupported-algorithm': 'unsupported',
   'unauthenticated-signer': 'bogus',
   expired: 'bogus',
   'not-yet-valid': 'bogus',
@@ -94,18 +95,22 @@ export function validatePositiveRrset(params: {
     });
   }
 
-  let fallbackReason: DnssecRrsetReason = 'invalid-signature';
+  let sawAuthenticatedSigner = false;
+  let sawSupportedSigner = false;
+  let supportedFailure: DnssecRrsetReason = 'invalid-signature';
   for (const rrsig of covering) {
     if (!authenticatedKeyIds.has(signerId(rrsig.algorithm, rrsig.keyTag))) {
-      fallbackReason = 'unauthenticated-signer';
       continue;
     }
+    sawAuthenticatedSigner = true;
+    if (!SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm)) continue;
+    sawSupportedSigner = true;
     if (now < rrsig.inception) {
-      fallbackReason = 'not-yet-valid';
+      supportedFailure = 'not-yet-valid';
       continue;
     }
     if (now > rrsig.expiration) {
-      fallbackReason = 'expired';
+      supportedFailure = 'expired';
       continue;
     }
     const verified = verifyRrsetRrsig({
@@ -131,6 +136,11 @@ export function validatePositiveRrset(params: {
     }
   }
 
+  const fallbackReason: DnssecRrsetReason = sawSupportedSigner
+    ? supportedFailure
+    : sawAuthenticatedSigner
+      ? 'unsupported-algorithm'
+      : 'unauthenticated-signer';
   const firstCovering = covering[0];
   return rrsetResult(fallbackReason, {
     type,

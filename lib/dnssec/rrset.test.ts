@@ -123,6 +123,36 @@ describe('positive RRset validation', () => {
     });
   });
 
+  it('reports an authenticated but unsupported signing algorithm as unsupported', () => {
+    const signer = genKey(13);
+    const unsupportedKey: DnskeyData = {
+      ...signer.dnskey,
+      algorithm: 12,
+    };
+    const keyTag = computeKeyTag(dnskeyRdata(unsupportedKey));
+    const rrsig = {
+      ...signARecordRrset(ownerName, records, signerName, signer, win),
+      algorithm: 12,
+      keyTag,
+    };
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [rrsig],
+        keys: [unsupportedKey],
+        authenticatedKeyIds: new Set([signerId(12, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'unsupported',
+      reason: 'unsupported-algorithm',
+    });
+  });
+
   it('rejects a positive RRset signed by an unauthenticated key', () => {
     const signer = genKey(13);
     const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);

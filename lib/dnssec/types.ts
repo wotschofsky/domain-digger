@@ -16,6 +16,7 @@ export type DnssecRrsetReason =
   | 'missing-rrsig'
   | 'unsupported-type'
   | 'unsupported-rdata'
+  | 'unsupported-algorithm'
   | 'unauthenticated-signer'
   | 'expired'
   | 'not-yet-valid'
@@ -67,38 +68,59 @@ export type DnssecDs = {
   weakDigest: boolean; // uses a deprecated digest (SHA-1 / GOST)
 };
 
-export type DnssecZone = {
+export type DnssecBreakReason =
+  | 'no-dnskey'
+  | 'ds-mismatch'
+  | 'bad-ds-signature'
+  | 'bad-signature'
+  | 'unsupported-algorithm';
+
+type DnssecZoneEvidence = {
   name: string; // '.', 'dev', 'wsky.dev'
   keys: DnssecKey[];
   dsRecords: DnssecDs[]; // DS published by the parent (or the root trust anchor)
-  status: DnssecStatus;
-  // Why the chain could not continue at this zone, for a precise verdict
-  // message. Undefined for secure zones and plain unsigned delegations.
-  //   'no-dnskey'     : parent published a DS but the zone serves no DNSKEY.
-  //   'ds-mismatch'   : the DS authenticates none of the served keys (digest).
-  //   'bad-signature' : keys link by digest, but the RRSIG over the DNSKEY RRset
-  //                     is missing, expired, or fails to verify (bogus/expired).
-  //   'unsupported-algorithm' : this validator supports none of the DS digest /
-  //                     signing algorithms, so the zone is unvalidatable and
-  //                     treated as insecure, not bogus (RFC 4035 §5.2).
-  breakReason?:
-    | 'no-dnskey'
-    | 'ds-mismatch'
-    | 'bad-signature'
-    | 'unsupported-algorithm';
-  // Earliest relevant RRSIG expiry (Unix seconds): for every secure zone, the
-  // expiry of the RRSIG validating its DNSKEY RRset; for the leaf, additionally
-  // min'd with its validated positive RRsets. Expiring/expired signatures are
-  // the most common real DNSSEC outage, so the UI warns ahead of time.
+  // Parent-signed DS evidence is absent for the root trust anchor.
+  dsSignatureExpiresAt?: number;
+  dnskeySignatureExpiresAt?: number;
+  // Earliest relevant RRSIG expiry for the zone: parent DS, DNSKEY, and for the
+  // leaf its validated positive RRsets.
   signatureExpiresAt?: number;
   // Positive leaf RRsets that were probed and validated. Absent RRsets are kept
   // in the model so the UI can distinguish "not present" from "not checked".
   rrsets?: DnssecRrset[];
 };
 
+// The discriminated shape prevents impossible combinations such as a secure
+// zone carrying a break reason. A missing reason on a non-secure zone means the
+// state was inherited from an earlier break in the chain.
+export type DnssecZoneState =
+  | { status: 'secure'; breakReason?: never }
+  | {
+      status: 'insecure';
+      breakReason?: Extract<DnssecBreakReason, 'unsupported-algorithm'>;
+    }
+  | {
+      status: 'broken';
+      breakReason?: Exclude<DnssecBreakReason, 'unsupported-algorithm'>;
+    };
+
+export type DnssecZone = DnssecZoneEvidence & DnssecZoneState;
+
+export type DnssecCoverage = {
+  delegationDsRrsets: 'validated-along-secure-path';
+  dnskeyRrsets: 'validated';
+  positiveRrsets: 'common-types-only';
+  checkedPositiveRrsetTypes: string[];
+  negativeProofs: 'not-implemented';
+  unsignedSubdelegations: 'not-implemented';
+  cnameTargets: 'not-checked';
+};
+
 export type DnssecChain = {
   zones: DnssecZone[];
-  overall: DnssecStatus;
+  // Chain-only status. Positive leaf RRset results are reported separately.
+  status: DnssecStatus;
+  coverage: DnssecCoverage;
 };
 
 /** Raw per-zone records collected by the resolver, ordered root -> leaf. */
@@ -109,4 +131,7 @@ export type RawZone = {
   // RRSIG records covering this zone's DNSKEY RRset (typeCovered === 'DNSKEY').
   // Used to cryptographically verify the key set is validly signed by its KSK.
   keyRrsigs?: RrsigData[];
+  // RRSIG records made by the authenticated parent over this zone's DS RRset.
+  // Empty/absent when no DS was observed; proving that absence needs NSEC/NSEC3.
+  dsRrsigs?: RrsigData[];
 };

@@ -10,13 +10,14 @@ import {
   SUPPORTED_SIGNING_ALGORITHMS,
 } from './algorithms';
 import { dsMatchesKey } from './ds';
-import { verifyDnskeyRrsig } from './rrsig';
+import { verifyDnskeyRrsig, verifyRrsetRrsig } from './rrsig';
 import type {
   DnssecChain,
   DnssecDs,
   DnssecKey,
   DnssecStatus,
   DnssecZone,
+  DnssecZoneState,
   RawZone,
 } from './types';
 import { computeKeyTag, dnskeyRdata } from './wire';
@@ -80,21 +81,51 @@ function dnskeyRrsetSignedUntil(
   return expiries.length ? Math.max(...expiries) : null;
 }
 
+/** Authenticate a child's DS RRset with the already-authenticated parent keys. */
+function dsRrsetSignedUntil(
+  zone: RawZone,
+  parent: RawZone,
+  now: number,
+): number | null {
+  if (zone.dsRecords.length === 0) return null;
+  const records = zone.dsRecords.map((data) => ({
+    name: zone.name,
+    type: 'DS',
+    data,
+  }));
+  const expiries = (zone.dsRrsigs ?? [])
+    .filter((rrsig) =>
+      verifyRrsetRrsig({
+        rrsig,
+        type: 'DS',
+        records,
+        ownerName: zone.name,
+        signerName: parent.name,
+        keys: parent.keys,
+        now,
+      }),
+    )
+    .map((rrsig) => rrsig.expiration);
+  return expiries.length ? Math.max(...expiries) : null;
+}
+
 /**
  * Walk the collected zones top-down and compute a per-zone and overall status.
- * `secure`   : DS (or root anchor) links a key AND every zone above is secure.
- * `insecure` : no DS from the parent -- unsigned / insecure delegation.
+ * `secure`   : the parent authenticates the DS, it links a key, and every zone
+ *              above is secure.
+ * `insecure` : no DS was observed, or the algorithms are unsupported. Without
+ *              NSEC/NSEC3 this does not prove that a DS is absent.
  * `broken`   : parent published a DS but the zone serves no matching key (bogus),
  *              including the case where it serves no DNSKEY at all.
  *
- * A zone is only `secure` when its keys link to the parent DS by digest AND the
- * RRSIG over its DNSKEY RRset verifies against a DS-linked key and is currently
- * valid (not expired) -- a linked-but-unsigned/expired key set is `broken`.
+ * A zone is only `secure` when the parent authenticates the DS RRset, its digest
+ * links to a child key, and the RRSIG over the child DNSKEY RRset verifies and is
+ * currently valid. A linked-but-unsigned/expired key set is `broken`.
  *
  * Once the chain of trust ends, its reason propagates down: everything below an
- * unsigned delegation is `insecure` (unauthenticated, not bogus), and everything
- * below a bogus zone stays `broken`. A zone's own DS/DNSKEY state is only
- * consulted while the chain above it is still secure.
+ * unauthenticated link is `insecure` (not bogus), and everything below a bogus
+ * zone stays `broken`. A zone's own DS/DNSKEY state is only consulted while the
+ * chain above it is still secure.
  *
  * `now` (Unix seconds) is the instant RRSIG validity is judged against; it
  * defaults to the current time and is injectable for deterministic tests.
@@ -102,15 +133,41 @@ function dnskeyRrsetSignedUntil(
 export function buildChain(
   zones: RawZone[],
   now: number = Math.floor(Date.now() / 1000),
+  options: { initialTrustAnchors?: DsData[] } = {},
 ): DnssecChain {
   const out: DnssecZone[] = [];
   // Trust state carried down the chain: 'secure' while intact, otherwise the
   // reason it ended ('insecure' for an unsigned cut, 'broken' for a bogus zone).
   let chain: DnssecStatus = 'secure';
 
-  for (const zone of zones) {
+  for (const [zoneIndex, zone] of zones.entries()) {
     const isRoot = zone.name === '.' || zone.name === '';
-    const anchors = isRoot ? ROOT_TRUST_ANCHORS : zone.dsRecords;
+    const anchors = isRoot
+      ? ROOT_TRUST_ANCHORS
+      : zoneIndex === 0
+        ? (options.initialTrustAnchors ?? [])
+        : zone.dsRecords;
+    const parent = zoneIndex > 0 ? zones[zoneIndex - 1] : undefined;
+    // A non-root first zone is secure only when its caller supplied an explicit
+    // external trust anchor (useful for islands of security and unit tests). In
+    // production walks the root is always first, so every child DS authenticates.
+    const dsSignatureExpiresAt =
+      !isRoot && parent && anchors.length > 0
+        ? dsRrsetSignedUntil(zone, parent, now)
+        : undefined;
+    const dsAuthenticationFailed =
+      chain === 'secure' &&
+      !isRoot &&
+      parent !== undefined &&
+      anchors.length > 0 &&
+      dsSignatureExpiresAt === null;
+    const dsSignatureAlgorithmUnsupported =
+      dsAuthenticationFailed &&
+      Boolean(zone.dsRrsigs?.length) &&
+      zone.dsRrsigs!.every(
+        (rrsig) => !SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm),
+      );
+    const authenticatedAnchors = dsAuthenticationFailed ? [] : anchors;
 
     const keys: DnssecKey[] = zone.keys.map((k) => {
       const rdata = dnskeyRdata(k);
@@ -121,7 +178,9 @@ export function buildChain(
         flags: k.flags,
         isSep: (k.flags & 0x0001) !== 0,
         isRevoked: (k.flags & 0x0080) !== 0,
-        linked: anchors.some((ds) => dsMatchesKey(ds, k, zone.name)),
+        linked: authenticatedAnchors.some((ds) =>
+          dsMatchesKey(ds, k, zone.name),
+        ),
         bits: keyBits(k),
         deprecated: isDeprecatedAlgorithm(k.algorithm),
       };
@@ -138,23 +197,27 @@ export function buildChain(
       weakDigest: isWeakDigest(ds.digestType),
     }));
 
-    let status: DnssecStatus;
-    let breakReason: DnssecZone['breakReason'];
-    let signatureExpiresAt: number | undefined;
+    let state: DnssecZoneState;
+    let dnskeySignatureExpiresAt: number | undefined;
     if (chain !== 'secure') {
       // The chain of trust already ended above this zone, so its own records are
       // unauthenticated. Propagate the reason: insecure below an unsigned cut,
       // broken below a bogus zone.
-      status = chain;
+      state = { status: chain };
+    } else if (dsSignatureAlgorithmUnsupported) {
+      state = { status: 'insecure', breakReason: 'unsupported-algorithm' };
+    } else if (dsAuthenticationFailed) {
+      // A DS RRset is itself parent-zone data. Digest linkage is meaningful
+      // only after its RRSIG verifies against the authenticated parent keys.
+      state = { status: 'broken', breakReason: 'bad-ds-signature' };
     } else if (anchors.length === 0) {
       // No DS from the parent (nor a trust anchor): an unsigned / insecure
       // delegation. The chain is unsigned from here down regardless of whether
       // this zone serves its own keys.
-      status = 'insecure';
+      state = { status: 'insecure' };
     } else if (keys.length === 0) {
       // Parent vouches for this zone (DS present) but it serves no DNSKEY -> bogus.
-      status = 'broken';
-      breakReason = 'no-dnskey';
+      state = { status: 'broken', breakReason: 'no-dnskey' };
     } else if (!dsRecords.some((d) => d.matched)) {
       // A DS whose digest or signing algorithm this validator doesn't support
       // must be ignored, not scored as a mismatch: if no usable DS remains, the
@@ -167,11 +230,9 @@ export function buildChain(
         )
       ) {
         // DS present but authenticates none of the served keys -> bogus.
-        status = 'broken';
-        breakReason = 'ds-mismatch';
+        state = { status: 'broken', breakReason: 'ds-mismatch' };
       } else {
-        status = 'insecure';
-        breakReason = 'unsupported-algorithm';
+        state = { status: 'insecure', breakReason: 'unsupported-algorithm' };
       }
     } else {
       const signedUntil = dnskeyRrsetSignedUntil(zone, keys, now);
@@ -189,35 +250,53 @@ export function buildChain(
               keys[i].linked && SUPPORTED_SIGNING_ALGORITHMS.has(k.algorithm),
           )
         ) {
-          status = 'broken';
-          breakReason = 'bad-signature';
+          state = { status: 'broken', breakReason: 'bad-signature' };
         } else {
-          status = 'insecure';
-          breakReason = 'unsupported-algorithm';
+          state = { status: 'insecure', breakReason: 'unsupported-algorithm' };
         }
       } else {
-        status = 'secure';
-        signatureExpiresAt = signedUntil;
+        state = { status: 'secure' };
+        dnskeySignatureExpiresAt = signedUntil;
       }
     }
+
+    const expiries = [dsSignatureExpiresAt, dnskeySignatureExpiresAt].filter(
+      (expiry): expiry is number => typeof expiry === 'number',
+    );
 
     out.push({
       name: zone.name,
       keys,
       dsRecords,
-      status,
-      breakReason,
-      signatureExpiresAt,
+      ...state,
+      dsSignatureExpiresAt:
+        typeof dsSignatureExpiresAt === 'number'
+          ? dsSignatureExpiresAt
+          : undefined,
+      dnskeySignatureExpiresAt,
+      signatureExpiresAt: expiries.length ? Math.min(...expiries) : undefined,
     });
     // The first non-secure zone fixes the descended trust state.
-    if (chain === 'secure') chain = status;
+    if (chain === 'secure') chain = state.status;
   }
 
-  const overall: DnssecStatus = out.some((z) => z.status === 'broken')
+  const status: DnssecStatus = out.some((z) => z.status === 'broken')
     ? 'broken'
     : out.every((z) => z.status === 'secure')
       ? 'secure'
       : 'insecure';
 
-  return { zones: out, overall };
+  return {
+    zones: out,
+    status,
+    coverage: {
+      delegationDsRrsets: 'validated-along-secure-path',
+      dnskeyRrsets: 'validated',
+      positiveRrsets: 'common-types-only',
+      checkedPositiveRrsetTypes: [],
+      negativeProofs: 'not-implemented',
+      unsignedSubdelegations: 'not-implemented',
+      cnameTargets: 'not-checked',
+    },
+  };
 }

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import type { FC } from 'react';
 
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
@@ -40,13 +39,10 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   // resolver, ignoring the resolver selector.
   const chain = await new AuthoritativeResolver().resolveDnssecChain(domain);
 
-  // resolveDnssecChain returns null for a nonexistent (NXDOMAIN) domain.
-  // A rendered chain (secure, insecure, or broken) is a successful lookup.
-  await recordLookupAfter(domain, 'dnssec', chain !== null);
-
-  if (!chain) {
-    notFound();
-  }
+  // Negative answers are intentionally observational until NSEC/NSEC3 proof
+  // validation is implemented, so even an NXDOMAIN response renders coverage
+  // instead of becoming a definitive 404.
+  await recordLookupAfter(domain, 'dnssec', true);
 
   return (
     <ChainDiagram

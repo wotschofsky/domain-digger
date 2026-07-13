@@ -40,14 +40,14 @@ const queryFrom =
   };
 
 describe('resolveDnssecChain', () => {
-  it('returns null when the queried name is NXDOMAIN', async () => {
+  it('does not claim authenticated nonexistence from a bare NXDOMAIN rcode', async () => {
     const query = queryFrom({
       '.': SIGNED_ROOT,
       'nope.example.com': { rcode: 'NXDOMAIN' },
     });
-    expect(
-      await resolveDnssecChain('nope.example.com', query, ROOT_NOW),
-    ).toBeNull();
+    const chain = await resolveDnssecChain('nope.example.com', query, ROOT_NOW);
+    expect(chain.coverage.negativeProofs).toBe('not-implemented');
+    expect(chain.status).toBe('insecure');
   });
 
   it('fails loudly when the root zone serves no DNSKEY (intercepted DNS)', async () => {
@@ -65,7 +65,7 @@ describe('resolveDnssecChain', () => {
     expect(chain?.zones.map((z) => z.name)).toEqual(['.', 'example.com']);
     expect(chain?.zones[0].status).toBe('secure');
     expect(chain?.zones[1].status).toBe('insecure');
-    expect(chain?.overall).toBe('insecure');
+    expect(chain?.status).toBe('insecure');
   });
 
   it('keeps deeper labels that are zone cuts and drops plain subdomains', async () => {
@@ -101,5 +101,23 @@ describe('resolveDnssecChain', () => {
     await expect(
       resolveDnssecChain('example.com', query, ROOT_NOW),
     ).rejects.toThrow('socket timeout');
+  });
+
+  it('requests DS RRsets with DNSSEC records enabled', async () => {
+    const calls: Array<{ type: string; dnssecOk: boolean | undefined }> = [];
+    const baseQuery = queryFrom({ '.': SIGNED_ROOT });
+    const query: DnssecQuery = async (name, type, dnssecOk) => {
+      calls.push({ type, dnssecOk });
+      return baseQuery(name, type, dnssecOk);
+    };
+
+    await resolveDnssecChain('example.com', query, ROOT_NOW);
+
+    expect(calls.filter((call) => call.type === 'DS')).not.toHaveLength(0);
+    expect(
+      calls
+        .filter((call) => call.type === 'DS')
+        .every((call) => call.dnssecOk === true),
+    ).toBe(true);
   });
 });

@@ -60,15 +60,14 @@ const DnssecLandingPage: FC = () => (
       </p>
       <p>
         This DNSSEC checker walks that chain from the root trust anchor down to
-        the queried domain, fetching each zone&apos;s DNSKEY records and the DS
-        record its parent publishes. It confirms every link is correctly
-        connected and cryptographically verifies the signatures along the way —
-        each zone&apos;s key-set signature and the signatures over the
-        domain&apos;s own records. It surfaces whether a domain is securely
-        signed, left unsigned, or misconfigured in a way that breaks validation
-        — a quick way for administrators and security teams to confirm their
-        DNSSEC deployment is healthy and to diagnose problems when validation
-        fails.
+        the queried domain. It authenticates each observed DS record set,
+        verifies that it matches the child&apos;s DNSKEY, validates every
+        zone&apos;s key-set signature, and checks common positive record types
+        at the queried name. Negative answers, unsigned subdelegations, and
+        CNAME targets are not validated yet, so missing data is reported as
+        observed rather than cryptographically proven. The result helps
+        administrators confirm signed deployments and diagnose broken trust
+        links.
       </p>
     </div>
   </div>

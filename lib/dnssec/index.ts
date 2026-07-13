@@ -1,7 +1,9 @@
-// WHAT THIS VERIFIES: the DNSSEC authentication chain, two ways per zone.
-// (1) Digest linkage (RFC 4034 §5.1.4): the parent's DS record actually hashes
-//     to one of the child zone's DNSKEYs, anchored at the root by the IANA
-//     trust anchor. (2) Key-set signature (RFC 4034 §3.1.8.1): the RRSIG over
+// WHAT THIS VERIFIES: the DNSSEC authentication chain, three ways per zone.
+// (1) Delegation signature: the parent's authenticated keys verify the RRSIG
+//     over the child's DS RRset. (2) Digest linkage (RFC 4034 §5.1.4): that
+//     authenticated DS hashes to one of the child zone's DNSKEYs, anchored at
+//     the root by the IANA trust anchor. (3) Key-set signature (RFC 4034
+//     §3.1.8.1): the RRSIG over
 //     each zone's DNSKEY RRset cryptographically verifies against the DS-linked
 //     KSK and is within its inception/expiration window. Together these prove
 //     the zone's key set is authentic AND currently, validly signed -- so an
@@ -46,6 +48,8 @@ export {
 } from './resolve';
 export type {
   DnssecChain,
+  DnssecBreakReason,
+  DnssecCoverage,
   DnssecDs,
   DnssecKey,
   DnssecRrset,
@@ -53,6 +57,7 @@ export type {
   DnssecRrsetStatus,
   DnssecStatus,
   DnssecZone,
+  DnssecZoneState,
   RawZone,
 } from './types';
 export { dnskeyToPublicKey } from './crypto';

@@ -7,7 +7,7 @@ import {
 import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 
 import { dsDigest } from './ds';
-import { computeKeyTag, dnskeyRdata, wireName } from './wire';
+import { canonicalRdata, computeKeyTag, dnskeyRdata, wireName } from './wire';
 
 // Signing-side test helpers: generated keypairs plus canonical RRSIG
 // construction, mirroring the encoding in wire.ts (RFC 4034 §3.1.8.1 / §6) so
@@ -140,11 +140,9 @@ export const signDnskeyRrset = (
   };
 };
 
-const aRdata = (ip: string): Buffer => Buffer.from(ip.split('.').map(Number));
-
-export const signARecordRrset = (
+export const signDsRrset = (
   ownerName: string,
-  records: Array<{ name: string; type: 'A'; data: string }>,
+  records: DsData[],
   signerName: string,
   signer: { priv: KeyObject; dnskey: DnskeyData },
   opts: { inception: number; expiration: number },
@@ -152,6 +150,62 @@ export const signARecordRrset = (
   const { algorithm } = signer.dnskey;
   const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
   const labels = ownerName.split('.').filter(Boolean).length;
+  const prefix = Buffer.concat([
+    u16(43),
+    Buffer.from([algorithm, labels]),
+    u32(3600),
+    u32(opts.expiration),
+    u32(opts.inception),
+    u16(keyTag),
+    wireName(signerName),
+  ]);
+  const rrset = records
+    .map((record) => canonicalRdata('DS', record))
+    .filter((rdata): rdata is Buffer => rdata !== null)
+    .sort(Buffer.compare)
+    .map((rdata) =>
+      Buffer.concat([
+        wireName(ownerName),
+        u16(43),
+        u16(1),
+        u32(3600),
+        u16(rdata.length),
+        rdata,
+      ]),
+    );
+  return {
+    typeCovered: 'DS',
+    algorithm,
+    labels,
+    originalTTL: 3600,
+    expiration: opts.expiration,
+    inception: opts.inception,
+    keyTag,
+    signersName: signerName,
+    signature: signData(signer, Buffer.concat([prefix, ...rrset])),
+  };
+};
+
+const aRdata = (ip: string): Buffer => Buffer.from(ip.split('.').map(Number));
+
+export const signARecordRrset = (
+  ownerName: string,
+  records: Array<{ name: string; type: 'A'; data: string }>,
+  signerName: string,
+  signer: { priv: KeyObject; dnskey: DnskeyData },
+  opts: {
+    inception: number;
+    expiration: number;
+    labels?: number;
+    signedOwnerName?: string;
+  },
+): RrsigData => {
+  const { algorithm } = signer.dnskey;
+  const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+  const ownerLabels = ownerName.split('.').filter(Boolean);
+  const labels =
+    opts.labels ?? ownerLabels.length - (ownerLabels[0] === '*' ? 1 : 0);
+  const signedOwnerName = opts.signedOwnerName ?? ownerName;
   const prefix = Buffer.concat([
     u16(1),
     Buffer.from([algorithm, labels]),
@@ -166,7 +220,7 @@ export const signARecordRrset = (
     .sort(Buffer.compare)
     .map((rdata) =>
       Buffer.concat([
-        wireName(ownerName),
+        wireName(signedOwnerName),
         u16(1), // type A
         u16(1), // class IN
         u32(300),
