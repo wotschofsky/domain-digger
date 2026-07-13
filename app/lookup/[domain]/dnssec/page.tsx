@@ -44,14 +44,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   // instead of becoming a definitive 404.
   await recordLookupAfter(domain, 'dnssec', true);
 
-  return (
-    <ChainDiagram
-      chain={chain}
-      // Request-time wall-clock read (intentional: it stamps this live walk).
-      // eslint-disable-next-line react-hooks/purity
-      checkedAt={Date.now()}
-    />
-  );
+  return <ChainDiagram chain={chain} />;
 };
 
 export default DnssecResultsPage;

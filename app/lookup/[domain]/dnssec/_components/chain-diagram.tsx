@@ -26,7 +26,6 @@ import {
 import { cn } from '@/lib/utils';
 
 import { IconAlert } from '../../_components/icon-alert';
-import { RecheckButton } from './recheck-button';
 
 // A first-principles DNSSEC view. The single question a user has is "can this
 // domain's DNS be authenticated?", so the verdict leads the page and names
@@ -74,11 +73,6 @@ const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
   timeStyle: 'short',
   timeZone: 'UTC',
 });
-const timeFmt = new Intl.DateTimeFormat('en-US', {
-  timeStyle: 'short',
-  timeZone: 'UTC',
-});
-
 const relFmt = new Intl.RelativeTimeFormat('en-US');
 const relativeTime = (seconds: number): string =>
   seconds < 2 * 3600
@@ -781,23 +775,14 @@ const RailRow: FC<{
 
 type ChainDiagramProps = {
   chain: DnssecChain;
-  checkedAt: number; // Unix ms — when this walk ran
 };
 
-export const ChainDiagram: FC<ChainDiagramProps> = ({ chain, checkedAt }) => {
+export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
   const firstBreak = breakIndex(chain);
   const isInherited = (i: number) => firstBreak !== -1 && i > firstBreak;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-        <p className="text-xs text-zinc-400 dark:text-zinc-500">
-          Checked live against the authoritative servers at{' '}
-          {timeFmt.format(new Date(checkedAt))} UTC — results are never cached.
-        </p>
-        <RecheckButton />
-      </div>
-
       <VerdictHeader chain={chain} />
 
       <SummaryChips chain={chain} />
