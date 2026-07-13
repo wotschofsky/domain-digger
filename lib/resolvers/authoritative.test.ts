@@ -65,7 +65,9 @@ describe('AuthoritativeResolver transport policy', () => {
     ]);
   });
 
-  it('fails indeterminately when every nameserver returns an error rcode', async () => {
+  it('returns empty records when every nameserver answers with an error rcode', async () => {
+    // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
+    // 500 the records page.
     const transport = vi.fn<AuthoritativeTransport>(
       async (domain, type, nameserver) => ({
         packet: response(
@@ -83,7 +85,28 @@ describe('AuthoritativeResolver transport policy', () => {
     });
 
     await expect(
-      resolver.resolveRecordType('example.com', 'A'),
+      resolver.resolveRecordType('example.com', 'RRSIG'),
+    ).resolves.toEqual(expect.objectContaining({ records: [] }));
+  });
+
+  it('fails indeterminately when a DNSSEC-walk query only gets error rcodes', async () => {
+    const transport = vi.fn<AuthoritativeTransport>(async (domain, type) => ({
+      packet: response(domain, type, 'REFUSED'),
+      protocol: 'udp',
+      truncated: false,
+    }));
+    const resolver = new AuthoritativeResolver({
+      transport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      // eslint-disable-next-line @typescript-eslint/dot-notation -- private, but the dnssecOk branch is only reachable through it
+      resolver['fetchRecordsRaw']({
+        domain: 'example.com',
+        recordType: 'DNSKEY',
+        dnssecOk: true,
+      }),
     ).rejects.toBeInstanceOf(UserFacingError);
   });
 

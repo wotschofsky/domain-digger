@@ -478,6 +478,7 @@ export class AuthoritativeResolver extends DnsResolver {
     let truncated = false;
     let usedNameserver = candidateNameservers[0];
     const failedNameservers: string[] = [];
+    let errorRcode: string | undefined;
 
     for (const candidate of candidateNameservers) {
       const loaderKey = {
@@ -495,6 +496,7 @@ export class AuthoritativeResolver extends DnsResolver {
           resultRcode !== 'NXDOMAIN'
         ) {
           failedNameservers.push(`${candidate}: DNS ${resultRcode}`);
+          errorRcode = resultRcode;
           continue;
         }
         response = result.packet;
@@ -513,6 +515,21 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     if (!response) {
+      // Every server answered, just with an error rcode (e.g. Cloudflare
+      // REFUSES direct RRSIG queries). For plain record browsing that's an
+      // empty result, not a dead-nameserver failure worth 500ing the page.
+      // DNSSEC-walk queries (dnssecOk) still fail loud: an unanswered
+      // DNSKEY/DS must stay indeterminate, not read as a missing record.
+      if (errorRcode && !dnssecOk) {
+        return {
+          answers: [],
+          trace: [
+            ...trace,
+            `${recordType} ${domain} -> all nameservers returned an error: ${failedNameservers.join('; ')}`,
+          ],
+          rcode: errorRcode,
+        };
+      }
       throw new UserFacingError(
         {
           title: 'Authoritative DNS servers did not answer',
