@@ -676,24 +676,19 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
             ))}
           </ul>
           {(zone.dsSignature || zone.dnskeySignature) && (
-            <div className="grid grid-cols-[minmax(0,1fr)_1rem_minmax(0,1fr)] gap-3 border-t border-zinc-100 dark:border-zinc-800">
-              <div>
-                {zone.dsSignature && (
-                  <SignatureEvidence
-                    label="Parent signature"
-                    evidence={zone.dsSignature}
-                  />
-                )}
-              </div>
-              <span aria-hidden />
-              <div>
-                {zone.dnskeySignature && (
-                  <SignatureEvidence
-                    label="Key-set signature"
-                    evidence={zone.dnskeySignature}
-                  />
-                )}
-              </div>
+            <div className="flex flex-wrap gap-x-8 border-t border-zinc-100 dark:border-zinc-800">
+              {zone.dsSignature && (
+                <SignatureEvidence
+                  label="Parent signature"
+                  evidence={zone.dsSignature}
+                />
+              )}
+              {zone.dnskeySignature && (
+                <SignatureEvidence
+                  label="Key-set signature"
+                  evidence={zone.dnskeySignature}
+                />
+              )}
             </div>
           )}
         </section>
