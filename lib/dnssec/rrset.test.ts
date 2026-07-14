@@ -214,6 +214,42 @@ describe('positive RRset validation', () => {
     });
   });
 
+  it('reports the longest-lived expiry when several signatures verify', () => {
+    const signer = genKey(13);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+    const shortLived = signARecordRrset(
+      ownerName,
+      records,
+      signerName,
+      signer,
+      {
+        inception: 1000,
+        expiration: 1800,
+      },
+    );
+    const longLived = signARecordRrset(ownerName, records, signerName, signer, {
+      inception: 1000,
+      expiration: 3000,
+    });
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [shortLived, longLived],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'secure',
+      reason: 'validated',
+      signatureExpiresAt: 3000,
+    });
+  });
+
   it('does not let an in-window unsupported signature mask an expired supported one', () => {
     const signer = genKey(13);
     const unsupportedKey: DnskeyData = {

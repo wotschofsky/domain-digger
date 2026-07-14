@@ -150,6 +150,39 @@ describe('buildChain', () => {
     });
   });
 
+  it('accepts a matching SHA-256 DS next to a mismatched SHA-384 sibling', () => {
+    // RFC 4509 §3 only demotes SHA-1; SHA-256 and SHA-384 are both acceptable
+    // paths, so a stale SHA-384 DS must not break a valid SHA-256 link.
+    const k = genKey(13);
+    const tag = computeKeyTag(dnskeyRdata(k.dnskey));
+    const sha256Match: DsData = {
+      keyTag: tag,
+      algorithm: 13,
+      digestType: 2,
+      digest: dsDigest('example', k.dnskey, 2)!,
+    };
+    const sha384Mismatch: DsData = {
+      keyTag: tag,
+      algorithm: 13,
+      digestType: 4,
+      digest: Buffer.alloc(48, 0xaa),
+    };
+    const win = { inception: 1000, expiration: 2000 };
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [k.dnskey],
+          dsRecords: [sha384Mismatch, sha256Match],
+          keyRrsigs: [signDnskeyRrset('example', [k.dnskey], k, win)],
+        },
+      ],
+      1500,
+    );
+
+    expect(chain.zones[0].status).toBe('secure');
+  });
+
   it('marks a zone broken when the DS key tag matches no served key', () => {
     // Correct digest + algorithm but a deliberately wrong key tag: a validator
     // would never select this key, so the DS authenticates nothing.

@@ -305,22 +305,22 @@ export function buildChain(
     const authenticatedAnchors = dsAuthenticationFailed ? [] : anchors;
 
     // Anchors a validator would actually trust: supported digest and signing
-    // algorithm, and -- RFC 4509 §3 downgrade resistance -- only the strongest
-    // supported digest type present. A weaker digest (e.g. SHA-1 next to
-    // SHA-256) must not link a key the preferred digest fails to authenticate:
-    // compliant validators ignore it and would report the delegation bogus.
+    // algorithm, and -- RFC 4509 §3 downgrade resistance -- SHA-1 DS records
+    // are ignored when a SHA-256-or-stronger DS is present, so a weak digest
+    // can't link a key the stronger digest fails to authenticate. The RFC
+    // mandates only the SHA-1 rule; among SHA-256/SHA-384 either path is
+    // accepted (implementations diverge here, and rejecting a valid SHA-256
+    // link over a stale SHA-384 sibling would false-break healthy zones).
     const supportedAnchors = authenticatedAnchors.filter(
       (ds) =>
         ds.digestType in DIGEST_HASH_ALGOS &&
         SUPPORTED_SIGNING_ALGORITHMS.has(ds.algorithm),
     );
-    // Supported digest type numbers (1 SHA-1, 2 SHA-256, 4 SHA-384) order by
-    // strength, matching how Unbound/BIND pick their favorite digest.
-    const preferredDigestType = supportedAnchors.length
-      ? Math.max(...supportedAnchors.map((ds) => ds.digestType))
-      : null;
+    const hasSha256OrStronger = supportedAnchors.some(
+      (ds) => ds.digestType >= 2,
+    );
     const usableAnchors = supportedAnchors.filter(
-      (ds) => ds.digestType === preferredDigestType,
+      (ds) => !(ds.digestType === 1 && hasSha256OrStronger),
     );
 
     const keys: DnssecKey[] = zone.keys.map((k) => {

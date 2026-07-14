@@ -93,6 +93,7 @@ export function validatePositiveRrset(params: {
   let sawUnsupportedSigner = false;
   let sawSupportedSigner = false;
   let failureReason: DnssecRrsetReason = 'invalid-signature';
+  let bestValid: RrsigData | null = null;
   for (const rrsig of covering) {
     // Signatures by unauthenticated signers (including revoked keys, which
     // RFC 5011 §2.1 strips from the trusted set) carry no weight at all: they
@@ -142,18 +143,25 @@ export function validatePositiveRrset(params: {
       keys: authenticatedKeys,
       now,
     });
-    if (verified) {
-      return rrsetResult('validated', {
-        type,
-        recordCount: typeRecords.length,
-        signerName: rrsig.signersName,
-        signerKeyTag: rrsig.keyTag,
-        signerAlgorithmName: algorithmName(rrsig.algorithm),
-        signatureInceptionAt: rrsig.inception,
-        signatureExpiresAt: rrsig.expiration,
-        signatureOriginalTtl: rrsig.originalTTL,
-      });
+    // Rollovers legitimately publish several currently-valid RRSIGs; report
+    // the longest-lived one (like the DNSKEY/DS paths do) so the expiry shown
+    // doesn't depend on response order.
+    if (verified && (!bestValid || rrsig.expiration > bestValid.expiration)) {
+      bestValid = rrsig;
     }
+  }
+
+  if (bestValid) {
+    return rrsetResult('validated', {
+      type,
+      recordCount: typeRecords.length,
+      signerName: bestValid.signersName,
+      signerKeyTag: bestValid.keyTag,
+      signerAlgorithmName: algorithmName(bestValid.algorithm),
+      signatureInceptionAt: bestValid.inception,
+      signatureExpiresAt: bestValid.expiration,
+      signatureOriginalTtl: bestValid.originalTTL,
+    });
   }
 
   const fallbackReason: DnssecRrsetReason = sawSupportedSigner

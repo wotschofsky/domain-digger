@@ -104,7 +104,10 @@ type FetchRecordsParams = {
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
-  private static readonly FALLBACK_DEADLINE_MS = 10_000;
+  // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
+  // a single blackholed first server has to leave room to reach a healthy
+  // fallback, while all-blackholed candidates stay bounded (~2 budgets).
+  private static readonly FALLBACK_DEADLINE_MS = 15_000;
 
   public constructor(
     private readonly options: AuthoritativeResolverOptions = {},
