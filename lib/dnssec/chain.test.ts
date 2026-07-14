@@ -207,7 +207,10 @@ describe('buildChain signature enforcement', () => {
     expect(chain.zones[0].breakReason).toBe('bad-signature');
   });
 
-  it('does not treat an unsupported but non-ZONE linked key as eligible', () => {
+  it('treats a zone whose only authenticated DS is unsupported as insecure', () => {
+    // RFC 4035 §5.2: with no supported authentication path from the parent,
+    // the delegation is unvalidatable -- insecure, not bogus -- regardless of
+    // the served key's flags.
     const generated = genKey(13);
     const ineligible: DnskeyData = {
       ...generated.dnskey,
@@ -226,9 +229,8 @@ describe('buildChain signature enforcement', () => {
     );
 
     expect(chain.zones[0]).toMatchObject({
-      status: 'broken',
-      breakReason: 'bad-signature',
-      dnskeySignature: { status: 'missing' },
+      status: 'insecure',
+      breakReason: 'unsupported-algorithm',
     });
   });
 
@@ -418,6 +420,89 @@ describe('buildChain signature enforcement', () => {
       status: 'broken',
       breakReason: 'bad-ds-signature',
       dsSignature: { status: 'invalid' },
+    });
+  });
+
+  it('does not let a matching unsupported DS rescue a mismatched supported DS', () => {
+    const parent = genKey(13);
+    const unsupportedChildKey: DnskeyData = {
+      flags: 256,
+      algorithm: 12,
+      key: Buffer.alloc(64, 7),
+    };
+    const strayKey = genKey(13); // referenced by the supported DS, never served
+    const dsSet = [
+      dsForKey('child.example', strayKey.dnskey),
+      dsForKey('child.example', unsupportedChildKey),
+    ];
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [parent.dnskey],
+          dsRecords: [dsForKey('example', parent.dnskey)],
+          keyRrsigs: [signDnskeyRrset('example', [parent.dnskey], parent, win)],
+        },
+        {
+          name: 'child.example',
+          keys: [unsupportedChildKey],
+          dsRecords: dsSet,
+          dsRrsigs: [
+            signDsRrset('child.example', dsSet, 'example', parent, win),
+          ],
+        },
+      ],
+      now,
+    );
+
+    expect(chain.zones[1]).toMatchObject({
+      status: 'broken',
+      breakReason: 'ds-mismatch',
+    });
+  });
+
+  it('keeps a failed supported DNSKEY path bogus despite an unsupported signer', () => {
+    const parent = genKey(13);
+    const child = genKey(13); // supported, DS-linked, but signs nothing
+    const unsupportedKey: DnskeyData = {
+      flags: 256,
+      algorithm: 12,
+      key: Buffer.alloc(64, 7),
+    };
+    const childKeys = [child.dnskey, unsupportedKey];
+    const dsSet = [
+      dsForKey('child.example', child.dnskey),
+      dsForKey('child.example', unsupportedKey),
+    ];
+    const unsupportedSig = {
+      ...signDnskeyRrset('child.example', childKeys, child, win),
+      algorithm: 12,
+      keyTag: computeKeyTag(dnskeyRdata(unsupportedKey)),
+    };
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [parent.dnskey],
+          dsRecords: [dsForKey('example', parent.dnskey)],
+          keyRrsigs: [signDnskeyRrset('example', [parent.dnskey], parent, win)],
+        },
+        {
+          name: 'child.example',
+          keys: childKeys,
+          dsRecords: dsSet,
+          dsRrsigs: [
+            signDsRrset('child.example', dsSet, 'example', parent, win),
+          ],
+          keyRrsigs: [unsupportedSig],
+        },
+      ],
+      now,
+    );
+
+    expect(chain.zones[1]).toMatchObject({
+      status: 'broken',
+      breakReason: 'bad-signature',
     });
   });
 

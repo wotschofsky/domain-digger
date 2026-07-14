@@ -358,7 +358,17 @@ export function buildChain(
       // Parent vouches for this zone (DS present) but it serves no DNSKEY -> bogus.
       state = { status: 'broken', breakReason: 'no-dnskey' };
       dnskeySignature = { status: 'missing' };
-    } else if (!dsRecords.some((d) => d.matched)) {
+    } else if (
+      // Only DS records this validator can act on count as matches: a matching
+      // DS with an unsupported signing algorithm must not rescue a supported
+      // DS that matches no key (RFC 6840 §5.11 downgrade resistance).
+      !dsRecords.some(
+        (d) =>
+          d.matched &&
+          d.digestType in DIGEST_HASH_ALGOS &&
+          SUPPORTED_SIGNING_ALGORITHMS.has(d.algorithm),
+      )
+    ) {
       // A DS whose digest or signing algorithm this validator doesn't support
       // must be ignored, not scored as a mismatch: if no usable DS remains, the
       // zone is unvalidatable -> insecure, not bogus (RFC 4035 §5.2).
@@ -398,8 +408,12 @@ export function buildChain(
           (key) => !SUPPORTED_SIGNING_ALGORITHMS.has(key.algorithm),
         );
         if (
-          signatureAnalysis.evidence.status !== 'unsupported' &&
-          (hasSupportedLinkedKey || !hasUnsupportedLinkedKey)
+          // A linked key with a supported algorithm means a validatable path
+          // exists; its failure stays bogus even when a co-published
+          // unsupported-algorithm signature is present (RFC 6840 §5.11).
+          hasSupportedLinkedKey ||
+          (signatureAnalysis.evidence.status !== 'unsupported' &&
+            !hasUnsupportedLinkedKey)
         ) {
           state = { status: 'broken', breakReason: 'bad-signature' };
         } else {
