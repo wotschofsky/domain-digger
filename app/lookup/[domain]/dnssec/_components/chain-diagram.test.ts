@@ -4,12 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { DnssecChain } from '@/lib/dnssec';
 
-import {
-  ChainDiagram,
-  relativeTime,
-  signatureExpiryTone,
-  verdictPresentation,
-} from './chain-diagram';
+import { ChainDiagram, verdictPresentation } from './chain-diagram';
 
 const secureChain = (
   observation: DnssecChain['query']['observation'],
@@ -110,17 +105,5 @@ describe('DNSSEC chain presentation', () => {
     expect(html).toContain('Key-set signature');
     expect(html).not.toContain('Parent DS RRSIG');
     expect(html).not.toContain('other DNSKEY');
-  });
-});
-
-describe('DNSSEC signature freshness presentation', () => {
-  it('uses seconds instead of rounding a near-term expiry to zero minutes', () => {
-    expect(relativeTime(20)).toBe('in 20 seconds');
-  });
-
-  it('reserves the broken tone for signatures that have expired', () => {
-    expect(signatureExpiryTone(-1)).toBe('broken');
-    expect(signatureExpiryTone(20)).toBe('warn');
-    expect(signatureExpiryTone(8 * 86400)).toBe('muted');
   });
 });

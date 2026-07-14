@@ -15,13 +15,6 @@ const DnssecLoading: FC = () => (
       </div>
     </div>
 
-    {/* Summary chips */}
-    <div className="flex flex-wrap gap-2">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Skeleton key={i} className="h-6 w-28 rounded-full" />
-      ))}
-    </div>
-
     {/* Trust rail */}
     <div>
       <Skeleton className="mb-3 h-4 w-48 rounded-sm" />

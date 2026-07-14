@@ -13,18 +13,17 @@ import {
 import Link from 'next/link';
 import type { FC, ReactNode } from 'react';
 
-import {
-  type DnssecBreakReason,
-  type DnssecChain,
-  type DnssecDs,
-  type DnssecKey,
-  type DnssecRrset,
-  type DnssecRrsetReason,
-  type DnssecRrsetStatus,
-  type DnssecSignatureEvidence,
-  type DnssecStatus,
-  type DnssecZone,
-  isWeakKey,
+import type {
+  DnssecBreakReason,
+  DnssecChain,
+  DnssecDs,
+  DnssecKey,
+  DnssecRrset,
+  DnssecRrsetReason,
+  DnssecRrsetStatus,
+  DnssecSignatureEvidence,
+  DnssecStatus,
+  DnssecZone,
 } from '@/lib/dnssec';
 import { cn } from '@/lib/utils';
 
@@ -77,20 +76,6 @@ const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
   timeStyle: 'short',
   timeZone: 'UTC',
 });
-const relFmt = new Intl.RelativeTimeFormat('en-US');
-export const relativeTime = (seconds: number): string =>
-  Math.abs(seconds) < 2 * 60
-    ? relFmt.format(Math.round(seconds), 'second')
-    : Math.abs(seconds) < 2 * 3600
-      ? relFmt.format(Math.round(seconds / 60), 'minute')
-      : Math.abs(seconds) < 2 * 86400
-        ? relFmt.format(Math.round(seconds / 3600), 'hour')
-        : relFmt.format(Math.round(seconds / 86400), 'day');
-
-export const signatureExpiryTone = (
-  secondsLeft: number,
-): 'broken' | 'warn' | 'muted' =>
-  secondsLeft < 0 ? 'broken' : secondsLeft < 7 * 86400 ? 'warn' : 'muted';
 
 const decodeFlags = (flags: number): string => {
   const parts: string[] = [];
@@ -121,10 +106,9 @@ const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
 const rrsetUnknowns = (zone: DnssecZone | undefined): DnssecRrset[] =>
   visibleRrsets(zone).filter((rrset) => rrset.status === 'indeterminate');
 
+// Chip tones stay within the app's zinc palette; red is reserved for the one
+// state that is actually an error (bogus/broken).
 const toneClasses = {
-  secure:
-    'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300',
-  warn: 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300',
   muted: 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300',
   broken: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
 };
@@ -412,116 +396,8 @@ const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
   );
 };
 
-const FactChip: FC<{
-  children: ReactNode;
-  tone?: keyof typeof toneClasses;
-}> = ({ children, tone = 'muted' }) => (
-  <span
-    className={cn(
-      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
-      toneClasses[tone],
-    )}
-  >
-    {children}
-  </span>
-);
-
-const SummaryChips: FC<{ chain: DnssecChain }> = ({ chain }) => {
-  const chips: ReactNode[] = [];
-
-  chips.push(
-    <FactChip key="zones">{chain.zones.length} zones in chain</FactChip>,
-  );
-
-  const allKeysWithBits = chain.zones
-    .flatMap((z) => z.keys)
-    .filter((key): key is DnssecKey & { bits: number } => key.bits !== null);
-  const allBits = allKeysWithBits.map((key) => key.bits);
-  if (allBits.length > 0) {
-    const minBits = Math.min(...allBits);
-    // Weakness is algorithm-relative: 256-bit ECDSA/EdDSA keys are strong.
-    const weakKeys = allKeysWithBits.filter(isWeakKey);
-    const weakBits = weakKeys.map((key) => key.bits);
-    chips.push(
-      <FactChip key="bits" tone={weakKeys.length ? 'warn' : 'muted'}>
-        <KeyRoundIcon className="size-3.5" />
-        {weakKeys.length
-          ? `weakest RSA key ${Math.min(...weakBits)}-bit`
-          : `smallest key parameter ${minBits}-bit`}
-      </FactChip>,
-    );
-  }
-
-  const deprecated = chain.zones.some((z) => z.keys.some((k) => k.deprecated));
-  if (deprecated)
-    chips.push(
-      <FactChip key="depalg" tone="warn">
-        <TriangleAlertIcon className="size-3.5" />
-        deprecated algorithm
-      </FactChip>,
-    );
-
-  const weakDigest = chain.zones.some((z) =>
-    z.dsRecords.some((d) => d.weakDigest),
-  );
-  if (weakDigest)
-    chips.push(
-      <FactChip key="weakds" tone="warn">
-        <TriangleAlertIcon className="size-3.5" />
-        SHA-1 digest
-      </FactChip>,
-    );
-
-  const revoked = chain.zones.some((z) => z.keys.some((k) => k.isRevoked));
-  if (revoked)
-    chips.push(
-      <FactChip key="revoked" tone="muted">
-        revoked key present
-      </FactChip>,
-    );
-
-  // Expiring RRSIGs are the most common real DNSSEC outage, so warn ahead of
-  // time on the earliest expiry anywhere in the chain, not just the leaf.
-  const expiries = chain.zones
-    .map((zone) => zone.signatureExpiresAt)
-    .filter((expiry): expiry is number => expiry !== undefined);
-  let expiryNote: string | null = null;
-  if (expiries.length > 0) {
-    const earliest = Math.min(...expiries);
-    // Request-time wall-clock read in a server component (intentional, not memoized).
-    // eslint-disable-next-line react-hooks/purity
-    const secondsLeft = earliest - Date.now() / 1000;
-    const tone = signatureExpiryTone(secondsLeft);
-    chips.push(
-      <FactChip key="sig" tone={tone}>
-        <ClockIcon className="size-3.5" />
-        {secondsLeft < 0
-          ? `signatures expired ${dateFmt.format(new Date(earliest * 1000))}`
-          : tone === 'muted'
-            ? `signatures valid until ${dateFmt.format(new Date(earliest * 1000))}`
-            : `signatures expire ${relativeTime(secondsLeft)}`}
-      </FactChip>,
-    );
-    if (tone !== 'muted' && secondsLeft >= 0) {
-      expiryNote =
-        'Short signature windows are normal for providers that re-sign continuously (some sign only 2–3 days ahead); expiry only matters if re-signing has stopped.';
-    }
-  }
-
-  return (
-    <div>
-      <div className="flex flex-wrap gap-2">{chips}</div>
-      {expiryNote && (
-        <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
-          {expiryNote}
-        </p>
-      )}
-    </div>
-  );
-};
-
 const WarnBadge: FC<{ children: ReactNode }> = ({ children }) => (
-  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-800 uppercase dark:bg-amber-950/50 dark:text-amber-300">
+  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-zinc-500 uppercase dark:bg-zinc-800 dark:text-zinc-400">
     {children}
   </span>
 );
@@ -589,7 +465,7 @@ const TrustLinkRow: FC<{ ds: DnssecDs; dnsKey?: DnssecKey }> = ({
       className={cn(
         'size-4',
         dnsKey
-          ? 'text-emerald-600 dark:text-emerald-400'
+          ? 'text-zinc-400 dark:text-zinc-500'
           : 'text-red-600 dark:text-red-400',
       )}
     />
@@ -614,9 +490,7 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
           <span
             className={cn(
               'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
-              isSecure && toneClasses.secure,
-              isBad && toneClasses.broken,
-              !isSecure && !isBad && toneClasses.warn,
+              isBad ? toneClasses.broken : toneClasses.muted,
             )}
           >
             {isSecure ? (
@@ -735,16 +609,15 @@ const SignatureEvidence: FC<{
   label: string;
   evidence: DnssecSignatureEvidence;
 }> = ({ label, evidence }) => (
-  <div className="flex min-w-0 items-start gap-1.5 py-2 text-xs text-zinc-500 dark:text-zinc-400">
+  <div className="flex min-w-0 items-start gap-1.5 pl-1 py-2 text-xs text-zinc-500 dark:text-zinc-400">
     <ClockIcon
       className={cn(
         'mt-0.5 size-3.5 shrink-0',
-        evidence.status === 'valid'
-          ? 'text-emerald-600 dark:text-emerald-400'
-          : evidence.status === 'unsupported' ||
-              evidence.status === 'not-yet-valid'
-            ? 'text-amber-600 dark:text-amber-400'
-            : 'text-red-600 dark:text-red-400',
+        evidence.status === 'valid' ||
+          evidence.status === 'unsupported' ||
+          evidence.status === 'not-yet-valid'
+          ? 'text-zinc-400 dark:text-zinc-500'
+          : 'text-red-600 dark:text-red-400',
       )}
       aria-hidden
     />
@@ -962,8 +835,6 @@ export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
   return (
     <div className="space-y-6">
       <VerdictHeader chain={chain} />
-
-      <SummaryChips chain={chain} />
 
       <section aria-label="Authentication chain">
         <h3 className="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
