@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest",
-    "test:integration": "RUN_NETWORK_TESTS=1 vitest run lib/resolvers/authoritative.dnssec.integration.test.ts",
+    "test:integration": "RUN_NETWORK_TESTS=1 vitest run",
     "test:format": "prettier --cache --check .",
     "format": "prettier --cache --write ."
   },
