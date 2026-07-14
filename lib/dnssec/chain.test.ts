@@ -421,6 +421,56 @@ describe('buildChain signature enforcement', () => {
     });
   });
 
+  it('does not let an in-window unsupported RRSIG mask an expired supported DS signature', () => {
+    const parent = genKey(13);
+    const unsupportedParentKey: DnskeyData = {
+      flags: 256,
+      algorithm: 12,
+      key: Buffer.alloc(64, 7),
+    };
+    const child = genKey(13);
+    const childDs = dsForKey('child.example', child.dnskey);
+    const expiredSupported = signDsRrset(
+      'child.example',
+      [childDs],
+      'example',
+      parent,
+      { inception: 100, expiration: 200 },
+    );
+    const inWindowUnsupported = {
+      ...signDsRrset('child.example', [childDs], 'example', parent, win),
+      algorithm: 12,
+      keyTag: computeKeyTag(dnskeyRdata(unsupportedParentKey)),
+    };
+    const parentRrset = [parent.dnskey, unsupportedParentKey];
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: parentRrset,
+          dsRecords: [dsForKey('example', parent.dnskey)],
+          keyRrsigs: [signDnskeyRrset('example', parentRrset, parent, win)],
+        },
+        {
+          name: 'child.example',
+          keys: [child.dnskey],
+          dsRecords: [childDs],
+          dsRrsigs: [expiredSupported, inWindowUnsupported],
+          keyRrsigs: [
+            signDnskeyRrset('child.example', [child.dnskey], child, win),
+          ],
+        },
+      ],
+      now,
+    );
+
+    expect(chain.zones[1]).toMatchObject({
+      status: 'broken',
+      breakReason: 'bad-ds-signature',
+      dsSignature: { status: 'expired' },
+    });
+  });
+
   it('propagates a broken key signature down the chain', () => {
     const parent = signedZone('example', 13);
     delete parent.keyRrsigs; // parent key set unsigned -> broken

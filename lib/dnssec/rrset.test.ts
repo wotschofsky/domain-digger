@@ -214,6 +214,47 @@ describe('positive RRset validation', () => {
     });
   });
 
+  it('does not let an in-window unsupported signature mask an expired supported one', () => {
+    const signer = genKey(13);
+    const unsupportedKey: DnskeyData = {
+      ...signer.dnskey,
+      algorithm: 12,
+    };
+    const supportedTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+    const unsupportedTag = computeKeyTag(dnskeyRdata(unsupportedKey));
+    const expiredSupported = signARecordRrset(
+      ownerName,
+      records,
+      signerName,
+      signer,
+      { inception: 100, expiration: 200 },
+    );
+    const inWindowUnsupported = {
+      ...signARecordRrset(ownerName, records, signerName, signer, win),
+      algorithm: 12,
+      keyTag: unsupportedTag,
+    };
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [inWindowUnsupported, expiredSupported],
+        keys: [signer.dnskey, unsupportedKey],
+        authenticatedKeyIds: new Set([
+          signerId(13, supportedTag),
+          signerId(12, unsupportedTag),
+        ]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'bogus',
+      reason: 'expired',
+    });
+  });
+
   it('rejects a positive RRset signed by an unauthenticated key', () => {
     const signer = genKey(13);
     const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);

@@ -100,13 +100,22 @@ const failedSignatureAnalysis = (
     rrsig,
     issue: issueFor(rrsig),
   }));
+  // A failing supported-algorithm signature (crypto-invalid, expired, or not
+  // yet valid) outranks a clean unsupported one: a co-published algorithm this
+  // checker cannot run must not downgrade a bad signature to insecure
+  // (RFC 6840 §5.11).
+  const hasFailingSupported = issues.some(
+    ({ rrsig, issue }) =>
+      SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm) &&
+      (issue === null || issue === 'expired' || issue === 'not-yet-valid'),
+  );
   const unsupported = issues
     .filter(
       ({ rrsig, issue }) =>
         issue === null && !SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm),
     )
     .map(({ rrsig }) => rrsig);
-  if (unsupported.length) {
+  if (unsupported.length && !hasFailingSupported) {
     return {
       validUntil: null,
       evidence: evidenceFrom('unsupported', unsupported),

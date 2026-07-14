@@ -113,6 +113,15 @@ export function validatePositiveRrset(params: {
           : metadataIssue === 'expired'
             ? 'expired'
             : 'invalid-signature';
+      // An expired or not-yet-valid supported-algorithm signature outranks a
+      // co-published in-window unsupported one (RFC 6840 §5.11) -- without
+      // this, the unsupported fallback below would mask the real failure.
+      if (
+        SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm) &&
+        (metadataIssue === 'expired' || metadataIssue === 'not-yet-valid')
+      ) {
+        sawSupportedSigner = true;
+      }
       continue;
     }
     if (!SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm)) {
