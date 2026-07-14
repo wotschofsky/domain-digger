@@ -19,6 +19,10 @@ export const RRSET_STATUS_BY_REASON = {
   // not validated here, so a valid wildcard signature alone stays inconclusive
   // -- a signed wildcard RRset could otherwise be replayed over a real name.
   'wildcard-no-denial-proof': 'indeterminate',
+  // A CNAME synthesized from a DNAME (RFC 6672 §3.2) legitimately has no
+  // RRSIG of its own; the proof lives on the covering DNAME, which this
+  // checker does not validate yet.
+  'dname-synthesized': 'unsupported',
 } as const;
 
 export type DnssecRrsetReason = keyof typeof RRSET_STATUS_BY_REASON;

@@ -70,6 +70,8 @@ const RRSET_REASON_LABEL: Record<DnssecRrsetReason, string> = {
   'lookup-failed': 'Lookup failed while probing this type',
   'wildcard-no-denial-proof':
     'Signed as a wildcard expansion; the required nonexistence proof is not validated yet',
+  'dname-synthesized':
+    'CNAME synthesized from a DNAME; the signature lives on the DNAME, which is not validated yet',
 };
 
 const dateFmt = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
@@ -531,7 +533,8 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
           {rrset.signatureExpiresAt !== undefined && (
             <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
               <ClockIcon className="size-3.5" />
-              until {dateFmt.format(new Date(rrset.signatureExpiresAt * 1000))}
+              {isSecure ? 'until' : 'observed until'}{' '}
+              {dateFmt.format(new Date(rrset.signatureExpiresAt * 1000))}
             </span>
           )}
           <span className="text-xs text-zinc-400 group-open:hidden dark:text-zinc-500">
@@ -552,7 +555,11 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
             </dd>
           </div>
           <div>
-            <dt className="text-zinc-500 dark:text-zinc-400">Valid from</dt>
+            {/* An unverified signature's timestamps are observed claims, not
+                a validated lifetime. */}
+            <dt className="text-zinc-500 dark:text-zinc-400">
+              {isSecure ? 'Valid from' : 'Observed inception'}
+            </dt>
             <dd className="mt-0.5 text-zinc-800 dark:text-zinc-100">
               {rrset.signatureInceptionAt
                 ? dateTimeFmt.format(
@@ -562,7 +569,9 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
             </dd>
           </div>
           <div>
-            <dt className="text-zinc-500 dark:text-zinc-400">Valid until</dt>
+            <dt className="text-zinc-500 dark:text-zinc-400">
+              {isSecure ? 'Valid until' : 'Observed expiry'}
+            </dt>
             <dd className="mt-0.5 text-zinc-800 dark:text-zinc-100">
               {rrset.signatureExpiresAt
                 ? dateTimeFmt.format(new Date(rrset.signatureExpiresAt * 1000))

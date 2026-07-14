@@ -25,6 +25,9 @@ export type DnssecQueryResult = {
   // RRSIGs in the answer covering the queried type (present when queried with
   // the DNSSEC OK bit) -- they prove whether this RRset is signed.
   coveringRrsigs?: RrsigData[];
+  // The full answer section contained a DNAME: CNAMEs at the queried name
+  // may be synthesized and legitimately unsigned (RFC 6672 §3.2).
+  sawDname?: boolean;
 };
 
 /** One DNS question: name + type, optionally with the EDNS DNSSEC OK bit. */
@@ -98,13 +101,13 @@ async function probeLeafRrsets(
   const probes = await Promise.all(
     RRSET_PROBE_TYPES.map((type) =>
       query(name, type, true)
-        .then(({ answers, coveringRrsigs, rcode }) => {
+        .then(({ answers, coveringRrsigs, rcode, sawDname }) => {
           // Some injected transports return DNS error rcodes instead of
           // throwing. They are indeterminate lookups, never proof of NODATA.
           if (isErrorRcode(rcode)) {
             throw new Error(`DNS ${rcode} for ${name} ${type}`);
           }
-          const rrset = validatePositiveRrset({
+          let rrset = validatePositiveRrset({
             type,
             ownerName: name,
             records: answers,
@@ -114,6 +117,19 @@ async function probeLeafRrsets(
             signerName,
             now,
           });
+          // A CNAME synthesized from a DNAME intentionally carries no RRSIG;
+          // the signature lives on the DNAME (not validated here). Don't
+          // misreport such deployments as serving unsigned records.
+          if (
+            rrset.reason === 'missing-rrsig' &&
+            type === 'CNAME' &&
+            sawDname
+          ) {
+            rrset = rrsetResult('dname-synthesized', {
+              type,
+              recordCount: rrset.recordCount,
+            });
+          }
           // Surface the alias target: a validated CNAME only authenticates the
           // pointer, not the target's chain, and the UI must say so.
           const target = answers.find((a) => a.type === 'CNAME')?.data;
