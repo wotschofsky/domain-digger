@@ -14,6 +14,11 @@ export const RRSET_STATUS_BY_REASON = {
   'not-yet-valid': 'bogus',
   'invalid-signature': 'bogus',
   'lookup-failed': 'indeterminate',
+  // RFC 4035 §5.3.4: a wildcard-expanded positive answer is only proven by an
+  // additional NSEC/NSEC3 denial that no closer name exists. Those proofs are
+  // not validated here, so a valid wildcard signature alone stays inconclusive
+  // -- a signed wildcard RRset could otherwise be replayed over a real name.
+  'wildcard-no-denial-proof': 'indeterminate',
 } as const;
 
 export type DnssecRrsetReason = keyof typeof RRSET_STATUS_BY_REASON;

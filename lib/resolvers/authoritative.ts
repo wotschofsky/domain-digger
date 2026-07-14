@@ -503,6 +503,25 @@ export class AuthoritativeResolver extends DnsResolver {
           errorRcodes.push(resultRcode);
           continue;
         }
+        // A terminal-looking response (no answers, no referral) that is not
+        // authoritative is a lame server, not proof of NODATA/NXDOMAIN
+        // (RFC 2308 negative answers come from the AA server). Accepting it
+        // would let one misconfigured candidate mask healthy siblings, e.g.
+        // rendering a signed zone as serving no DNSKEY.
+        const lame =
+          !result.packet.answers?.length &&
+          // flag_aa only exists on decoded packets; encode-side Packet lacks it.
+          !(result.packet as DecodedPacket).flag_aa &&
+          ![
+            ...(result.packet.authorities ?? []),
+            ...(result.packet.additionals ?? []),
+          ].some((record) => record.type === 'NS' || record.type === 'A');
+        if (lame) {
+          failedNameservers.push(
+            `${candidate}: lame response (empty, not authoritative)`,
+          );
+          continue;
+        }
         response = result.packet;
         protocol = result.protocol;
         truncated = result.truncated;

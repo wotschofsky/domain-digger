@@ -250,6 +250,93 @@ describe('positive RRset validation', () => {
     });
   });
 
+  it('marks wildcard-expanded answers inconclusive without a denial proof', () => {
+    const signer = genKey(13);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+    // Signed at the wildcard owner: valid crypto, but proving it applies to
+    // www.example also needs an NSEC/NSEC3 proof that no closer name exists.
+    const wildcardSig = signARecordRrset(
+      '*.example',
+      records,
+      signerName,
+      signer,
+      win,
+    );
+
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName,
+        records,
+        rrsigs: [wildcardSig],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'indeterminate',
+      reason: 'wildcard-no-denial-proof',
+    });
+
+    // Asking about the wildcard owner itself needs no expansion proof.
+    expect(
+      validatePositiveRrset({
+        type: 'A',
+        ownerName: '*.example',
+        records,
+        rrsigs: [wildcardSig],
+        keys: [signer.dnskey],
+        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+        signerName,
+        now,
+      }),
+    ).toMatchObject({
+      status: 'secure',
+      reason: 'validated',
+    });
+  });
+
+  it('reports the same failure reason regardless of signature order', () => {
+    const signer = genKey(13);
+    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+    const expired = signARecordRrset(ownerName, records, signerName, signer, {
+      inception: 100,
+      expiration: 200,
+    });
+    const tampered = signARecordRrset(
+      ownerName,
+      records,
+      signerName,
+      signer,
+      win,
+    );
+    tampered.signature = Buffer.from(tampered.signature);
+    tampered.signature[0] ^= 0xff;
+
+    for (const rrsigs of [
+      [expired, tampered],
+      [tampered, expired],
+    ]) {
+      expect(
+        validatePositiveRrset({
+          type: 'A',
+          ownerName,
+          records,
+          rrsigs,
+          keys: [signer.dnskey],
+          authenticatedKeyIds: new Set([signerId(13, keyTag)]),
+          signerName,
+          now,
+        }),
+      ).toMatchObject({
+        status: 'bogus',
+        reason: 'expired',
+        signatureExpiresAt: 200,
+      });
+    }
+  });
+
   it('does not let an in-window unsupported signature mask an expired supported one', () => {
     const signer = genKey(13);
     const unsupportedKey: DnskeyData = {

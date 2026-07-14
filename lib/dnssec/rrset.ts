@@ -10,7 +10,12 @@ import type {
   DnssecRrsetReason,
 } from './types';
 import { RRSET_STATUS_BY_REASON } from './types';
-import { canonicalRdata, computeKeyTag, dnskeyRdata } from './wire';
+import {
+  canonicalOwnerForRrsig,
+  canonicalRdata,
+  computeKeyTag,
+  dnskeyRdata,
+} from './wire';
 
 // Positive leaf RRset validation: classify an answered RRset (secure /
 // unsigned / bogus / ...) by checking its covering RRSIGs against the zone's
@@ -92,8 +97,14 @@ export function validatePositiveRrset(params: {
   let sawAuthenticatedSigner = false;
   let sawUnsupportedSigner = false;
   let sawSupportedSigner = false;
-  let failureReason: DnssecRrsetReason = 'invalid-signature';
   let bestValid: RrsigData | null = null;
+  let bestWildcardValid: RrsigData | null = null;
+  // Every authenticated failure, so reason and evidence can be derived from
+  // one deterministically chosen signature instead of loop order.
+  const failures: Array<{
+    rrsig: RrsigData;
+    reason: 'expired' | 'not-yet-valid' | 'invalid-signature';
+  }> = [];
   for (const rrsig of covering) {
     // Signatures by unauthenticated signers (including revoked keys, which
     // RFC 5011 §2.1 strips from the trusted set) carry no weight at all: they
@@ -112,12 +123,15 @@ export function validatePositiveRrset(params: {
       now,
     });
     if (metadataIssue) {
-      failureReason =
-        metadataIssue === 'not-yet-valid'
-          ? 'not-yet-valid'
-          : metadataIssue === 'expired'
-            ? 'expired'
-            : 'invalid-signature';
+      failures.push({
+        rrsig,
+        reason:
+          metadataIssue === 'not-yet-valid'
+            ? 'not-yet-valid'
+            : metadataIssue === 'expired'
+              ? 'expired'
+              : 'invalid-signature',
+      });
       // An expired or not-yet-valid supported-algorithm signature outranks a
       // co-published in-window unsupported one (RFC 6840 §5.11) -- without
       // this, the unsupported fallback below would mask the real failure.
@@ -143,27 +157,61 @@ export function validatePositiveRrset(params: {
       keys: authenticatedKeys,
       now,
     });
+    if (!verified) {
+      failures.push({ rrsig, reason: 'invalid-signature' });
+      continue;
+    }
+    // A signature covering fewer labels than the owner authenticates a
+    // wildcard expansion, which is only proven together with an NSEC/NSEC3
+    // denial that no closer name exists (RFC 4035 §5.3.4) -- not validated
+    // here, so it must not count as fully validated.
+    const isExpansion =
+      canonicalOwnerForRrsig(ownerName, rrsig) !==
+      (ownerName.replace(/\.$/, '').toLowerCase() || '.');
     // Rollovers legitimately publish several currently-valid RRSIGs; report
     // the longest-lived one (like the DNSKEY/DS paths do) so the expiry shown
     // doesn't depend on response order.
-    if (verified && (!bestValid || rrsig.expiration > bestValid.expiration)) {
+    if (isExpansion) {
+      if (!bestWildcardValid || rrsig.expiration > bestWildcardValid.expiration)
+        bestWildcardValid = rrsig;
+    } else if (!bestValid || rrsig.expiration > bestValid.expiration) {
       bestValid = rrsig;
     }
   }
 
-  if (bestValid) {
-    return rrsetResult('validated', {
+  const bestVerified = bestValid ?? bestWildcardValid;
+  if (bestVerified) {
+    return rrsetResult(bestValid ? 'validated' : 'wildcard-no-denial-proof', {
       type,
       recordCount: typeRecords.length,
-      signerName: bestValid.signersName,
-      signerKeyTag: bestValid.keyTag,
-      signerAlgorithmName: algorithmName(bestValid.algorithm),
-      signatureInceptionAt: bestValid.inception,
-      signatureExpiresAt: bestValid.expiration,
-      signatureOriginalTtl: bestValid.originalTTL,
+      signerName: bestVerified.signersName,
+      signerKeyTag: bestVerified.keyTag,
+      signerAlgorithmName: algorithmName(bestVerified.algorithm),
+      signatureInceptionAt: bestVerified.inception,
+      signatureExpiresAt: bestVerified.expiration,
+      signatureOriginalTtl: bestVerified.originalTTL,
     });
   }
 
+  // Deterministic failure selection: bucket priority (expired before
+  // not-yet-valid before invalid, mirroring the DNSKEY/DS evidence order),
+  // longest-lived signature within the bucket. Reordering the same DNS
+  // answer must not change the reported reason or its evidence.
+  let chosen: (typeof failures)[number] | undefined;
+  for (const reason of [
+    'expired',
+    'not-yet-valid',
+    'invalid-signature',
+  ] as const) {
+    const bucket = failures.filter((failure) => failure.reason === reason);
+    if (bucket.length) {
+      chosen = bucket.reduce((best, failure) =>
+        failure.rrsig.expiration > best.rrsig.expiration ? failure : best,
+      );
+      break;
+    }
+  }
+  const failureReason = chosen?.reason ?? 'invalid-signature';
   const fallbackReason: DnssecRrsetReason = sawSupportedSigner
     ? failureReason
     : sawUnsupportedSigner
@@ -171,17 +219,17 @@ export function validatePositiveRrset(params: {
       : sawAuthenticatedSigner
         ? failureReason
         : 'unauthenticated-signer';
-  const firstCovering = covering[0];
+  const evidence = chosen?.rrsig ?? covering[0];
   return rrsetResult(fallbackReason, {
     type,
     recordCount: typeRecords.length,
-    signerName: firstCovering?.signersName,
-    signerKeyTag: firstCovering?.keyTag,
-    signerAlgorithmName: firstCovering
-      ? algorithmName(firstCovering.algorithm)
+    signerName: evidence?.signersName,
+    signerKeyTag: evidence?.keyTag,
+    signerAlgorithmName: evidence
+      ? algorithmName(evidence.algorithm)
       : undefined,
-    signatureInceptionAt: firstCovering?.inception,
-    signatureExpiresAt: Math.min(...covering.map((rrsig) => rrsig.expiration)),
-    signatureOriginalTtl: firstCovering?.originalTTL,
+    signatureInceptionAt: evidence?.inception,
+    signatureExpiresAt: evidence?.expiration,
+    signatureOriginalTtl: evidence?.originalTTL,
   });
 }

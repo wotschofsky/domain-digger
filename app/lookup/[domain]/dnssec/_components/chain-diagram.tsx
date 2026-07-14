@@ -68,6 +68,8 @@ const RRSET_REASON_LABEL: Record<DnssecRrsetReason, string> = {
   'not-yet-valid': 'RRSIG is not valid yet',
   'invalid-signature': 'RRSIG does not verify',
   'lookup-failed': 'Lookup failed while probing this type',
+  'wildcard-no-denial-proof':
+    'Signed as a wildcard expansion; the required nonexistence proof is not validated yet',
 };
 
 const dateFmt = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' });
