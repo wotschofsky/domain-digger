@@ -454,23 +454,30 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
   </div>
 );
 
-const TrustLinkRow: FC<{ ds: DnssecDs; dnsKey?: DnssecKey }> = ({
-  ds,
-  dnsKey,
-}) => (
+const TrustLinkRow: FC<{
+  ds: DnssecDs;
+  dnsKey?: DnssecKey;
+  // A shipped trust anchor that simply isn't in the served key set right now
+  // (e.g. the standby root KSK outside a rollover) -- not a broken link.
+  standby?: boolean;
+}> = ({ ds, dnsKey, standby }) => (
   <li className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
     <DsRow ds={ds} />
     <ArrowRightIcon
-      aria-label={dnsKey ? 'matches' : 'does not match'}
+      aria-label={dnsKey ? 'matches' : standby ? 'standby' : 'does not match'}
       className={cn(
         'size-4',
-        dnsKey
+        dnsKey || standby
           ? 'text-zinc-400 dark:text-zinc-500'
           : 'text-red-600 dark:text-red-400',
       )}
     />
     {dnsKey ? (
       <KeyRow dnsKey={dnsKey} />
+    ) : standby ? (
+      <div className="py-2 text-sm text-zinc-500 dark:text-zinc-400">
+        Standby anchor · not in the current key set
+      </div>
     ) : (
       <div className="flex items-center gap-1.5 py-2 text-sm font-medium text-red-600 dark:text-red-400">
         <XIcon className="size-3.5" />
@@ -672,6 +679,14 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
                 key={`${ds.keyTag}-${ds.algorithm}-${ds.digestType}-${ds.digestHex}`}
                 ds={ds}
                 dnsKey={zone.keys[ds.matchedKeyIndexes[0]]}
+                // The root always carries both IANA anchors; outside a KSK
+                // rollover only one is served, and the other must not read
+                // as a broken link under a secure root.
+                standby={
+                  zone.name === '.' &&
+                  !ds.matched &&
+                  zone.dsRecords.some((record) => record.matched)
+                }
               />
             ))}
           </ul>
