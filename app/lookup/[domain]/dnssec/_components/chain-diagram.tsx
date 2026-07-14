@@ -609,7 +609,7 @@ const SignatureEvidence: FC<{
   label: string;
   evidence: DnssecSignatureEvidence;
 }> = ({ label, evidence }) => (
-  <div className="flex min-w-0 items-start gap-1.5 pl-1 py-2 text-xs text-zinc-500 dark:text-zinc-400">
+  <div className="flex min-w-0 items-start gap-1.5 py-2 pl-1 text-xs text-zinc-500 dark:text-zinc-400">
     <ClockIcon
       className={cn(
         'mt-0.5 size-3.5 shrink-0',
@@ -790,7 +790,10 @@ const RailRow: FC<{
           className={cn('h-3.5 w-px shrink-0', !isRoot && edge.line)}
         />
         <span
-          className={cn('size-3 shrink-0 rounded-full', STATUS_DOT[zone.status])}
+          className={cn(
+            'size-3 shrink-0 rounded-full',
+            STATUS_DOT[zone.status],
+          )}
         />
         {connectorLine && (
           <span aria-hidden className={cn('w-px flex-1', connectorLine)} />
