@@ -444,9 +444,9 @@ export class AuthoritativeResolver extends DnsResolver {
     // The RRSIG records covering recordType, for cryptographic verification
     // (populated only when queried with dnssecOk).
     coveringRrsigs?: RrsigData[];
-    // The answer section contained a DNAME (CNAMEs may be synthesized and
+    // DNAMEs from the answer section (CNAMEs may be synthesized and
     // legitimately unsigned, RFC 6672 §3.2).
-    sawDname?: boolean;
+    dnames?: { name: string; target: string }[];
   }> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
@@ -624,10 +624,13 @@ export class AuthoritativeResolver extends DnsResolver {
         trace: fullTrace,
         rcode,
         coveringRrsigs,
-        // A DNAME in the answer means CNAMEs at the queried name may be
+        // DNAMEs in the answer mean CNAMEs at the queried name may be
         // synthesized (RFC 6672 §3.2) -- they intentionally carry no RRSIG of
         // their own, and the DNSSEC leaf probe must not call them unsigned.
-        sawDname: response.answers.some((answer) => answer.type === 'DNAME'),
+        // Owner and target are kept so the probe can verify the substitution.
+        dnames: response.answers
+          .filter((answer): answer is StringAnswer => answer.type === 'DNAME')
+          .map((answer) => ({ name: answer.name, target: answer.data })),
       };
     }
 

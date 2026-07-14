@@ -25,9 +25,33 @@ export type DnssecQueryResult = {
   // RRSIGs in the answer covering the queried type (present when queried with
   // the DNSSEC OK bit) -- they prove whether this RRset is signed.
   coveringRrsigs?: RrsigData[];
-  // The full answer section contained a DNAME: CNAMEs at the queried name
-  // may be synthesized and legitimately unsigned (RFC 6672 §3.2).
-  sawDname?: boolean;
+  // DNAMEs from the full answer section: CNAMEs at the queried name may be
+  // synthesized and legitimately unsigned (RFC 6672 §3.2).
+  dnames?: { name: string; target: string }[];
+};
+
+/**
+ * Whether `cnameTarget` at `name` is exactly the CNAME a server would
+ * synthesize from one of the answered DNAMEs (RFC 6672 §2.2): the name must
+ * lie strictly below a DNAME owner, and the target must be the queried
+ * prefix grafted onto the DNAME target. An unrelated DNAME in the answer
+ * must not excuse an unsigned CNAME.
+ */
+export const isDnameSynthesized = (
+  name: string,
+  cnameTarget: string,
+  dnames: { name: string; target: string }[],
+): boolean => {
+  const normalize = (value: string) => value.replace(/\.$/, '').toLowerCase();
+  const qname = normalize(name);
+  const cname = normalize(cnameTarget);
+  return dnames.some(({ name: owner, target }) => {
+    const dnameOwner = normalize(owner);
+    const dnameTarget = normalize(target);
+    if (!dnameOwner || !qname.endsWith(`.${dnameOwner}`)) return false;
+    const prefix = qname.slice(0, qname.length - dnameOwner.length - 1);
+    return cname === (dnameTarget ? `${prefix}.${dnameTarget}` : prefix);
+  });
 };
 
 /** One DNS question: name + type, optionally with the EDNS DNSSEC OK bit. */
@@ -101,7 +125,7 @@ async function probeLeafRrsets(
   const probes = await Promise.all(
     RRSET_PROBE_TYPES.map((type) =>
       query(name, type, true)
-        .then(({ answers, coveringRrsigs, rcode, sawDname }) => {
+        .then(({ answers, coveringRrsigs, rcode, dnames }) => {
           // Some injected transports return DNS error rcodes instead of
           // throwing. They are indeterminate lookups, never proof of NODATA.
           if (isErrorRcode(rcode)) {
@@ -119,11 +143,15 @@ async function probeLeafRrsets(
           });
           // A CNAME synthesized from a DNAME intentionally carries no RRSIG;
           // the signature lives on the DNAME (not validated here). Don't
-          // misreport such deployments as serving unsigned records.
+          // misreport such deployments as serving unsigned records -- but
+          // only when the CNAME really is the DNAME's substitution, so an
+          // unrelated DNAME can't excuse a genuinely unsigned CNAME.
+          const target = answers.find((a) => a.type === 'CNAME')?.data;
           if (
             rrset.reason === 'missing-rrsig' &&
             type === 'CNAME' &&
-            sawDname
+            typeof target === 'string' &&
+            isDnameSynthesized(name, target, dnames ?? [])
           ) {
             rrset = rrsetResult('dname-synthesized', {
               type,
@@ -132,7 +160,6 @@ async function probeLeafRrsets(
           }
           // Surface the alias target: a validated CNAME only authenticates the
           // pointer, not the target's chain, and the UI must say so.
-          const target = answers.find((a) => a.type === 'CNAME')?.data;
           if (type === 'CNAME' && typeof target === 'string') {
             rrset.cnameTarget = target.replace(/\.$/, '').toLowerCase();
           }

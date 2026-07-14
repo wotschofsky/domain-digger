@@ -18,6 +18,10 @@ export const RRSET_STATUS_BY_REASON = {
   // additional NSEC/NSEC3 denial that no closer name exists. Those proofs are
   // not validated here, so a valid wildcard signature alone stays inconclusive
   // -- a signed wildcard RRset could otherwise be replayed over a real name.
+  // Deliberately `indeterminate` rather than the RFC's bogus-for-validators:
+  // this checker never fetched the NSEC records, so it cannot distinguish "no
+  // proof exists" (bogus) from "proof exists but was not checked" -- calling
+  // every legitimate wildcard deployment bogus would be a false alarm.
   'wildcard-no-denial-proof': 'indeterminate',
   // A CNAME synthesized from a DNAME (RFC 6672 §3.2) legitimately has no
   // RRSIG of its own; the proof lives on the covering DNAME, which this

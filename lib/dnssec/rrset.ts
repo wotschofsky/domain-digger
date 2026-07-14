@@ -205,8 +205,20 @@ export function validatePositiveRrset(params: {
   ] as const) {
     const bucket = failures.filter((failure) => failure.reason === reason);
     if (bucket.length) {
+      // Tie-break equal expirations on the displayed fields so identical
+      // answers in a different order still render identical evidence.
       chosen = bucket.reduce((best, failure) =>
-        failure.rrsig.expiration > best.rrsig.expiration ? failure : best,
+        failure.rrsig.expiration !== best.rrsig.expiration
+          ? failure.rrsig.expiration > best.rrsig.expiration
+            ? failure
+            : best
+          : failure.rrsig.keyTag !== best.rrsig.keyTag
+            ? failure.rrsig.keyTag < best.rrsig.keyTag
+              ? failure
+              : best
+            : failure.rrsig.algorithm < best.rrsig.algorithm
+              ? failure
+              : best,
       );
       break;
     }

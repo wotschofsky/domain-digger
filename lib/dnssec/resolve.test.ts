@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 
 import { UserFacingError } from '@/lib/user-facing-error';
 
-import { type DnssecQuery, resolveDnssecChain } from './resolve';
+import {
+  type DnssecQuery,
+  isDnameSynthesized,
+  resolveDnssecChain,
+} from './resolve';
 import { genKey } from './test-helpers';
 import { ROOT_DNSKEY_RRSIG, ROOT_DNSKEYS, ROOT_NOW } from './test-vectors';
 
@@ -118,6 +122,29 @@ describe('resolveDnssecChain', () => {
     ).rejects.toMatchObject({
       payload: expect.objectContaining({ retryable: true }),
     });
+  });
+
+  it('recognizes only exact DNAME substitutions as synthesized CNAMEs', () => {
+    const dname = { name: 'example.com', target: 'example.net' };
+
+    // The synthesized substitution: www.example.com -> www.example.net.
+    expect(
+      isDnameSynthesized('www.example.com', 'www.example.net.', [dname]),
+    ).toBe(true);
+    // Unrelated DNAME must not excuse an unsigned CNAME.
+    expect(
+      isDnameSynthesized('www.example.com', 'cdn.example.org', [
+        { name: 'other.test', target: 'elsewhere.test' },
+      ]),
+    ).toBe(false);
+    // Right DNAME, wrong target: not the substitution.
+    expect(
+      isDnameSynthesized('www.example.com', 'cdn.example.net', [dname]),
+    ).toBe(false);
+    // DNAME applies only strictly below its owner.
+    expect(isDnameSynthesized('example.com', 'example.net', [dname])).toBe(
+      false,
+    );
   });
 
   it('requests DS RRsets with DNSSEC records enabled', async () => {
