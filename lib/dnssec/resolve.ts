@@ -231,6 +231,18 @@ export async function resolveDnssecChain(
   }
   // e.g. www.wsky.dev -> ['.', 'dev', 'wsky.dev', 'www.wsky.dev']
 
+  // Bound total work, not just concurrency: a valid ~253-byte name can carry
+  // ~125 labels, which would mean hundreds of authoritative walks for one
+  // public request. Real DNSSEC hierarchies are far shallower.
+  const MAX_WALK_ZONES = 16;
+  if (zoneNames.length > MAX_WALK_ZONES) {
+    throw new UserFacingError({
+      title: 'Domain has too many labels',
+      description: `DNSSEC chain walks are limited to ${MAX_WALK_ZONES - 1} labels to keep a lookup's DNS traffic bounded.`,
+      retryable: false,
+    });
+  }
+
   // Zones are independent questions, so fetch them concurrently. Failures
   // (timeouts, blocked UDP, bad referrals) must propagate to the error
   // boundary -- they are NOT an unsigned zone, which comes back as an empty
@@ -286,12 +298,30 @@ export async function resolveDnssecChain(
     ({ name, keys, dsRecords }) =>
       name === '.' || name === base || keys.length > 0 || dsRecords.length > 0,
   );
-  // But an empty label ABOVE a kept zone must stay: dropping it would graft
-  // the deeper zone onto its grandparent, misvalidating its DS against the
-  // wrong keys and rendering a signed island below an unsigned delegation as
-  // a false "broken" instead of insecure.
+  // But an empty label ABOVE a kept zone must stay when it could be an
+  // unsigned delegation: dropping it would graft the deeper zone onto its
+  // grandparent, misvalidating its DS against the wrong keys and rendering a
+  // signed island below an unsigned cut as a false "broken". The exception is
+  // an empty NON-terminal inside the parent zone -- when the deeper zone's DS
+  // RRSIG names a zone strictly above the empty label as its signer, the
+  // delegation legitimately skipped that label and keeping it would produce
+  // a false "insecure" instead.
+  const isProperAncestor = (ancestor: string, name: string) =>
+    ancestor === ''
+      ? name !== ''
+      : name !== ancestor && name.endsWith(`.${ancestor}`);
   for (let i = keep.length - 1; i >= 0; i--) {
-    if (!keep[i] && keep.slice(i + 1).some(Boolean)) keep[i] = true;
+    if (keep[i]) continue;
+    const deeperIndex = keep.findIndex((kept, index) => kept && index > i);
+    if (deeperIndex === -1) continue;
+    const skippedByDelegation = (candidates[deeperIndex].dsRrsigs ?? []).some(
+      (rrsig) =>
+        isProperAncestor(
+          rrsig.signersName.replace(/\.$/, '').toLowerCase(),
+          candidates[i].name,
+        ),
+    );
+    if (!skippedByDelegation) keep[i] = true;
   }
   const rawZones: RawZone[] = candidates.filter((_, index) => keep[index]);
 

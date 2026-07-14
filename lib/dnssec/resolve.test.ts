@@ -1,4 +1,4 @@
-import type { DnskeyData, RrsigData } from 'dns-packet';
+import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
 import { UserFacingError } from '@/lib/user-facing-error';
@@ -14,6 +14,8 @@ import { ROOT_DNSKEY_RRSIG, ROOT_DNSKEYS, ROOT_NOW } from './test-vectors';
 type FakeZone = {
   keys?: DnskeyData[];
   keyRrsigs?: RrsigData[];
+  ds?: DsData[];
+  dsRrsigs?: RrsigData[];
   rcode?: string;
 };
 
@@ -38,6 +40,12 @@ const queryFrom =
           data,
         })),
         coveringRrsigs: zone.keyRrsigs,
+      };
+    }
+    if (type === 'DS') {
+      return {
+        answers: (zone.ds ?? []).map((data) => ({ name, type: 'DS', data })),
+        coveringRrsigs: zone.dsRrsigs,
       };
     }
     return { answers: [] };
@@ -121,6 +129,50 @@ describe('resolveDnssecChain', () => {
       'sub.example.com',
       'deep.sub.example.com',
     ]);
+  });
+
+  it('drops an empty non-terminal when the deeper DS is signed from above it', async () => {
+    // deep.sub.example.com is delegated directly from example.com; the
+    // sub.example.com label is an empty non-terminal, not an unsigned cut,
+    // and keeping it would break the valid chain with a false insecure.
+    const island = genKey(13);
+    const skippingDsRrsig: RrsigData = {
+      typeCovered: 'DS',
+      algorithm: 13,
+      labels: 4,
+      originalTTL: 300,
+      expiration: ROOT_NOW + 1000,
+      inception: ROOT_NOW - 1000,
+      keyTag: 1,
+      signersName: 'example.com',
+      signature: Buffer.alloc(64),
+    };
+    const query = queryFrom({
+      '.': SIGNED_ROOT,
+      'deep.sub.example.com': {
+        keys: [island.dnskey],
+        dsRrsigs: [skippingDsRrsig],
+      },
+    });
+    const chain = await resolveDnssecChain(
+      'deep.sub.example.com',
+      query,
+      ROOT_NOW,
+    );
+
+    expect(chain?.zones.map((z) => z.name)).toEqual([
+      '.',
+      'com',
+      'example.com',
+      'deep.sub.example.com',
+    ]);
+  });
+
+  it('rejects domains with too many labels instead of walking them all', async () => {
+    const deep = `${'a.'.repeat(20)}example.com`;
+    await expect(
+      resolveDnssecChain(deep, queryFrom({ '.': SIGNED_ROOT }), ROOT_NOW),
+    ).rejects.toBeInstanceOf(UserFacingError);
   });
 
   it('strips a wildcard prefix from the zone walk', async () => {
