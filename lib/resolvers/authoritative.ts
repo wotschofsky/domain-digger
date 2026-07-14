@@ -695,40 +695,40 @@ export class AuthoritativeResolver extends DnsResolver {
       );
       if (nsRedirects.length) {
         const subTrace: string[] = [];
-        // Resolve the candidate NS hostnames concurrently: done serially,
-        // every dead hostname would burn a full retry/fallback budget even
-        // after a usable address had already been found, stretching a
-        // glueless four-NS delegation to minutes.
-        const resolvedBatches = await Promise.all(
-          nsRedirects.slice(0, 4).map(async (ns) => {
-            try {
-              const resolved = await this.fetchRecordsRaw({
-                domain: ns.data,
-                recordType: 'A',
-                depth: depth + 1,
-              });
-              subTrace.push(...resolved.trace);
-              return resolved.answers;
-            } catch (error) {
-              subTrace.push(
-                `A ${ns.data} -> failed: ${
-                  error instanceof Error ? error.message : 'request failed'
-                }`,
-              );
-              return [];
-            }
-          }),
-        );
-        const aAnswers: RawAnswer[] = resolvedBatches.flat();
-
+        // Resolve the candidate NS hostnames concurrently and proceed with
+        // the first usable result: done serially (or awaited jointly), a
+        // dead sibling would stall the walk for its full retry/fallback
+        // budget even after a usable address had already been found.
         // The resolved NS address is attacker-controlled (they own the zone
         // and can set any A record); filter to public IPs before using it.
-        // aAnswers are all A records (filtered by record type), so
-        // recordToString yields the bare IP string for each.
-        const publicAddresses = aAnswers
-          .map((a) => this.recordToString(a))
-          .filter((ip) => isPublicIp(ip));
-        if (!publicAddresses.length) {
+        const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
+          try {
+            const resolved = await this.fetchRecordsRaw({
+              domain: ns.data,
+              recordType: 'A',
+              depth: depth + 1,
+            });
+            subTrace.push(...resolved.trace);
+            // resolved.answers are all A records (filtered by type), so
+            // recordToString yields the bare IP string for each.
+            const ips = resolved.answers
+              .map((a) => this.recordToString(a))
+              .filter((ip) => isPublicIp(ip));
+            if (!ips.length) throw new Error(`no public address (${ns.data})`);
+            return ips;
+          } catch (error) {
+            subTrace.push(
+              `A ${ns.data} -> failed: ${
+                error instanceof Error ? error.message : 'request failed'
+              }`,
+            );
+            throw error;
+          }
+        });
+        let publicAddresses: string[];
+        try {
+          publicAddresses = await Promise.any(lookups);
+        } catch {
           throw new Error(`Bad redirects for ${domain}`);
         }
 

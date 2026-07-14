@@ -326,6 +326,56 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(result.records[0]?.data).toBe('203.0.113.13');
   });
 
+  it('follows a glueless referral even when a sibling NS lookup fails', async () => {
+    const transport = vi.fn<AuthoritativeTransport>(async (request) => {
+      const { domain, recordType, nameserver } = request;
+      if (domain === 'ns-dead.example.net') throw new Error('timeout');
+      if (domain === 'ns-live.example.net') {
+        return {
+          packet: response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '8.8.8.8' },
+          ]),
+          protocol: 'udp' as const,
+          truncated: false,
+        };
+      }
+      return {
+        packet:
+          nameserver === '192.0.2.1'
+            ? ({
+                ...response(domain, recordType, 'NOERROR'),
+                authorities: [
+                  {
+                    name: 'example.com',
+                    type: 'NS',
+                    ttl: 300,
+                    data: 'ns-dead.example.net',
+                  },
+                  {
+                    name: 'example.com',
+                    type: 'NS',
+                    ttl: 300,
+                    data: 'ns-live.example.net',
+                  },
+                ],
+              } as Packet)
+            : response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.14' },
+              ]),
+        protocol: 'udp' as const,
+        truncated: false,
+      };
+    });
+    const resolver = new AuthoritativeResolver({
+      transport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.14');
+  });
+
   it('follows matching public glue from a referral', async () => {
     const transport = vi.fn<AuthoritativeTransport>(
       async ({ domain, recordType, nameserver }) => ({
