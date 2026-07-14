@@ -493,16 +493,17 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     if (!response) {
-      // Some authoritatives REFUSE direct RRSIG browsing. Tolerate that one
-      // definitive policy response only when every attempted server returned
-      // it. SERVFAIL/FORMERR/NOTIMP and mixed transport failures remain
+      // Some authoritatives REFUSE direct RRSIG browsing (e.g. Cloudflare).
+      // Tolerate that one definitive policy response for RRSIG queries only,
+      // and only when every attempted server returned it. Ordinary lookups,
+      // SERVFAIL/FORMERR/NOTIMP, and mixed transport failures remain
       // retryable errors rather than masquerading as an empty RRset.
       // DNSSEC-walk queries (dnssecOk) always fail loud: an unanswered
       // DNSKEY/DS must stay indeterminate, not read as a missing record.
       const allRefused =
         errorRcodes.length === candidateNameservers.length &&
         errorRcodes.every((rcode) => rcode === 'REFUSED');
-      if (allRefused && !dnssecOk) {
+      if (allRefused && !dnssecOk && recordType === 'RRSIG') {
         return {
           answers: [],
           trace: [
@@ -544,8 +545,13 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     if (response.answers?.length) {
+      // Owner names are case-insensitive; zones may echo them in a different
+      // case than the query, and a case-mismatched drop here would misreport
+      // a signed RRset as unsigned.
+      const wantName = domain.toLowerCase();
       const filteredAnswers = response.answers.filter(
-        (answer) => answer.name === domain && answer.type === recordType,
+        (answer) =>
+          answer.name.toLowerCase() === wantName && answer.type === recordType,
       ) as RawAnswer[];
 
       // RRSIGs in the answer that cover the queried type mean this RRset is
@@ -555,7 +561,7 @@ export class AuthoritativeResolver extends DnsResolver {
         .filter(
           (answer): answer is Extract<Answer, { type: 'RRSIG' }> =>
             answer.type === 'RRSIG' &&
-            answer.name === domain &&
+            answer.name.toLowerCase() === wantName &&
             answer.data.typeCovered === recordType,
         )
         .map((sig) => sig.data as RrsigData);

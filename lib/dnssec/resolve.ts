@@ -135,7 +135,9 @@ async function probeLeafRrsets(
     ? 'positive'
     : probes.some(({ rcode }) => rcode === 'NXDOMAIN')
       ? 'unproved-nxdomain'
-      : results.every((rrset) => rrset.status === 'indeterminate')
+      : // Any failed probe makes "no records observed" an overclaim: NODATA
+        // is only reported when every probe actually answered.
+        results.some((rrset) => rrset.status === 'indeterminate')
         ? 'indeterminate'
         : 'unproved-nodata';
 

@@ -85,6 +85,50 @@ describe('AuthoritativeResolver transport policy', () => {
     ).resolves.toEqual(expect.objectContaining({ records: [] }));
   });
 
+  it('surfaces all-REFUSED plain non-RRSIG queries as retryable failures', async () => {
+    // The REFUSED-as-empty tolerance exists for RRSIG browsing only; a domain
+    // whose nameservers refuse ordinary lookups must not render "no records".
+    const transport = vi.fn<AuthoritativeTransport>(
+      async ({ domain, recordType }) => ({
+        packet: response(domain, recordType, 'REFUSED'),
+        protocol: 'udp',
+        truncated: false,
+      }),
+    );
+    const resolver = new AuthoritativeResolver({
+      transport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
+  it('keeps answers whose owner name differs from the query only by case', async () => {
+    const transport = vi.fn<AuthoritativeTransport>(
+      async ({ domain, recordType }) => ({
+        packet: response(domain, recordType, 'NOERROR', [
+          { name: 'Example.COM', type: 'A', ttl: 300, data: '203.0.113.10' },
+        ]),
+        protocol: 'udp',
+        truncated: false,
+      }),
+    );
+    const resolver = new AuthoritativeResolver({
+      transport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
   it('surfaces all-SERVFAIL plain queries as retryable failures', async () => {
     const transport = vi.fn<AuthoritativeTransport>(
       async ({ domain, recordType }) => ({
