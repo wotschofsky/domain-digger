@@ -94,6 +94,10 @@ export function validatePositiveRrset(params: {
   let sawSupportedSigner = false;
   let failureReason: DnssecRrsetReason = 'invalid-signature';
   for (const rrsig of covering) {
+    // Signatures by unauthenticated signers (including revoked keys, which
+    // RFC 5011 §2.1 strips from the trusted set) carry no weight at all: they
+    // must influence neither validation nor the supported-vs-unsupported
+    // ranking below.
     if (!authenticatedKeyIds.has(signerId(rrsig.algorithm, rrsig.keyTag))) {
       continue;
     }

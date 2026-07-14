@@ -103,7 +103,10 @@ const failedSignatureAnalysis = (
   // A failing supported-algorithm signature (crypto-invalid, expired, or not
   // yet valid) outranks a clean unsupported one: a co-published algorithm this
   // checker cannot run must not downgrade a bad signature to insecure
-  // (RFC 6840 §5.11).
+  // (RFC 6840 §5.11). Deliberately narrow: a supported RRSIG whose metadata
+  // names a wrong or nonexistent signer is unauthenticated noise, and noise
+  // must not flip an unvalidatable zone to broken -- the unsupported bucket
+  // itself already requires the signer to be a genuinely served key.
   const hasFailingSupported = issues.some(
     ({ rrsig, issue }) =>
       SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm) &&
