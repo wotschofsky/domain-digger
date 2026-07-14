@@ -129,6 +129,29 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
+  it('stops trying fallback nameservers once the deadline is spent', async () => {
+    const transport = vi.fn<AuthoritativeTransport>(
+      async ({ domain, recordType }) => ({
+        packet: response(domain, recordType, 'SERVFAIL'),
+        protocol: 'udp',
+        truncated: false,
+      }),
+    );
+    const resolver = new AuthoritativeResolver({
+      transport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2', '192.0.2.3'],
+      fallbackDeadlineMs: 0,
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+    // Deadline of 0: only the first candidate is attempted.
+    expect(
+      new Set(transport.mock.calls.map(([request]) => request.nameserver)),
+    ).toEqual(new Set(['192.0.2.1']));
+  });
+
   it('surfaces all-SERVFAIL plain queries as retryable failures', async () => {
     const transport = vi.fn<AuthoritativeTransport>(
       async ({ domain, recordType }) => ({

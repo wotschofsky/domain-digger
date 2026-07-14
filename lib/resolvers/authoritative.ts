@@ -68,6 +68,9 @@ export type AuthoritativeResolverOptions = {
   udpTransport?: AuthoritativeUdpTransport;
   tcpTransport?: AuthoritativeTcpTransport;
   rootServers?: () => Promise<string[]>;
+  // Time budget for trying fallback nameservers after the first candidate
+  // (see fetchRecordsRaw). Injectable for tests.
+  fallbackDeadlineMs?: number;
 };
 
 export const isMatchingDnsResponse = (
@@ -101,6 +104,7 @@ type FetchRecordsParams = {
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
+  private static readonly FALLBACK_DEADLINE_MS = 10_000;
 
   public constructor(
     private readonly options: AuthoritativeResolverOptions = {},
@@ -458,7 +462,26 @@ export class AuthoritativeResolver extends DnsResolver {
     const failedNameservers: string[] = [];
     const errorRcodes: string[] = [];
 
+    // A blackholed network makes every candidate burn its full retry budget
+    // (4 attempts x 3s); serializing that across 4 fallback servers would
+    // take ~48s. The first candidate always gets its full budget; further
+    // ones only start while the shared deadline allows, so fast failures
+    // (REFUSED, quick rejects) still reach every server.
+    const fallbackDeadlineMs =
+      this.options.fallbackDeadlineMs ??
+      AuthoritativeResolver.FALLBACK_DEADLINE_MS;
+    const fallbackStartedAt = Date.now();
+
     for (const candidate of candidateNameservers) {
+      if (
+        failedNameservers.length > 0 &&
+        Date.now() - fallbackStartedAt >= fallbackDeadlineMs
+      ) {
+        failedNameservers.push(
+          `${candidate}: skipped, fallback deadline exceeded`,
+        );
+        break;
+      }
       const loaderKey = {
         domain,
         recordType,
