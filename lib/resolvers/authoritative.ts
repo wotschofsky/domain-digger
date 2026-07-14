@@ -592,11 +592,18 @@ export class AuthoritativeResolver extends DnsResolver {
       ];
     }
 
-    if (response.answers?.length) {
-      // Owner names are case-insensitive; zones may echo them in a different
-      // case than the query, and a case-mismatched drop here would misreport
-      // a signed RRset as unsigned.
-      const wantName = domain.toLowerCase();
+    // Only records owned by the queried name (any type, e.g. a CNAME alias)
+    // make this a terminal answer. An answer section carrying nothing but
+    // unrelated records (e.g. glue promoted into it by a quirky server) must
+    // not read as an authoritative empty answer -- it falls through to the
+    // referral handling below instead.
+    // Owner names are case-insensitive; zones may echo them in a different
+    // case than the query, and a case-mismatched drop here would misreport
+    // a signed RRset as unsigned.
+    const wantName = domain.toLowerCase();
+    if (
+      response.answers?.some((answer) => answer.name.toLowerCase() === wantName)
+    ) {
       const filteredAnswers = response.answers.filter(
         (answer) =>
           answer.name.toLowerCase() === wantName && answer.type === recordType,
@@ -684,25 +691,32 @@ export class AuthoritativeResolver extends DnsResolver {
         (redirect) => redirect.type === 'NS',
       );
       if (nsRedirects.length) {
-        const aAnswers: RawAnswer[] = [];
         const subTrace: string[] = [];
-        for (const ns of nsRedirects.slice(0, 4)) {
-          try {
-            const resolved = await this.fetchRecordsRaw({
-              domain: ns.data,
-              recordType: 'A',
-              depth: depth + 1,
-            });
-            aAnswers.push(...resolved.answers);
-            subTrace.push(...resolved.trace);
-          } catch (error) {
-            subTrace.push(
-              `A ${ns.data} -> failed: ${
-                error instanceof Error ? error.message : 'request failed'
-              }`,
-            );
-          }
-        }
+        // Resolve the candidate NS hostnames concurrently: done serially,
+        // every dead hostname would burn a full retry/fallback budget even
+        // after a usable address had already been found, stretching a
+        // glueless four-NS delegation to minutes.
+        const resolvedBatches = await Promise.all(
+          nsRedirects.slice(0, 4).map(async (ns) => {
+            try {
+              const resolved = await this.fetchRecordsRaw({
+                domain: ns.data,
+                recordType: 'A',
+                depth: depth + 1,
+              });
+              subTrace.push(...resolved.trace);
+              return resolved.answers;
+            } catch (error) {
+              subTrace.push(
+                `A ${ns.data} -> failed: ${
+                  error instanceof Error ? error.message : 'request failed'
+                }`,
+              );
+              return [];
+            }
+          }),
+        );
+        const aAnswers: RawAnswer[] = resolvedBatches.flat();
 
         // The resolved NS address is attacker-controlled (they own the zone
         // and can set any A record); filter to public IPs before using it.

@@ -275,6 +275,57 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(tcpTransport).toHaveBeenCalledOnce();
   });
 
+  it('follows a referral whose answer section holds only unrelated records', async () => {
+    // Some servers promote glue into the answer section; nothing there is
+    // owned by the queried name, so it must be treated as a referral, not
+    // as an authoritative empty answer.
+    const transport = vi.fn<AuthoritativeTransport>(
+      async ({ domain, recordType, nameserver }) => ({
+        packet:
+          nameserver === '192.0.2.1'
+            ? ({
+                ...response(domain, recordType, 'NOERROR', [
+                  {
+                    name: 'ns1.example.net',
+                    type: 'A',
+                    ttl: 300,
+                    data: '8.8.8.8',
+                  },
+                ]),
+                authorities: [
+                  {
+                    name: 'example.com',
+                    type: 'NS',
+                    ttl: 300,
+                    data: 'ns1.example.net',
+                  },
+                ],
+                additionals: [
+                  {
+                    name: 'ns1.example.net',
+                    type: 'A',
+                    ttl: 300,
+                    data: '8.8.8.8',
+                  },
+                ],
+              } as Packet)
+            : response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.13' },
+              ]),
+        protocol: 'udp',
+        truncated: false,
+      }),
+    );
+    const resolver = new AuthoritativeResolver({
+      transport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.13');
+  });
+
   it('follows matching public glue from a referral', async () => {
     const transport = vi.fn<AuthoritativeTransport>(
       async ({ domain, recordType, nameserver }) => ({
