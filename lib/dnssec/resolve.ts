@@ -186,28 +186,39 @@ export async function resolveDnssecChain(
   }
   // e.g. www.wsky.dev -> ['.', 'dev', 'wsky.dev', 'www.wsky.dev']
 
-  // Zones are independent questions, so fetch them all concurrently. Failures
+  // Zones are independent questions, so fetch them concurrently. Failures
   // (timeouts, blocked UDP, bad referrals) must propagate to the error
   // boundary -- they are NOT an unsigned zone, which comes back as an empty
   // (non-throwing) answer set. Swallowing them would render a confident but
   // false "insecure".
-  const zoneRecords = await Promise.all(
-    zoneNames.map(async (name) => {
-      const [keyResult, dsResult] = await Promise.all([
-        // DO bit set so the DNSKEY RRset's covering RRSIGs come back -- we
-        // cryptographically verify the key set is validly signed, not just
-        // digest-linked.
-        query(name, 'DNSKEY', true),
-        // The root has no parent to publish a DS; its anchors are built in.
-        name === '.'
-          ? Promise.resolve<DnssecQueryResult>({ answers: [] })
-          : query(name, 'DS', true),
-      ]);
-      assertUsableDnssecResponse(name, 'DNSKEY', keyResult);
-      if (name !== '.') assertUsableDnssecResponse(name, 'DS', dsResult);
-      return { name, keyResult, dsResult };
-    }),
-  );
+  const fetchZone = async (name: string) => {
+    const [keyResult, dsResult] = await Promise.all([
+      // DO bit set so the DNSKEY RRset's covering RRSIGs come back -- we
+      // cryptographically verify the key set is validly signed, not just
+      // digest-linked.
+      query(name, 'DNSKEY', true),
+      // The root has no parent to publish a DS; its anchors are built in.
+      name === '.'
+        ? Promise.resolve<DnssecQueryResult>({ answers: [] })
+        : query(name, 'DS', true),
+    ]);
+    assertUsableDnssecResponse(name, 'DNSKEY', keyResult);
+    if (name !== '.') assertUsableDnssecResponse(name, 'DS', dsResult);
+    return { name, keyResult, dsResult };
+  };
+  // Bound the fan-out: a crafted many-label name would otherwise launch a
+  // root-down walk per suffix all at once (~250 concurrent lookups for a
+  // 253-byte name) on a public route. Typical domains fit in one chunk.
+  // ponytail: fixed-size chunks; a sliding-window pool if tail latency matters.
+  const CONCURRENT_ZONES = 6;
+  const zoneRecords: Awaited<ReturnType<typeof fetchZone>>[] = [];
+  for (let i = 0; i < zoneNames.length; i += CONCURRENT_ZONES) {
+    zoneRecords.push(
+      ...(await Promise.all(
+        zoneNames.slice(i, i + CONCURRENT_ZONES).map(fetchZone),
+      )),
+    );
+  }
 
   const rawZones: RawZone[] = [];
   for (const { name, keyResult, dsResult } of zoneRecords) {
