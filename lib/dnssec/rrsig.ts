@@ -89,6 +89,16 @@ export function rrsigMetadataIssue(params: {
   return null;
 }
 
+// An RRset is a set: duplicate copies of an identical RR in a packet must
+// contribute one canonical entry, or the signed data diverges from what the
+// signer hashed and a valid signature reads as bogus (RFC 4034 §6.3).
+// ponytail: O(n^2) buffer scan; RRsets are a handful of records.
+const uniqueRdata = (buffers: Buffer[]): Buffer[] =>
+  buffers.filter(
+    (buffer, index) =>
+      buffers.findIndex((other) => other.equals(buffer)) === index,
+  );
+
 const verifiedByAnyCandidate = (
   candidates: DnskeyData[],
   rrsig: RrsigData,
@@ -142,8 +152,7 @@ export function verifyDnskeyRrsig(params: {
   const prefix = rrsigSigningPrefix(rrsig);
   if (!prefix) return false;
 
-  const rrset = keys
-    .map((k) => dnskeyRdata(k))
+  const rrset = uniqueRdata(keys.map((k) => dnskeyRdata(k)))
     .sort(Buffer.compare)
     .map((rdata) =>
       canonicalRr(ownerName, toType('DNSKEY'), rrsig.originalTTL, rdata),
@@ -197,18 +206,15 @@ export function verifyRrsetRrsig(params: {
 
   const signedOwner = canonicalOwnerForRrsig(ownerName, rrsig);
   if (signedOwner === null) return false;
-  const rrset = records
+  const rdatas = records
     .filter((record) => record.type === type)
-    .map((record) => canonicalRdata(type, record.data))
-    .filter((rdata): rdata is Buffer => rdata !== null)
+    .map((record) => canonicalRdata(type, record.data));
+  // Every record must canonicalize; a silently dropped one would let a
+  // signature over the remainder pass for the whole set.
+  if (rdatas.some((rdata) => rdata === null)) return false;
+  const rrset = uniqueRdata(rdatas as Buffer[])
     .sort(Buffer.compare)
     .map((rdata) => canonicalRr(signedOwner, rrType, rrsig.originalTTL, rdata));
-
-  if (
-    rrset.length !== records.filter((record) => record.type === type).length
-  ) {
-    return false;
-  }
 
   const signedData = Buffer.concat([prefix, ...rrset]);
   return verifiedByAnyCandidate(candidates, rrsig, signedData);

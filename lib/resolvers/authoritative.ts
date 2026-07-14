@@ -701,6 +701,10 @@ export class AuthoritativeResolver extends DnsResolver {
         // budget even after a usable address had already been found.
         // The resolved NS address is attacker-controlled (they own the zone
         // and can set any A record); filter to public IPs before using it.
+        // Every finished lookup pushes its addresses before resolving, so
+        // when the race below ends, all siblings that were at least as fast
+        // as the winner are already collected as fallbacks.
+        const resolvedSets: string[][] = [];
         const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
           try {
             const resolved = await this.fetchRecordsRaw({
@@ -715,6 +719,7 @@ export class AuthoritativeResolver extends DnsResolver {
               .map((a) => this.recordToString(a))
               .filter((ip) => isPublicIp(ip));
             if (!ips.length) throw new Error(`no public address (${ns.data})`);
+            resolvedSets.push(ips);
             return ips;
           } catch (error) {
             subTrace.push(
@@ -725,12 +730,14 @@ export class AuthoritativeResolver extends DnsResolver {
             throw error;
           }
         });
-        let publicAddresses: string[];
         try {
-          publicAddresses = await Promise.any(lookups);
+          // Proceed as soon as any lookup yields a usable address -- a dead
+          // sibling must not stall the walk once one is available.
+          await Promise.any(lookups);
         } catch {
           throw new Error(`Bad redirects for ${domain}`);
         }
+        const publicAddresses = [...new Set(resolvedSets.flat())];
 
         this.cacheDelegation(
           nsRedirects[0].name,

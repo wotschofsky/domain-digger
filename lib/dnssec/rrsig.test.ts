@@ -208,6 +208,51 @@ describe('verifyRrsetRrsig', () => {
     ).toBe(true);
   });
 
+  it('verifies despite duplicate copies of a record in the answer', () => {
+    // An RRset is a set: a server or middlebox repeating an RR must not
+    // change the canonical signed data.
+    const ownerName = 'www.example';
+    const signerName = 'example';
+    const records = [
+      { name: ownerName, type: 'A' as const, data: '192.0.2.2' },
+      { name: ownerName, type: 'A' as const, data: '192.0.2.1' },
+    ];
+    const signer = genKey(13);
+    const rrsig = signARecordRrset(ownerName, records, signerName, signer, {
+      inception: 1000,
+      expiration: 2000,
+    });
+
+    expect(
+      verifyRrsetRrsig({
+        rrsig,
+        type: 'A',
+        records: [...records, records[0]],
+        ownerName,
+        signerName,
+        keys: [signer.dnskey],
+        now: 1500,
+      }),
+    ).toBe(true);
+  });
+
+  it('verifies a DNSKEY RRSIG despite a duplicated DNSKEY record', () => {
+    const key = genKey(13);
+    const rrsig = signDnskeyRrset('example', [key.dnskey], key, {
+      inception: 1000,
+      expiration: 2000,
+    });
+
+    expect(
+      verifyDnskeyRrsig({
+        rrsig,
+        keys: [key.dnskey, key.dnskey],
+        ownerName: 'example',
+        now: 1500,
+      }),
+    ).toBe(true);
+  });
+
   it('verifies a wildcard-expanded positive RRset', () => {
     const ownerName = 'www.example';
     const signerName = 'example';
