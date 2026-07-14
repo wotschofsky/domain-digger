@@ -525,6 +525,9 @@ export class AuthoritativeResolver extends DnsResolver {
           );
           continue;
         }
+        // The first authoritative terminal response wins, as with standard
+        // resolvers: siblings are not polled in case one has "better" data.
+        // A stale-but-authoritative server is the zone operator's problem.
         response = result.packet;
         protocol = result.protocol;
         truncated = result.truncated;
