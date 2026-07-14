@@ -304,6 +304,25 @@ export function buildChain(
       dsSignatureAnalysis?.evidence.status === 'unsupported';
     const authenticatedAnchors = dsAuthenticationFailed ? [] : anchors;
 
+    // Anchors a validator would actually trust: supported digest and signing
+    // algorithm, and -- RFC 4509 §3 downgrade resistance -- only the strongest
+    // supported digest type present. A weaker digest (e.g. SHA-1 next to
+    // SHA-256) must not link a key the preferred digest fails to authenticate:
+    // compliant validators ignore it and would report the delegation bogus.
+    const supportedAnchors = authenticatedAnchors.filter(
+      (ds) =>
+        ds.digestType in DIGEST_HASH_ALGOS &&
+        SUPPORTED_SIGNING_ALGORITHMS.has(ds.algorithm),
+    );
+    // Supported digest type numbers (1 SHA-1, 2 SHA-256, 4 SHA-384) order by
+    // strength, matching how Unbound/BIND pick their favorite digest.
+    const preferredDigestType = supportedAnchors.length
+      ? Math.max(...supportedAnchors.map((ds) => ds.digestType))
+      : null;
+    const usableAnchors = supportedAnchors.filter(
+      (ds) => ds.digestType === preferredDigestType,
+    );
+
     const keys: DnssecKey[] = zone.keys.map((k) => {
       const rdata = dnskeyRdata(k);
       return {
@@ -313,9 +332,7 @@ export function buildChain(
         flags: k.flags,
         isSep: (k.flags & 0x0001) !== 0,
         isRevoked: (k.flags & 0x0080) !== 0,
-        linked: authenticatedAnchors.some((ds) =>
-          dsMatchesKey(ds, k, zone.name),
-        ),
+        linked: usableAnchors.some((ds) => dsMatchesKey(ds, k, zone.name)),
         bits: keyBits(k),
         deprecated: isDeprecatedAlgorithm(k.algorithm),
       };
@@ -361,30 +378,16 @@ export function buildChain(
       // Parent vouches for this zone (DS present) but it serves no DNSKEY -> bogus.
       state = { status: 'broken', breakReason: 'no-dnskey' };
       dnskeySignature = { status: 'missing' };
-    } else if (
-      // Only DS records this validator can act on count as matches: a matching
-      // DS with an unsupported signing algorithm must not rescue a supported
-      // DS that matches no key (RFC 6840 §5.11 downgrade resistance).
-      !dsRecords.some(
-        (d) =>
-          d.matched &&
-          d.digestType in DIGEST_HASH_ALGOS &&
-          SUPPORTED_SIGNING_ALGORITHMS.has(d.algorithm),
-      )
-    ) {
-      // A DS whose digest or signing algorithm this validator doesn't support
-      // must be ignored, not scored as a mismatch: if no usable DS remains, the
-      // zone is unvalidatable -> insecure, not bogus (RFC 4035 §5.2).
-      if (
-        anchors.some(
-          (ds) =>
-            ds.digestType in DIGEST_HASH_ALGOS &&
-            SUPPORTED_SIGNING_ALGORITHMS.has(ds.algorithm),
-        )
-      ) {
-        // DS present but authenticates none of the served keys -> bogus.
+    } else if (!keys.some((key) => key.linked)) {
+      // `linked` already applies the usable-anchor rules above: matches via
+      // unsupported algorithms or non-preferred digests don't count
+      // (RFC 6840 §5.11 / RFC 4509 §3 downgrade resistance).
+      if (usableAnchors.length > 0) {
+        // A usable DS authenticates none of the served keys -> bogus.
         state = { status: 'broken', breakReason: 'ds-mismatch' };
       } else {
+        // Every DS uses a digest or signing algorithm this validator doesn't
+        // support: unvalidatable -> insecure, not bogus (RFC 4035 §5.2).
         state = { status: 'insecure', breakReason: 'unsupported-algorithm' };
       }
     } else {

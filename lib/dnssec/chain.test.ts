@@ -112,6 +112,44 @@ describe('buildChain', () => {
     expect(chain.status).toBe('broken');
   });
 
+  it('ignores a matching SHA-1 DS when a SHA-256 DS is present and mismatched', () => {
+    // RFC 4509 §3: validators use only the strongest supported digest type in
+    // the DS RRset. A matching SHA-1 DS must not link a key that the
+    // co-published SHA-256 DS fails to authenticate -- compliant validators
+    // ignore the SHA-1 record and report the delegation bogus.
+    const k = genKey(13);
+    const tag = computeKeyTag(dnskeyRdata(k.dnskey));
+    const sha1Match: DsData = {
+      keyTag: tag,
+      algorithm: 13,
+      digestType: 1,
+      digest: dsDigest('example', k.dnskey, 1)!,
+    };
+    const sha256Mismatch: DsData = {
+      keyTag: tag,
+      algorithm: 13,
+      digestType: 2,
+      digest: Buffer.alloc(32, 0xaa),
+    };
+    const win = { inception: 1000, expiration: 2000 };
+    const chain = buildChain(
+      [
+        {
+          name: 'example',
+          keys: [k.dnskey],
+          dsRecords: [sha256Mismatch, sha1Match],
+          keyRrsigs: [signDnskeyRrset('example', [k.dnskey], k, win)],
+        },
+      ],
+      1500,
+    );
+
+    expect(chain.zones[0]).toMatchObject({
+      status: 'broken',
+      breakReason: 'ds-mismatch',
+    });
+  });
+
   it('marks a zone broken when the DS key tag matches no served key', () => {
     // Correct digest + algorithm but a deliberately wrong key tag: a validator
     // would never select this key, so the DS authenticates nothing.

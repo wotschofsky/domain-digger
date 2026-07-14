@@ -450,7 +450,7 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
       <FingerprintIcon className="size-3.5" />
       {shortDigest(ds.digestHex)}
     </span>
-    {ds.weakDigest && <WarnBadge>SHA-1</WarnBadge>}
+    {ds.weakDigest && <WarnBadge>weak digest</WarnBadge>}
   </div>
 );
 

@@ -41,8 +41,14 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
 
   // Negative answers are intentionally observational until NSEC/NSEC3 proof
   // validation is implemented, so even an NXDOMAIN response renders coverage
-  // instead of becoming a definitive 404.
-  await recordLookupAfter(domain, 'dnssec', true);
+  // instead of becoming a definitive 404 -- but an observed-nonexistent name
+  // must not count as a successful lookup, or it seeds popular-domain
+  // suggestions and the sitemap with domains that don't exist.
+  await recordLookupAfter(
+    domain,
+    'dnssec',
+    chain.query.observation !== 'unproved-nxdomain',
+  );
 
   return <ChainDiagram chain={chain} />;
 };
