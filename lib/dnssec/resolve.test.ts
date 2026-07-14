@@ -68,11 +68,16 @@ describe('resolveDnssecChain', () => {
     const query = queryFrom({ '.': SIGNED_ROOT });
     const chain = await resolveDnssecChain('example.com', query, ROOT_NOW);
 
-    // 'com' serves no keys/DS in this fake and is not the registered domain,
-    // so it is dropped; the registered domain is always kept.
-    expect(chain?.zones.map((z) => z.name)).toEqual(['.', 'example.com']);
+    // 'com' serves no keys/DS in this fake, but empty labels above a kept
+    // zone stay: dropping them would graft the zone onto its grandparent.
+    expect(chain?.zones.map((z) => z.name)).toEqual([
+      '.',
+      'com',
+      'example.com',
+    ]);
     expect(chain?.zones[0].status).toBe('secure');
     expect(chain?.zones[1].status).toBe('insecure');
+    expect(chain?.zones[2].status).toBe('insecure');
     expect(chain?.status).toBe('insecure');
   });
 
@@ -90,15 +95,42 @@ describe('resolveDnssecChain', () => {
     // sub.example.com publishes a DNSKEY -> own zone; www.… does not -> dropped.
     expect(chain?.zones.map((z) => z.name)).toEqual([
       '.',
+      'com',
       'example.com',
       'sub.example.com',
+    ]);
+  });
+
+  it('keeps an empty intermediate label above a deeper zone cut', async () => {
+    // Dropping sub.example.com would graft the signed island onto
+    // example.com and misvalidate its DS against the wrong keys.
+    const query = queryFrom({
+      '.': SIGNED_ROOT,
+      'deep.sub.example.com': { keys: [genKey(13).dnskey] },
+    });
+    const chain = await resolveDnssecChain(
+      'deep.sub.example.com',
+      query,
+      ROOT_NOW,
+    );
+
+    expect(chain?.zones.map((z) => z.name)).toEqual([
+      '.',
+      'com',
+      'example.com',
+      'sub.example.com',
+      'deep.sub.example.com',
     ]);
   });
 
   it('strips a wildcard prefix from the zone walk', async () => {
     const query = queryFrom({ '.': SIGNED_ROOT });
     const chain = await resolveDnssecChain('*.Example.COM.', query, ROOT_NOW);
-    expect(chain?.zones.map((z) => z.name)).toEqual(['.', 'example.com']);
+    expect(chain?.zones.map((z) => z.name)).toEqual([
+      '.',
+      'com',
+      'example.com',
+    ]);
   });
 
   it('propagates transport failures instead of reporting a false verdict', async () => {

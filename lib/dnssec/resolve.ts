@@ -265,31 +265,35 @@ export async function resolveDnssecChain(
     );
   }
 
-  const rawZones: RawZone[] = [];
-  for (const { name, keyResult, dsResult } of zoneRecords) {
-    const keys = keyResult.answers
+  const candidates = zoneRecords.map(({ name, keyResult, dsResult }) => ({
+    name,
+    keys: keyResult.answers
       .filter((a) => a.type === 'DNSKEY')
-      .map((a) => a.data as DnskeyData);
-    const dsRecords = dsResult.answers
+      .map((a) => a.data as DnskeyData),
+    dsRecords: dsResult.answers
       .filter((a) => a.type === 'DS')
-      .map((a) => a.data as DsData);
+      .map((a) => a.data as DsData),
+    keyRrsigs: keyResult.coveringRrsigs,
+    dsRrsigs: dsResult.coveringRrsigs,
+  }));
 
-    // Keep the root, the registered domain (so unsigned domains still render
-    // an honest "insecure"), and any deeper label that is an actual zone cut
-    // (publishes DNSKEY/DS). Plain subdomains of a signed zone carry no keys
-    // of their own and are dropped -- they are covered by that zone. (An
-    // unsigned sub-delegation is also dropped here; see the limitation note
-    // in index.ts.)
-    if (name === '.' || name === base || keys.length || dsRecords.length) {
-      rawZones.push({
-        name,
-        keys,
-        dsRecords,
-        keyRrsigs: keyResult.coveringRrsigs,
-        dsRrsigs: dsResult.coveringRrsigs,
-      });
-    }
+  // Keep the root, the registered domain (so unsigned domains still render an
+  // honest "insecure"), and any deeper label that is an actual zone cut
+  // (publishes DNSKEY/DS). Plain subdomains of a signed zone carry no keys of
+  // their own and are dropped -- they are covered by that zone. (A TRAILING
+  // unsigned sub-delegation is also dropped; see the limitation in index.ts.)
+  const keep = candidates.map(
+    ({ name, keys, dsRecords }) =>
+      name === '.' || name === base || keys.length > 0 || dsRecords.length > 0,
+  );
+  // But an empty label ABOVE a kept zone must stay: dropping it would graft
+  // the deeper zone onto its grandparent, misvalidating its DS against the
+  // wrong keys and rendering a signed island below an unsigned delegation as
+  // a false "broken" instead of insecure.
+  for (let i = keep.length - 1; i >= 0; i--) {
+    if (!keep[i] && keep.slice(i + 1).some(Boolean)) keep[i] = true;
   }
+  const rawZones: RawZone[] = candidates.filter((_, index) => keep[index]);
 
   // The signed root zone always serves DNSKEY records. Getting none back means
   // our path to DNS is compromised -- typically a network that intercepts
