@@ -82,12 +82,13 @@ describe('delegation cache', () => {
 
 // --- Live network suite --------------------------------------------------
 // These run the FULL DNSSEC chain walk against real authoritative nameservers
-// over UDP/TCP:53. Gated behind the Vite mode so the default suite stays
-// hermetic and the gate works on Windows shells too (no inline env vars).
+// over UDP/TCP:53. Gated behind `vitest run --mode network` (mapped to this
+// env var in vitest.config.mts) so the default suite stays hermetic and the
+// gate works on Windows shells too (no inline env vars).
 // NOTE: they need unrestricted outbound port 53; a network that intercepts DNS
 // (many home routers / captive portals) will make them fail or throw.
 // ponytail: network-gated -- `vitest run --mode network` exercises the live chain.
-const live = describe.skipIf(import.meta.env.MODE !== 'network');
+const live = describe.skipIf(!process.env.RUN_NETWORK_TESTS);
 const TIMEOUT = 30_000;
 
 live('resolveDnssecChain (live)', () => {
