@@ -781,16 +781,19 @@ const RailRow: FC<{
 
   return (
     <div className="flex gap-3 sm:gap-4">
-      {/* Rail column */}
+      {/* Rail column. The segment above the dot is colored by this zone's own
+          incoming edge and the segment below by the next zone's, so adjacent
+          rows join into one continuous line broken only by the dot's ring. */}
       <div className="flex w-5 shrink-0 flex-col items-center sm:w-6">
         <span
-          className={cn(
-            'mt-3.5 size-3 shrink-0 rounded-full ring-4 ring-white dark:ring-zinc-900',
-            STATUS_DOT[zone.status],
-          )}
+          aria-hidden
+          className={cn('h-3.5 w-px shrink-0', !isRoot && edge.line)}
+        />
+        <span
+          className={cn('size-3 shrink-0 rounded-full', STATUS_DOT[zone.status])}
         />
         {connectorLine && (
-          <span aria-hidden className={cn('my-1 w-px flex-1', connectorLine)} />
+          <span aria-hidden className={cn('w-px flex-1', connectorLine)} />
         )}
       </div>
 
