@@ -19,10 +19,10 @@ import {
  * (e.g. Ed448 where the runtime lacks support) -- a null key can never verify,
  * so the zone is treated as unvalidated rather than trusted.
  */
-export function dnskeyToPublicKey(
+export const dnskeyToPublicKey = (
   algorithm: number,
   key: Buffer,
-): ReturnType<typeof createPublicKey> | null {
+): ReturnType<typeof createPublicKey> | null => {
   if (!SUPPORTED_SIGNING_ALGORITHMS.has(algorithm)) return null;
   try {
     if (RSA_ALGORITHMS.has(algorithm)) {
@@ -64,14 +64,14 @@ export function dnskeyToPublicKey(
     return null;
   }
   return null;
-}
+};
 
-export function verifySignature(
+export const verifySignature = (
   algorithm: number,
   data: Buffer,
   signature: Buffer,
   publicKey: ReturnType<typeof createPublicKey>,
-): boolean {
+): boolean => {
   try {
     // EdDSA is a one-shot verify with no separate hash.
     if (algorithm === 15 || algorithm === 16) {
@@ -92,4 +92,4 @@ export function verifySignature(
   } catch {
     return false;
   }
-}
+};

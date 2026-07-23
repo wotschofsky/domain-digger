@@ -3,12 +3,8 @@
 // root-server lookup, so this file opts into the Node environment.
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DnssecChain } from '@/lib/dnssec';
-
 import { UserFacingError } from '../user-facing-error';
 import { AuthoritativeResolver } from './authoritative';
-
-const assertChain = (chain: DnssecChain): DnssecChain => chain;
 
 // --- Offline guard test (runs always, no network) ------------------------
 // The root zone always serves DNSKEY. If a query path returns none (e.g. a
@@ -108,7 +104,7 @@ live('resolveDnssecChain (live)', () => {
     ])(
       'reports %s as secure with an unbroken chain',
       async (domain) => {
-        const chain = assertChain(await resolve(domain));
+        const chain = await resolve(domain);
         expect(chain.status).toBe('secure');
         expect(chain.zones[0].name).toBe('.');
         expect(chain.zones.at(-1)?.name).toBe(domain);
@@ -134,7 +130,7 @@ live('resolveDnssecChain (live)', () => {
     it.each(['google.com', 'facebook.com', 'amazon.com', 'microsoft.com'])(
       'reports %s as insecure, not broken',
       async (domain) => {
-        const chain = assertChain(await resolve(domain));
+        const chain = await resolve(domain);
         expect(chain.status).toBe('insecure');
         expect(chain.zones[0].status).toBe('secure'); // signed root
         expect(chain.zones.at(-1)?.status).toBe('insecure'); // unsigned leaf
@@ -152,7 +148,7 @@ live('resolveDnssecChain (live)', () => {
       'reports dnssec-failed.org as broken',
       async () => {
         // Verisign's canonical test domain: its DS matches no served DNSKEY.
-        const chain = assertChain(await resolve('dnssec-failed.org'));
+        const chain = await resolve('dnssec-failed.org');
         expect(chain.status).toBe('broken');
         const broken = chain.zones.find((z) => z.status === 'broken');
         expect(broken).toBeDefined();
@@ -202,7 +198,7 @@ live('resolveDnssecChain (live)', () => {
   it(
     'normalizes mixed-case names (DNS is case-insensitive)',
     async () => {
-      const chain = assertChain(await resolve('GooGle.CoM'));
+      const chain = await resolve('GooGle.CoM');
       expect(chain.status).toBe('insecure');
     },
     TIMEOUT,
@@ -212,7 +208,7 @@ live('resolveDnssecChain (live)', () => {
   it(
     'anchors the root against the IANA trust anchor (key tag 20326)',
     async () => {
-      const chain = assertChain(await resolve('cloudflare.com'));
+      const chain = await resolve('cloudflare.com');
       const root = chain.zones[0];
       expect(root.name).toBe('.');
       expect(root.status).toBe('secure');
@@ -225,7 +221,7 @@ live('resolveDnssecChain (live)', () => {
   it(
     'reports signed RRsets, a signature expiry, and key strength on a secure leaf',
     async () => {
-      const chain = assertChain(await resolve('wsky.dev'));
+      const chain = await resolve('wsky.dev');
       const leaf = chain.zones.at(-1);
       expect(leaf?.name).toBe('wsky.dev');
       const secureTypes = leaf?.rrsets
@@ -247,7 +243,7 @@ live('resolveDnssecChain (live)', () => {
   it(
     'evaluates a subdomain of a signed apex as secure',
     async () => {
-      const chain = assertChain(await resolve('www.cloudflare.com'));
+      const chain = await resolve('www.cloudflare.com');
       expect(chain.status).toBe('secure');
       expect(chain.zones.some((z) => z.name === 'cloudflare.com')).toBe(true);
     },

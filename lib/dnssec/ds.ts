@@ -9,17 +9,17 @@ import { computeKeyTag, dnskeyRdata, wireName } from './wire';
 // hash to one of the child zone's DNSKEYs?
 
 /** DS digest of a DNSKEY: hash(ownerName || DNSKEY RDATA). Null if digest type unsupported. */
-export function dsDigest(
+export const dsDigest = (
   zoneName: string,
   key: Pick<DnskeyData, 'flags' | 'algorithm' | 'key'>,
   digestType: number,
-): Buffer | null {
+): Buffer | null => {
   const algo = DIGEST_HASH_ALGOS[digestType];
   if (!algo) return null;
   return createHash(algo)
     .update(Buffer.concat([wireName(zoneName), dnskeyRdata(key)]))
     .digest();
-}
+};
 
 /**
  * Whether a DS record authenticates a given DNSKEY of a zone. Following the
@@ -29,13 +29,13 @@ export function dsDigest(
  * tag is wrong, so a malformed DS (right digest, wrong tag) is correctly treated
  * as a non-match here too.
  */
-export function dsMatchesKey(
+export const dsMatchesKey = (
   ds: DsData,
   key: DnskeyData,
   zoneName: string,
-): boolean {
+): boolean => {
   if (ds.algorithm !== key.algorithm) return false;
   if (ds.keyTag !== computeKeyTag(dnskeyRdata(key))) return false;
   const digest = dsDigest(zoneName, key, ds.digestType);
   return digest !== null && digest.equals(ds.digest);
-}
+};

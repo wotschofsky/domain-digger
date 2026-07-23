@@ -39,6 +39,27 @@ describe('DNSSEC verdict presentation', () => {
     expect(presentation.body).toContain('nonexistence is not authenticated');
   });
 
+  it('leads an unregistered name with NXDOMAIN, not unsigned-delegation advice', () => {
+    // A name that does not exist has no DS of its own, which otherwise reads
+    // as an unsigned delegation and advises publishing a DS for it.
+    const chain = secureChain('unproved-nxdomain');
+    chain.status = 'insecure';
+    chain.zones[0] = {
+      name: 'example.com',
+      status: 'insecure',
+      keys: [],
+      dsRecords: [],
+      rrsets: [],
+    };
+
+    const presentation = verdictPresentation(chain);
+
+    expect(presentation.title).toBe('NXDOMAIN observed — not proven');
+    expect(presentation.remediation).toBeNull();
+    expect(presentation.body).toContain('nonexistence is not authenticated');
+    expect(presentation.body).not.toContain('publish the DS record');
+  });
+
   it('distinguishes unproved NODATA from a positive secure result', () => {
     const presentation = verdictPresentation(secureChain('unproved-nodata'));
 

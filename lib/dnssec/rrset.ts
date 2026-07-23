@@ -15,6 +15,7 @@ import {
   canonicalRdata,
   computeKeyTag,
   dnskeyRdata,
+  normalizeDomain,
 } from './wire';
 
 // Positive leaf RRset validation: classify an answered RRset (secure /
@@ -38,7 +39,7 @@ export const rrsetResult = <Reason extends DnssecRrsetReason>(
     ...fields,
   }) as Extract<DnssecRrset, { reason: Reason }>;
 
-export function validatePositiveRrset(params: {
+export const validatePositiveRrset = (params: {
   type: string;
   ownerName: string;
   records: DnssecAnswerRecord[];
@@ -48,7 +49,7 @@ export function validatePositiveRrset(params: {
   authenticatedKeyIds: Set<string>;
   signerName: string;
   now?: number;
-}): DnssecRrset {
+}): DnssecRrset => {
   const {
     type,
     ownerName,
@@ -167,7 +168,7 @@ export function validatePositiveRrset(params: {
     // here, so it must not count as fully validated.
     const isExpansion =
       canonicalOwnerForRrsig(ownerName, rrsig) !==
-      (ownerName.replace(/\.$/, '').toLowerCase() || '.');
+      (normalizeDomain(ownerName) || '.');
     // Rollovers legitimately publish several currently-valid RRSIGs; report
     // the longest-lived one (like the DNSKEY/DS paths do) so the expiry shown
     // doesn't depend on response order.
@@ -241,4 +242,4 @@ export function validatePositiveRrset(params: {
     signatureExpiresAt: evidence?.expiration,
     signatureOriginalTtl: evidence?.originalTTL,
   });
-}
+};

@@ -11,7 +11,11 @@ import dnsPacket, {
   type StringAnswer,
 } from 'dns-packet';
 
-import { type DnssecChain, resolveDnssecChain } from '@/lib/dnssec';
+import {
+  canonicalDnsName,
+  type DnssecChain,
+  resolveDnssecChain,
+} from '@/lib/dnssec';
 import { retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
@@ -51,10 +55,6 @@ export type AuthoritativeRequest = {
   dnssecOk: boolean;
 };
 
-export type AuthoritativeTransport = (
-  request: AuthoritativeRequest,
-) => Promise<DnsResponse>;
-
 export type AuthoritativeUdpTransport = (
   request: AuthoritativeRequest,
 ) => Promise<DecodedPacket>;
@@ -64,7 +64,6 @@ export type AuthoritativeTcpTransport = (
 ) => Promise<Packet>;
 
 export type AuthoritativeResolverOptions = {
-  transport?: AuthoritativeTransport;
   udpTransport?: AuthoritativeUdpTransport;
   tcpTransport?: AuthoritativeTcpTransport;
   rootServers?: () => Promise<string[]>;
@@ -85,8 +84,7 @@ export const isMatchingDnsResponse = (
     packet.questions?.some(
       (question) =>
         question.type === recordType &&
-        question.name.replace(/\.$/, '').toLowerCase() ===
-          domain.replace(/\.$/, '').toLowerCase(),
+        canonicalDnsName(question.name) === canonicalDnsName(domain),
     ),
   );
 
@@ -350,7 +348,9 @@ export class AuthoritativeResolver extends DnsResolver {
     });
   }
 
-  private async sendRequest(request: AuthoritativeRequest) {
+  private async sendRequest(
+    request: AuthoritativeRequest,
+  ): Promise<DnsResponse> {
     // DNS queries are first attempted over UDP per convention. However, UDP
     // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
     // that limit the server truncates the response and sets the TC flag,
@@ -377,13 +377,7 @@ export class AuthoritativeResolver extends DnsResolver {
       Promise.all(
         keys.map(async (request) => {
           try {
-            return await retry(() => {
-              const transport =
-                this.options.transport ??
-                ((nextRequest: AuthoritativeRequest) =>
-                  this.sendRequest(nextRequest));
-              return transport(request);
-            }, 3);
+            return await retry(() => this.sendRequest(request), 3);
           } catch (error) {
             return error instanceof Error
               ? error
@@ -568,7 +562,7 @@ export class AuthoritativeResolver extends DnsResolver {
         {
           title: 'Authoritative DNS servers did not answer',
           description:
-            'Every available authoritative nameserver failed or returned a retryable DNS error. No DNSSEC verdict was produced; please try again shortly.',
+            'Every available authoritative nameserver failed or returned a retryable DNS error. Please try again shortly.',
           retryable: true,
         },
         {

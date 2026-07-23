@@ -1,19 +1,18 @@
 import type { FC } from 'react';
 
+import { Alert } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const DnssecLoading: FC = () => (
   <div className="space-y-6">
-    {/* Verdict header */}
-    <div className="rounded-lg border border-zinc-950/10 bg-white/50 p-4 dark:border-white/10 dark:bg-white/5">
-      <div className="flex items-start gap-3 [&>svg~*]:pl-7">
-        <Skeleton className="size-4 shrink-0 rounded-full" />
-        <div className="flex-1">
-          <Skeleton className="h-4 w-28 rounded-sm" />
-          <Skeleton className="mt-2 h-4 w-3/4 rounded-sm" />
-        </div>
+    {/* Verdict header: mirrors the IconAlert the chain diagram renders. */}
+    <Alert className="max-w-none">
+      <Skeleton className="absolute top-4 left-4 size-4 rounded-full" />
+      <div className="pl-7">
+        <Skeleton className="h-4 w-28 rounded-sm" />
+        <Skeleton className="mt-2 h-4 w-3/4 rounded-sm" />
       </div>
-    </div>
+    </Alert>
 
     {/* Trust rail */}
     <div>

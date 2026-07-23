@@ -36,37 +36,19 @@
 //   chain.ts      -- root trust anchors and the top-down chain walk
 //   resolve.ts    -- the zone walk over an injected, transport-agnostic query
 
-export {
-  isDeprecatedAlgorithm,
-  isWeakDigest,
-  isWeakKey,
-  keyBits,
-} from './algorithms';
-export { buildChain, ROOT_TRUST_ANCHORS } from './chain';
-export {
-  type DnssecQuery,
-  type DnssecQueryResult,
-  resolveDnssecChain,
-} from './resolve';
+// Only what crosses the module boundary is re-exported here; the modules above
+// import each other by relative path.
+export { resolveDnssecChain } from './resolve';
+export { normalizeDomain as canonicalDnsName } from './wire';
 export type {
-  DnssecChain,
   DnssecBreakReason,
-  DnssecCoverage,
+  DnssecChain,
   DnssecDs,
   DnssecKey,
-  DnssecQueryObservation,
   DnssecRrset,
   DnssecRrsetReason,
   DnssecRrsetStatus,
   DnssecSignatureEvidence,
-  DnssecSignatureStatus,
   DnssecStatus,
   DnssecZone,
-  DnssecZoneState,
-  RawZone,
 } from './types';
-export { dnskeyToPublicKey } from './crypto';
-export { dsDigest, dsMatchesKey } from './ds';
-export { verifyDnskeyRrsig, verifyRrsetRrsig } from './rrsig';
-export { signerId, validatePositiveRrset } from './rrset';
-export { canonicalRdata, computeKeyTag, dnskeyRdata, wireName } from './wire';

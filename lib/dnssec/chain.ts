@@ -54,14 +54,9 @@ export const ROOT_TRUST_ANCHORS: DsData[] = [
 ];
 
 /**
- * Whether the zone's DNSKEY RRset carries a valid, unexpired RRSIG made by a key
- * the parent DS (or root anchor) authenticates. Only DS-linked keys are trusted
- * signers: a zone must not vouch for its own key set with a key nothing above it
- * has authenticated. `keys` is the already-computed metadata (for `.linked`).
- *
- * Keeps observed failure metadata as well as the expiration of the last valid
- * signature, so an expired outage remains distinguishable from a missing or
- * malformed signature.
+ * The outcome of checking one RRset's covering RRSIGs. Keeps observed failure
+ * metadata as well as the expiration of the last valid signature, so an expired
+ * outage remains distinguishable from a missing or malformed signature.
  */
 type SignatureAnalysis = {
   validUntil: number | null;
@@ -148,11 +143,17 @@ const failedSignatureAnalysis = (
   };
 };
 
-function dnskeyRrsetSignatureAnalysis(
+/**
+ * Whether the zone's DNSKEY RRset carries a valid, unexpired RRSIG made by a key
+ * the parent DS (or root anchor) authenticates. Only DS-linked keys are trusted
+ * signers: a zone must not vouch for its own key set with a key nothing above it
+ * has authenticated. `keys` is the already-computed metadata (for `.linked`).
+ */
+const dnskeyRrsetSignatureAnalysis = (
   zone: RawZone,
   keys: DnssecKey[],
   now: number,
-): SignatureAnalysis {
+): SignatureAnalysis => {
   // Restrict signer candidates to the DS-linked keys themselves (by identity,
   // not by 16-bit tag): a colliding unanchored key must not be able to vouch
   // for the key set. `keys` is index-aligned with zone.keys.
@@ -193,14 +194,14 @@ function dnskeyRrsetSignatureAnalysis(
       allowWildcard: false,
     }),
   );
-}
+};
 
 /** Authenticate a child's DS RRset with the already-authenticated parent keys. */
-function dsRrsetSignatureAnalysis(
+const dsRrsetSignatureAnalysis = (
   zone: RawZone,
   parent: RawZone,
   now: number,
-): SignatureAnalysis {
+): SignatureAnalysis => {
   const records = zone.dsRecords.map((data) => ({
     name: zone.name,
     type: 'DS',
@@ -244,7 +245,7 @@ function dsRrsetSignatureAnalysis(
       allowWildcard: false,
     }),
   );
-}
+};
 
 /**
  * Walk the collected zones top-down and compute a per-zone and overall status.
@@ -267,11 +268,11 @@ function dsRrsetSignatureAnalysis(
  * `now` (Unix seconds) is the instant RRSIG validity is judged against; it
  * defaults to the current time and is injectable for deterministic tests.
  */
-export function buildChain(
+export const buildChain = (
   zones: RawZone[],
   now: number = Math.floor(Date.now() / 1000),
   options: { initialTrustAnchors?: DsData[] } = {},
-): DnssecChain {
+): DnssecChain => {
   const out: DnssecZone[] = [];
   // Trust state carried down the chain: 'secure' while intact, otherwise the
   // reason it ended ('insecure' for an unsigned cut, 'broken' for a bogus zone).
@@ -471,4 +472,4 @@ export function buildChain(
       observation: 'not-checked',
     },
   };
-}
+};

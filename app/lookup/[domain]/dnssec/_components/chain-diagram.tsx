@@ -216,14 +216,22 @@ export const verdictPresentation = (
   const leafName = leaf.name === '.' ? 'the root zone' : leaf.name;
   const observation = queryObservationSentence(chain);
 
+  // The name's nonexistence leads, whatever the chain above it looks like. An
+  // unregistered name under a signed TLD has no DS of its own, which otherwise
+  // reads as an unsigned delegation and advises publishing a DS record for a
+  // domain the authoritative servers say does not exist.
+  if (chain.query.observation === 'unproved-nxdomain') {
+    return {
+      title: 'NXDOMAIN observed — not proven',
+      body:
+        chain.status === 'secure'
+          ? `The DNSSEC chain is authenticated to ${leafName}. ${observation}`
+          : (observation ?? ''),
+      remediation: null,
+    };
+  }
+
   if (chain.status === 'secure') {
-    if (chain.query.observation === 'unproved-nxdomain') {
-      return {
-        title: 'NXDOMAIN observed — not proven',
-        body: `The DNSSEC chain is authenticated to ${leafName}. ${observation}`,
-        remediation: null,
-      };
-    }
     if (chain.query.observation === 'unproved-nodata') {
       return {
         title: 'Secure chain, no records observed',
@@ -364,12 +372,16 @@ const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
   const presentation = verdictPresentation(chain);
   const problems =
     chain.status === 'secure' ? rrsetProblems(chain.zones.at(-1)) : [];
+  // An NXDOMAIN observation leads the verdict whatever the chain status, so it
+  // takes the alert icon too; other unproved negatives only outrank a secure
+  // chain's checkmark.
   const hasUnprovedNegative =
-    chain.query.observation === 'unproved-nxdomain' ||
     chain.query.observation === 'unproved-nodata' ||
     chain.query.observation === 'indeterminate';
   const Icon =
-    problems.length > 0 || (chain.status === 'secure' && hasUnprovedNegative)
+    problems.length > 0 ||
+    chain.query.observation === 'unproved-nxdomain' ||
+    (chain.status === 'secure' && hasUnprovedNegative)
       ? ShieldAlertIcon
       : chain.status === 'secure'
         ? ShieldCheckIcon

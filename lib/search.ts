@@ -8,8 +8,6 @@ import { bigquery } from '@/lib/bigquery';
 import type { LookupType } from '@/lib/lookup-features';
 import { getBaseDomain } from '@/lib/utils';
 
-export type { LookupType } from '@/lib/lookup-features';
-
 type LookupLogPayload = {
   domain: string;
   lookupType: LookupType;

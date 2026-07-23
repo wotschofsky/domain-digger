@@ -1,7 +1,5 @@
 import type { DnskeyData } from 'dns-packet';
 
-import type { DnssecKey } from './types';
-
 // Algorithm registry and policy: which DNSSEC signing algorithms and DS digest
 // types exist, which are deprecated or weak, and which this validator can
 // actually verify.
@@ -80,29 +78,16 @@ export const EC_CURVE_NAME: Record<number, string> = {
 };
 export const EC_COORD_BYTES: Record<number, number> = { 13: 32, 14: 48 };
 
-export function isDeprecatedAlgorithm(algorithm: number): boolean {
-  return DEPRECATED_ALGORITHMS.has(algorithm);
-}
+export const isDeprecatedAlgorithm = (algorithm: number): boolean =>
+  DEPRECATED_ALGORITHMS.has(algorithm);
 
-/**
- * Whether a key's strength is considered weak. The 2048-bit floor only applies
- * to RSA moduli -- fixed-size curve algorithms (P-256, Ed25519, ...) are strong
- * at their nominal size and must not be judged by RSA thresholds.
- */
-export function isWeakKey(key: Pick<DnssecKey, 'algorithm' | 'bits'>): boolean {
-  return (
-    RSA_ALGORITHMS.has(key.algorithm) && key.bits !== null && key.bits < 2048
-  );
-}
-
-export function isWeakDigest(digestType: number): boolean {
-  return WEAK_DIGEST_TYPES.has(digestType);
-}
+export const isWeakDigest = (digestType: number): boolean =>
+  WEAK_DIGEST_TYPES.has(digestType);
 
 /** Split an RFC 3110 RSA public key into its exponent and modulus. */
-export function rsaKeyParts(
+export const rsaKeyParts = (
   key: Buffer,
-): { exponent: Buffer; modulus: Buffer } | null {
+): { exponent: Buffer; modulus: Buffer } | null => {
   if (key.length < 1) return null;
   let offset: number;
   let expLen = key[0];
@@ -117,7 +102,7 @@ export function rsaKeyParts(
   const modulus = key.subarray(offset + expLen);
   if (exponent.length === 0 || modulus.length === 0) return null;
   return { exponent, modulus };
-}
+};
 
 /**
  * Key strength in bits. For RSA this is the modulus length parsed from the
@@ -125,12 +110,12 @@ export function rsaKeyParts(
  * for long exponents, then exponent, then modulus). For ECDSA/EdDSA it is the
  * curve's security parameter. Null for unknown algorithms.
  */
-export function keyBits(
+export const keyBits = (
   key: Pick<DnskeyData, 'algorithm' | 'key'>,
-): number | null {
+): number | null => {
   if (key.algorithm in CURVE_BITS) return CURVE_BITS[key.algorithm];
   if (!RSA_ALGORITHMS.has(key.algorithm)) return null;
 
   const parts = rsaKeyParts(key.key);
   return parts ? parts.modulus.length * 8 : null;
-}
+};

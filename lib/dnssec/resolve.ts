@@ -14,6 +14,7 @@ import type {
   DnssecRrset,
   RawZone,
 } from './types';
+import { normalizeDomain } from './wire';
 
 // The DNSSEC chain walk, independent of DNS transport: callers inject a query
 // function, so the walk is unit-testable and any resolver capable of returning
@@ -42,12 +43,11 @@ export const isDnameSynthesized = (
   cnameTarget: string,
   dnames: { name: string; target: string }[],
 ): boolean => {
-  const normalize = (value: string) => value.replace(/\.$/, '').toLowerCase();
-  const qname = normalize(name);
-  const cname = normalize(cnameTarget);
+  const qname = normalizeDomain(name);
+  const cname = normalizeDomain(cnameTarget);
   return dnames.some(({ name: owner, target }) => {
-    const dnameOwner = normalize(owner);
-    const dnameTarget = normalize(target);
+    const dnameOwner = normalizeDomain(owner);
+    const dnameTarget = normalizeDomain(target);
     if (!dnameOwner || !qname.endsWith(`.${dnameOwner}`)) return false;
     const prefix = qname.slice(0, qname.length - dnameOwner.length - 1);
     return cname === (dnameTarget ? `${prefix}.${dnameTarget}` : prefix);
@@ -101,7 +101,7 @@ const RRSET_PROBE_TYPES: RecordType[] = [
  * zone. Negative answers are only recorded as absent; NSEC/NSEC3 denial
  * proofs are a separate validation layer.
  */
-async function probeLeafRrsets(
+const probeLeafRrsets = async (
   name: string,
   signerName: string,
   zoneKeys: DnskeyData[],
@@ -112,7 +112,7 @@ async function probeLeafRrsets(
   rrsets: DnssecRrset[];
   expiresAt?: number;
   observation: DnssecQueryObservation;
-}> {
+}> => {
   // Once the DNSKEY RRset has been authenticated by the chain, any key in that
   // validated key set may sign positive data RRsets. Most zones use a ZSK for
   // data, while only the KSK is directly DS-linked.
@@ -161,7 +161,7 @@ async function probeLeafRrsets(
           // Surface the alias target: a validated CNAME only authenticates the
           // pointer, not the target's chain, and the UI must say so.
           if (type === 'CNAME' && typeof target === 'string') {
-            rrset.cnameTarget = target.replace(/\.$/, '').toLowerCase();
+            rrset.cnameTarget = normalizeDomain(target);
           }
           return { rrset, rcode };
         })
@@ -196,7 +196,7 @@ async function probeLeafRrsets(
     expiresAt: expiries.length ? Math.min(...expiries) : undefined,
     observation,
   };
-}
+};
 
 /**
  * Resolve the DNSSEC authentication chain from the root down to the queried
@@ -207,11 +207,11 @@ async function probeLeafRrsets(
  * `now` (Unix seconds) is the instant RRSIG validity is judged against; it
  * defaults to the current time and is injectable for deterministic tests.
  */
-export async function resolveDnssecChain(
+export const resolveDnssecChain = async (
   domain: string,
   query: DnssecQuery,
   now?: number,
-): Promise<DnssecChain> {
+): Promise<DnssecChain> => {
   // Walk every label suffix from the root down to the queried name, so a
   // separately-delegated (and separately-signed) subdomain gets its own zone
   // cut evaluated instead of being collapsed into its registered domain.
@@ -220,7 +220,7 @@ export async function resolveDnssecChain(
   // The zone walk strips a wildcard prefix (`*.` is not a zone cut), but the
   // leaf RRset probe must keep it: the user asked about the wildcard owner,
   // and its records differ from the parent name's.
-  const probeName = domain.replace(/\.$/, '').toLowerCase();
+  const probeName = normalizeDomain(domain);
   const fqdn = probeName.replace(/^\*\./, '');
   const base = getBaseDomain(fqdn);
   const labels = fqdn.split('.').filter(Boolean);
@@ -317,7 +317,7 @@ export async function resolveDnssecChain(
     const skippedByDelegation = (candidates[deeperIndex].dsRrsigs ?? []).some(
       (rrsig) =>
         isProperAncestor(
-          rrsig.signersName.replace(/\.$/, '').toLowerCase(),
+          normalizeDomain(rrsig.signersName),
           candidates[i].name,
         ),
     );
@@ -392,4 +392,4 @@ export async function resolveDnssecChain(
   }
 
   return chain;
-}
+};

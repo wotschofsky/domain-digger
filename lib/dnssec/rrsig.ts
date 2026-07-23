@@ -54,7 +54,7 @@ const labelCount = (name: string): number => {
  * an arbitrary RRSIG must not downgrade bogus data merely by naming an
  * algorithm the checker cannot execute.
  */
-export function rrsigMetadataIssue(params: {
+export const rrsigMetadataIssue = (params: {
   rrsig: RrsigData;
   type: string;
   ownerName: string;
@@ -62,7 +62,7 @@ export function rrsigMetadataIssue(params: {
   keys: DnskeyData[];
   now: number;
   allowWildcard?: boolean;
-}): RrsigMetadataIssue | null {
+}): RrsigMetadataIssue | null => {
   const {
     rrsig,
     type,
@@ -87,7 +87,7 @@ export function rrsigMetadataIssue(params: {
   if (now > rrsig.expiration) return 'expired';
   if (!signerCandidates(keys, rrsig).length) return 'ineligible-signer';
   return null;
-}
+};
 
 // An RRset is a set: duplicate copies of an identical RR in a packet must
 // contribute one canonical entry, or the signed data diverges from what the
@@ -121,7 +121,7 @@ const verifiedByAnyCandidate = (
  * Returns false on any failure -- expired, forged, unsupported algorithm, or
  * malformed key.
  */
-export function verifyDnskeyRrsig(params: {
+export const verifyDnskeyRrsig = (params: {
   rrsig: RrsigData;
   keys: DnskeyData[];
   ownerName: string;
@@ -129,7 +129,7 @@ export function verifyDnskeyRrsig(params: {
   // Keys allowed to vouch for the RRset (e.g. only DS-linked ones). The
   // signature is still computed over the full `keys` RRset.
   signers?: DnskeyData[];
-}): boolean {
+}): boolean => {
   const { rrsig, keys, ownerName, now, signers } = params;
   const candidateKeys = signers ?? keys;
   if (
@@ -160,9 +160,9 @@ export function verifyDnskeyRrsig(params: {
 
   const signedData = Buffer.concat([prefix, ...rrset]);
   return verifiedByAnyCandidate(candidates, rrsig, signedData);
-}
+};
 
-export function verifyRrsetRrsig(params: {
+export const verifyRrsetRrsig = (params: {
   rrsig: RrsigData;
   type: string;
   records: DnssecAnswerRecord[];
@@ -171,7 +171,7 @@ export function verifyRrsetRrsig(params: {
   keys: DnskeyData[];
   now: number;
   allowWildcard?: boolean;
-}): boolean {
+}): boolean => {
   const {
     rrsig,
     type,
@@ -218,4 +218,4 @@ export function verifyRrsetRrsig(params: {
 
   const signedData = Buffer.concat([prefix, ...rrset]);
   return verifiedByAnyCandidate(candidates, rrsig, signedData);
-}
+};
