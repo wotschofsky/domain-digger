@@ -272,6 +272,62 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
+  it('prefers an authoritative sibling over a non-authoritative answer', async () => {
+    // An open recursive listed in the NS set answers without AA; its data
+    // must not mask the healthy authoritative sibling.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '198.51.100.99' },
+            ])
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toEqual(['192.0.2.1', '192.0.2.2']);
+  });
+
+  it('falls back to a non-authoritative answer when no candidate does better', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+            ])
+          : response(domain, recordType, 'SERVFAIL'),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
   it('shares the fallback deadline across referral steps', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {

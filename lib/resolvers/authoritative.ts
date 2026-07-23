@@ -433,6 +433,7 @@ export class AuthoritativeResolver extends DnsResolver {
     let protocol: DnsResponse['protocol'] = 'udp';
     let truncated = false;
     let usedNameserver = candidateNameservers[0];
+    let lastResort: { result: DnsResponse; candidate: string } | null = null;
     const failedNameservers: string[] = [];
     let refusedCount = 0;
 
@@ -468,27 +469,37 @@ export class AuthoritativeResolver extends DnsResolver {
           if (resultRcode === 'REFUSED') refusedCount++;
           continue;
         }
-        // A terminal-looking response (no answers owned by the queried name,
-        // no referral) that is not authoritative is a lame server, not proof
-        // of NODATA/NXDOMAIN (RFC 2308 negative answers come from the AA
-        // server). Accepting it would let one misconfigured candidate mask
-        // healthy siblings. A referral requires an NS record: a stray A in
-        // additionals alone delegates nothing and must not count.
-        const lame =
-          !result.packet.answers?.some(
+        // A non-authoritative response can't end the walk (RFC 2308 negative
+        // answers and real data come from the AA server); accepting one would
+        // let a single misconfigured candidate mask healthy siblings. One
+        // carrying answers for the queried name -- e.g. an open recursive
+        // listed in the NS set -- is deferred as a last resort: siblings get
+        // a chance to answer authoritatively, but its data still beats
+        // failing the lookup. One with neither owned answers nor an NS
+        // referral is simply lame (a stray A in additionals delegates
+        // nothing and must not count as a referral).
+        // flag_aa only exists on decoded packets; encode-side Packet lacks it.
+        if (!(result.packet as DecodedPacket).flag_aa) {
+          const hasOwnedAnswer = result.packet.answers?.some(
             (answer) => canonicalDnsName(answer.name) === wantName,
-          ) &&
-          // flag_aa only exists on decoded packets; encode-side Packet lacks it.
-          !(result.packet as DecodedPacket).flag_aa &&
-          ![
+          );
+          if (hasOwnedAnswer) {
+            lastResort ??= { result, candidate };
+            failedNameservers.push(
+              `${candidate}: non-authoritative answer, deferred`,
+            );
+            continue;
+          }
+          const hasReferral = [
             ...(result.packet.authorities ?? []),
             ...(result.packet.additionals ?? []),
           ].some((record) => record.type === 'NS');
-        if (lame) {
-          failedNameservers.push(
-            `${candidate}: lame response (no relevant answer, not authoritative)`,
-          );
-          continue;
+          if (!hasReferral) {
+            failedNameservers.push(
+              `${candidate}: lame response (no relevant answer, not authoritative)`,
+            );
+            continue;
+          }
         }
         // The first authoritative terminal response wins, as with standard
         // resolvers: siblings are not polled in case one has "better" data.
@@ -506,6 +517,19 @@ export class AuthoritativeResolver extends DnsResolver {
           `${candidate}: ${error instanceof Error ? error.message : 'request failed'}`,
         );
       }
+    }
+
+    if (!response && lastResort) {
+      // No candidate answered authoritatively; the deferred answer is better
+      // than failing the lookup.
+      response = lastResort.result.packet;
+      protocol = lastResort.result.protocol;
+      truncated = lastResort.result.truncated;
+      usedNameserver = lastResort.candidate;
+      trace = [
+        ...trace,
+        `${recordType} ${domain} @ ${usedNameserver} -> accepted non-authoritative answer, no better candidate`,
+      ];
     }
 
     if (!response && cached) {
