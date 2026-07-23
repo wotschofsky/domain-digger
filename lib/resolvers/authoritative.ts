@@ -7,9 +7,15 @@ import dnsPacket, {
   type DecodedPacket,
   type Packet,
   type Question,
+  type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
 
+import {
+  canonicalDnsName,
+  type DnssecChain,
+  resolveDnssecChain,
+} from '@/lib/dnssec';
 import { retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
@@ -21,24 +27,107 @@ import {
 } from './base';
 import { isPublicIp } from './ip-filter';
 
-type DnsResponse = {
+type RawAnswer = Extract<Answer, { type: RecordType }>;
+
+// EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
+// returns RRSIG records alongside the answer.
+const DNSSEC_OPT_RECORD = {
+  type: 'OPT' as const,
+  name: '.',
+  udpPayloadSize: 4096,
+  extendedRcode: 0,
+  ednsVersion: 0,
+  flags: dnsPacket.DNSSEC_OK,
+  flag_do: true,
+  options: [],
+};
+
+export type DnsResponse = {
   packet: Packet;
   protocol: 'udp' | 'tcp';
   truncated: boolean;
 };
 
+export type AuthoritativeRequest = {
+  domain: string;
+  recordType: RecordType;
+  nameserver: string;
+  dnssecOk: boolean;
+};
+
+export type AuthoritativeUdpTransport = (
+  request: AuthoritativeRequest,
+) => Promise<DecodedPacket>;
+
+export type AuthoritativeTcpTransport = (
+  request: AuthoritativeRequest,
+) => Promise<Packet>;
+
+export type AuthoritativeResolverOptions = {
+  udpTransport?: AuthoritativeUdpTransport;
+  tcpTransport?: AuthoritativeTcpTransport;
+  rootServers?: () => Promise<string[]>;
+  // Time budget for trying fallback nameservers after the first candidate
+  // (see fetchRecordsRaw). Injectable for tests.
+  fallbackDeadlineMs?: number;
+};
+
+export const isMatchingDnsResponse = (
+  packet: Packet,
+  id: number,
+  domain: string,
+  recordType: RecordType,
+): boolean =>
+  packet.type === 'response' &&
+  packet.id === id &&
+  Boolean(
+    packet.questions?.some(
+      (question) =>
+        question.type === recordType &&
+        canonicalDnsName(question.name) === canonicalDnsName(domain),
+    ),
+  );
+
 type FetchRecordsParams = {
   domain: string;
   recordType: RecordType;
   nameserver?: string;
+  nameservers?: string[];
   trace?: string[];
   depth?: number;
+  // Set the EDNS DNSSEC OK (DO) bit so authoritative servers include RRSIGs.
+  // Used by the leaf RRset probe to observe which record sets are signed.
+  dnssecOk?: boolean;
 };
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
+  // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
+  // a single blackholed first server has to leave room to reach a healthy
+  // fallback, while all-blackholed candidates stay bounded (~2 budgets).
+  private static readonly FALLBACK_DEADLINE_MS = 15_000;
 
-  private async getRootServers() {
+  public constructor(
+    private readonly options: AuthoritativeResolverOptions = {},
+  ) {
+    super();
+  }
+
+  // One fetch+parse of the root hints per resolver instance; the walk calls
+  // getRootServers on every recursion step. A failed attempt is not cached.
+  private rootServersPromise?: Promise<string[]>;
+
+  private getRootServers(): Promise<string[]> {
+    const loadRootServers =
+      this.options.rootServers ?? (() => this.fetchRootServers());
+    this.rootServersPromise ??= loadRootServers().catch((error) => {
+      this.rootServersPromise = undefined;
+      throw error;
+    });
+    return this.rootServersPromise;
+  }
+
+  private async fetchRootServers() {
     let response: Response;
     try {
       response = await fetch('https://www.internic.net/domain/named.root', {
@@ -141,16 +230,19 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
-  private async sendUdpRequest(
-    domain: string,
-    recordType: RecordType,
-    nameserver: string,
-  ) {
+  private async sendUdpRequest({
+    domain,
+    recordType,
+    nameserver,
+    dnssecOk,
+  }: AuthoritativeRequest) {
+    const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.encode({
       type: 'query',
       // Randomize ID to avoid response mismatch
-      id: Math.floor(Math.random() * 65535),
+      id,
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<DecodedPacket>((resolve, reject) => {
@@ -173,9 +265,17 @@ export class AuthoritativeResolver extends DnsResolver {
         );
       }, 3000);
 
-      socket.on('message', (message: Buffer) => {
+      socket.on('message', (message: Buffer, remote) => {
+        if (remote.address !== nameserver || remote.port !== 53) return;
+        let packet: DecodedPacket;
+        try {
+          packet = dnsPacket.decode(message);
+        } catch {
+          return;
+        }
+        if (!isMatchingDnsResponse(packet, id, domain, recordType)) return;
         cleanup();
-        resolve(dnsPacket.decode(message));
+        resolve(packet);
       });
       socket.on('error', (error) => {
         cleanup();
@@ -186,15 +286,18 @@ export class AuthoritativeResolver extends DnsResolver {
     });
   }
 
-  private async sendTcpRequest(
-    domain: string,
-    recordType: RecordType,
-    nameserver: string,
-  ) {
+  private async sendTcpRequest({
+    domain,
+    recordType,
+    nameserver,
+    dnssecOk,
+  }: AuthoritativeRequest) {
+    const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
-      id: Math.floor(Math.random() * 65535),
+      id,
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<Packet>((resolve, reject) => {
@@ -227,8 +330,14 @@ export class AuthoritativeResolver extends DnsResolver {
         if (buf.length >= 2) {
           const msgLen = buf.readUInt16BE(0);
           if (buf.length >= 2 + msgLen) {
+            const packet = dnsPacket.streamDecode(buf);
+            if (!isMatchingDnsResponse(packet, id, domain, recordType)) {
+              cleanup();
+              reject(new Error('DNS response did not match the TCP query'));
+              return;
+            }
             cleanup();
-            resolve(dnsPacket.streamDecode(buf));
+            resolve(packet);
           }
         }
       });
@@ -240,72 +349,238 @@ export class AuthoritativeResolver extends DnsResolver {
   }
 
   private async sendRequest(
-    domain: string,
-    recordType: RecordType,
-    nameserver: string,
-  ) {
+    request: AuthoritativeRequest,
+  ): Promise<DnsResponse> {
     // DNS queries are first attempted over UDP per convention. However, UDP
     // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
     // that limit the server truncates the response and sets the TC flag,
     // signaling the client to retry over TCP where the full response (up to
     // 64 KB) can be delivered.
-    const udpResponse = await this.sendUdpRequest(
-      domain,
-      recordType,
-      nameserver,
-    );
+    const udpResponse = this.options.udpTransport
+      ? await this.options.udpTransport(request)
+      : await this.sendUdpRequest(request);
     if (udpResponse.flag_tc) {
-      const packet = await this.sendTcpRequest(domain, recordType, nameserver);
+      const packet = this.options.tcpTransport
+        ? await this.options.tcpTransport(request)
+        : await this.sendTcpRequest(request);
       return { packet, protocol: 'tcp', truncated: true };
     }
     return { packet: udpResponse, protocol: 'udp', truncated: false };
   }
 
   private requestLoader = new DataLoader<
-    {
-      domain: string;
-      type: RecordType;
-      nameserver: string;
-    },
+    AuthoritativeRequest,
     DnsResponse,
     string
   >(
     async (keys) =>
       Promise.all(
-        keys.map(async ({ domain, type, nameserver }) =>
-          retry(() => this.sendRequest(domain, type, nameserver), 3),
-        ),
+        keys.map(async (request) => {
+          try {
+            return await retry(() => this.sendRequest(request), 3);
+          } catch (error) {
+            return error instanceof Error
+              ? error
+              : new Error('DNS request failed');
+          }
+        }),
       ),
     {
       cacheKeyFn: (key) => JSON.stringify(key),
     },
   );
 
-  private async fetchRecords({
+  // Zone cut -> public nameserver IPs learned from referrals during this
+  // instance's walks. Later queries for names under an already-discovered zone
+  // start there instead of re-walking from the root -- the DataLoader can't
+  // dedupe those shared hops because its key includes the final query name.
+  // First writer wins and only suffixes of the queried name are cached, so a
+  // deeper (less-trusted) server can't overwrite entries learned from the
+  // servers above it.
+  private delegationCache = new Map<string, string[]>();
+
+  private cacheDelegation(zoneCut: string, domain: string, ips: string[]) {
+    const zone = zoneCut.toLowerCase();
+    const name = domain.toLowerCase();
+    if (this.delegationCache.has(zone)) return;
+    if (name !== zone && !name.endsWith(`.${zone}`)) return;
+    this.delegationCache.set(zone, ips);
+  }
+
+  private cachedDelegation(
+    domain: string,
+    recordType: RecordType,
+  ): string[] | undefined {
+    const labels = domain.toLowerCase().split('.').filter(Boolean);
+    // DS records live in the parent zone: a child's own servers answer a DS
+    // query for their apex with NODATA, which would falsely read as "no DS".
+    // Skip the exact-name entry and start at the parent.
+    const start = recordType === 'DS' ? 1 : 0;
+    for (let i = start; i < labels.length; i++) {
+      const hit = this.delegationCache.get(labels.slice(i).join('.'));
+      if (hit) return hit;
+    }
+    return undefined;
+  }
+
+  private async fetchRecordsRaw({
     domain,
     recordType,
     nameserver,
+    nameservers,
     trace = [],
     depth = 0,
-  }: FetchRecordsParams): Promise<ResolverResponse> {
+    dnssecOk = false,
+  }: FetchRecordsParams): Promise<{
+    answers: RawAnswer[];
+    trace: string[];
+    rcode?: string;
+    // The RRSIG records covering recordType, for cryptographic verification
+    // (populated only when queried with dnssecOk).
+    coveringRrsigs?: RrsigData[];
+    // DNAMEs from the answer section (CNAMEs may be synthesized and
+    // legitimately unsigned, RFC 6672 §3.2).
+    dnames?: { name: string; target: string }[];
+  }> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
         `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
       );
     }
 
-    const rootServers = await this.getRootServers();
+    const candidateNameservers =
+      nameservers && nameservers.length
+        ? nameservers
+        : nameserver
+          ? [nameserver]
+          : (this.cachedDelegation(domain, recordType) ??
+            (await this.getRootServers()).slice(0, 4));
+    let response: Packet | null = null;
+    let protocol: DnsResponse['protocol'] = 'udp';
+    let truncated = false;
+    let usedNameserver = candidateNameservers[0];
+    const failedNameservers: string[] = [];
+    const errorRcodes: string[] = [];
 
-    const usedNameserver = nameserver || rootServers[0]; // TODO Use fallback nameservers
-    const {
-      packet: response,
-      protocol,
-      truncated,
-    } = await this.requestLoader.load({
-      domain,
-      type: recordType,
-      nameserver: usedNameserver,
-    });
+    // A blackholed network makes every candidate burn its full retry budget
+    // (4 attempts x 3s); serializing that across 4 fallback servers would
+    // take ~48s. The first candidate always gets its full budget; further
+    // ones only start while the shared deadline allows, so fast failures
+    // (REFUSED, quick rejects) still reach every server.
+    const fallbackDeadlineMs =
+      this.options.fallbackDeadlineMs ??
+      AuthoritativeResolver.FALLBACK_DEADLINE_MS;
+    const fallbackStartedAt = Date.now();
+
+    for (const candidate of candidateNameservers) {
+      if (
+        failedNameservers.length > 0 &&
+        Date.now() - fallbackStartedAt >= fallbackDeadlineMs
+      ) {
+        failedNameservers.push(
+          `${candidate}: skipped, fallback deadline exceeded`,
+        );
+        break;
+      }
+      const loaderKey = {
+        domain,
+        recordType,
+        nameserver: candidate,
+        dnssecOk,
+      };
+      try {
+        const result = await this.requestLoader.load(loaderKey);
+        const resultRcode = result.packet.rcode;
+        if (
+          resultRcode !== undefined &&
+          resultRcode !== 'NOERROR' &&
+          resultRcode !== 'NXDOMAIN'
+        ) {
+          failedNameservers.push(`${candidate}: DNS ${resultRcode}`);
+          errorRcodes.push(resultRcode);
+          continue;
+        }
+        // A terminal-looking response (no answers, no referral) that is not
+        // authoritative is a lame server, not proof of NODATA/NXDOMAIN
+        // (RFC 2308 negative answers come from the AA server). Accepting it
+        // would let one misconfigured candidate mask healthy siblings, e.g.
+        // rendering a signed zone as serving no DNSKEY.
+        const lame =
+          !result.packet.answers?.length &&
+          // flag_aa only exists on decoded packets; encode-side Packet lacks it.
+          !(result.packet as DecodedPacket).flag_aa &&
+          ![
+            ...(result.packet.authorities ?? []),
+            ...(result.packet.additionals ?? []),
+          ].some((record) => record.type === 'NS' || record.type === 'A');
+        if (lame) {
+          failedNameservers.push(
+            `${candidate}: lame response (empty, not authoritative)`,
+          );
+          continue;
+        }
+        // The first authoritative terminal response wins, as with standard
+        // resolvers: siblings are not polled in case one has "better" data.
+        // A stale-but-authoritative server is the zone operator's problem.
+        response = result.packet;
+        protocol = result.protocol;
+        truncated = result.truncated;
+        usedNameserver = candidate;
+        break;
+      } catch (error) {
+        // DataLoader caches rejections; clear the key so a transient failure
+        // doesn't poison every later identical query in this walk.
+        this.requestLoader.clear(loaderKey);
+        failedNameservers.push(
+          `${candidate}: ${error instanceof Error ? error.message : 'request failed'}`,
+        );
+      }
+    }
+
+    if (!response) {
+      // Some authoritatives REFUSE direct RRSIG browsing (e.g. Cloudflare).
+      // Tolerate that one definitive policy response for RRSIG queries only,
+      // and only when every attempted server returned it. Ordinary lookups,
+      // SERVFAIL/FORMERR/NOTIMP, and mixed transport failures remain
+      // retryable errors rather than masquerading as an empty RRset.
+      // DNSSEC-walk queries (dnssecOk) always fail loud: an unanswered
+      // DNSKEY/DS must stay indeterminate, not read as a missing record.
+      const allRefused =
+        errorRcodes.length === candidateNameservers.length &&
+        errorRcodes.every((rcode) => rcode === 'REFUSED');
+      if (allRefused && !dnssecOk && recordType === 'RRSIG') {
+        return {
+          answers: [],
+          trace: [
+            ...trace,
+            `${recordType} ${domain} -> all nameservers returned an error: ${failedNameservers.join('; ')}`,
+          ],
+          rcode: 'REFUSED',
+        };
+      }
+      throw new UserFacingError(
+        {
+          title: 'Authoritative DNS servers did not answer',
+          description:
+            'Every available authoritative nameserver failed or returned a retryable DNS error. Please try again shortly.',
+          retryable: true,
+        },
+        {
+          cause: new Error(
+            `All nameservers failed for ${domain} ${recordType}: ${failedNameservers.join('; ')}`,
+          ),
+        },
+      );
+    }
+
+    if (failedNameservers.length) {
+      trace = [
+        ...trace,
+        `${recordType} ${domain} -> skipped failed nameservers: ${failedNameservers.join('; ')}`,
+      ];
+    }
+
+    const rcode = response.rcode;
 
     if (truncated) {
       trace = [
@@ -314,25 +589,53 @@ export class AuthoritativeResolver extends DnsResolver {
       ];
     }
 
-    if (response.answers?.length) {
+    // Only records owned by the queried name (any type, e.g. a CNAME alias)
+    // make this a terminal answer. An answer section carrying nothing but
+    // unrelated records (e.g. glue promoted into it by a quirky server) must
+    // not read as an authoritative empty answer -- it falls through to the
+    // referral handling below instead.
+    // Owner names are case-insensitive; zones may echo them in a different
+    // case than the query, and a case-mismatched drop here would misreport
+    // a signed RRset as unsigned.
+    const wantName = domain.toLowerCase();
+    if (
+      response.answers?.some((answer) => answer.name.toLowerCase() === wantName)
+    ) {
       const filteredAnswers = response.answers.filter(
-        (answer) => answer.name === domain && answer.type === recordType,
-      ) as Extract<Answer, { type: RecordType }>[];
+        (answer) =>
+          answer.name.toLowerCase() === wantName && answer.type === recordType,
+      ) as RawAnswer[];
 
-      const records: RawRecord[] =
-        filteredAnswers?.map((answer) => ({
-          name: answer.name,
-          type: answer.type,
-          TTL: 'ttl' in answer ? answer.ttl || 0 : 0,
-          data: this.recordToString(answer),
-        })) || [];
+      // RRSIGs in the answer that cover the queried type mean this RRset is
+      // signed. Works uniformly across NSEC, NSEC3, and synthesized ("black
+      // lies") zones, where the NSEC type bitmap would be unreliable.
+      const coveringRrsigs = response.answers
+        .filter(
+          (answer): answer is Extract<Answer, { type: 'RRSIG' }> =>
+            answer.type === 'RRSIG' &&
+            answer.name.toLowerCase() === wantName &&
+            answer.data.typeCovered === recordType,
+        )
+        .map((sig) => sig.data as RrsigData);
 
       const fullTrace = [
         ...trace,
         `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
       ];
 
-      return { records, trace: fullTrace };
+      return {
+        answers: filteredAnswers,
+        trace: fullTrace,
+        rcode,
+        coveringRrsigs,
+        // DNAMEs in the answer mean CNAMEs at the queried name may be
+        // synthesized (RFC 6672 §3.2) -- they intentionally carry no RRSIG of
+        // their own, and the DNSSEC leaf probe must not call them unsigned.
+        // Owner and target are kept so the probe can verify the substitution.
+        dnames: response.answers
+          .filter((answer): answer is StringAnswer => answer.type === 'DNAME')
+          .map((answer) => ({ name: answer.name, target: answer.data })),
+      };
     }
 
     // We must validate referrals before following them: an attacker controlling
@@ -361,15 +664,23 @@ export class AuthoritativeResolver extends DnsResolver {
           isPublicIp(redirect.data),
       );
       if (aRedirects.length) {
-        return this.fetchRecords({
+        // Cap like the sibling NS-resolution/root paths: each candidate costs
+        // up to 3 retries x 3s, and the glue set is attacker-influenced.
+        const addresses = aRedirects
+          .map((redirect) => redirect.data)
+          .slice(0, 4);
+        const zoneCut = redirects.find((r) => r.type === 'NS')?.name;
+        if (zoneCut) this.cacheDelegation(zoneCut, domain, addresses);
+        return this.fetchRecordsRaw({
           domain,
           recordType,
-          nameserver: aRedirects[0].data,
+          nameservers: addresses,
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
           ],
           depth: depth + 1,
+          dnssecOk,
         });
       }
 
@@ -377,42 +688,103 @@ export class AuthoritativeResolver extends DnsResolver {
         (redirect) => redirect.type === 'NS',
       );
       if (nsRedirects.length) {
-        const { records: aRecords, trace: subTrace } = await this.fetchRecords({
-          domain: nsRedirects[0].data,
-          recordType: 'A',
-          depth: depth + 1,
-        });
-
+        const subTrace: string[] = [];
+        // Resolve the candidate NS hostnames concurrently and proceed with
+        // the first usable result: done serially (or awaited jointly), a
+        // dead sibling would stall the walk for its full retry/fallback
+        // budget even after a usable address had already been found.
         // The resolved NS address is attacker-controlled (they own the zone
         // and can set any A record); filter to public IPs before using it.
-        const publicARecords = aRecords.filter((r) => isPublicIp(r.data));
-        if (!publicARecords.length) {
+        // Every finished lookup pushes its addresses before resolving, so
+        // when the race below ends, all siblings that were at least as fast
+        // as the winner are already collected as fallbacks.
+        const resolvedSets: string[][] = [];
+        const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
+          try {
+            const resolved = await this.fetchRecordsRaw({
+              domain: ns.data,
+              recordType: 'A',
+              depth: depth + 1,
+            });
+            subTrace.push(...resolved.trace);
+            // resolved.answers are all A records (filtered by type), so
+            // recordToString yields the bare IP string for each.
+            const ips = resolved.answers
+              .map((a) => this.recordToString(a))
+              .filter((ip) => isPublicIp(ip));
+            if (!ips.length) throw new Error(`no public address (${ns.data})`);
+            resolvedSets.push(ips);
+            return ips;
+          } catch (error) {
+            subTrace.push(
+              `A ${ns.data} -> failed: ${
+                error instanceof Error ? error.message : 'request failed'
+              }`,
+            );
+            throw error;
+          }
+        });
+        try {
+          // Proceed as soon as any lookup yields a usable address -- a dead
+          // sibling must not stall the walk once one is available.
+          await Promise.any(lookups);
+        } catch {
           throw new Error(`Bad redirects for ${domain}`);
         }
+        const publicAddresses = [...new Set(resolvedSets.flat())];
 
-        return this.fetchRecords({
+        this.cacheDelegation(
+          nsRedirects[0].name,
+          domain,
+          publicAddresses.slice(0, 4),
+        );
+        return this.fetchRecordsRaw({
           domain,
           recordType,
-          nameserver: publicARecords[0].data,
+          nameservers: publicAddresses.slice(0, 4),
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
             ...subTrace,
           ],
           depth: depth + 1,
+          dnssecOk,
         });
       }
 
       throw new Error(`Bad redirects for ${domain}`);
     }
 
-    return { records: [], trace };
+    return { answers: [], trace, rcode };
   }
 
   public async resolveRecordType(
     domain: string,
     recordType: RecordType,
   ): Promise<ResolverResponse> {
-    return this.fetchRecords({ domain, recordType });
+    const { answers, trace } = await this.fetchRecordsRaw({
+      domain,
+      recordType,
+    });
+
+    const records: RawRecord[] = answers.map((answer) => ({
+      name: answer.name,
+      type: answer.type,
+      TTL: 'ttl' in answer ? answer.ttl || 0 : 0,
+      data: this.recordToString(answer),
+    }));
+
+    return { records, trace };
+  }
+
+  /**
+   * The DNSSEC tab always walks authoritatively (bypassing the resolver
+   * selector): this instance supplies the transport, lib/dnssec/resolve.ts
+   * owns the walk. See lib/dnssec for what is (and isn't) verified.
+   */
+  public resolveDnssecChain(domain: string): Promise<DnssecChain> {
+    return resolveDnssecChain(domain, (name, type, dnssecOk) =>
+      this.fetchRecordsRaw({ domain: name, recordType: type, dnssecOk }),
+    );
   }
 }
