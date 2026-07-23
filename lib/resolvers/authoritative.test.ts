@@ -234,6 +234,44 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
+  it('treats a non-authoritative reply whose only redirect is a stray A as lame', async () => {
+    // An A record in additionals without any NS delegates nothing; accepting
+    // the reply would dead-end in "Bad redirects" instead of trying siblings.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              additionals: [
+                {
+                  name: 'unrelated.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
   it('shares the fallback deadline across referral steps', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
