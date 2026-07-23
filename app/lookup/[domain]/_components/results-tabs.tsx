@@ -40,8 +40,6 @@ const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   </li>
 );
 
-const TABS = LOOKUP_FEATURES;
-
 type ResultsTabsProps = {
   domain: string;
 };
@@ -51,10 +49,10 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   const selectedSegment = useSelectedLayoutSegment();
 
   useHotkeys(
-    TABS.map((_, index) => `alt+${index + 1}`).join(','),
+    LOOKUP_FEATURES.map((_, index) => `alt+${index + 1}`).join(','),
     (_, hotkeysEvent) => {
       const shortcutNumber = Number(hotkeysEvent.keys?.[0]);
-      const tab = TABS[shortcutNumber - 1];
+      const tab = LOOKUP_FEATURES[shortcutNumber - 1];
 
       if (tab) router.push(`/lookup/${domain}${tab.path}`);
     },
@@ -64,7 +62,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   return (
     <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
       <ul className="-mb-px flex">
-        {TABS.map((tab) => (
+        {LOOKUP_FEATURES.map((tab) => (
           <SingleTab
             key={tab.segment}
             label={tab.label}
@@ -79,10 +77,10 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           {isAppleDevice() ? (
             <>
               <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-
-              {TABS.length}
+              {LOOKUP_FEATURES.length}
             </>
           ) : (
-            `alt+1-${TABS.length}`
+            `alt+1-${LOOKUP_FEATURES.length}`
           )}
         </kbd>
       </ClientOnly>
