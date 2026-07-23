@@ -8,6 +8,7 @@ import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { ClientOnly } from '@/components/client-only';
+import { LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 type SingleTabProps = {
@@ -39,13 +40,7 @@ const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   </li>
 );
 
-const TABS = [
-  { label: 'DNS', segment: '(dns)', path: '' },
-  { label: 'DNS Map', segment: 'map', path: '/map' },
-  { label: 'Whois', segment: 'whois', path: '/whois' },
-  { label: 'Certs', segment: 'certs', path: '/certs' },
-  { label: 'Subdomains', segment: 'subdomains', path: '/subdomains' },
-];
+const TABS = LOOKUP_FEATURES;
 
 type ResultsTabsProps = {
   domain: string;
@@ -83,10 +78,11 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
         <kbd className="pointer-events-none absolute top-1/2 right-3 hidden h-5 -translate-y-1/2 items-center gap-1 rounded border border-zinc-200 bg-white px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex dark:border-zinc-700 dark:bg-zinc-800">
           {isAppleDevice() ? (
             <>
-              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-5
+              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-
+              {TABS.length}
             </>
           ) : (
-            'ctrl+1-5'
+            `alt+1-${TABS.length}`
           )}
         </kbd>
       </ClientOnly>
