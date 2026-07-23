@@ -5,6 +5,7 @@ import { FaGithub, FaHeart } from 'react-icons/fa';
 import { Button } from '@/components/ui/button';
 
 import PoweredByVercel from '@/assets/powered-by-vercel.svg';
+import { LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn } from '@/lib/utils';
 
 import { Logo } from './logo';
@@ -50,11 +51,11 @@ export const Footer: FC = () => (
         <div className="flex flex-col gap-2">
           <h2 className="font-semibold">Free Tools</h2>
           <div className="flex flex-col gap-1 text-sm underline decoration-dotted underline-offset-4 lg:flex-row lg:gap-4">
-            <Link href="/">DNS Lookup</Link>
-            <Link href="/map">Global DNS Lookup</Link>
-            <Link href="/whois">WHOIS Lookup</Link>
-            <Link href="/certs">Certificate Logs</Link>
-            <Link href="/subdomains">Subdomains Finder</Link>
+            {LOOKUP_FEATURES.map((feature) => (
+              <Link key={feature.id} href={feature.landingPath}>
+                {feature.footerLabel}
+              </Link>
+            ))}
           </div>
         </div>
 

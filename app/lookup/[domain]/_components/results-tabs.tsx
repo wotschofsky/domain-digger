@@ -8,6 +8,7 @@ import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { ClientOnly } from '@/components/client-only';
+import { LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 type SingleTabProps = {
@@ -39,14 +40,6 @@ const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   </li>
 );
 
-const TABS = [
-  { label: 'DNS', segment: '(dns)', path: '' },
-  { label: 'DNS Map', segment: 'map', path: '/map' },
-  { label: 'Whois', segment: 'whois', path: '/whois' },
-  { label: 'Certs', segment: 'certs', path: '/certs' },
-  { label: 'Subdomains', segment: 'subdomains', path: '/subdomains' },
-];
-
 type ResultsTabsProps = {
   domain: string;
 };
@@ -56,10 +49,10 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   const selectedSegment = useSelectedLayoutSegment();
 
   useHotkeys(
-    TABS.map((_, index) => `alt+${index + 1}`).join(','),
+    LOOKUP_FEATURES.map((_, index) => `alt+${index + 1}`).join(','),
     (_, hotkeysEvent) => {
       const shortcutNumber = Number(hotkeysEvent.keys?.[0]);
-      const tab = TABS[shortcutNumber - 1];
+      const tab = LOOKUP_FEATURES[shortcutNumber - 1];
 
       if (tab) router.push(`/lookup/${domain}${tab.path}`);
     },
@@ -69,7 +62,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   return (
     <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
       <ul className="-mb-px flex">
-        {TABS.map((tab) => (
+        {LOOKUP_FEATURES.map((tab) => (
           <SingleTab
             key={tab.segment}
             label={tab.label}
@@ -83,10 +76,11 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
         <kbd className="pointer-events-none absolute top-1/2 right-3 hidden h-5 -translate-y-1/2 items-center gap-1 rounded border border-zinc-200 bg-white px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex dark:border-zinc-700 dark:bg-zinc-800">
           {isAppleDevice() ? (
             <>
-              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-5
+              <OptionIcon className="inline-block size-2" strokeWidth={3} /> 1-
+              {LOOKUP_FEATURES.length}
             </>
           ) : (
-            'ctrl+1-5'
+            `alt+1-${LOOKUP_FEATURES.length}`
           )}
         </kbd>
       </ClientOnly>
