@@ -1,6 +1,7 @@
 import {
   ArrowRightIcon,
   CheckIcon,
+  ChevronDownIcon,
   ClockIcon,
   FingerprintIcon,
   KeyRoundIcon,
@@ -497,49 +498,52 @@ const RrsetRow: FC<{ rrset: DnssecRrset }> = ({ rrset }) => {
   return (
     <li className="py-2 text-sm">
       <details className="group">
-        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 [&::-webkit-details-marker]:hidden">
-          <span
-            className={cn(
-              'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
-              isBad ? toneClasses.broken : toneClasses.muted,
+        <summary className="-mx-2 flex cursor-pointer list-none items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-zinc-50 focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-1 focus-visible:outline-none dark:hover:bg-zinc-800/70">
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide uppercase',
+                isBad ? toneClasses.broken : toneClasses.muted,
+              )}
+            >
+              {isSecure ? (
+                <CheckIcon className="size-3" />
+              ) : (
+                <TriangleAlertIcon className="size-3" />
+              )}
+              {RRSET_STATUS_LABEL[rrset.status]}
+            </span>
+            <span className="font-mono text-zinc-900 dark:text-zinc-100">
+              {rrset.type}
+            </span>
+            {rrset.cnameTarget && (
+              <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                → {rrset.cnameTarget}
+              </span>
             )}
-          >
-            {isSecure ? (
-              <CheckIcon className="size-3" />
-            ) : (
-              <TriangleAlertIcon className="size-3" />
+            <span className="text-zinc-500 dark:text-zinc-400">
+              {rrset.recordCount} record{rrset.recordCount === 1 ? '' : 's'}
+            </span>
+            <span className="text-zinc-500 dark:text-zinc-400">
+              {RRSET_REASON_LABEL[rrset.reason]}
+            </span>
+            {rrset.signerKeyTag !== undefined && (
+              <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
+                signer tag {rrset.signerKeyTag}
+              </span>
             )}
-            {RRSET_STATUS_LABEL[rrset.status]}
+            {rrset.signatureExpiresAt !== undefined && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                <ClockIcon className="size-3.5" />
+                {isSecure ? 'until' : 'observed until'}{' '}
+                {dateFmt.format(new Date(rrset.signatureExpiresAt * 1000))}
+              </span>
+            )}
           </span>
-          <span className="font-mono text-zinc-900 dark:text-zinc-100">
-            {rrset.type}
-          </span>
-          {rrset.cnameTarget && (
-            <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-              → {rrset.cnameTarget}
-            </span>
-          )}
-          <span className="text-zinc-500 dark:text-zinc-400">
-            {rrset.recordCount} record{rrset.recordCount === 1 ? '' : 's'}
-          </span>
-          <span className="text-zinc-500 dark:text-zinc-400">
-            {RRSET_REASON_LABEL[rrset.reason]}
-          </span>
-          {rrset.signerKeyTag !== undefined && (
-            <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-              signer tag {rrset.signerKeyTag}
-            </span>
-          )}
-          {rrset.signatureExpiresAt !== undefined && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
-              <ClockIcon className="size-3.5" />
-              {isSecure ? 'until' : 'observed until'}{' '}
-              {dateFmt.format(new Date(rrset.signatureExpiresAt * 1000))}
-            </span>
-          )}
-          <span className="text-xs text-zinc-400 group-open:hidden dark:text-zinc-500">
-            Details
-          </span>
+          <ChevronDownIcon
+            aria-hidden
+            className="size-4 shrink-0 text-zinc-400 transition-transform group-open:rotate-180 dark:text-zinc-500"
+          />
         </summary>
         <dl className="mt-2 grid gap-x-6 gap-y-2 rounded-md bg-zinc-50 p-3 text-xs sm:grid-cols-2 lg:grid-cols-4 dark:bg-zinc-800/70">
           <div>
