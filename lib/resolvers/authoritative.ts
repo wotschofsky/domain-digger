@@ -429,6 +429,11 @@ export class AuthoritativeResolver extends DnsResolver {
         ? nameservers
         : (cached?.ips ?? (await this.getRootServers()).slice(0, 4));
     const wantName = canonicalDnsName(domain);
+    // A legitimate referral delegates a zone the queried name lives under.
+    // Anything else -- an upward referral to the root ('' is never a match)
+    // or NS records for a foreign zone -- must not steer the walk.
+    const isInBailiwick = (zone: string) =>
+      wantName === zone || wantName.endsWith(`.${zone}`);
     let response: Packet | null = null;
     let protocol: DnsResponse['protocol'] = 'udp';
     let truncated = false;
@@ -493,7 +498,11 @@ export class AuthoritativeResolver extends DnsResolver {
           const hasReferral = [
             ...(result.packet.authorities ?? []),
             ...(result.packet.additionals ?? []),
-          ].some((record) => record.type === 'NS');
+          ].some(
+            (record) =>
+              record.type === 'NS' &&
+              isInBailiwick(canonicalDnsName(record.name)),
+          );
           if (!hasReferral) {
             failedNameservers.push(
               `${candidate}: lame response (no relevant answer, not authoritative)`,
@@ -626,25 +635,27 @@ export class AuthoritativeResolver extends DnsResolver {
 
     // We must validate referrals before following them: an attacker controlling
     // a delegated zone can otherwise point our recursive query at loopback or
-    // RFC1918 addresses and turn this resolver into an SSRF primitive.
+    // RFC1918 addresses and turn this resolver into an SSRF primitive. Only
+    // in-bailiwick NS records count as a referral at all: an upward referral
+    // (a lame server pointing back at the root) or NS records for a foreign
+    // zone plus their glue must not steer the walk.
     const redirects = [
       ...(response.authorities || []),
       ...(response.additionals || []),
-    ].filter(
+    ];
+    const nsRedirects = redirects.filter(
       (answer): answer is StringAnswer =>
-        answer.type === 'A' || answer.type === 'NS',
+        answer.type === 'NS' && isInBailiwick(canonicalDnsName(answer.name)),
     );
 
-    if (redirects.length) {
+    if (nsRedirects.length) {
       // Only trust glue A records that match a delegated NS hostname
       // (in-bailiwick) and resolve to a publicly routable IP address.
       const delegatedNsNames = new Set(
-        redirects
-          .filter((r) => r.type === 'NS')
-          .map((r) => canonicalDnsName(r.data)),
+        nsRedirects.map((r) => canonicalDnsName(r.data)),
       );
       const aRedirects = redirects.filter(
-        (redirect) =>
+        (redirect): redirect is StringAnswer =>
           redirect.type === 'A' &&
           delegatedNsNames.has(canonicalDnsName(redirect.name)) &&
           isPublicIp(redirect.data),
@@ -655,8 +666,7 @@ export class AuthoritativeResolver extends DnsResolver {
         const addresses = aRedirects
           .map((redirect) => redirect.data)
           .slice(0, 4);
-        const zoneCut = redirects.find((r) => r.type === 'NS')?.name;
-        if (zoneCut) this.cacheDelegation(zoneCut, domain, addresses);
+        this.cacheDelegation(nsRedirects[0].name, domain, addresses);
         return this.fetchRecordsRaw({
           domain,
           recordType,
@@ -670,76 +680,90 @@ export class AuthoritativeResolver extends DnsResolver {
         });
       }
 
-      const nsRedirects = redirects.filter(
-        (redirect) => redirect.type === 'NS',
-      );
-      if (nsRedirects.length) {
-        const subTrace: string[] = [];
-        // Resolve the candidate NS hostnames concurrently and proceed with
-        // the first usable result: done serially (or awaited jointly), a
-        // dead sibling would stall the walk for its full retry/fallback
-        // budget even after a usable address had already been found.
-        // The resolved NS address is attacker-controlled (they own the zone
-        // and can set any A record); filter to public IPs before using it.
-        // Every finished lookup pushes its addresses before resolving, so
-        // when the race below ends, all siblings that were at least as fast
-        // as the winner are already collected as fallbacks.
-        const resolvedSets: string[][] = [];
-        const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
-          try {
-            const resolved = await this.fetchRecordsRaw({
-              domain: ns.data,
-              recordType: 'A',
-              depth: depth + 1,
-              deadlineAt,
-            });
-            subTrace.push(...resolved.trace);
-            // resolved.answers are all A records (filtered by type), so
-            // recordToString yields the bare IP string for each.
-            const ips = resolved.answers
-              .map((a) => this.recordToString(a))
-              .filter((ip) => isPublicIp(ip));
-            if (!ips.length) throw new Error(`no public address (${ns.data})`);
-            resolvedSets.push(ips);
-            return ips;
-          } catch (error) {
-            subTrace.push(
-              `A ${ns.data} -> failed: ${
-                error instanceof Error ? error.message : 'request failed'
-              }`,
-            );
-            throw error;
-          }
-        });
+      const subTrace: string[] = [];
+      // Resolve the candidate NS hostnames concurrently and proceed with
+      // the first usable result: done serially (or awaited jointly), a
+      // dead sibling would stall the walk for its full retry/fallback
+      // budget even after a usable address had already been found.
+      // The resolved NS address is attacker-controlled (they own the zone
+      // and can set any A record); filter to public IPs before using it.
+      // Every finished lookup pushes its addresses before resolving, so
+      // when the race below ends, all siblings that were at least as fast
+      // as the winner are already collected as fallbacks.
+      const resolvedSets: string[][] = [];
+      const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
         try {
-          // Proceed as soon as any lookup yields a usable address -- a dead
-          // sibling must not stall the walk once one is available.
-          await Promise.any(lookups);
-        } catch {
-          throw new Error(`Bad redirects for ${domain}`);
+          const resolved = await this.fetchRecordsRaw({
+            domain: ns.data,
+            recordType: 'A',
+            depth: depth + 1,
+            deadlineAt,
+          });
+          subTrace.push(...resolved.trace);
+          // resolved.answers are all A records (filtered by type), so
+          // recordToString yields the bare IP string for each.
+          const ips = resolved.answers
+            .map((a) => this.recordToString(a))
+            .filter((ip) => isPublicIp(ip));
+          if (!ips.length) throw new Error(`no public address (${ns.data})`);
+          resolvedSets.push(ips);
+          return ips;
+        } catch (error) {
+          subTrace.push(
+            `A ${ns.data} -> failed: ${
+              error instanceof Error ? error.message : 'request failed'
+            }`,
+          );
+          throw error;
         }
-        const publicAddresses = [...new Set(resolvedSets.flat())];
+      });
+      try {
+        // Proceed as soon as any lookup yields a usable address -- a dead
+        // sibling must not stall the walk once one is available.
+        await Promise.any(lookups);
+      } catch {
+        throw new Error(`Bad redirects for ${domain}`);
+      }
+      const tried = [...new Set(resolvedSets.flat())].slice(0, 4);
 
-        this.cacheDelegation(
-          nsRedirects[0].name,
+      this.cacheDelegation(nsRedirects[0].name, domain, tried);
+      const redirectTrace = [
+        ...trace,
+        `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
+        ...subTrace,
+      ];
+      try {
+        return await this.fetchRecordsRaw({
           domain,
-          publicAddresses.slice(0, 4),
-        );
+          recordType,
+          nameservers: tried,
+          trace: redirectTrace,
+          depth: depth + 1,
+          deadlineAt,
+        });
+      } catch (error) {
+        // Sibling NS lookups that finished after the race are still usable
+        // failover: by the time the delegated query has failed, laggards have
+        // had time to land. Retry once with any addresses the first attempt
+        // didn't see, and let them replace the dead cache entry.
+        const late = [...new Set(resolvedSets.flat())]
+          .filter((ip) => !tried.includes(ip))
+          .slice(0, 4);
+        if (!late.length) throw error;
+        this.delegationCache.delete(canonicalDnsName(nsRedirects[0].name));
+        this.cacheDelegation(nsRedirects[0].name, domain, late);
         return this.fetchRecordsRaw({
           domain,
           recordType,
-          nameservers: publicAddresses.slice(0, 4),
+          nameservers: late,
           trace: [
-            ...trace,
-            `${recordType} ${domain} @ ${usedNameserver} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
-            ...subTrace,
+            ...redirectTrace,
+            `${recordType} ${domain} -> retrying with late sibling nameservers: ${late.join(', ')}`,
           ],
           depth: depth + 1,
           deadlineAt,
         });
       }
-
-      throw new Error(`Bad redirects for ${domain}`);
     }
 
     return { answers: [], trace };
