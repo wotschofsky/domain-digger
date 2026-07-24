@@ -546,23 +546,13 @@ export class AuthoritativeResolver extends DnsResolver {
       }
     }
 
-    if (!response && lastResort) {
-      // No candidate answered authoritatively; the deferred answer is better
-      // than failing the lookup.
-      response = lastResort.result.packet;
-      protocol = lastResort.result.protocol;
-      truncated = lastResort.result.truncated;
-      usedNameserver = lastResort.candidate;
-      trace = [
-        ...trace,
-        `${recordType} ${domain} @ ${usedNameserver} -> accepted non-authoritative answer, no better candidate`,
-      ];
-    }
-
     if (!response && cached) {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. rate-limited or replaced mid-request); drop it and
-      // re-walk from the root once instead of failing the lookup.
+      // re-walk from the root once instead of failing the lookup. This takes
+      // priority over any non-authoritative lastResort answer -- adopting a
+      // deferred answer from the stale cached server would mask the healthy
+      // authoritative server the fresh root walk finds.
       this.delegationCache.delete(cached.zone);
       return this.fetchRecordsRaw({
         domain,
@@ -575,6 +565,19 @@ export class AuthoritativeResolver extends DnsResolver {
         deadlineAt,
         budget,
       });
+    }
+
+    if (!response && lastResort) {
+      // No candidate answered authoritatively; the deferred answer is better
+      // than failing the lookup.
+      response = lastResort.result.packet;
+      protocol = lastResort.result.protocol;
+      truncated = lastResort.result.truncated;
+      usedNameserver = lastResort.candidate;
+      trace = [
+        ...trace,
+        `${recordType} ${domain} @ ${usedNameserver} -> accepted non-authoritative answer, no better candidate`,
+      ];
     }
 
     if (!response) {
