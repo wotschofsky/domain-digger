@@ -372,9 +372,8 @@ describe('AuthoritativeResolver transport policy', () => {
         } as DecodedPacket;
       }
       if (nameserver === '8.8.8.8') {
-        // The winner's server fails slowly enough for the sibling NS lookup
-        // to land in the meantime.
-        await new Promise((resolveSleep) => setTimeout(resolveSleep, 150));
+        // The winner's server fails instantly, while the sibling NS lookup
+        // is still in flight -- the retry must wait for it.
         return response(domain, recordType, 'SERVFAIL');
       }
       return {
