@@ -78,10 +78,16 @@ type FetchRecordsParams = {
   trace?: string[];
   depth?: number;
   deadlineAt?: number;
+  budget?: { remaining: number };
 };
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
+  // Caps total upstream queries for one walk, like BIND's
+  // max-recursion-queries: the depth cap alone still lets a crafted zone
+  // answer every glueless delegation with 4 fresh NS names and fork
+  // 4^depth sub-walks. Far above any honest lookup's needs.
+  private static readonly MAX_QUERIES_PER_WALK = 100;
   // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
   // a single blackholed first server has to leave room to reach a healthy
   // fallback, while all-blackholed candidates stay bounded (~2 budgets).
@@ -406,11 +412,13 @@ export class AuthoritativeResolver extends DnsResolver {
     nameservers,
     trace = [],
     depth = 0,
-    // The deadline spans the whole walk -- referrals and glueless sub-lookups
-    // inherit it -- so each delegation level can't stack a fresh budget.
+    // The deadline and query budget span the whole walk -- referrals and
+    // glueless sub-lookups inherit both -- so each delegation level can't
+    // stack a fresh allowance.
     deadlineAt = Date.now() +
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS),
+    budget = { remaining: AuthoritativeResolver.MAX_QUERIES_PER_WALK },
   }: FetchRecordsParams): Promise<{
     answers: RawAnswer[];
     trace: string[];
@@ -451,12 +459,17 @@ export class AuthoritativeResolver extends DnsResolver {
     // ponytail: past the deadline the ceiling is depth x one retry budget;
     // the platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
+      if (budget.remaining <= 0) {
+        failedNameservers.push(`${candidate}: skipped, query budget exhausted`);
+        break;
+      }
       if (failedNameservers.length > 0 && Date.now() >= deadlineAt) {
         failedNameservers.push(
           `${candidate}: skipped, fallback deadline exceeded`,
         );
         break;
       }
+      budget.remaining--;
       const loaderKey = {
         domain,
         recordType,
@@ -555,6 +568,7 @@ export class AuthoritativeResolver extends DnsResolver {
         ],
         depth: depth + 1,
         deadlineAt,
+        budget,
       });
     }
 
@@ -677,6 +691,7 @@ export class AuthoritativeResolver extends DnsResolver {
           ],
           depth: depth + 1,
           deadlineAt,
+          budget,
         });
       }
 
@@ -698,6 +713,7 @@ export class AuthoritativeResolver extends DnsResolver {
             recordType: 'A',
             depth: depth + 1,
             deadlineAt,
+            budget,
           });
           subTrace.push(...resolved.trace);
           // resolved.answers are all A records (filtered by type), so
@@ -740,6 +756,7 @@ export class AuthoritativeResolver extends DnsResolver {
           trace: redirectTrace,
           depth: depth + 1,
           deadlineAt,
+          budget,
         });
       } catch (error) {
         // Sibling NS lookups are still usable failover: the race above only
@@ -764,6 +781,7 @@ export class AuthoritativeResolver extends DnsResolver {
           ],
           depth: depth + 1,
           deadlineAt,
+          budget,
         });
       }
     }

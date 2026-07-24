@@ -393,6 +393,33 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(result.records[0]?.data).toBe('203.0.113.14');
   });
 
+  it('bounds total queries against a zone that forks glueless delegations', async () => {
+    // A crafted zone can answer every glueless delegation with four fresh NS
+    // names; without a walk-wide query budget the tree grows 4^depth.
+    let seq = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [1, 2, 3, 4].map((i) => ({
+            name: domain,
+            type: 'NS',
+            ttl: 300,
+            data: `ns${i}-${seq++}.example.net`,
+          })),
+        }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).rejects.toBeInstanceOf(Error);
+    expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(100);
+  });
+
   it('prefers an authoritative sibling over a non-authoritative answer', async () => {
     // An open recursive listed in the NS set answers without AA; its data
     // must not mask the healthy authoritative sibling.
