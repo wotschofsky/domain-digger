@@ -440,6 +440,142 @@ describe('AuthoritativeResolver transport policy', () => {
     ).not.toContain('10.0.0.1');
   });
 
+  it('tries a healthy sibling when a candidate referral fails to resolve', async () => {
+    // The first root hands out a referral whose only nameserver is dead. That
+    // must not abort the lookup -- the sibling root answers authoritatively.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [
+              {
+                name: 'example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'ns1.example.net',
+              },
+            ],
+            additionals: [
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        }
+        if (nameserver === '8.8.8.8') {
+          return response(domain, recordType, 'SERVFAIL');
+        }
+        // 192.0.2.2, the healthy sibling root.
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toContain('192.0.2.2');
+  });
+
+  it('falls back to a deferred answer when a later referral fails', async () => {
+    // First root: a non-authoritative answer (deferred). Second root: an
+    // in-bailiwick referral that then fails. The deferred answer must win
+    // over failing the lookup.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          return response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]);
+        }
+        if (nameserver === '192.0.2.2') {
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [
+              {
+                name: 'example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'ns1.example.net',
+              },
+            ],
+            additionals: [
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        }
+        // 8.8.8.8, the dead delegated server.
+        return response(domain, recordType, 'SERVFAIL');
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+  });
+
+  it('dedupes duplicate glue so a distinct healthy address survives the cap', async () => {
+    // Four colocated NS hostnames share one dead IP; a fifth carries a
+    // healthy address. Without dedup the cap of 4 retains only duplicates
+    // and drops the healthy one.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [1, 2, 3, 4, 5].map((i) => ({
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: `ns${i}.example.net`,
+            })),
+            additionals: [
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns2.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns3.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns4.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns5.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        }
+        if (nameserver === '9.9.9.9') {
+          return response(domain, recordType, 'SERVFAIL');
+        }
+        // 8.8.8.8, the distinct healthy server.
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toContain('8.8.8.8');
+  });
+
   it('retries with sibling nameservers that resolved after the race', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(async (request) => {
       const { domain, recordType, nameserver } = request;
