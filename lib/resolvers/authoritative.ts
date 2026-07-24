@@ -724,8 +724,16 @@ export class AuthoritativeResolver extends DnsResolver {
     );
 
     if (nsRedirects.length) {
-      // Only trust glue A records that match a delegated NS hostname
-      // (in-bailiwick) and resolve to a publicly routable IP address.
+      // Trust a glue A record only if it names one of this referral's
+      // delegated NS hostnames and points at a publicly routable IP.
+      // We deliberately accept out-of-bailiwick glue (an NS host not under
+      // the delegated zone): a from-the-root resolver needs it to bootstrap
+      // -- root glue for the gTLD servers (a.gtld-servers.net is not under
+      // "com") and the third-party DNS the majority of zones use
+      // (ns-1.awsdns-01.org for example.com) are both out of bailiwick, and
+      // rejecting them would force an unresolvable circular walk. isPublicIp
+      // is the real SSRF boundary here; an attacker who could inject glue
+      // already controls the zone whose resolution it would steer.
       const delegatedNsNames = new Set(
         nsRedirects.map((r) => canonicalDnsName(r.data)),
       );
