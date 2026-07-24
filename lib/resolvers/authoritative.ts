@@ -83,11 +83,14 @@ type FetchRecordsParams = {
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
-  // Caps total upstream queries for one walk, like BIND's
+  // Caps candidate nameserver attempts for one walk, like BIND's
   // max-recursion-queries: the depth cap alone still lets a crafted zone
   // answer every glueless delegation with 4 fresh NS names and fork
-  // 4^depth sub-walks. Far above any honest lookup's needs.
-  private static readonly MAX_QUERIES_PER_WALK = 100;
+  // 4^depth sub-walks. One attempt costs up to 4 UDP tries plus a TCP
+  // fallback each (see requestLoader/sendRequest), so this also caps the
+  // walk's packet ceiling at ~8x this value. Far above any honest
+  // lookup's needs (a deep all-glueless walk stays under ~30).
+  private static readonly MAX_CANDIDATES_PER_WALK = 50;
   // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
   // a single blackholed first server has to leave room to reach a healthy
   // fallback, while all-blackholed candidates stay bounded (~2 budgets).
@@ -418,7 +421,7 @@ export class AuthoritativeResolver extends DnsResolver {
     deadlineAt = Date.now() +
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS),
-    budget = { remaining: AuthoritativeResolver.MAX_QUERIES_PER_WALK },
+    budget = { remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK },
   }: FetchRecordsParams): Promise<{
     answers: RawAnswer[];
     trace: string[];
@@ -460,7 +463,9 @@ export class AuthoritativeResolver extends DnsResolver {
     // the platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
       if (budget.remaining <= 0) {
-        failedNameservers.push(`${candidate}: skipped, query budget exhausted`);
+        failedNameservers.push(
+          `${candidate}: skipped, candidate budget exhausted`,
+        );
         break;
       }
       if (failedNameservers.length > 0 && Date.now() >= deadlineAt) {

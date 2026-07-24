@@ -417,7 +417,7 @@ describe('AuthoritativeResolver transport policy', () => {
     await expect(
       resolver.resolveRecordType('www.example.com', 'A'),
     ).rejects.toBeInstanceOf(Error);
-    expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(100);
+    expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(50);
   });
 
   it('prefers an authoritative sibling over a non-authoritative answer', async () => {
