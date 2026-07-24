@@ -605,6 +605,11 @@ export class AuthoritativeResolver extends DnsResolver {
           `${recordType} ${domain} -> skipped failed nameservers: ${failedNameservers.join('; ')}`,
         );
       }
+      if (lastResort.result.truncated) {
+        lastResortTrace.push(
+          `${recordType} ${domain} @ ${lastResort.candidate} (udp) -> answer truncated, retry over tcp`,
+        );
+      }
       lastResortTrace.push(
         `${recordType} ${domain} @ ${lastResort.candidate} -> accepted non-authoritative answer, no better candidate`,
       );
