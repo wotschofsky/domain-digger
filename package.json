@@ -49,6 +49,7 @@
     "next": "16.2.6",
     "next-plausible": "^3.12.5",
     "next-themes": "^0.4.6",
+    "p-retry": "^8.0.0",
     "postcss": "^8.5.8",
     "punycode": "^2.3.1",
     "react": "19.2.4",

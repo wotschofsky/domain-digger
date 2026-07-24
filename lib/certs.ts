@@ -1,3 +1,5 @@
+import pRetry from 'p-retry';
+
 import { UserFacingError } from './user-facing-error';
 
 export type CertsData = {
@@ -12,16 +14,48 @@ export type CertsData = {
   serial_number: string;
 }[];
 
+// Cache successful crt.sh responses to absorb transient outages and reduce
+// the request volume that triggers their rate limiting. Non-OK responses
+// aren't cached by Next.js, so an outage can't poison the cache.
+const CRT_SH_REVALIDATE_SECONDS = 60 * 60;
+
+const fetchCerts = async (domain: string) => {
+  const url =
+    'https://crt.sh?' +
+    new URLSearchParams({ Identity: domain, output: 'json' });
+
+  return pRetry(
+    async (attemptNumber) => {
+      const response = await fetch(url, {
+        next: { revalidate: CRT_SH_REVALIDATE_SECONDS },
+        // React memoizes identical fetches within a single Server Component
+        // render, so without a unique key each retry would replay the prior
+        // failed Response instead of hitting the network. A per-attempt header
+        // busts the memoization key on retries while leaving the first
+        // attempt eligible for normal Data Cache hits.
+        headers:
+          attemptNumber > 1
+            ? { 'x-retry-attempt': String(attemptNumber) }
+            : undefined,
+      });
+      // crt.sh regularly returns brief bursts of 429s and 502s that clear
+      // within seconds. Throw so p-retry backs off; non-transient statuses
+      // (including OK and other 4xx) flow through untouched.
+      if (response.status === 429 || response.status >= 500) {
+        throw new Error(
+          `crt.sh responded with HTTP ${response.status} ${response.statusText}`,
+        );
+      }
+      return response;
+    },
+    { retries: 2, minTimeout: 400, factor: 3, randomize: true },
+  );
+};
+
 export const lookupCerts = async (domain: string): Promise<CertsData> => {
   let response: Response;
   try {
-    response = await fetch(
-      'https://crt.sh?' +
-        new URLSearchParams({
-          Identity: domain,
-          output: 'json',
-        }),
-    );
+    response = await fetchCerts(domain);
   } catch (error) {
     throw new UserFacingError(
       {
