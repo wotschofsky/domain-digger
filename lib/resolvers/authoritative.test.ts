@@ -359,13 +359,11 @@ describe('AuthoritativeResolver transport policy', () => {
                 },
                 { name: 'evil.org', type: 'NS', ttl: 300, data: 'ns.evil.org' },
               ],
+              // Traps first: if a filter regressed, the recursive walk would
+              // contact the trap before 8.8.8.8 (the mock answers from any
+              // server) and trip the not.toContain assertions. With 8.8.8.8
+              // ordered first the test would pass on loop order alone.
               additionals: [
-                {
-                  name: 'ns1.example.net',
-                  type: 'A',
-                  ttl: 300,
-                  data: '8.8.8.8',
-                },
                 {
                   name: 'ns1.example.net',
                   type: 'A',
@@ -373,6 +371,12 @@ describe('AuthoritativeResolver transport policy', () => {
                   data: '10.0.0.1',
                 },
                 { name: 'ns.evil.org', type: 'A', ttl: 300, data: '6.6.6.6' },
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
               ],
             } as DecodedPacket)
           : ({
