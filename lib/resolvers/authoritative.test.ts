@@ -31,6 +31,31 @@ const response = (
   }) as unknown as DecodedPacket;
 
 describe('AuthoritativeResolver transport policy', () => {
+  it('falls back to a healthy sibling when the first nameserver throws', async () => {
+    // The request DataLoader returns Errors from its batch rather than
+    // rejecting it; DataLoader turns those back into a rejected load(), which
+    // is what lets the candidate loop record the failure and try the next one.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') throw new Error('timeout');
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+  });
+
   it('tries the next nameserver after a retryable DNS rcode', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) =>
