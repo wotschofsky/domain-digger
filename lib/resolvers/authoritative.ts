@@ -1013,6 +1013,12 @@ export class AuthoritativeResolver extends DnsResolver {
     // plus the leaf RRset probes). Each must draw from the same allowance
     // instead of stacking a fresh per-walk one, or a deep name multiplies both
     // the packet ceiling and the worst-case latency by the label count.
+    // ponytail: the deadline still only gates FALLBACK candidates (see
+    // fetchRecordsRaw), so each query may burn one retry window past it. The
+    // chain runs its queries in ~4 parallel stages, so the wall-clock ceiling
+    // is stages x one retry window, not queries x one. Gating the first
+    // candidate too would bound it tighter but break the progress guarantee
+    // ordinary deep referral walks rely on; the request timeout is the backstop.
     const budget = {
       remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_CHAIN,
     };

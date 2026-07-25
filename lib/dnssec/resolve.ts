@@ -110,7 +110,6 @@ const probeLeafRrsets = async (
   now?: number,
 ): Promise<{
   rrsets: DnssecRrset[];
-  expiresAt?: number;
   observation: DnssecQueryObservation;
 }> => {
   // Once the DNSKEY RRset has been authenticated by the chain, any key in that
