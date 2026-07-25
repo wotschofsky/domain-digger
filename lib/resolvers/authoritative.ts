@@ -32,6 +32,45 @@ const canonicalDnsName = (name: string): string =>
 const isInBailiwick = (wantName: string, zone: string): boolean =>
   wantName === zone || wantName.endsWith(`.${zone}`);
 
+type CandidateVerdict =
+  | { kind: 'rcode-error'; rcode: string }
+  | { kind: 'deferred' } // non-authoritative, but owns the queried name
+  | { kind: 'lame' } // non-authoritative, no owned answer, no referral
+  | { kind: 'usable' }; // authoritative, or an in-bailiwick referral to follow
+
+// Classify a candidate nameserver's response, without touching walk state.
+// A non-authoritative response can't end the walk (RFC 2308 negative answers
+// and real data come from the AA server); accepting one would let a single
+// misconfigured candidate mask healthy siblings. One that still owns the
+// queried name -- e.g. an open recursive listed in the NS set -- is deferred
+// as a last resort: worse than a real answer, better than failing the lookup.
+// One with neither owned answers nor an in-bailiwick NS referral is simply
+// lame (a stray A in additionals delegates nothing and is not a referral).
+const classifyCandidateResponse = (
+  packet: Packet,
+  wantName: string,
+): CandidateVerdict => {
+  const rcode = packet.rcode;
+  if (rcode !== undefined && rcode !== 'NOERROR' && rcode !== 'NXDOMAIN') {
+    return { kind: 'rcode-error', rcode };
+  }
+  // flag_aa only exists on decoded packets; encode-side Packet lacks it.
+  if ((packet as DecodedPacket).flag_aa) return { kind: 'usable' };
+  const ownsAnswer = packet.answers?.some(
+    (answer) => canonicalDnsName(answer.name) === wantName,
+  );
+  if (ownsAnswer) return { kind: 'deferred' };
+  const hasReferral = [
+    ...(packet.authorities ?? []),
+    ...(packet.additionals ?? []),
+  ].some(
+    (record) =>
+      record.type === 'NS' &&
+      isInBailiwick(wantName, canonicalDnsName(record.name)),
+  );
+  return hasReferral ? { kind: 'usable' } : { kind: 'lame' };
+};
+
 type DnsResponse = {
   packet: Packet;
   protocol: 'udp' | 'tcp';
@@ -450,6 +489,24 @@ export class AuthoritativeResolver extends DnsResolver {
     const failedNameservers: string[] = [];
     let refusedCount = 0;
 
+    // The trace prefix any accepted response shares: the failures skipped to
+    // reach it, plus a note when its UDP answer was truncated and retried over
+    // TCP. Both the in-loop accept and the post-loop lastResort adoption use it.
+    const buildAcceptedTrace = (candidate: string, truncated: boolean) => {
+      const accepted = [...trace];
+      if (failedNameservers.length) {
+        accepted.push(
+          `${recordType} ${domain} -> skipped failed nameservers: ${failedNameservers.join('; ')}`,
+        );
+      }
+      if (truncated) {
+        accepted.push(
+          `${recordType} ${domain} @ ${candidate} (udp) -> answer truncated, retry over tcp`,
+        );
+      }
+      return accepted;
+    };
+
     // A blackholed network makes every candidate burn its full retry budget
     // (4 attempts x 3s); serializing that across 4 fallback servers would
     // take ~48s. The first candidate always gets its full budget -- a step
@@ -489,69 +546,32 @@ export class AuthoritativeResolver extends DnsResolver {
         );
         continue;
       }
-      const resultRcode = result.packet.rcode;
-      if (
-        resultRcode !== undefined &&
-        resultRcode !== 'NOERROR' &&
-        resultRcode !== 'NXDOMAIN'
-      ) {
-        failedNameservers.push(`${candidate}: DNS ${resultRcode}`);
-        if (resultRcode === 'REFUSED') refusedCount++;
+      const verdict = classifyCandidateResponse(result.packet, wantName);
+      if (verdict.kind === 'rcode-error') {
+        failedNameservers.push(`${candidate}: DNS ${verdict.rcode}`);
+        if (verdict.rcode === 'REFUSED') refusedCount++;
         continue;
       }
-      // A non-authoritative response can't end the walk (RFC 2308 negative
-      // answers and real data come from the AA server); accepting one would
-      // let a single misconfigured candidate mask healthy siblings. One
-      // carrying answers for the queried name -- e.g. an open recursive
-      // listed in the NS set -- is deferred as a last resort: siblings get
-      // a chance to answer authoritatively, but its data still beats
-      // failing the lookup. One with neither owned answers nor an NS
-      // referral is simply lame (a stray A in additionals delegates
-      // nothing and must not count as a referral).
-      // flag_aa only exists on decoded packets; encode-side Packet lacks it.
-      if (!(result.packet as DecodedPacket).flag_aa) {
-        const hasOwnedAnswer = result.packet.answers?.some(
-          (answer) => canonicalDnsName(answer.name) === wantName,
+      if (verdict.kind === 'deferred') {
+        lastResort ??= { result, candidate };
+        failedNameservers.push(
+          `${candidate}: non-authoritative answer, deferred`,
         );
-        if (hasOwnedAnswer) {
-          lastResort ??= { result, candidate };
-          failedNameservers.push(
-            `${candidate}: non-authoritative answer, deferred`,
-          );
-          continue;
-        }
-        const hasReferral = [
-          ...(result.packet.authorities ?? []),
-          ...(result.packet.additionals ?? []),
-        ].some(
-          (record) =>
-            record.type === 'NS' &&
-            isInBailiwick(wantName, canonicalDnsName(record.name)),
-        );
-        if (!hasReferral) {
-          failedNameservers.push(
-            `${candidate}: lame response (no relevant answer, not authoritative)`,
-          );
-          continue;
-        }
+        continue;
       }
-      // The response is usable: an authoritative answer/NODATA, or an
-      // in-bailiwick referral. Process it fully. A terminal answer or
-      // authoritative NODATA returns; a referral is followed. If following
-      // the referral fails, a sibling candidate may delegate differently, so
-      // record the failure and try the next one rather than aborting the
-      // whole lookup (a broken referral must not mask a healthy sibling).
-      const acceptedTrace = [...trace];
-      if (failedNameservers.length) {
-        acceptedTrace.push(
-          `${recordType} ${domain} -> skipped failed nameservers: ${failedNameservers.join('; ')}`,
+      if (verdict.kind === 'lame') {
+        failedNameservers.push(
+          `${candidate}: lame response (no relevant answer, not authoritative)`,
         );
+        continue;
       }
-      if (result.truncated) {
-        acceptedTrace.push(
-          `${recordType} ${domain} @ ${candidate} (udp) -> answer truncated, retry over tcp`,
-        );
-      }
+      // Usable: an authoritative answer/NODATA, or an in-bailiwick referral.
+      // Process it fully -- a terminal answer or authoritative NODATA returns,
+      // a referral is followed. If following the referral fails, a sibling
+      // candidate may delegate differently, so record the failure and try the
+      // next one rather than aborting (a broken referral must not mask a
+      // healthy sibling).
+      const acceptedTrace = buildAcceptedTrace(candidate, result.truncated);
       try {
         return await this.resolveAcceptedResponse({
           packet: result.packet,
@@ -599,17 +619,10 @@ export class AuthoritativeResolver extends DnsResolver {
       // No candidate answered authoritatively; the deferred answer is better
       // than failing the lookup. It carries an owned answer, so
       // resolveAcceptedResponse returns it as a terminal answer.
-      const lastResortTrace = [...trace];
-      if (failedNameservers.length) {
-        lastResortTrace.push(
-          `${recordType} ${domain} -> skipped failed nameservers: ${failedNameservers.join('; ')}`,
-        );
-      }
-      if (lastResort.result.truncated) {
-        lastResortTrace.push(
-          `${recordType} ${domain} @ ${lastResort.candidate} (udp) -> answer truncated, retry over tcp`,
-        );
-      }
+      const lastResortTrace = buildAcceptedTrace(
+        lastResort.candidate,
+        lastResort.result.truncated,
+      );
       lastResortTrace.push(
         `${recordType} ${domain} @ ${lastResort.candidate} -> accepted non-authoritative answer, no better candidate`,
       );
@@ -771,98 +784,136 @@ export class AuthoritativeResolver extends DnsResolver {
         });
       }
 
-      const subTrace: string[] = [];
-      // Resolve the candidate NS hostnames concurrently and proceed with
-      // the first usable result: done serially (or awaited jointly), a
-      // dead sibling would stall the walk for its full retry/fallback
-      // budget even after a usable address had already been found.
-      // The resolved NS address is attacker-controlled (they own the zone
-      // and can set any A record); filter to public IPs before using it.
-      // Every finished lookup pushes its addresses before resolving, so
-      // when the race below ends, all siblings that were at least as fast
-      // as the winner are already collected as fallbacks.
-      const resolvedSets: string[][] = [];
-      const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
-        try {
-          const resolved = await this.fetchRecordsRaw({
-            domain: ns.data,
-            recordType: 'A',
-            depth: depth + 1,
-            deadlineAt,
-            budget,
-          });
-          subTrace.push(...resolved.trace);
-          // resolved.answers are all A records (filtered by type), so
-          // recordToString yields the bare IP string for each.
-          const ips = resolved.answers
-            .map((a) => this.recordToString(a))
-            .filter((ip) => isPublicIp(ip));
-          if (!ips.length) throw new Error(`no public address (${ns.data})`);
-          resolvedSets.push(ips);
-          return ips;
-        } catch (error) {
-          subTrace.push(
-            `A ${ns.data} -> failed: ${
-              error instanceof Error ? error.message : 'request failed'
-            }`,
-          );
-          throw error;
-        }
+      // No usable glue: resolve the delegated NS hostnames ourselves.
+      return this.followReferralViaNsLookup({
+        nsRedirects,
+        domain,
+        recordType,
+        candidate,
+        protocol,
+        trace,
+        depth,
+        deadlineAt,
+        budget,
       });
-      try {
-        // Proceed as soon as any lookup yields a usable address -- a dead
-        // sibling must not stall the walk once one is available.
-        await Promise.any(lookups);
-      } catch {
-        throw new Error(`Bad redirects for ${domain}`);
-      }
-      const tried = [...new Set(resolvedSets.flat())].slice(0, 4);
-
-      this.cacheDelegation(nsRedirects[0].name, domain, tried);
-      const redirectTrace = [
-        ...trace,
-        `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
-        ...subTrace,
-      ];
-      try {
-        return await this.fetchRecordsRaw({
-          domain,
-          recordType,
-          nameservers: tried,
-          trace: redirectTrace,
-          depth: depth + 1,
-          deadlineAt,
-          budget,
-        });
-      } catch (error) {
-        // Sibling NS lookups are still usable failover: the race above only
-        // existed to avoid stalling while a usable address was in hand, and
-        // that address just failed. Wait for the stragglers (each bounded by
-        // the walk deadline), retry once with any addresses the first attempt
-        // didn't see, and let them replace the dead cache entry.
-        await Promise.allSettled(lookups);
-        const late = [...new Set(resolvedSets.flat())]
-          .filter((ip) => !tried.includes(ip))
-          .slice(0, 4);
-        if (!late.length) throw error;
-        this.delegationCache.delete(canonicalDnsName(nsRedirects[0].name));
-        this.cacheDelegation(nsRedirects[0].name, domain, late);
-        return this.fetchRecordsRaw({
-          domain,
-          recordType,
-          nameservers: late,
-          trace: [
-            ...redirectTrace,
-            `${recordType} ${domain} -> retrying with late sibling nameservers: ${late.join(', ')}`,
-          ],
-          depth: depth + 1,
-          deadlineAt,
-          budget,
-        });
-      }
     }
 
     return { answers: [], trace };
+  }
+
+  // Follow a glueless referral: resolve the delegated NS hostnames to public
+  // IPs and continue the walk there. Throws when none resolve, so the caller
+  // can fall through to the next sibling candidate.
+  private async followReferralViaNsLookup({
+    nsRedirects,
+    domain,
+    recordType,
+    candidate,
+    protocol,
+    trace,
+    depth,
+    deadlineAt,
+    budget,
+  }: {
+    nsRedirects: StringAnswer[];
+    domain: string;
+    recordType: RecordType;
+    candidate: string;
+    protocol: DnsResponse['protocol'];
+    trace: string[];
+    depth: number;
+    deadlineAt: number;
+    budget: { remaining: number };
+  }): Promise<{ answers: RawAnswer[]; trace: string[] }> {
+    const subTrace: string[] = [];
+    // Resolve the candidate NS hostnames concurrently and proceed with
+    // the first usable result: done serially (or awaited jointly), a
+    // dead sibling would stall the walk for its full retry/fallback
+    // budget even after a usable address had already been found.
+    // The resolved NS address is attacker-controlled (they own the zone
+    // and can set any A record); filter to public IPs before using it.
+    // Every finished lookup pushes its addresses before resolving, so
+    // when the race below ends, all siblings that were at least as fast
+    // as the winner are already collected as fallbacks.
+    const resolvedSets: string[][] = [];
+    const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
+      try {
+        const resolved = await this.fetchRecordsRaw({
+          domain: ns.data,
+          recordType: 'A',
+          depth: depth + 1,
+          deadlineAt,
+          budget,
+        });
+        subTrace.push(...resolved.trace);
+        // resolved.answers are all A records (filtered by type), so
+        // recordToString yields the bare IP string for each.
+        const ips = resolved.answers
+          .map((a) => this.recordToString(a))
+          .filter((ip) => isPublicIp(ip));
+        if (!ips.length) throw new Error(`no public address (${ns.data})`);
+        resolvedSets.push(ips);
+        return ips;
+      } catch (error) {
+        subTrace.push(
+          `A ${ns.data} -> failed: ${
+            error instanceof Error ? error.message : 'request failed'
+          }`,
+        );
+        throw error;
+      }
+    });
+    try {
+      // Proceed as soon as any lookup yields a usable address -- a dead
+      // sibling must not stall the walk once one is available.
+      await Promise.any(lookups);
+    } catch {
+      throw new Error(`Bad redirects for ${domain}`);
+    }
+    const tried = [...new Set(resolvedSets.flat())].slice(0, 4);
+
+    this.cacheDelegation(nsRedirects[0].name, domain, tried);
+    const redirectTrace = [
+      ...trace,
+      `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
+      ...subTrace,
+    ];
+    try {
+      return await this.fetchRecordsRaw({
+        domain,
+        recordType,
+        nameservers: tried,
+        trace: redirectTrace,
+        depth: depth + 1,
+        deadlineAt,
+        budget,
+      });
+    } catch (error) {
+      // Sibling NS lookups are still usable failover: the race above only
+      // existed to avoid stalling while a usable address was in hand, and
+      // that address just failed. Wait for the stragglers (each bounded by
+      // the walk deadline), retry once with any addresses the first attempt
+      // didn't see, and let them replace the dead cache entry.
+      await Promise.allSettled(lookups);
+      const late = [...new Set(resolvedSets.flat())]
+        .filter((ip) => !tried.includes(ip))
+        .slice(0, 4);
+      if (!late.length) throw error;
+      this.delegationCache.delete(canonicalDnsName(nsRedirects[0].name));
+      this.cacheDelegation(nsRedirects[0].name, domain, late);
+      return this.fetchRecordsRaw({
+        domain,
+        recordType,
+        nameservers: late,
+        trace: [
+          ...redirectTrace,
+          `${recordType} ${domain} -> retrying with late sibling nameservers: ${late.join(', ')}`,
+        ],
+        depth: depth + 1,
+        deadlineAt,
+        budget,
+      });
+    }
   }
 
   public async resolveRecordType(
