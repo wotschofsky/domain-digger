@@ -60,6 +60,21 @@ describe('DNSSEC verdict presentation', () => {
     expect(presentation.body).not.toContain('publish the DS record');
   });
 
+  it('leads a bogus chain with the break, not the NXDOMAIN it served', () => {
+    const chain = secureChain('unproved-nxdomain');
+    chain.status = 'broken';
+    chain.zones[0] = {
+      ...chain.zones[0],
+      status: 'broken',
+      breakReason: 'ds-mismatch',
+    };
+
+    const presentation = verdictPresentation(chain);
+
+    expect(presentation.title).toBe('Broken');
+    expect(presentation.body).toContain('nonexistence is not authenticated');
+  });
+
   it('distinguishes unproved NODATA from a positive secure result', () => {
     const presentation = verdictPresentation(secureChain('unproved-nodata'));
 
