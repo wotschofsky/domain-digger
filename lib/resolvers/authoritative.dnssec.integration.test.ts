@@ -36,10 +36,10 @@ describe('resolveDnssecChain root guard', () => {
 describe('delegation cache', () => {
   type CacheAccess = {
     cacheDelegation: (zone: string, domain: string, ips: string[]) => void;
-    cachedDelegation: (
+    getCachedDelegation: (
       domain: string,
       recordType: string,
-    ) => string[] | undefined;
+    ) => { zone: string; ips: string[] } | undefined;
   };
   const make = () => new AuthoritativeResolver() as unknown as CacheAccess;
 
@@ -47,32 +47,47 @@ describe('delegation cache', () => {
     const r = make();
     r.cacheDelegation('dev', 'wsky.dev', ['1.1.1.1']);
     r.cacheDelegation('wsky.dev', 'www.wsky.dev', ['2.2.2.2']);
-    expect(r.cachedDelegation('www.wsky.dev', 'A')).toEqual(['2.2.2.2']);
-    expect(r.cachedDelegation('other.dev', 'A')).toEqual(['1.1.1.1']);
-    expect(r.cachedDelegation('example.com', 'A')).toBeUndefined();
+    expect(r.getCachedDelegation('www.wsky.dev', 'A')).toEqual({
+      zone: 'wsky.dev',
+      ips: ['2.2.2.2'],
+    });
+    expect(r.getCachedDelegation('other.dev', 'A')).toEqual({
+      zone: 'dev',
+      ips: ['1.1.1.1'],
+    });
+    expect(r.getCachedDelegation('example.com', 'A')).toBeUndefined();
   });
 
   it('skips the exact-name entry for DS queries (DS lives in the parent zone)', () => {
     const r = make();
     r.cacheDelegation('dev', 'wsky.dev', ['1.1.1.1']);
     r.cacheDelegation('wsky.dev', 'wsky.dev', ['2.2.2.2']);
-    expect(r.cachedDelegation('wsky.dev', 'DS')).toEqual(['1.1.1.1']);
-    expect(r.cachedDelegation('wsky.dev', 'DNSKEY')).toEqual(['2.2.2.2']);
+    expect(r.getCachedDelegation('wsky.dev', 'DS')).toEqual({
+      zone: 'dev',
+      ips: ['1.1.1.1'],
+    });
+    expect(r.getCachedDelegation('wsky.dev', 'DNSKEY')).toEqual({
+      zone: 'wsky.dev',
+      ips: ['2.2.2.2'],
+    });
     // TLD DS: no cached parent -> falls back to the root servers.
-    expect(r.cachedDelegation('dev', 'DS')).toBeUndefined();
+    expect(r.getCachedDelegation('dev', 'DS')).toBeUndefined();
   });
 
   it('ignores writes for zones that are not a suffix of the queried name', () => {
     const r = make();
     r.cacheDelegation('com', 'wsky.dev', ['6.6.6.6']);
-    expect(r.cachedDelegation('anything.com', 'A')).toBeUndefined();
+    expect(r.getCachedDelegation('anything.com', 'A')).toBeUndefined();
   });
 
   it('keeps the first (higher-trust) entry on repeated writes', () => {
     const r = make();
     r.cacheDelegation('dev', 'wsky.dev', ['1.1.1.1']);
     r.cacheDelegation('dev', 'wsky.dev', ['6.6.6.6']);
-    expect(r.cachedDelegation('wsky.dev', 'A')).toEqual(['1.1.1.1']);
+    expect(r.getCachedDelegation('wsky.dev', 'A')).toEqual({
+      zone: 'dev',
+      ips: ['1.1.1.1'],
+    });
   });
 });
 
