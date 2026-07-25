@@ -58,7 +58,6 @@ describe('resolveDnssecChain', () => {
       'nope.example.com': { rcode: 'NXDOMAIN' },
     });
     const chain = await resolveDnssecChain('nope.example.com', query, ROOT_NOW);
-    expect(chain.coverage.negativeProofs).toBe('not-implemented');
     expect(chain.status).toBe('insecure');
     expect(chain.query).toEqual({
       name: 'nope.example.com',

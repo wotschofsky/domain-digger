@@ -19,15 +19,7 @@ const secureChain = (
       rrsets: [],
     },
   ],
-  coverage: {
-    delegationDsRrsets: 'validated-along-secure-path',
-    dnskeyRrsets: 'validated',
-    positiveRrsets: 'common-types-only',
-    checkedPositiveRrsetTypes: [],
-    negativeProofs: 'not-implemented',
-    unsignedSubdelegations: 'not-implemented',
-    cnameTargets: 'not-checked',
-  },
+  coverage: { checkedPositiveRrsetTypes: [] },
   query: { name: 'missing.example.com', observation },
 });
 

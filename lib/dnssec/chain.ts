@@ -144,6 +144,27 @@ const failedSignatureAnalysis = (
 };
 
 /**
+ * The shared shape of both RRset checks: the newest signature that verifies
+ * wins, and with none verifying the failure evidence explains why.
+ */
+const signatureAnalysis = (
+  rrsigs: RrsigData[],
+  verifies: (rrsig: RrsigData) => boolean,
+  issueFor: (rrsig: RrsigData) => ReturnType<typeof rrsigMetadataIssue>,
+): SignatureAnalysis => {
+  const valid = rrsigs.filter(verifies).map((rrsig) => rrsig.expiration);
+  if (!valid.length) return failedSignatureAnalysis(rrsigs, issueFor);
+  const validUntil = Math.max(...valid);
+  return {
+    validUntil,
+    evidence: evidenceFrom(
+      'valid',
+      rrsigs.filter((rrsig) => rrsig.expiration === validUntil),
+    ),
+  };
+};
+
+/**
  * Whether the zone's DNSKEY RRset carries a valid, unexpired RRSIG made by a key
  * the parent DS (or root anchor) authenticates. Only DS-linked keys are trusted
  * signers: a zone must not vouch for its own key set with a key nothing above it
@@ -161,8 +182,9 @@ const dnskeyRrsetSignatureAnalysis = (
   const rrsigs = (zone.keyRrsigs ?? []).filter(
     (rrsig) => rrsig.typeCovered === 'DNSKEY',
   );
-  const valid = rrsigs
-    .filter((rrsig) =>
+  return signatureAnalysis(
+    rrsigs,
+    (rrsig) =>
       verifyDnskeyRrsig({
         rrsig,
         keys: zone.keys,
@@ -170,29 +192,16 @@ const dnskeyRrsetSignatureAnalysis = (
         now,
         signers: linkedKeys,
       }),
-    )
-    .map((rrsig) => rrsig.expiration);
-  if (valid.length) {
-    const validUntil = Math.max(...valid);
-    return {
-      validUntil,
-      evidence: evidenceFrom(
-        'valid',
-        rrsigs.filter((rrsig) => rrsig.expiration === validUntil),
-      ),
-    };
-  }
-
-  return failedSignatureAnalysis(rrsigs, (rrsig) =>
-    rrsigMetadataIssue({
-      rrsig,
-      type: 'DNSKEY',
-      ownerName: zone.name,
-      signerName: zone.name,
-      keys: linkedKeys,
-      now,
-      allowWildcard: false,
-    }),
+    (rrsig) =>
+      rrsigMetadataIssue({
+        rrsig,
+        type: 'DNSKEY',
+        ownerName: zone.name,
+        signerName: zone.name,
+        keys: linkedKeys,
+        now,
+        allowWildcard: false,
+      }),
   );
 };
 
@@ -210,8 +219,9 @@ const dsRrsetSignatureAnalysis = (
   const rrsigs = (zone.dsRrsigs ?? []).filter(
     (rrsig) => rrsig.typeCovered === 'DS',
   );
-  const valid = rrsigs
-    .filter((rrsig) =>
+  return signatureAnalysis(
+    rrsigs,
+    (rrsig) =>
       verifyRrsetRrsig({
         rrsig,
         type: 'DS',
@@ -222,28 +232,16 @@ const dsRrsetSignatureAnalysis = (
         now,
         allowWildcard: false,
       }),
-    )
-    .map((rrsig) => rrsig.expiration);
-  if (valid.length) {
-    const validUntil = Math.max(...valid);
-    return {
-      validUntil,
-      evidence: evidenceFrom(
-        'valid',
-        rrsigs.filter((rrsig) => rrsig.expiration === validUntil),
-      ),
-    };
-  }
-  return failedSignatureAnalysis(rrsigs, (rrsig) =>
-    rrsigMetadataIssue({
-      rrsig,
-      type: 'DS',
-      ownerName: zone.name,
-      signerName: parent.name,
-      keys: parent.keys,
-      now,
-      allowWildcard: false,
-    }),
+    (rrsig) =>
+      rrsigMetadataIssue({
+        rrsig,
+        type: 'DS',
+        ownerName: zone.name,
+        signerName: parent.name,
+        keys: parent.keys,
+        now,
+        allowWildcard: false,
+      }),
   );
 };
 
@@ -357,7 +355,6 @@ export const buildChain = (
     });
 
     let state: DnssecZoneState;
-    let dnskeySignatureExpiresAt: number | undefined;
     let dnskeySignature: DnssecSignatureEvidence | undefined;
     if (chain !== 'secure') {
       // The chain of trust already ended above this zone, so its own records are
@@ -428,13 +425,8 @@ export const buildChain = (
         }
       } else {
         state = { status: 'secure' };
-        dnskeySignatureExpiresAt = signatureAnalysis.validUntil;
       }
     }
-
-    const expiries = [dsSignatureExpiresAt, dnskeySignatureExpiresAt].filter(
-      (expiry): expiry is number => typeof expiry === 'number',
-    );
 
     out.push({
       name: zone.name,
@@ -443,7 +435,6 @@ export const buildChain = (
       ...state,
       dsSignature: dsSignatureAnalysis?.evidence,
       dnskeySignature,
-      signatureExpiresAt: expiries.length ? Math.min(...expiries) : undefined,
     });
     // The first non-secure zone fixes the descended trust state.
     if (chain === 'secure') chain = state.status;
@@ -458,15 +449,7 @@ export const buildChain = (
   return {
     zones: out,
     status,
-    coverage: {
-      delegationDsRrsets: 'validated-along-secure-path',
-      dnskeyRrsets: 'validated',
-      positiveRrsets: 'common-types-only',
-      checkedPositiveRrsetTypes: [],
-      negativeProofs: 'not-implemented',
-      unsignedSubdelegations: 'not-implemented',
-      cnameTargets: 'not-checked',
-    },
+    coverage: { checkedPositiveRrsetTypes: [] },
     query: {
       name: zones.at(-1)?.name ?? '',
       observation: 'not-checked',

@@ -184,7 +184,6 @@ live('resolveDnssecChain (live)', () => {
           'this-domain-definitely-does-not-exist-9q7x2z.com',
         );
         expect(chain.status).toBe('insecure');
-        expect(chain.coverage.negativeProofs).toBe('not-implemented');
         expect(chain.query.observation).toBe('unproved-nxdomain');
       },
       TIMEOUT,
@@ -243,7 +242,12 @@ live('resolveDnssecChain (live)', () => {
         ?.filter((rrset) => rrset.status === 'secure')
         .map((rrset) => rrset.type);
       expect(secureTypes).toEqual(expect.arrayContaining(['SOA', 'A', 'NS']));
-      expect(leaf?.signatureExpiresAt).toBeGreaterThan(0);
+      const secureExpiries = leaf?.rrsets
+        ?.filter((rrset) => rrset.status === 'secure')
+        .map((rrset) => rrset.signatureExpiresAt);
+      expect(secureExpiries?.every((e) => typeof e === 'number' && e > 0)).toBe(
+        true,
+      );
 
       const ksk = leaf?.keys.find((k) => k.isSep);
       expect(ksk?.linked).toBe(true);

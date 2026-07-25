@@ -184,18 +184,7 @@ const probeLeafRrsets = async (
         ? 'indeterminate'
         : 'unproved-nodata';
 
-  // Only validated RRsets speak for the domain's signature freshness: a bogus
-  // RRset also carries a (possibly long-past) expiry, and letting it into the
-  // min would flip the domain-wide chip to "expired" on otherwise-valid data.
-  const expiries = results
-    .filter((r) => r.status === 'secure')
-    .map((r) => r.signatureExpiresAt)
-    .filter((e): e is number => typeof e === 'number');
-  return {
-    rrsets: results,
-    expiresAt: expiries.length ? Math.min(...expiries) : undefined,
-    observation,
-  };
+  return { rrsets: results, observation };
 };
 
 /**
@@ -363,7 +352,7 @@ export const resolveDnssecChain = async (
     : null;
   if (leaf && leafRaw && leaf.status === 'secure') {
     chain.coverage.checkedPositiveRrsetTypes = [...RRSET_PROBE_TYPES];
-    const { rrsets, expiresAt, observation } = await probeLeafRrsets(
+    const { rrsets, observation } = await probeLeafRrsets(
       probeName,
       leaf.name,
       leafRaw.keys,
@@ -381,14 +370,6 @@ export const resolveDnssecChain = async (
       chain.query.observation = observation;
     }
     leaf.rrsets = rrsets;
-    // The leaf's freshness is the earliest of its DNSKEY RRSIG expiry (set by
-    // buildChain) and its validated positive RRsets' expiries.
-    if (expiresAt !== undefined) {
-      leaf.signatureExpiresAt = Math.min(
-        leaf.signatureExpiresAt ?? Infinity,
-        expiresAt,
-      );
-    }
   }
 
   return chain;

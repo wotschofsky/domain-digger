@@ -97,6 +97,10 @@ const breakIndex = (chain: DnssecChain): number =>
 const zoneHeading = (zone: DnssecZone): string =>
   zone.name === '.' ? 'Root zone' : zone.name;
 
+/** The root reads as prose mid-sentence, unlike the card heading above. */
+const zoneProse = (name: string): string =>
+  name === '.' ? 'the root zone' : name;
+
 const shortDigest = (hex: string): string =>
   hex.length > 16 ? `${hex.slice(0, 8)}…${hex.slice(-6)}` : hex;
 
@@ -213,7 +217,7 @@ export const verdictPresentation = (
   const zones = chain.zones;
   const leaf = zones.at(-1);
   if (!leaf) return { title: 'Unknown', body: '', remediation: null };
-  const leafName = leaf.name === '.' ? 'the root zone' : leaf.name;
+  const leafName = zoneProse(leaf.name);
   const observation = queryObservationSentence(chain);
 
   // The name's nonexistence leads over a secure or insecure chain. An
@@ -281,13 +285,9 @@ export const verdictPresentation = (
 
   const idx = breakIndex(chain);
   const brk = zones[idx];
-  const zoneName = brk.name === '.' ? 'the root zone' : brk.name;
+  const zoneName = zoneProse(brk.name);
   const parent = zones[idx - 1];
-  const parentName = parent
-    ? parent.name === '.'
-      ? 'the root zone'
-      : parent.name
-    : 'its parent';
+  const parentName = parent ? zoneProse(parent.name) : 'its parent';
 
   if (brk.breakReason) {
     const presentation = BREAK_PRESENTATION[brk.breakReason];

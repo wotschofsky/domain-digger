@@ -126,9 +126,6 @@ type DnssecZoneEvidence = {
   // retained on failures so an expired signature remains diagnosable.
   dsSignature?: DnssecSignatureEvidence;
   dnskeySignature?: DnssecSignatureEvidence;
-  // Earliest relevant RRSIG expiry for the zone: parent DS, DNSKEY, and for the
-  // leaf its validated positive RRsets.
-  signatureExpiresAt?: number;
   // Positive leaf RRsets that were probed and validated. Absent RRsets are kept
   // in the model so the UI can distinguish "not present" from "not checked".
   rrsets?: DnssecRrset[];
@@ -150,14 +147,13 @@ export type DnssecZoneState =
 
 export type DnssecZone = DnssecZoneEvidence & DnssecZoneState;
 
+// What a chain result covers: every delegation DS RRset is validated along the
+// secure path, every zone's DNSKEY RRset is validated, and the leaf's positive
+// RRsets are checked for the common types below. Negative proofs (NSEC/NSEC3),
+// unsigned sub-delegations, and CNAME targets are out of scope -- see
+// lib/dnssec/index.ts.
 export type DnssecCoverage = {
-  delegationDsRrsets: 'validated-along-secure-path';
-  dnskeyRrsets: 'validated';
-  positiveRrsets: 'common-types-only';
   checkedPositiveRrsetTypes: string[];
-  negativeProofs: 'not-implemented';
-  unsignedSubdelegations: 'not-implemented';
-  cnameTargets: 'not-checked';
 };
 
 export type DnssecChain = {
