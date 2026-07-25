@@ -166,6 +166,12 @@ export class AuthoritativeResolver extends DnsResolver {
   // walk's packet ceiling at ~8x this value. Far above any honest
   // lookup's needs (a deep all-glueless walk stays under ~30).
   private static readonly MAX_CANDIDATES_PER_WALK = 50;
+  // A DNSSEC chain shares one budget across every walk it makes (see
+  // resolveDnssecChain): up to 16 zones x 2 queries plus 10 leaf probes, most
+  // of which reuse a cached delegation and spend one candidate. Sized with
+  // headroom for that, while still capping a crafted deep name far below the
+  // ~1500 attempts it would reach with a fresh per-walk budget each time.
+  private static readonly MAX_CANDIDATES_PER_CHAIN = 300;
   // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
   // a single blackholed first server has to leave room to reach a healthy
   // fallback, while all-blackholed candidates stay bounded (~2 budgets).
@@ -1003,8 +1009,25 @@ export class AuthoritativeResolver extends DnsResolver {
    * owns the walk. See lib/dnssec for what is (and isn't) verified.
    */
   public resolveDnssecChain(domain: string): Promise<DnssecChain> {
+    // One chain is dozens of independent walks (a DNSKEY + DS pair per zone,
+    // plus the leaf RRset probes). Each must draw from the same allowance
+    // instead of stacking a fresh per-walk one, or a deep name multiplies both
+    // the packet ceiling and the worst-case latency by the label count.
+    const budget = {
+      remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_CHAIN,
+    };
+    const deadlineAt =
+      Date.now() +
+      (this.options.fallbackDeadlineMs ??
+        AuthoritativeResolver.FALLBACK_DEADLINE_MS);
     return resolveDnssecChain(domain, (name, type, dnssecOk) =>
-      this.fetchRecordsRaw({ domain: name, recordType: type, dnssecOk }),
+      this.fetchRecordsRaw({
+        domain: name,
+        recordType: type,
+        dnssecOk,
+        budget,
+        deadlineAt,
+      }),
     );
   }
 }

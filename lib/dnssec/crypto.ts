@@ -15,9 +15,10 @@ import {
 
 /**
  * Turn a DNSKEY's wire-format public key into a node crypto public key, via JWK
- * so no DER hand-encoding is needed. Returns null for unsupported/malformed keys
- * (e.g. Ed448 where the runtime lacks support) -- a null key can never verify,
- * so the zone is treated as unvalidated rather than trusted.
+ * so no DER hand-encoding is needed. Returns null for an algorithm outside
+ * SUPPORTED_SIGNING_ALGORITHMS (classified insecure/unvalidatable upstream, RFC
+ * 4035 §5.2) and for a malformed key of a supported algorithm -- the latter is
+ * genuinely unusable, so it can never verify and the zone reads as bogus.
  */
 export const dnskeyToPublicKey = (
   algorithm: number,

@@ -676,6 +676,37 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(50);
   });
 
+  it('shares one query budget across every walk of a DNSSEC chain', async () => {
+    // A chain walks each suffix independently, so a per-walk budget would let
+    // a deep name multiply the same forking zone by the label count.
+    let seq = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [1, 2, 3, 4].map((i) => ({
+            name: domain,
+            type: 'NS',
+            ttl: 300,
+            data: `ns${i}-${seq++}.example.net`,
+          })),
+        }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    // 15 labels: the deepest name the chain walk accepts (MAX_WALK_ZONES).
+    const deepName = `${Array.from({ length: 13 }, (_, i) => `l${i}`).join('.')}.example.com`;
+
+    await expect(resolver.resolveDnssecChain(deepName)).rejects.toBeInstanceOf(
+      Error,
+    );
+
+    // Per-walk budgets would allow ~50 per suffix query (well over 1000 here).
+    expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(300);
+  });
+
   it('prefers an authoritative sibling over a non-authoritative answer', async () => {
     // An open recursive listed in the NS set answers without AA; its data
     // must not mask the healthy authoritative sibling.

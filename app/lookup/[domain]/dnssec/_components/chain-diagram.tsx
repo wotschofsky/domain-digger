@@ -37,10 +37,10 @@ import { InfoTooltip } from './info-tooltip';
 // is a vertical trust rail: root at the top, the queried domain at the bottom,
 // each edge colored by its link state (matched DS / no DS / broken DS -- the
 // last including an expired or invalid DNSKEY signature) so the break point is
-// visible at a glance. Every zone's keys and DS records are
-// shown inline -- no disclosure, no tooltips -- because the crypto evidence is
-// the whole point. See lib/dnssec for what the verdict does and doesn't
-// cover.
+// visible at a glance. Every zone's keys and DS records are shown inline
+// because the crypto evidence is the whole point; only the per-RRset detail
+// rows sit behind a disclosure, and tooltips explain terms rather than hide
+// evidence. See lib/dnssec for what the verdict does and doesn't cover.
 
 const STATUS_DOT: Record<DnssecStatus, string> = {
   secure: 'bg-zinc-900 dark:bg-zinc-100',
@@ -908,9 +908,10 @@ export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
       </section>
 
       <p className="border-t border-zinc-100 pt-5 text-xs leading-relaxed text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
-        This check authenticates each observed DS record set with its parent,
-        verifies the DS-to-DNSKEY linkage from the IANA root anchor, and
-        validates every zone&apos;s DNSKEY signature.{' '}
+        This check authenticates each observed DS record set with its parent and
+        verifies the DS-to-DNSKEY linkage and DNSKEY signature of every zone
+        down from the IANA root anchor, stopping at the first link that does not
+        hold.{' '}
         {chain.coverage.checkedPositiveRrsetTypes.length > 0
           ? `At the queried name it checks these common positive types: ${chain.coverage.checkedPositiveRrsetTypes.join(', ')}. `
           : 'Positive records were not checked because the chain did not authenticate. '}
