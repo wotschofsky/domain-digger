@@ -1,12 +1,25 @@
 'use client';
 
-import { EvlogProvider } from 'evlog/next/client';
+import { initLog } from 'evlog/client';
 import PlausibleProvider from 'next-plausible';
 import { ThemeProvider } from 'next-themes';
 import { type FC, type ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 
 import { env } from '@/env';
+
+// Initialize client logging eagerly at module scope instead of via
+// EvlogProvider: React runs child effects before parent effects, so an error
+// boundary logging a crash during the initial page load would fire before a
+// provider effect could enable the transport, silently dropping the event.
+// The endpoint deviates from evlog's default /api/_evlog/ingest because
+// Next.js excludes underscore-prefixed folders from routing.
+if (typeof window !== 'undefined') {
+  initLog({
+    service: 'domain-digger',
+    transport: { enabled: true, endpoint: '/api/evlog/ingest' },
+  });
+}
 
 type CustomizedPlausibleProviderProps = {
   children: ReactNode;
@@ -42,16 +55,9 @@ type ProvidersProps = {
 };
 
 export const Providers: FC<ProvidersProps> = ({ children }) => (
-  <EvlogProvider
-    service="domain-digger"
-    // Default endpoint is /api/_evlog/ingest, but Next.js excludes
-    // underscore-prefixed folders from routing
-    transport={{ enabled: true, endpoint: '/api/evlog/ingest' }}
-  >
-    <ThemeProvider attribute="class">
-      <SWRConfig value={{ fetcher: swrFetcher }}>
-        <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
-      </SWRConfig>
-    </ThemeProvider>
-  </EvlogProvider>
+  <ThemeProvider attribute="class">
+    <SWRConfig value={{ fetcher: swrFetcher }}>
+      <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
+    </SWRConfig>
+  </ThemeProvider>
 );
