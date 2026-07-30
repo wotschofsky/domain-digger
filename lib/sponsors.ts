@@ -1,8 +1,5 @@
-import type { RemotePattern } from 'next/dist/shared/lib/image-config';
-
 import { env } from '@/env';
-
-import { getGitHubSponsors } from './github';
+import { getGitHubSponsors } from '@/lib/github';
 
 export const GITHUB_SPONSOR_USERNAME = 'wotschofsky';
 
@@ -26,20 +23,25 @@ const buildSponsorUrl = (baseUrl: string) => {
 export const getAllSponsors = async (): Promise<Sponsor[]> => {
   const githubSponsors = await getGitHubSponsors(GITHUB_SPONSOR_USERNAME);
 
-  return [
+  const sponsors = [
     ...(env.SPONSORS ?? []),
     ...githubSponsors.map((s) => ({
       id: s.login,
       name: s.name,
       logoUrl: s.avatarUrl,
-      url: buildSponsorUrl(s.websiteUrl || s.url),
+      url: s.websiteUrl || s.url,
     })),
   ];
+
+  const sponsorsWithRef = sponsors.map((sponsor) => ({
+    ...sponsor,
+    url: buildSponsorUrl(sponsor.url),
+  }));
+
+  return sponsorsWithRef;
 };
 
-export const getSponsorImageRemotePatterns = async (): Promise<
-  RemotePattern[]
-> => {
+export const getSponsorImageRemotePatterns = async () => {
   const sponsors = await getAllSponsors();
 
   return sponsors.map((sponsor) => {
