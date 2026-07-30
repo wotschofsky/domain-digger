@@ -1,11 +1,5 @@
 import type { NextConfig } from 'next';
 
-// Allow image optimization for the exact logo URL of every sponsor configured
-// via the SPONSORS environment variable.
-const sponsorImageUrls: URL[] = JSON.parse(process.env.SPONSORS || '[]').map(
-  (sponsor: { logoUrl: string }) => new URL(sponsor.logoUrl),
-);
-
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   turbopack: {
@@ -25,7 +19,10 @@ const nextConfig: NextConfig = {
       {
         hostname: 'avatars.githubusercontent.com',
       },
-      ...sponsorImageUrls,
+      // Allow the exact logo URL of every sponsor configured via SPONSORS.
+      ...JSON.parse(process.env.SPONSORS || '[]').map(
+        (sponsor: { logoUrl: string }) => new URL(sponsor.logoUrl),
+      ),
     ],
     formats: ['image/avif', 'image/webp'],
   },
