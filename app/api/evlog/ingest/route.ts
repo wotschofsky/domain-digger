@@ -66,6 +66,25 @@ export const POST = withEvlog(async (request: Request) => {
 
   // The server logger sets its own service field
   delete event.service;
+
+  // Normalize like evlog's reference ingest handler: drop malformed or
+  // implausible timestamps so forged values cannot corrupt downstream drains
+  const { timestamp } = event;
+  const parsedTimestamp =
+    typeof timestamp === 'string' || typeof timestamp === 'number'
+      ? new Date(timestamp)
+      : null;
+  if (
+    parsedTimestamp === null ||
+    Number.isNaN(parsedTimestamp.getTime()) ||
+    parsedTimestamp.getTime() < Date.parse('2000-01-01') ||
+    parsedTimestamp.getTime() > Date.now() + 24 * 60 * 60 * 1000
+  ) {
+    delete event.timestamp;
+  } else {
+    event.timestamp = parsedTimestamp.toISOString();
+  }
+
   log[level]({ ...event, source: 'client' });
 
   return new NextResponse(null, { status: 204 });
