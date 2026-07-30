@@ -41,6 +41,9 @@ const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
   // The factory only closes over module constants, so the mount-time one
   // stays correct for the storage handlers below
   const getInitialValueRef = useRef(getInitialValue);
+  // What the initializer produced, so the mount repair below persists the
+  // exact anchor the countdown is already using
+  const mountValueRef = useRef(value);
 
   // Match the replaced hook: persist the initial value so time-based state
   // (the reminder delay anchor) survives reloads, and follow changes made in
@@ -59,11 +62,15 @@ const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
           return;
         }
 
-        setValue(
-          event.newValue === null
-            ? getInitialValueRef.current()
-            : JSON.parse(event.newValue),
-        );
+        if (event.newValue === null) {
+          const fallback = getInitialValueRef.current();
+          setValue(fallback);
+          // Persist like the mount path so a reload reuses this anchor
+          // instead of minting a new one
+          window.localStorage.setItem(key, JSON.stringify(fallback));
+        } else {
+          setValue(JSON.parse(event.newValue));
+        }
       } catch {
         // Ignore corrupted values written by other tabs
       }
@@ -84,10 +91,7 @@ const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
         }
       }
       if (parsed === null) {
-        window.localStorage.setItem(
-          key,
-          JSON.stringify(getInitialValueRef.current()),
-        );
+        window.localStorage.setItem(key, JSON.stringify(mountValueRef.current));
       } else {
         // Re-sync in case another tab wrote after the initializer ran
         setValue(parsed.value);
