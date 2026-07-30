@@ -50,8 +50,13 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
     const handleStorage = (event: StorageEvent) => {
       try {
         // Accessing window.localStorage can itself throw when storage is
-        // denied, so the guard stays inside the try
-        if (event.key !== key || event.storageArea !== window.localStorage) {
+        // denied, so the guard stays inside the try. A null key means
+        // localStorage.clear() was called in another tab, which also
+        // affects this entry (newValue is null there too).
+        if (
+          (event.key !== null && event.key !== key) ||
+          event.storageArea !== window.localStorage
+        ) {
           return;
         }
 
