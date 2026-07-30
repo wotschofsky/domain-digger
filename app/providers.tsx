@@ -42,7 +42,12 @@ type ProvidersProps = {
 };
 
 export const Providers: FC<ProvidersProps> = ({ children }) => (
-  <EvlogProvider service="domain-digger">
+  <EvlogProvider
+    service="domain-digger"
+    // Default endpoint is /api/_evlog/ingest, but Next.js excludes
+    // underscore-prefixed folders from routing
+    transport={{ enabled: true, endpoint: '/api/evlog/ingest' }}
+  >
     <ThemeProvider attribute="class">
       <SWRConfig value={{ fetcher: swrFetcher }}>
         <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
