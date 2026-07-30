@@ -1,5 +1,7 @@
 import type { NextConfig } from 'next';
 
+import { env } from '@/env';
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   turbopack: {
@@ -20,9 +22,7 @@ const nextConfig: NextConfig = {
         hostname: 'avatars.githubusercontent.com',
       },
       // Allow the exact logo URL of every sponsor configured via SPONSORS.
-      ...JSON.parse(process.env.SPONSORS || '[]').map(
-        (sponsor: { logoUrl: string }) => new URL(sponsor.logoUrl),
-      ),
+      ...(env.SPONSORS || []).map((sponsor) => new URL(sponsor.logoUrl)),
     ],
     formats: ['image/avif', 'image/webp'],
   },
