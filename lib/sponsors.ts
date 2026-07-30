@@ -41,6 +41,7 @@ export const getSponsorImageRemotePatterns = async (): Promise<
   RemotePattern[]
 > => {
   const sponsors = await getAllSponsors();
+
   return sponsors.map((sponsor) => {
     const url = new URL(sponsor.logoUrl);
     return { hostname: url.hostname, pathname: url.pathname };

@@ -33,11 +33,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
 
       <div className="mb-2 flex items-center justify-center gap-4">
         {allSponsors.map((sponsor) => (
-          <a
-            key={sponsor.id}
-            href={sponsor.url}
-            target="_blank"
-          >
+          <a key={sponsor.id} href={sponsor.url} target="_blank">
             <Image
               width={48}
               height={48}
