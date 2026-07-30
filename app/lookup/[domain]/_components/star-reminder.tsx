@@ -1,7 +1,7 @@
 'use client';
 
 import ms from 'ms';
-import { type FC, useEffect, useState } from 'react';
+import { type FC, useEffect, useRef, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
 
 import {
@@ -35,6 +35,42 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
       return initialValue;
     }
   });
+
+  const initialValueRef = useRef(initialValue);
+
+  // Match the replaced hook: persist the initial value so time-based state
+  // (the reminder delay anchor) survives reloads, and follow changes made in
+  // other tabs
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(key) === null) {
+        window.localStorage.setItem(
+          key,
+          JSON.stringify(initialValueRef.current),
+        );
+      }
+    } catch {
+      // Storage unavailable; keep in-memory state only
+    }
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== key || event.storageArea !== window.localStorage) {
+        return;
+      }
+
+      try {
+        setValue(
+          event.newValue === null
+            ? initialValueRef.current
+            : JSON.parse(event.newValue),
+        );
+      } catch {
+        // Ignore corrupted values written by other tabs
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [key]);
 
   const set = (next: T) => {
     setValue(next);
