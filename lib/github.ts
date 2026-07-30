@@ -1,6 +1,6 @@
 import { log } from 'evlog';
 
-import { env } from '../env';
+import { env } from '@/env';
 
 type SponsorsQueryResponse = {
   data: {

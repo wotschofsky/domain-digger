@@ -9,7 +9,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 
-import { buildSponsorUrl, getAllSponsors } from '@/lib/sponsors';
+import { getAllSponsors } from '@/lib/sponsors';
 import { cn } from '@/lib/utils';
 
 type SponsorsSectionProps = HTMLAttributes<HTMLElement>;
@@ -35,7 +35,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
         {allSponsors.map((sponsor) => (
           <a
             key={sponsor.id}
-            href={buildSponsorUrl(sponsor.url)}
+            href={sponsor.url}
             target="_blank"
           >
             <Image

@@ -1,6 +1,6 @@
 import type { RemotePattern } from 'next/dist/shared/lib/image-config';
 
-import { env } from '../env';
+import { env } from '@/env';
 
 import { getGitHubSponsors } from './github';
 
@@ -13,7 +13,7 @@ export type Sponsor = {
   url: string;
 };
 
-export const buildSponsorUrl = (baseUrl: string) => {
+const buildSponsorUrl = (baseUrl: string) => {
   try {
     const url = new URL(baseUrl);
     url.searchParams.set('ref', 'domain-digger');
@@ -32,19 +32,17 @@ export const getAllSponsors = async (): Promise<Sponsor[]> => {
       id: s.login,
       name: s.name,
       logoUrl: s.avatarUrl,
-      url: s.websiteUrl || s.url,
+      url: buildSponsorUrl(s.websiteUrl || s.url),
     })),
   ];
 };
 
-export const sponsorLogoUrlsToRemotePatterns = (
-  urls: string[],
-): RemotePattern[] =>
-  urls.map((url) => {
-    const { hostname, pathname } = new URL(url);
-    return { hostname, pathname };
-  });
-
 export const getSponsorImageRemotePatterns = async (): Promise<
   RemotePattern[]
-> => sponsorLogoUrlsToRemotePatterns((await getAllSponsors()).map((s) => s.logoUrl));
+> => {
+  const sponsors = await getAllSponsors();
+  return sponsors.map((sponsor) => {
+    const url = new URL(sponsor.logoUrl);
+    return { hostname: url.hostname, pathname: url.pathname };
+  });
+};
