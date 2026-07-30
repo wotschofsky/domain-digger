@@ -48,11 +48,13 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
   // other tabs
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== key || event.storageArea !== window.localStorage) {
-        return;
-      }
-
       try {
+        // Accessing window.localStorage can itself throw when storage is
+        // denied, so the guard stays inside the try
+        if (event.key !== key || event.storageArea !== window.localStorage) {
+          return;
+        }
+
         setValue(
           event.newValue === null
             ? initialValueRef.current
