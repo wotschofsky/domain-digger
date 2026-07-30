@@ -29,29 +29,18 @@ const SKIP_BUTTON_DELAY = ms('5s');
 // factory so time-derived fallbacks (the reminder delay anchor) are computed
 // fresh whenever they are needed, not captured at render time.
 const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
-  // Whether the initializer fell back (missing key, corrupt value, or
-  // blocked storage) rather than reading a stored value; idempotent ref
-  // write, so safe under StrictMode double-invocation
-  const usedFallbackRef = useRef(false);
   const [value, setValue] = useState<T>(() => {
     try {
       const raw = window.localStorage.getItem(key);
-      if (raw !== null) {
-        return JSON.parse(raw);
-      }
+      return raw === null ? getInitialValue() : JSON.parse(raw);
     } catch {
-      // Blocked storage or corrupt value; fall through to the fallback
+      return getInitialValue();
     }
-    usedFallbackRef.current = true;
-    return getInitialValue();
   });
 
   // The factory only closes over module constants, so the mount-time one
   // stays correct for the storage handlers below
   const getInitialValueRef = useRef(getInitialValue);
-  // What the initializer produced, so the mount repair below persists the
-  // exact anchor the countdown is already using
-  const mountValueRef = useRef(value);
 
   // Match the replaced hook: persist the initial value so time-based state
   // (the reminder delay anchor) survives reloads, and follow changes made in
@@ -99,13 +88,12 @@ const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
         }
       }
       if (parsed === null) {
-        // If the initializer had read a valid value, another tab removed the
-        // key in between — derive a fresh fallback like the storage-event
-        // path instead of resurrecting the deleted value. Otherwise persist
-        // the initializer's own fallback.
-        const fallback = usedFallbackRef.current
-          ? mountValueRef.current
-          : getInitialValueRef.current();
+        // Key missing now — either it never existed or another tab removed
+        // it after the initializer ran. Either way, derive a fresh fallback
+        // and sync state and storage to the same value: never resurrect a
+        // deleted entry, and keep the running countdown identical to the
+        // persisted anchor.
+        const fallback = getInitialValueRef.current();
         setValue(fallback);
         window.localStorage.setItem(key, JSON.stringify(fallback));
       } else {
