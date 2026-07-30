@@ -32,6 +32,15 @@ export const POST = withEvlog(async (request: Request) => {
     return NextResponse.json({ error: 'Invalid origin' }, { status: 403 });
   }
 
+  // Check the declared size before buffering the body; clients that lie or
+  // send chunked requests are caught by the length check after reading, with
+  // the platform's request-size cap bounding the worst case in between
+  const contentLength = Number(request.headers.get('content-length'));
+  if (contentLength > MAX_BODY_LENGTH) {
+    requestLog.set({ status: 413, reason: 'payload_too_large' });
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
+
   const raw = await request.text();
   if (raw.length > MAX_BODY_LENGTH) {
     requestLog.set({ status: 413, reason: 'payload_too_large' });
