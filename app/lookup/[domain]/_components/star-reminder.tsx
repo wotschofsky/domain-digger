@@ -1,6 +1,5 @@
 'use client';
 
-import { useLocalStorage } from '@uidotdev/usehooks';
 import ms from 'ms';
 import { type FC, useEffect, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
@@ -24,6 +23,31 @@ const INITIAL_DELAY = ms('2m');
 const TIMEOUT_PERIOD = ms('7d');
 const SKIP_BUTTON_DELAY = ms('5s');
 
+// Unlike @uidotdev/usehooks' useLocalStorage, this survives blocked storage
+// access (throws SecurityError) and corrupted values (JSON.parse throws),
+// both of which crashed the page during render (#92)
+const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw === null ? initialValue : JSON.parse(raw);
+    } catch {
+      return initialValue;
+    }
+  });
+
+  const set = (next: T) => {
+    setValue(next);
+    try {
+      window.localStorage.setItem(key, JSON.stringify(next));
+    } catch {
+      // Storage unavailable; state still updates for the current page view
+    }
+  };
+
+  return [value, set] as const;
+};
+
 export const StarReminder: FC = () => {
   const { reportEvent } = useAnalytics();
   const [_, setForceUpdate] = useState(0);
@@ -34,11 +58,11 @@ export const StarReminder: FC = () => {
 
   const { data } = useStargazersSummary();
 
-  const [isStarred, setIsStarred] = useLocalStorage(
+  const [isStarred, setIsStarred] = useSafeLocalStorage(
     'star-reminder.starred',
     false,
   );
-  const [lastDismissed, setLastDismissed] = useLocalStorage(
+  const [lastDismissed, setLastDismissed] = useSafeLocalStorage(
     'star-reminder.last-dismissed',
     Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY,
   );
