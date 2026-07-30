@@ -2,7 +2,60 @@ import type { NextConfig } from 'next';
 
 import { env } from '@/env';
 
-const nextConfig: NextConfig = {
+// Fetch the avatar URLs of every account currently sponsoring on GitHub. Kept
+// self-contained (rather than importing lib/github) because Next only resolves
+// the config entry's own imports — a transitively imported module's path
+// aliases fail to resolve when the compiled config is required at runtime.
+const getGitHubSponsorAvatarUrls = async (): Promise<string[]> => {
+  if (!env.GITHUB_TOKEN) {
+    return [];
+  }
+
+  try {
+    const response = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${env.GITHUB_TOKEN}`,
+      },
+      body: JSON.stringify({
+        query: `
+          query {
+            user(login: "wotschofsky") {
+              sponsorshipsAsMaintainer(first: 100) {
+                nodes {
+                  sponsorEntity {
+                    ... on Actor {
+                      avatarUrl
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `,
+      }),
+    });
+    const body = await response.json();
+    return body.data.user.sponsorshipsAsMaintainer.nodes.map(
+      (node: { sponsorEntity: { avatarUrl: string } }) =>
+        node.sponsorEntity.avatarUrl,
+    );
+  } catch {
+    return [];
+  }
+};
+
+// Allow image optimization only for the exact logo/avatar URL of every sponsor
+// we actually render: the ones configured via SPONSORS plus the GitHub Sponsors
+// avatars — instead of wildcard-allowing all of avatars.githubusercontent.com.
+const getSponsorImageUrls = async (): Promise<URL[]> =>
+  [
+    ...(env.SPONSORS || []).map((sponsor) => sponsor.logoUrl),
+    ...(await getGitHubSponsorAvatarUrls()),
+  ].map((url) => new URL(url));
+
+const nextConfig = async (): Promise<NextConfig> => ({
   reactStrictMode: false,
   turbopack: {
     rules: {
@@ -18,11 +71,7 @@ const nextConfig: NextConfig = {
         hostname: 'static.wsky.dev',
         pathname: '/branding/**',
       },
-      {
-        hostname: 'avatars.githubusercontent.com',
-      },
-      // Allow the exact logo URL of every sponsor configured via SPONSORS.
-      ...(env.SPONSORS || []).map((sponsor) => new URL(sponsor.logoUrl)),
+      ...(await getSponsorImageUrls()),
     ],
     formats: ['image/avif', 'image/webp'],
   },
@@ -59,6 +108,6 @@ const nextConfig: NextConfig = {
     // so they're matched literally instead of as a character class.
     '/lookup/\\[domain\\]/subdomains': ['./bin/subfinder'],
   },
-};
+});
 
 export default nextConfig;
