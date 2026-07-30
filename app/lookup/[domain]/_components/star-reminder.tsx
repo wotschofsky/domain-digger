@@ -36,14 +36,30 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
     }
   });
 
+  // Latest-ref so the storage handlers below use the freshest initial value;
+  // lastDismissed's initial value is time-derived and recomputed every render
   const initialValueRef = useRef(initialValue);
+  useEffect(() => {
+    initialValueRef.current = initialValue;
+  });
 
   // Match the replaced hook: persist the initial value so time-based state
   // (the reminder delay anchor) survives reloads, and follow changes made in
   // other tabs
   useEffect(() => {
     try {
-      if (window.localStorage.getItem(key) === null) {
+      const raw = window.localStorage.getItem(key);
+      let isValid = false;
+      if (raw !== null) {
+        try {
+          JSON.parse(raw);
+          isValid = true;
+        } catch {
+          // Corrupted entry (the #92 scenario); replace below so the
+          // fallback value persists instead of being recomputed every load
+        }
+      }
+      if (!isValid) {
         window.localStorage.setItem(
           key,
           JSON.stringify(initialValueRef.current),
