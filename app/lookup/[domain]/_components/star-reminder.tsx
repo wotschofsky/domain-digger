@@ -46,63 +46,51 @@ const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
   // (the reminder delay anchor) survives reloads, and follow changes made in
   // other tabs
   useEffect(() => {
+    // Storage itself is the authority; events only signal that it changed.
+    // Reading it fresh (instead of trusting event.newValue) keeps
+    // concurrently-writing tabs convergent, and a missing or corrupt entry
+    // is repaired with a fresh fallback so state and storage always hold
+    // the same value — a deleted entry is never resurrected.
+    const syncFromStorage = () => {
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (raw !== null) {
+          try {
+            setValue(JSON.parse(raw));
+            return;
+          } catch {
+            // Corrupted entry (the #92 scenario); repair below
+          }
+        }
+        const fallback = getInitialValueRef.current();
+        setValue(fallback);
+        window.localStorage.setItem(key, JSON.stringify(fallback));
+      } catch {
+        // Storage unavailable; keep in-memory state only
+      }
+    };
+
     const handleStorage = (event: StorageEvent) => {
       try {
         // Accessing window.localStorage can itself throw when storage is
-        // denied, so the guard stays inside the try. A null key means
+        // denied, so the guard stays inside a try. A null key means
         // localStorage.clear() was called in another tab, which also
-        // affects this entry (newValue is null there too).
+        // affects this entry.
         if (
           (event.key !== null && event.key !== key) ||
           event.storageArea !== window.localStorage
         ) {
           return;
         }
-
-        if (event.newValue === null) {
-          const fallback = getInitialValueRef.current();
-          setValue(fallback);
-          // Persist like the mount path so a reload reuses this anchor
-          // instead of minting a new one
-          window.localStorage.setItem(key, JSON.stringify(fallback));
-        } else {
-          setValue(JSON.parse(event.newValue));
-        }
       } catch {
-        // Ignore corrupted values written by other tabs
+        return;
       }
+      syncFromStorage();
     };
-    // Subscribe before reading so a write from another tab between the
-    // useState initializer and this effect cannot be missed
+    // Subscribe before the initial sync so a write from another tab between
+    // the useState initializer and this effect cannot be missed
     window.addEventListener('storage', handleStorage);
-
-    try {
-      const raw = window.localStorage.getItem(key);
-      let parsed: { value: T } | null = null;
-      if (raw !== null) {
-        try {
-          parsed = { value: JSON.parse(raw) };
-        } catch {
-          // Corrupted entry (the #92 scenario); replace below so the
-          // fallback value persists instead of being recomputed every load
-        }
-      }
-      if (parsed === null) {
-        // Key missing now — either it never existed or another tab removed
-        // it after the initializer ran. Either way, derive a fresh fallback
-        // and sync state and storage to the same value: never resurrect a
-        // deleted entry, and keep the running countdown identical to the
-        // persisted anchor.
-        const fallback = getInitialValueRef.current();
-        setValue(fallback);
-        window.localStorage.setItem(key, JSON.stringify(fallback));
-      } else {
-        // Re-sync in case another tab wrote after the initializer ran
-        setValue(parsed.value);
-      }
-    } catch {
-      // Storage unavailable; keep in-memory state only
-    }
+    syncFromStorage();
 
     return () => window.removeEventListener('storage', handleStorage);
   }, [key]);
