@@ -47,28 +47,6 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
   // (the reminder delay anchor) survives reloads, and follow changes made in
   // other tabs
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(key);
-      let isValid = false;
-      if (raw !== null) {
-        try {
-          JSON.parse(raw);
-          isValid = true;
-        } catch {
-          // Corrupted entry (the #92 scenario); replace below so the
-          // fallback value persists instead of being recomputed every load
-        }
-      }
-      if (!isValid) {
-        window.localStorage.setItem(
-          key,
-          JSON.stringify(initialValueRef.current),
-        );
-      }
-    } catch {
-      // Storage unavailable; keep in-memory state only
-    }
-
     const handleStorage = (event: StorageEvent) => {
       if (event.key !== key || event.storageArea !== window.localStorage) {
         return;
@@ -84,7 +62,34 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
         // Ignore corrupted values written by other tabs
       }
     };
+    // Subscribe before reading so a write from another tab between the
+    // useState initializer and this effect cannot be missed
     window.addEventListener('storage', handleStorage);
+
+    try {
+      const raw = window.localStorage.getItem(key);
+      let parsed: { value: T } | null = null;
+      if (raw !== null) {
+        try {
+          parsed = { value: JSON.parse(raw) };
+        } catch {
+          // Corrupted entry (the #92 scenario); replace below so the
+          // fallback value persists instead of being recomputed every load
+        }
+      }
+      if (parsed === null) {
+        window.localStorage.setItem(
+          key,
+          JSON.stringify(initialValueRef.current),
+        );
+      } else {
+        // Re-sync in case another tab wrote after the initializer ran
+        setValue(parsed.value);
+      }
+    } catch {
+      // Storage unavailable; keep in-memory state only
+    }
+
     return () => window.removeEventListener('storage', handleStorage);
   }, [key]);
 
