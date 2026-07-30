@@ -42,7 +42,7 @@ export const POST = withEvlog(async (request: Request) => {
   }
 
   const raw = await request.text();
-  if (raw.length > MAX_BODY_LENGTH) {
+  if (Buffer.byteLength(raw, 'utf8') > MAX_BODY_LENGTH) {
     requestLog.set({ status: 413, reason: 'payload_too_large' });
     return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
   }
