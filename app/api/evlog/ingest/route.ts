@@ -64,8 +64,15 @@ export const POST = withEvlog(async (request: Request) => {
     return NextResponse.json({ error: 'Invalid level' }, { status: 400 });
   }
 
-  // The server logger sets its own service field
+  // Server-owned fields: the logger stamps its own environment context, and
+  // `audit` triggers evlog's audit pipeline, which expects a shape a forged
+  // request need not provide (unguarded audit.actor.type access throws)
   delete event.service;
+  delete event.environment;
+  delete event.version;
+  delete event.commitHash;
+  delete event.region;
+  delete event.audit;
 
   // Normalize like evlog's reference ingest handler: drop malformed or
   // implausible timestamps so forged values cannot corrupt downstream drains
@@ -85,7 +92,13 @@ export const POST = withEvlog(async (request: Request) => {
     event.timestamp = parsedTimestamp.toISOString();
   }
 
-  log[level]({ ...event, source: 'client' });
+  try {
+    log[level]({ ...event, source: 'client' });
+  } catch {
+    // Never let a hostile payload shape turn into a 500 from the logger
+    requestLog.set({ status: 400, reason: 'unloggable_payload' });
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
 
   return new NextResponse(null, { status: 204 });
 });
