@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next';
 
-const nextConfig: NextConfig = {
+import { getSponsorImageRemotePatterns } from './lib/sponsors';
+
+const nextConfig = async (): Promise<NextConfig> => ({
   reactStrictMode: false,
   turbopack: {
     rules: {
@@ -16,9 +18,7 @@ const nextConfig: NextConfig = {
         hostname: 'static.wsky.dev',
         pathname: '/branding/**',
       },
-      {
-        hostname: 'avatars.githubusercontent.com',
-      },
+      ...(await getSponsorImageRemotePatterns()),
     ],
     formats: ['image/avif', 'image/webp'],
   },
@@ -55,6 +55,6 @@ const nextConfig: NextConfig = {
     // so they're matched literally instead of as a character class.
     '/lookup/\\[domain\\]/subdomains': ['./bin/subfinder'],
   },
-};
+});
 
 export default nextConfig;
