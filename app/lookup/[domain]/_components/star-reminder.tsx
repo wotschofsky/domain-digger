@@ -29,13 +29,21 @@ const SKIP_BUTTON_DELAY = ms('5s');
 // factory so time-derived fallbacks (the reminder delay anchor) are computed
 // fresh whenever they are needed, not captured at render time.
 const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
+  // Whether the initializer fell back (missing key, corrupt value, or
+  // blocked storage) rather than reading a stored value; idempotent ref
+  // write, so safe under StrictMode double-invocation
+  const usedFallbackRef = useRef(false);
   const [value, setValue] = useState<T>(() => {
     try {
       const raw = window.localStorage.getItem(key);
-      return raw === null ? getInitialValue() : JSON.parse(raw);
+      if (raw !== null) {
+        return JSON.parse(raw);
+      }
     } catch {
-      return getInitialValue();
+      // Blocked storage or corrupt value; fall through to the fallback
     }
+    usedFallbackRef.current = true;
+    return getInitialValue();
   });
 
   // The factory only closes over module constants, so the mount-time one
@@ -91,7 +99,15 @@ const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
         }
       }
       if (parsed === null) {
-        window.localStorage.setItem(key, JSON.stringify(mountValueRef.current));
+        // If the initializer had read a valid value, another tab removed the
+        // key in between — derive a fresh fallback like the storage-event
+        // path instead of resurrecting the deleted value. Otherwise persist
+        // the initializer's own fallback.
+        const fallback = usedFallbackRef.current
+          ? mountValueRef.current
+          : getInitialValueRef.current();
+        setValue(fallback);
+        window.localStorage.setItem(key, JSON.stringify(fallback));
       } else {
         // Re-sync in case another tab wrote after the initializer ran
         setValue(parsed.value);
