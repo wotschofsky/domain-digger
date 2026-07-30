@@ -25,23 +25,22 @@ const SKIP_BUTTON_DELAY = ms('5s');
 
 // Unlike @uidotdev/usehooks' useLocalStorage, this survives blocked storage
 // access (throws SecurityError) and corrupted values (JSON.parse throws),
-// both of which crashed the page during render (#92)
-const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
+// both of which crashed the page during render (#92). The initial value is a
+// factory so time-derived fallbacks (the reminder delay anchor) are computed
+// fresh whenever they are needed, not captured at render time.
+const useSafeLocalStorage = <T,>(key: string, getInitialValue: () => T) => {
   const [value, setValue] = useState<T>(() => {
     try {
       const raw = window.localStorage.getItem(key);
-      return raw === null ? initialValue : JSON.parse(raw);
+      return raw === null ? getInitialValue() : JSON.parse(raw);
     } catch {
-      return initialValue;
+      return getInitialValue();
     }
   });
 
-  // Latest-ref so the storage handlers below use the freshest initial value;
-  // lastDismissed's initial value is time-derived and recomputed every render
-  const initialValueRef = useRef(initialValue);
-  useEffect(() => {
-    initialValueRef.current = initialValue;
-  });
+  // The factory only closes over module constants, so the mount-time one
+  // stays correct for the storage handlers below
+  const getInitialValueRef = useRef(getInitialValue);
 
   // Match the replaced hook: persist the initial value so time-based state
   // (the reminder delay anchor) survives reloads, and follow changes made in
@@ -62,7 +61,7 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
 
         setValue(
           event.newValue === null
-            ? initialValueRef.current
+            ? getInitialValueRef.current()
             : JSON.parse(event.newValue),
         );
       } catch {
@@ -87,7 +86,7 @@ const useSafeLocalStorage = <T,>(key: string, initialValue: T) => {
       if (parsed === null) {
         window.localStorage.setItem(
           key,
-          JSON.stringify(initialValueRef.current),
+          JSON.stringify(getInitialValueRef.current()),
         );
       } else {
         // Re-sync in case another tab wrote after the initializer ran
@@ -124,11 +123,11 @@ export const StarReminder: FC = () => {
 
   const [isStarred, setIsStarred] = useSafeLocalStorage(
     'star-reminder.starred',
-    false,
+    () => false,
   );
   const [lastDismissed, setLastDismissed] = useSafeLocalStorage(
     'star-reminder.last-dismissed',
-    Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY,
+    () => Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY,
   );
 
   const timeUntilVisible = TIMEOUT_PERIOD - (Date.now() - lastDismissed);
