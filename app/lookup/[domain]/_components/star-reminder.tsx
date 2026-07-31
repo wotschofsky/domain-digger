@@ -1,6 +1,5 @@
 'use client';
 
-import { useLocalStorage } from '@uidotdev/usehooks';
 import ms from 'ms';
 import { type FC, useEffect, useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
@@ -18,6 +17,7 @@ import {
 
 import { useStargazersSummary } from '@/app/api/stargazers-summary/hook';
 import { useAnalytics } from '@/lib/analytics';
+import { useSafeLocalStorage } from '@/lib/use-safe-local-storage';
 import { cn } from '@/lib/utils';
 
 const INITIAL_DELAY = ms('2m');
@@ -34,13 +34,13 @@ export const StarReminder: FC = () => {
 
   const { data } = useStargazersSummary();
 
-  const [isStarred, setIsStarred] = useLocalStorage(
+  const [isStarred, setIsStarred] = useSafeLocalStorage(
     'star-reminder.starred',
-    false,
+    () => false,
   );
-  const [lastDismissed, setLastDismissed] = useLocalStorage(
+  const [lastDismissed, setLastDismissed] = useSafeLocalStorage(
     'star-reminder.last-dismissed',
-    Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY,
+    () => Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY,
   );
 
   const timeUntilVisible = TIMEOUT_PERIOD - (Date.now() - lastDismissed);
