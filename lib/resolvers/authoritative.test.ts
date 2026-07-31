@@ -1,0 +1,1102 @@
+// @vitest-environment node
+import type { Answer, DecodedPacket } from 'dns-packet';
+import { describe, expect, it, vi } from 'vitest';
+
+import { UserFacingError } from '../user-facing-error';
+import {
+  AuthoritativeResolver,
+  type AuthoritativeTcpTransport,
+  type AuthoritativeUdpTransport,
+  isMatchingDnsResponse,
+} from './authoritative';
+import type { RecordType } from './base';
+
+const response = (
+  domain: string,
+  type: RecordType,
+  rcode: string,
+  answers: Answer[] = [],
+): DecodedPacket =>
+  ({
+    type: 'response',
+    id: 42,
+    flags: 0,
+    questions: [{ name: domain, type }],
+    answers,
+    authorities: [],
+    additionals: [],
+    rcode,
+    // The resolver only reads the fields set above; the flag_* booleans a real
+    // decode carries are filled in per-test where a test depends on them.
+  }) as unknown as DecodedPacket;
+
+describe('AuthoritativeResolver transport policy', () => {
+  it('tries the next nameserver after a retryable DNS rcode', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? response(domain, recordType, 'SERVFAIL')
+          : response(domain, recordType, 'NOERROR', [
+              {
+                name: domain,
+                type: 'A',
+                ttl: 300,
+                data: '203.0.113.10',
+              },
+            ]),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toEqual(['192.0.2.1', '192.0.2.2']);
+  });
+
+  it('returns empty records when every nameserver refuses a plain query', async () => {
+    // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
+    // 500 the records page.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) => response(domain, recordType, 'REFUSED'),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'RRSIG'),
+    ).resolves.toEqual(expect.objectContaining({ records: [] }));
+  });
+
+  it('skips a lame empty response and accepts an authoritative sibling', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? // Empty, not authoritative, no referral: a lame server, not
+            // proof of NODATA.
+            response(domain, recordType, 'NOERROR')
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
+  it('accepts an authoritative empty answer as NODATA', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR'),
+          flag_aa: true,
+        }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(expect.objectContaining({ records: [] }));
+    expect(udpTransport).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces all-REFUSED plain non-RRSIG queries as retryable failures', async () => {
+    // The REFUSED-as-empty tolerance exists for RRSIG browsing only; a domain
+    // whose nameservers refuse ordinary lookups must not render "no records".
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) => response(domain, recordType, 'REFUSED'),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
+  it('keeps answers whose owner name differs from the query only by case', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        response(domain, recordType, 'NOERROR', [
+          { name: 'Example.COM', type: 'A', ttl: 300, data: '203.0.113.10' },
+        ]),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
+  it('stops trying fallback nameservers once the deadline is spent', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        response(domain, recordType, 'SERVFAIL'),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2', '192.0.2.3'],
+      fallbackDeadlineMs: 0,
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+    // Deadline of 0: only the first candidate is attempted.
+    expect(
+      new Set(udpTransport.mock.calls.map(([request]) => request.nameserver)),
+    ).toEqual(new Set(['192.0.2.1']));
+  });
+
+  it('surfaces all-SERVFAIL RRSIG queries as retryable failures', async () => {
+    // The all-REFUSED tolerance is rcode-specific: SERVFAIL means the servers
+    // are broken, not that they decline RRSIG browsing by policy.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        response(domain, recordType, 'SERVFAIL'),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'RRSIG'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
+  it('skips a non-authoritative response whose answers are all unrelated', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? // Unrelated answer, not authoritative, no referral: as lame as an
+            // empty response -- it must not read as NODATA.
+            response(domain, recordType, 'NOERROR', [
+              {
+                name: 'unrelated.example.net',
+                type: 'A',
+                ttl: 300,
+                data: '8.8.8.8',
+              },
+            ])
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
+  it('treats a non-authoritative reply whose only redirect is a stray A as lame', async () => {
+    // An A record in additionals without any NS delegates nothing; accepting
+    // the reply would dead-end in "Bad redirects" instead of trying siblings.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              additionals: [
+                {
+                  name: 'unrelated.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
+  it('treats an upward referral as lame and tries the sibling', async () => {
+    // Classic lame-delegation symptom: a misconfigured server "refers" the
+    // query back to the root instead of answering for its zone.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                { name: '.', type: 'NS', ttl: 300, data: 'a.root-servers.net' },
+              ],
+            } as DecodedPacket)
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
+  it('classifies a non-AA reply with only an out-of-bailiwick delegation as lame', async () => {
+    // No in-bailiwick NS, so this is not a referral we can follow; it is lame
+    // and the sibling is tried. (The glue for the foreign zone must never be
+    // contacted.)
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                { name: 'evil.org', type: 'NS', ttl: 300, data: 'ns.evil.org' },
+              ],
+              additionals: [
+                { name: 'ns.evil.org', type: 'A', ttl: 300, data: '6.6.6.6' },
+              ],
+            } as DecodedPacket)
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).not.toContain('6.6.6.6');
+  });
+
+  it('follows only in-bailiwick public glue from a mixed referral', async () => {
+    // An accepted referral (in-bailiwick NS present) that also carries an
+    // out-of-bailiwick delegation, its glue, and a private-IP glue for the
+    // real NS. The walk must follow only 8.8.8.8 and touch none of the traps.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                {
+                  name: 'example.com',
+                  type: 'NS',
+                  ttl: 300,
+                  data: 'ns1.example.net',
+                },
+                { name: 'evil.org', type: 'NS', ttl: 300, data: 'ns.evil.org' },
+              ],
+              // Traps first: if a filter regressed, the recursive walk would
+              // contact the trap before 8.8.8.8 (the mock answers from any
+              // server) and trip the not.toContain assertions. With 8.8.8.8
+              // ordered first the test would pass on loop order alone.
+              additionals: [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '10.0.0.1',
+                },
+                { name: 'ns.evil.org', type: 'A', ttl: 300, data: '6.6.6.6' },
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+    const contacted = udpTransport.mock.calls.map(
+      ([request]) => request.nameserver,
+    );
+    expect(contacted).toContain('8.8.8.8');
+    expect(contacted).not.toContain('10.0.0.1');
+    expect(contacted).not.toContain('6.6.6.6');
+  });
+
+  it('rejects a glueless NS that resolves to a private IP', async () => {
+    // SSRF guard: the delegated NS hostname is attacker-controlled and here
+    // resolves to an RFC1918 address; the resolver must never send to it.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(async (request) => {
+      const { domain, recordType, nameserver } = request;
+      if (domain === 'ns.example.net') {
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '10.0.0.1' },
+        ]);
+      }
+      if (nameserver === '192.0.2.1') {
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns.example.net',
+            },
+          ],
+        } as DecodedPacket;
+      }
+      return response(domain, recordType, 'SERVFAIL');
+    });
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).rejects.toThrow();
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).not.toContain('10.0.0.1');
+  });
+
+  it('tries a healthy sibling when a candidate referral fails to resolve', async () => {
+    // The first root hands out a referral whose only nameserver is dead. That
+    // must not abort the lookup -- the sibling root answers authoritatively.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [
+              {
+                name: 'example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'ns1.example.net',
+              },
+            ],
+            additionals: [
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        }
+        if (nameserver === '8.8.8.8') {
+          return response(domain, recordType, 'SERVFAIL');
+        }
+        // 192.0.2.2, the healthy sibling root.
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toContain('192.0.2.2');
+  });
+
+  it('falls back to a deferred answer when a later referral fails', async () => {
+    // First root: a non-authoritative answer (deferred). Second root: an
+    // in-bailiwick referral that then fails. The deferred answer must win
+    // over failing the lookup.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          return response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]);
+        }
+        if (nameserver === '192.0.2.2') {
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [
+              {
+                name: 'example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'ns1.example.net',
+              },
+            ],
+            additionals: [
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        }
+        // 8.8.8.8, the dead delegated server.
+        return response(domain, recordType, 'SERVFAIL');
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+  });
+
+  it('dedupes duplicate glue so a distinct healthy address survives the cap', async () => {
+    // Four colocated NS hostnames share one dead IP; a fifth carries a
+    // healthy address. Without dedup the cap of 4 retains only duplicates
+    // and drops the healthy one.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [1, 2, 3, 4, 5].map((i) => ({
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: `ns${i}.example.net`,
+            })),
+            additionals: [
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns2.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns3.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns4.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+              { name: 'ns5.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        }
+        if (nameserver === '9.9.9.9') {
+          return response(domain, recordType, 'SERVFAIL');
+        }
+        // 8.8.8.8, the distinct healthy server.
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toContain('8.8.8.8');
+  });
+
+  it('retries with sibling nameservers that resolved after the race', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(async (request) => {
+      const { domain, recordType, nameserver } = request;
+      if (domain === 'ns-fast.example.net') {
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '8.8.8.8' },
+        ]);
+      }
+      if (domain === 'ns-slow.example.net') {
+        await new Promise((resolveSleep) => setTimeout(resolveSleep, 50));
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '9.9.9.9' },
+        ]);
+      }
+      if (nameserver === '192.0.2.1') {
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns-fast.example.net',
+            },
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns-slow.example.net',
+            },
+          ],
+        } as DecodedPacket;
+      }
+      if (nameserver === '8.8.8.8') {
+        // The winner's server fails instantly, while the sibling NS lookup
+        // is still in flight -- the retry must wait for it.
+        return response(domain, recordType, 'SERVFAIL');
+      }
+      return {
+        ...response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '203.0.113.14' },
+        ]),
+        flag_aa: true,
+      } as DecodedPacket;
+    });
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.14');
+  });
+
+  it('bounds total queries against a zone that forks glueless delegations', async () => {
+    // A crafted zone can answer every glueless delegation with four fresh NS
+    // names; without a walk-wide query budget the tree grows 4^depth.
+    let seq = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [1, 2, 3, 4].map((i) => ({
+            name: domain,
+            type: 'NS',
+            ttl: 300,
+            data: `ns${i}-${seq++}.example.net`,
+          })),
+        }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).rejects.toBeInstanceOf(Error);
+    expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(50);
+  });
+
+  it('prefers an authoritative sibling over a non-authoritative answer', async () => {
+    // An open recursive listed in the NS set answers without AA; its data
+    // must not mask the healthy authoritative sibling.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '198.51.100.99' },
+            ])
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toEqual(['192.0.2.1', '192.0.2.2']);
+  });
+
+  it('falls back to a non-authoritative answer when no candidate does better', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+            ])
+          : response(domain, recordType, 'SERVFAIL'),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      }),
+    );
+  });
+
+  it('shares the fallback deadline across referral steps', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          // Slow referral: spends the whole walk deadline before handing out
+          // the two child addresses.
+          await new Promise((resolveSleep) => setTimeout(resolveSleep, 250));
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [
+              {
+                name: 'example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'ns1.example.net',
+              },
+            ],
+            additionals: [
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+              { name: 'ns1.example.net', type: 'A', ttl: 300, data: '9.9.9.9' },
+            ],
+          } as DecodedPacket;
+        }
+        return nameserver === '8.8.8.8'
+          ? response(domain, recordType, 'SERVFAIL')
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket);
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+      fallbackDeadlineMs: 100,
+    });
+
+    // A per-step deadline would reset after the referral and reach 9.9.9.9;
+    // the walk-wide deadline must not.
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).not.toContain('9.9.9.9');
+  });
+
+  it('retries a truncated UDP answer over TCP', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR'),
+          flag_tc: true,
+        }) as DecodedPacket,
+    );
+    const tcpTransport = vi.fn<AuthoritativeTcpTransport>(
+      async ({ domain, recordType }) =>
+        response(domain, recordType, 'NOERROR', [
+          {
+            name: domain,
+            type: 'A',
+            ttl: 300,
+            data: '203.0.113.11',
+          },
+        ]),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      tcpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.11');
+    expect(udpTransport).toHaveBeenCalledOnce();
+    expect(tcpTransport).toHaveBeenCalledOnce();
+  });
+
+  it('follows a referral whose answer section holds only unrelated records', async () => {
+    // Some servers promote glue into the answer section; nothing there is
+    // owned by the queried name, so it must be treated as a referral, not
+    // as an authoritative empty answer.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR', [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ]),
+              authorities: [
+                {
+                  name: 'example.com',
+                  type: 'NS',
+                  ttl: 300,
+                  data: 'ns1.example.net',
+                },
+              ],
+              additionals: [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '203.0.113.13' },
+            ]),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.13');
+  });
+
+  it('follows a glueless referral even when a sibling NS lookup fails', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(async (request) => {
+      const { domain, recordType, nameserver } = request;
+      if (domain === 'ns-dead.example.net') throw new Error('timeout');
+      if (domain === 'ns-live.example.net') {
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '8.8.8.8' },
+        ]);
+      }
+      return nameserver === '192.0.2.1'
+        ? ({
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [
+              {
+                name: 'example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'ns-dead.example.net',
+              },
+              {
+                name: 'example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'ns-live.example.net',
+              },
+            ],
+          } as DecodedPacket)
+        : response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.14' },
+          ]);
+    });
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.14');
+  });
+
+  it('follows matching public glue from a referral', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                {
+                  name: 'example.com',
+                  type: 'NS',
+                  ttl: 300,
+                  data: 'ns1.example.net',
+                },
+              ],
+              additionals: [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : response(domain, recordType, 'NOERROR', [
+              {
+                name: domain,
+                type: 'A',
+                ttl: 300,
+                data: '203.0.113.12',
+              },
+            ]),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.12');
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.nameserver),
+    ).toEqual(['192.0.2.1', '8.8.8.8']);
+  });
+});
+
+describe('AuthoritativeResolver delegation cache', () => {
+  const referral = (
+    domain: string,
+    recordType: RecordType,
+    glueIp: string,
+  ): DecodedPacket =>
+    ({
+      ...response(domain, recordType, 'NOERROR'),
+      authorities: [
+        { name: 'example.com', type: 'NS', ttl: 300, data: 'ns1.example.net' },
+      ],
+      additionals: [
+        { name: 'ns1.example.net', type: 'A', ttl: 300, data: glueIp },
+      ],
+    }) as DecodedPacket;
+
+  it('starts later lookups at a cached delegation instead of the root', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? referral(domain, recordType, '8.8.8.8')
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                {
+                  name: domain,
+                  type: recordType,
+                  ttl: 300,
+                  data: recordType === 'A' ? '203.0.113.10' : '2001:db8::1',
+                } as Answer,
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await resolver.resolveRecordType('www.example.com', 'A');
+    const result = await resolver.resolveRecordType('www.example.com', 'AAAA');
+
+    expect(result.records[0]?.data).toBe('2001:db8::1');
+    expect(
+      udpTransport.mock.calls.filter(
+        ([request]) => request.nameserver === '192.0.2.1',
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('re-walks from the root when every cached delegation server fails', async () => {
+    let referrals = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          referrals += 1;
+          // The delegation moved between the two lookups: the re-walk finds
+          // a different (healthy) nameserver.
+          return referral(
+            domain,
+            recordType,
+            referrals === 1 ? '8.8.8.8' : '9.9.9.9',
+          );
+        }
+        if (nameserver === '8.8.8.8') {
+          return recordType === 'A'
+            ? ({
+                ...response(domain, recordType, 'NOERROR', [
+                  { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+                ]),
+                flag_aa: true,
+              } as DecodedPacket)
+            : response(domain, recordType, 'SERVFAIL');
+        }
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'AAAA', ttl: 300, data: '2001:db8::1' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await resolver.resolveRecordType('www.example.com', 'A');
+    const result = await resolver.resolveRecordType('www.example.com', 'AAAA');
+
+    expect(result.records[0]?.data).toBe('2001:db8::1');
+    expect(referrals).toBe(2);
+  });
+
+  it('re-walks past a cached server that answers without authority', async () => {
+    // A cached delegation whose server has gone non-authoritative (a moved
+    // delegation, or a shared recursor that still answers) must not have its
+    // stale, non-AA answer adopted -- the fresh root walk finds the healthy
+    // server, and that must win over the deferred lastResort answer.
+    let rootReferrals = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          rootReferrals += 1;
+          const [nsName, glue] =
+            rootReferrals === 1
+              ? ['ns1.example.net', '8.8.8.8']
+              : ['ns2.example.net', '9.9.9.9'];
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: [
+              { name: 'example.com', type: 'NS', ttl: 300, data: nsName },
+            ],
+            additionals: [{ name: nsName, type: 'A', ttl: 300, data: glue }],
+          } as DecodedPacket;
+        }
+        if (nameserver === '8.8.8.8') {
+          return recordType === 'A'
+            ? ({
+                ...response(domain, recordType, 'NOERROR', [
+                  { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+                ]),
+                flag_aa: true,
+              } as DecodedPacket)
+            : // Non-authoritative, stale MX -- deferred as lastResort.
+              response(domain, recordType, 'NOERROR', [
+                {
+                  name: domain,
+                  type: 'MX',
+                  ttl: 300,
+                  data: { preference: 10, exchange: 'stale.example.com' },
+                },
+              ]);
+        }
+        // 9.9.9.9: the current authoritative server the re-walk discovers.
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            {
+              name: domain,
+              type: 'MX',
+              ttl: 300,
+              data: { preference: 20, exchange: 'fresh.example.com' },
+            },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await resolver.resolveRecordType('www.example.com', 'A');
+    const result = await resolver.resolveRecordType('www.example.com', 'MX');
+
+    expect(result.records[0]?.data).toBe('20 fresh.example.com');
+  });
+});
+
+describe('isMatchingDnsResponse', () => {
+  const packet = response('example.com', 'A', 'NOERROR');
+
+  it('requires the transaction ID and question to match', () => {
+    expect(isMatchingDnsResponse(packet, 42, 'example.com', 'A')).toBe(true);
+    expect(isMatchingDnsResponse(packet, 43, 'example.com', 'A')).toBe(false);
+    expect(isMatchingDnsResponse(packet, 42, 'other.example', 'A')).toBe(false);
+    expect(isMatchingDnsResponse(packet, 42, 'example.com', 'AAAA')).toBe(
+      false,
+    );
+  });
+});

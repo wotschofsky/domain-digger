@@ -114,7 +114,8 @@ export const StarReminder: FC = () => {
           <AlertDialogTitle className="text-center text-lg font-bold">
             Enjoying Domain Digger?
           </AlertDialogTitle>
-          <AlertDialogDescription>
+          {/* asChild: the default <p> cannot contain the div/p children below */}
+          <AlertDialogDescription asChild>
             <div className="space-y-4">
               <div className="flex justify-center">
                 {data.recentStargazers.map((user, index) => (

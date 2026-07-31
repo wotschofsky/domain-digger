@@ -1,5 +1,8 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig } from 'next';
+
+import { getSponsorImageRemotePatterns } from './lib/sponsors';
+
+const nextConfig = async (): Promise<NextConfig> => ({
   reactStrictMode: false,
   turbopack: {
     rules: {
@@ -15,9 +18,7 @@ const nextConfig = {
         hostname: 'static.wsky.dev',
         pathname: '/branding/**',
       },
-      {
-        hostname: 'avatars.githubusercontent.com',
-      },
+      ...(await getSponsorImageRemotePatterns()),
     ],
     formats: ['image/avif', 'image/webp'],
   },
@@ -49,6 +50,11 @@ const nextConfig = {
       static: 300,
     },
   },
-};
+  outputFileTracingIncludes: {
+    // Tracing keys are picomatch globs — escape the dynamic-segment brackets
+    // so they're matched literally instead of as a character class.
+    '/lookup/\\[domain\\]/subdomains': ['./bin/subfinder'],
+  },
+});
 
-module.exports = nextConfig;
+export default nextConfig;
