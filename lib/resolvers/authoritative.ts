@@ -7,9 +7,15 @@ import dnsPacket, {
   type DecodedPacket,
   type Packet,
   type Question,
+  type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
 
+import {
+  canonicalDnsName,
+  type DnssecChain,
+  resolveDnssecChain,
+} from '@/lib/dnssec';
 import { retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
@@ -23,8 +29,18 @@ import { isPublicIp } from './ip-filter';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
-const canonicalDnsName = (name: string): string =>
-  name.replace(/\.$/, '').toLowerCase();
+// EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
+// returns RRSIG records alongside the answer.
+const DNSSEC_OPT_RECORD = {
+  type: 'OPT' as const,
+  name: '.',
+  udpPayloadSize: 4096,
+  extendedRcode: 0,
+  ednsVersion: 0,
+  flags: dnsPacket.DNSSEC_OK,
+  flag_do: true,
+  options: [],
+};
 
 // A legitimate referral delegates a zone the queried name lives under.
 // Anything else -- an upward referral to the root ('' is never a match) or
@@ -81,6 +97,7 @@ export type AuthoritativeRequest = {
   domain: string;
   recordType: RecordType;
   nameserver: string;
+  dnssecOk: boolean;
 };
 
 export type AuthoritativeUdpTransport = (
@@ -124,6 +141,19 @@ type FetchRecordsParams = {
   depth?: number;
   deadlineAt?: number;
   budget?: { remaining: number };
+  // Set the EDNS DNSSEC OK (DO) bit so authoritative servers include RRSIGs.
+  dnssecOk?: boolean;
+};
+
+type FetchRecordsRawResult = {
+  answers: RawAnswer[];
+  trace: string[];
+  rcode?: string;
+  // Populated only when queried with dnssecOk.
+  coveringRrsigs?: RrsigData[];
+  // DNAMEs from the answer section (CNAMEs may be synthesized and
+  // legitimately unsigned, RFC 6672 §3.2).
+  dnames?: { name: string; target: string }[];
 };
 
 export class AuthoritativeResolver extends DnsResolver {
@@ -136,6 +166,12 @@ export class AuthoritativeResolver extends DnsResolver {
   // walk's packet ceiling at ~8x this value. Far above any honest
   // lookup's needs (a deep all-glueless walk stays under ~30).
   private static readonly MAX_CANDIDATES_PER_WALK = 50;
+  // A DNSSEC chain shares one budget across every walk it makes (see
+  // resolveDnssecChain): up to 16 zones x 2 queries plus 10 leaf probes, most
+  // of which reuse a cached delegation and spend one candidate. Sized with
+  // headroom for that, while still capping a crafted deep name far below the
+  // ~1500 attempts it would reach with a fresh per-walk budget each time.
+  private static readonly MAX_CANDIDATES_PER_CHAIN = 300;
   // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
   // a single blackholed first server has to leave room to reach a healthy
   // fallback, while all-blackholed candidates stay bounded (~2 budgets).
@@ -268,6 +304,7 @@ export class AuthoritativeResolver extends DnsResolver {
     domain,
     recordType,
     nameserver,
+    dnssecOk,
   }: AuthoritativeRequest) {
     const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.encode({
@@ -275,6 +312,7 @@ export class AuthoritativeResolver extends DnsResolver {
       // Randomize ID to avoid response mismatch
       id,
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<DecodedPacket>((resolve, reject) => {
@@ -322,12 +360,14 @@ export class AuthoritativeResolver extends DnsResolver {
     domain,
     recordType,
     nameserver,
+    dnssecOk,
   }: AuthoritativeRequest) {
     const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
       id,
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<Packet>((resolve, reject) => {
@@ -467,10 +507,8 @@ export class AuthoritativeResolver extends DnsResolver {
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS),
     budget = { remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK },
-  }: FetchRecordsParams): Promise<{
-    answers: RawAnswer[];
-    trace: string[];
-  }> {
+    dnssecOk = false,
+  }: FetchRecordsParams): Promise<FetchRecordsRawResult> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
         `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
@@ -533,6 +571,7 @@ export class AuthoritativeResolver extends DnsResolver {
         domain,
         recordType,
         nameserver: candidate,
+        dnssecOk,
       };
       let result: DnsResponse;
       try {
@@ -584,6 +623,7 @@ export class AuthoritativeResolver extends DnsResolver {
           depth,
           deadlineAt,
           budget,
+          dnssecOk,
         });
       } catch (error) {
         failedNameservers.push(
@@ -612,6 +652,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
+        dnssecOk,
       });
     }
 
@@ -637,6 +678,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
+        dnssecOk,
       });
     }
 
@@ -645,14 +687,17 @@ export class AuthoritativeResolver extends DnsResolver {
     // and only when every attempted server returned it. Ordinary lookups,
     // SERVFAIL/FORMERR/NOTIMP, and mixed transport failures remain
     // retryable errors rather than masquerading as an empty RRset.
+    // DNSSEC-walk queries (dnssecOk) always fail loud: an unanswered
+    // DNSKEY/DS must stay indeterminate, not read as a missing record.
     const allRefused = refusedCount === candidateNameservers.length;
-    if (allRefused && recordType === 'RRSIG') {
+    if (allRefused && !dnssecOk && recordType === 'RRSIG') {
       return {
         answers: [],
         trace: [
           ...trace,
           `${recordType} ${domain} -> all nameservers returned an error: ${failedNameservers.join('; ')}`,
         ],
+        rcode: 'REFUSED',
       };
     }
     throw new UserFacingError(
@@ -685,6 +730,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
+    dnssecOk,
   }: {
     packet: Packet;
     protocol: DnsResponse['protocol'];
@@ -696,7 +742,8 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-  }): Promise<{ answers: RawAnswer[]; trace: string[] }> {
+    dnssecOk: boolean;
+  }): Promise<FetchRecordsRawResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
     // unrelated records (e.g. glue promoted into it by a quirky server) must
@@ -716,12 +763,26 @@ export class AuthoritativeResolver extends DnsResolver {
           answer.type === recordType,
       ) as RawAnswer[];
 
+      const coveringRrsigs = packet.answers
+        .filter(
+          (answer): answer is Extract<Answer, { type: 'RRSIG' }> =>
+            answer.type === 'RRSIG' &&
+            canonicalDnsName(answer.name) === wantName &&
+            answer.data.typeCovered === recordType,
+        )
+        .map((sig) => sig.data as RrsigData);
+
       return {
         answers: filteredAnswers,
         trace: [
           ...trace,
           `${recordType} ${domain} @ ${candidate} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
         ],
+        rcode: packet.rcode,
+        coveringRrsigs,
+        dnames: packet.answers
+          .filter((answer): answer is StringAnswer => answer.type === 'DNAME')
+          .map((answer) => ({ name: answer.name, target: answer.data })),
       };
     }
 
@@ -781,6 +842,7 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
           deadlineAt,
           budget,
+          dnssecOk,
         });
       }
 
@@ -795,10 +857,11 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
+        dnssecOk,
       });
     }
 
-    return { answers: [], trace };
+    return { answers: [], trace, rcode: packet.rcode };
   }
 
   // Follow a glueless referral: resolve the delegated NS hostnames to public
@@ -814,6 +877,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
+    dnssecOk,
   }: {
     nsRedirects: StringAnswer[];
     domain: string;
@@ -824,7 +888,8 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-  }): Promise<{ answers: RawAnswer[]; trace: string[] }> {
+    dnssecOk: boolean;
+  }): Promise<FetchRecordsRawResult> {
     const subTrace: string[] = [];
     // Resolve the candidate NS hostnames concurrently and proceed with
     // the first usable result: done serially (or awaited jointly), a
@@ -844,6 +909,7 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
           deadlineAt,
           budget,
+          dnssecOk,
         });
         subTrace.push(...resolved.trace);
         // resolved.answers are all A records (filtered by type), so
@@ -887,6 +953,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
+        dnssecOk,
       });
     } catch (error) {
       // Sibling NS lookups are still usable failover: the race above only
@@ -912,6 +979,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
+        dnssecOk,
       });
     }
   }
@@ -933,5 +1001,39 @@ export class AuthoritativeResolver extends DnsResolver {
     }));
 
     return { records, trace };
+  }
+
+  /**
+   * The DNSSEC tab always walks authoritatively (bypassing the resolver
+   * selector): this instance supplies the transport, lib/dnssec/resolve.ts
+   * owns the walk. See lib/dnssec for what is (and isn't) verified.
+   */
+  public resolveDnssecChain(domain: string): Promise<DnssecChain> {
+    // One chain is dozens of independent walks (a DNSKEY + DS pair per zone,
+    // plus the leaf RRset probes). Each must draw from the same allowance
+    // instead of stacking a fresh per-walk one, or a deep name multiplies both
+    // the packet ceiling and the worst-case latency by the label count.
+    // ponytail: the deadline still only gates FALLBACK candidates (see
+    // fetchRecordsRaw), so each query may burn one retry window past it. The
+    // chain runs its queries in ~4 parallel stages, so the wall-clock ceiling
+    // is stages x one retry window, not queries x one. Gating the first
+    // candidate too would bound it tighter but break the progress guarantee
+    // ordinary deep referral walks rely on; the request timeout is the backstop.
+    const budget = {
+      remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_CHAIN,
+    };
+    const deadlineAt =
+      Date.now() +
+      (this.options.fallbackDeadlineMs ??
+        AuthoritativeResolver.FALLBACK_DEADLINE_MS);
+    return resolveDnssecChain(domain, (name, type, dnssecOk) =>
+      this.fetchRecordsRaw({
+        domain: name,
+        recordType: type,
+        dnssecOk,
+        budget,
+        deadlineAt,
+      }),
+    );
   }
 }

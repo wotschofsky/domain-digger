@@ -31,6 +31,31 @@ const response = (
   }) as unknown as DecodedPacket;
 
 describe('AuthoritativeResolver transport policy', () => {
+  it('falls back to a healthy sibling when the first nameserver throws', async () => {
+    // The request DataLoader returns Errors from its batch rather than
+    // rejecting it; DataLoader turns those back into a rejected load(), which
+    // is what lets the candidate loop record the failure and try the next one.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') throw new Error('timeout');
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.10');
+  });
+
   it('tries the next nameserver after a retryable DNS rcode', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) =>
@@ -196,6 +221,24 @@ describe('AuthoritativeResolver transport policy', () => {
 
     await expect(
       resolver.resolveRecordType('example.com', 'RRSIG'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
+  it('fails indeterminately when a DNSSEC-walk query only gets error rcodes', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) => response(domain, recordType, 'REFUSED'),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    await expect(
+      resolver['fetchRecordsRaw']({
+        domain: 'example.com',
+        recordType: 'DNSKEY',
+        dnssecOk: true,
+      }),
     ).rejects.toBeInstanceOf(UserFacingError);
   });
 
@@ -656,6 +699,37 @@ describe('AuthoritativeResolver transport policy', () => {
       resolver.resolveRecordType('www.example.com', 'A'),
     ).rejects.toBeInstanceOf(Error);
     expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(50);
+  });
+
+  it('shares one query budget across every walk of a DNSSEC chain', async () => {
+    // A chain walks each suffix independently, so a per-walk budget would let
+    // a deep name multiply the same forking zone by the label count.
+    let seq = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [1, 2, 3, 4].map((i) => ({
+            name: domain,
+            type: 'NS',
+            ttl: 300,
+            data: `ns${i}-${seq++}.example.net`,
+          })),
+        }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    // 15 labels: the deepest name the chain walk accepts (MAX_WALK_ZONES).
+    const deepName = `${Array.from({ length: 13 }, (_, i) => `l${i}`).join('.')}.example.com`;
+
+    await expect(resolver.resolveDnssecChain(deepName)).rejects.toBeInstanceOf(
+      Error,
+    );
+
+    // Per-walk budgets would allow ~50 per suffix query (well over 1000 here).
+    expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(300);
   });
 
   it('prefers an authoritative sibling over a non-authoritative answer', async () => {
