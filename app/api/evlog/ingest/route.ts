@@ -15,6 +15,17 @@ const MAX_BODY_SIZE_BYTES = 100 * 1024;
 export const POST = withEvlog(async (request: Request) => {
   const logger = useLogger();
 
+  const source =
+    request.headers.get('origin') ?? request.headers.get('referer');
+  const expectedHost = new URL(request.url).host;
+  if (
+    source === null ||
+    !URL.canParse(source) ||
+    new URL(source).host !== expectedHost
+  ) {
+    return new Response(null, { status: 403 });
+  }
+
   const contentLength = Number(request.headers.get('content-length'));
   if (contentLength > MAX_BODY_SIZE_BYTES) {
     return new Response(null, { status: 413 });

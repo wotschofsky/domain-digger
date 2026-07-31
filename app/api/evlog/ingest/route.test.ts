@@ -6,6 +6,30 @@ const logger = {
   warn: vi.fn(),
 };
 
+const createRequest = (
+  body: string,
+  {
+    url = 'http://localhost/api/_evlog/ingest',
+    origin = 'http://localhost',
+    referer,
+    contentType,
+  }: {
+    url?: string;
+    origin?: string | null;
+    referer?: string;
+    contentType?: string;
+  } = {},
+) => {
+  const request = new Request(url, { method: 'POST', body });
+
+  if (origin !== null) request.headers.set('origin', origin);
+  if (referer !== undefined) request.headers.set('referer', referer);
+  if (contentType !== undefined)
+    request.headers.set('content-type', contentType);
+
+  return request;
+};
+
 vi.mock('@/lib/evlog', () => ({
   useLogger: () => logger,
   withEvlog:
@@ -23,15 +47,14 @@ describe('client log ingestion', () => {
 
   it('adds valid client logs to the traced request event', async () => {
     const response = await POST(
-      new Request('http://localhost/api/_evlog/ingest', {
-        method: 'POST',
-        body: JSON.stringify({
+      createRequest(
+        JSON.stringify({
           level: 'error',
           timestamp: '2026-07-31T12:00:00.000Z',
           service: 'domain-digger',
           action: 'lookup_failed',
         }),
-      }),
+      ),
     );
 
     expect(response.status).toBe(204);
@@ -46,12 +69,72 @@ describe('client log ingestion', () => {
     });
   });
 
+  it('accepts a same-host Referer when Origin is absent', async () => {
+    const response = await POST(
+      createRequest(
+        JSON.stringify({
+          level: 'info',
+          timestamp: '2026-07-31T12:00:00.000Z',
+          service: 'domain-digger',
+        }),
+        {
+          origin: null,
+          referer: 'http://localhost/lookup/example.com',
+        },
+      ),
+    );
+
+    expect(response.status).toBe(204);
+    expect(logger.setLevel).toHaveBeenCalledWith('info');
+  });
+
+  it('rejects cross-origin text/plain requests before reading the body', async () => {
+    const request = createRequest(
+      JSON.stringify({
+        level: 'error',
+        timestamp: '2026-07-31T12:00:00.000Z',
+        service: 'domain-digger',
+        action: 'forged_log',
+      }),
+      {
+        url: 'https://domain-digger.example/api/evlog/ingest',
+        origin: 'https://attacker.example',
+        referer: 'https://domain-digger.example/lookup/example.com',
+        contentType: 'text/plain',
+      },
+    );
+    const readBody = vi.spyOn(request, 'text');
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
+    expect(readBody).not.toHaveBeenCalled();
+    expect(logger.setLevel).not.toHaveBeenCalled();
+    expect(logger.set).not.toHaveBeenCalled();
+  });
+
+  it('rejects requests without an Origin or Referer', async () => {
+    const request = createRequest(
+      JSON.stringify({
+        level: 'warn',
+        timestamp: '2026-07-31T12:00:00.000Z',
+        service: 'domain-digger',
+      }),
+      { origin: null },
+    );
+    const readBody = vi.spyOn(request, 'text');
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
+    expect(readBody).not.toHaveBeenCalled();
+    expect(logger.setLevel).not.toHaveBeenCalled();
+    expect(logger.set).not.toHaveBeenCalled();
+  });
+
   it('rejects malformed client logs', async () => {
     const response = await POST(
-      new Request('http://localhost/api/_evlog/ingest', {
-        method: 'POST',
-        body: JSON.stringify({ message: 'missing required fields' }),
-      }),
+      createRequest(JSON.stringify({ message: 'missing required fields' })),
     );
 
     expect(response.status).toBe(400);
@@ -63,12 +146,7 @@ describe('client log ingestion', () => {
   });
 
   it('rejects invalid JSON rather than failing the traced request', async () => {
-    const response = await POST(
-      new Request('http://localhost/api/_evlog/ingest', {
-        method: 'POST',
-        body: '{',
-      }),
-    );
+    const response = await POST(createRequest('{'));
 
     expect(response.status).toBe(400);
     expect(logger.warn).toHaveBeenCalledWith(
@@ -78,14 +156,13 @@ describe('client log ingestion', () => {
   });
 
   it('rejects a body whose declared content length exceeds the limit', async () => {
-    const request = new Request('http://localhost/api/_evlog/ingest', {
-      method: 'POST',
-      body: JSON.stringify({
+    const request = createRequest(
+      JSON.stringify({
         level: 'info',
         timestamp: '2026-07-31T12:00:00.000Z',
         service: 'domain-digger',
       }),
-    });
+    );
     request.headers.set('content-length', String(100 * 1024 + 1));
     const readBody = vi.spyOn(request, 'text');
 
@@ -103,10 +180,7 @@ describe('client log ingestion', () => {
       service: 'domain-digger',
       message: '€'.repeat(35_000),
     });
-    const request = new Request('http://localhost/api/_evlog/ingest', {
-      method: 'POST',
-      body,
-    });
+    const request = createRequest(body);
     request.headers.delete('content-length');
 
     const response = await POST(request);
