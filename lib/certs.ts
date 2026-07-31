@@ -28,15 +28,13 @@ const fetchCerts = async (domain: string) => {
     async (attemptNumber) => {
       const response = await fetch(url, {
         next: { revalidate: CRT_SH_REVALIDATE_SECONDS },
-        // React memoizes identical fetches within a single Server Component
-        // render, so without a unique key each retry would replay the prior
-        // failed Response instead of hitting the network. A per-attempt header
-        // busts the memoization key on retries while leaving the first
-        // attempt eligible for normal Data Cache hits.
-        headers:
-          attemptNumber > 1
-            ? { 'x-retry-attempt': String(attemptNumber) }
-            : undefined,
+        // Next.js dedupes identical fetches within a render pass, so without
+        // an opt-out each retry would replay the first failed Response instead
+        // of hitting the network. Passing a signal opts the request out of
+        // that dedupe layer while staying absent from the Data Cache key, so
+        // a successful retry is stored under the same key normal requests use
+        // (unlike a per-attempt header, which would fragment the cache key).
+        signal: attemptNumber > 1 ? new AbortController().signal : undefined,
       });
       // crt.sh regularly returns brief bursts of 429s and 502s that clear
       // within seconds. Throw so p-retry backs off; non-transient statuses
@@ -61,7 +59,7 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
       {
         title: "Couldn't reach crt.sh",
         description:
-          "We couldn't complete the request to crt.sh. Please try again shortly.",
+          'crt.sh kept failing after several attempts. It may be briefly overloaded — please try again shortly.',
         retryable: true,
       },
       { cause: error },
