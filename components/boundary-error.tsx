@@ -1,5 +1,6 @@
 'use client';
 
+import { log } from 'evlog/next/client';
 import { type FC, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,13 @@ export const BoundaryError: FC<BoundaryErrorProps> = ({
   const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
-    console.error(error);
+    log.error({
+      message: 'boundary_error',
+      name: error.name,
+      error: error.message,
+      digest: error.digest,
+      stack: error.stack,
+    });
   }, [error]);
 
   const userFacing = parseUserFacingDigest(error.digest);

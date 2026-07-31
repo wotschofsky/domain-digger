@@ -1,3 +1,4 @@
+import { log } from 'evlog';
 import {
   afterEach,
   beforeEach,
@@ -44,7 +45,7 @@ describe('retry', () => {
   let warnSpy: MockInstance;
 
   beforeEach(() => {
-    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warnSpy = vi.spyOn(log, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -70,7 +71,10 @@ describe('retry', () => {
     expect(result).toBe('success');
     expect(mockFn).toHaveBeenCalledTimes(3);
     expect(warnSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy).toHaveBeenCalledWith(error.message.toString());
+    expect(warnSpy).toHaveBeenCalledWith({
+      message: 'retrying_after_error',
+      error: error.message,
+    });
   });
 
   it('should throw the last error after exhausting all retries', async () => {

@@ -1,8 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { evlogMiddleware } from 'evlog/next';
+import { type NextRequest, NextResponse } from 'next/server';
 
 import { parseSearchInput } from './lib/search-parser';
 
-export function proxy(request: NextRequest) {
+const withEvlogHeaders = evlogMiddleware();
+
+export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname !== '/') {
+    return withEvlogHeaders(request);
+  }
+
   const url = request.nextUrl.clone();
   const searchTerm = url.searchParams.get('q')!;
   const parsed = parseSearchInput(searchTerm);
@@ -26,6 +33,7 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
+    '/api/:path*',
     {
       source: '/',
       has: [{ type: 'query', key: 'q' }],

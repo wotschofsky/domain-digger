@@ -15,17 +15,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
           version: 9
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v6
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install Dependencies
@@ -40,17 +40,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
           version: 9
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v6
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install Dependencies
@@ -65,17 +65,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v5
         with:
           version: 9
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v6
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
 
       - name: Install Dependencies

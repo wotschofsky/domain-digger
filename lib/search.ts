@@ -1,12 +1,12 @@
+import { log } from 'evlog';
 import { headers } from 'next/headers';
 import { after } from 'next/server';
 
 import { env } from '@/env';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
+import type { LookupType } from '@/lib/lookup-features';
 import { getBaseDomain } from '@/lib/utils';
-
-export type LookupType = 'dns' | 'whois' | 'subdomains' | 'certs';
 
 type LookupLogPayload = {
   domain: string;
@@ -44,10 +44,10 @@ export const recordLookup = async (payload: LookupLogPayload) => {
     .catch((error) => {
       if ('errors' in error) {
         for (const err of error.errors) {
-          console.error(err);
+          log.error({ message: 'bigquery_insert_failed', error: err });
         }
       } else {
-        console.error(error);
+        log.error({ message: 'bigquery_insert_failed', error });
       }
     });
 };

@@ -9,8 +9,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 
-import { env } from '@/env';
-import { getGitHubSponsors } from '@/lib/github';
+import { getAllSponsors } from '@/lib/sponsors';
 import { cn } from '@/lib/utils';
 
 type SponsorsSectionProps = HTMLAttributes<HTMLElement>;
@@ -19,27 +18,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   className,
   ...props
 }) => {
-  const buildSponsorUrl = (baseUrl: string) => {
-    try {
-      const url = new URL(baseUrl);
-      url.searchParams.set('ref', 'domain-digger');
-      return url.toString();
-    } catch (_) {
-      return `https://${baseUrl}?ref=domain-digger`;
-    }
-  };
-
-  const githubSponsors = await getGitHubSponsors('wotschofsky');
-
-  const allSponsors = [
-    ...(env.SPONSORS || []),
-    ...githubSponsors.map((s) => ({
-      id: s.login,
-      name: s.name,
-      logoUrl: s.avatarUrl,
-      url: s.websiteUrl || s.url,
-    })),
-  ];
+  const allSponsors = await getAllSponsors();
 
   if (!allSponsors.length) {
     return null;
@@ -54,11 +33,7 @@ export const SponsorsSection: FC<SponsorsSectionProps> = async ({
 
       <div className="mb-2 flex items-center justify-center gap-4">
         {allSponsors.map((sponsor) => (
-          <a
-            key={sponsor.id}
-            href={buildSponsorUrl(sponsor.url)}
-            target="_blank"
-          >
+          <a key={sponsor.id} href={sponsor.url} target="_blank">
             <Image
               width={48}
               height={48}

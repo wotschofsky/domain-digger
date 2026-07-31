@@ -1,3 +1,4 @@
+import { log } from 'evlog';
 import { CheckCircleIcon, InfoIcon, ShieldAlertIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
@@ -9,8 +10,6 @@ import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
 import { IconAlert } from '../_components/icon-alert';
 import { ResultsGlobe } from './_components/results-globe';
-
-export const runtime = 'edge';
 
 type MapResultsPageProps = {
   params: Promise<{
@@ -42,7 +41,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
   const { isBot, userAgent } = isUserBot(headersList);
 
   if (isBot) {
-    console.info('Bot detected, blocking request, UA:', userAgent);
+    log.info({ message: 'bot_blocked', userAgent, domain });
     return (
       <IconAlert
         className="mx-auto mt-24"
