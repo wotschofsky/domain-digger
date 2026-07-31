@@ -107,6 +107,13 @@ export const StarReminder: FC = () => {
     return null;
   }
 
+  const mostRecentStargazer = data.recentStargazers[0]?.name;
+
+  // check for truthy name to prevent "undefined and 3 others"
+  const stargazersMessage = mostRecentStargazer
+    ? `${mostRecentStargazer} and ${data.totalStars - 1} others\nhave recently starred Domain Digger`
+    : `${data.totalStars} people have starred Domain Digger`;
+
   return (
     <AlertDialog open={visible} onOpenChange={handleOpenChange}>
       <AlertDialogContent>
@@ -134,10 +141,8 @@ export const StarReminder: FC = () => {
                   />
                 ))}
               </div>
-              <p className="text-center">
-                {data.recentStargazers[0].name} and {data.totalStars - 1} others
-                <br />
-                have recently starred Domain Digger
+              <p className="text-center whitespace-pre-wrap">
+                {stargazersMessage}
               </p>
             </div>
           </AlertDialogDescription>
