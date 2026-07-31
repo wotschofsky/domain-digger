@@ -76,4 +76,46 @@ describe('client log ingestion', () => {
       expect.objectContaining({ source: 'client' }),
     );
   });
+
+  it('rejects a body whose declared content length exceeds the limit', async () => {
+    const request = new Request('http://localhost/api/_evlog/ingest', {
+      method: 'POST',
+      body: JSON.stringify({
+        level: 'info',
+        timestamp: '2026-07-31T12:00:00.000Z',
+        service: 'domain-digger',
+      }),
+    });
+    request.headers.set('content-length', String(100 * 1024 + 1));
+    const readBody = vi.spyOn(request, 'text');
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    expect(readBody).not.toHaveBeenCalled();
+    expect(logger.set).not.toHaveBeenCalled();
+  });
+
+  it('rejects an oversized UTF-8 body without a content length', async () => {
+    const body = JSON.stringify({
+      level: 'info',
+      timestamp: '2026-07-31T12:00:00.000Z',
+      service: 'domain-digger',
+      message: '€'.repeat(35_000),
+    });
+    const request = new Request('http://localhost/api/_evlog/ingest', {
+      method: 'POST',
+      body,
+    });
+    request.headers.delete('content-length');
+
+    const response = await POST(request);
+
+    expect(body.length).toBeLessThan(100 * 1024);
+    expect(new TextEncoder().encode(body).byteLength).toBeGreaterThan(
+      100 * 1024,
+    );
+    expect(response.status).toBe(413);
+    expect(logger.set).not.toHaveBeenCalled();
+  });
 });
