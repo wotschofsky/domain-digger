@@ -42,7 +42,7 @@ type ProvidersProps = {
 };
 
 export const Providers: FC<ProvidersProps> = ({ children }) => (
-  <EvlogProvider service="domain-digger">
+  <EvlogProvider service="domain-digger" transport={{ enabled: true }}>
     <ThemeProvider attribute="class">
       <SWRConfig value={{ fetcher: swrFetcher }}>
         <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>
