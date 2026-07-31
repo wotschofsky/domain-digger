@@ -10,7 +10,7 @@ export default [
       'react-compiler': reactCompiler,
     },
     rules: {
-      'no-console': ['error', { allow: ['error', 'info', 'warn'] }],
+      'no-console': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
       'react-compiler/react-compiler': 'error',
 

@@ -3,11 +3,12 @@ import { parse as parseTldts } from 'tldts';
 
 import { env } from '@/env';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
+import { LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { getTopDomains } from '@/lib/search';
 import { deduplicate } from '@/lib/utils';
 
-const LANDING_PAGES = ['', '/certs', '/map', '/subdomains', '/whois'];
-const RESULTS_SUBPATHS = ['', '/certs', '/map', '/subdomains', '/whois'];
+const LANDING_PAGES = LOOKUP_FEATURES.map((feature) => feature.landingPath);
+const RESULTS_SUBPATHS = LOOKUP_FEATURES.map((feature) => feature.path);
 
 const getProgrammaticPaths = async () => {
   const topDomains = await getTopDomains(1000);

@@ -11,13 +11,14 @@ import {
 } from '@/components/ui/tooltip';
 
 import { SortableTable } from '@/components/sortable-table';
+import { getSource } from '@/lib/subfinder-sources';
 
 import { DomainLink } from '../../../../_components/domain-link';
 
 type SubdomainsTableProps = {
   results: {
     domain: string;
-    firstSeen: Date;
+    sources: string[];
     stillExists: boolean | null;
   }[];
   detailedResultsLimit: number;
@@ -36,9 +37,32 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
         render: (value) => <DomainLink domain={value} />,
       },
       {
-        key: 'firstSeen',
-        label: 'First seen',
-        render: (value) => new Date(value).toLocaleString('en-US'),
+        key: 'sources',
+        label: 'Found on',
+        render: (value) => (
+          <div className="flex flex-wrap gap-1">
+            {value.map((source) => {
+              const { label, url } = getSource(source);
+              const className =
+                'inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-xs whitespace-nowrap text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300';
+              return url ? (
+                <a
+                  key={source}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`${className} transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-700`}
+                >
+                  {label}
+                </a>
+              ) : (
+                <span key={source} className={className}>
+                  {label}
+                </span>
+              );
+            })}
+          </div>
+        ),
       },
       {
         key: 'stillExists',
@@ -63,7 +87,7 @@ export const SubdomainsTable: FC<SubdomainsTableProps> = ({
       },
     ]}
     keyColumn="domain"
-    defaultSort="firstSeen"
-    defaultSortDirection="desc"
+    defaultSort="domain"
+    defaultSortDirection="asc"
   />
 );

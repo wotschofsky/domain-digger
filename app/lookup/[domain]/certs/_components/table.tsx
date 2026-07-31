@@ -1,6 +1,6 @@
 'use client';
 
-import type { FC } from 'react';
+import { type FC, Fragment } from 'react';
 
 import { SortableTable } from '@/components/sortable-table';
 import type { CertsData } from '@/lib/certs';
@@ -46,14 +46,14 @@ export const CertsTable: FC<CertsTableProps> = ({ certs }) => (
         label: 'Matching Identities',
         render: (value) =>
           value.split(/\n/g).map((value, index) => (
-            <>
+            <Fragment key={index}>
               {index !== 0 && <br />}
               {isValidDomain(value) ? (
                 <DomainLink domain={value} />
               ) : (
                 <span>{value}</span>
               )}
-            </>
+            </Fragment>
           )),
       },
       {
