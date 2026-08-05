@@ -1,3 +1,4 @@
+import { cacheLife } from 'next/cache';
 import Image from 'next/image';
 import { type FC, type HTMLAttributes } from 'react';
 
@@ -14,11 +15,22 @@ import { cn } from '@/lib/utils';
 
 type SponsorsSectionProps = HTMLAttributes<HTMLElement>;
 
+// Replaces the `revalidate = 86400` that used to sit on every landing page.
+// The directive lives here rather than in lib/sponsors, because next.config.ts
+// calls into that module to build the image remote patterns, outside any
+// request scope where `use cache` could run.
+const getCachedSponsors = async () => {
+  'use cache';
+  cacheLife('days');
+
+  return getAllSponsors();
+};
+
 export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   className,
   ...props
 }) => {
-  const allSponsors = await getAllSponsors();
+  const allSponsors = await getCachedSponsors();
 
   if (!allSponsors.length) {
     return null;

@@ -1,7 +1,6 @@
 import Image from 'next/image';
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'edge';
 export const contentType = 'image/png';
 
 const fetchArrayBuffer = async (url: string | URL) =>

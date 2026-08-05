@@ -22,6 +22,11 @@ const StarReminder = dynamic(() =>
   })),
 );
 
+// ponytail: the domain-dependent header, tabs and validation still await params above
+// any Suspense boundary, so this route blocks. Converting it needs the heading
+// skeleton plus a decision about 404 semantics — tracked as follow-up work.
+export const instant = false;
+
 type LookupLayoutProps = {
   children: ReactNode;
   params: Promise<{

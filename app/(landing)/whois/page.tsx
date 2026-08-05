@@ -6,8 +6,6 @@ import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const revalidate = 86400; // 24 hours
-
 export const metadata: Metadata = {
   title: 'WHOIS Lookup',
   openGraph: {

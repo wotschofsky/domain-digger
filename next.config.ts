@@ -44,12 +44,8 @@ const nextConfig = async (): Promise<NextConfig> => ({
       ],
     },
   ],
-  experimental: {
-    staleTimes: {
-      dynamic: 60,
-      static: 300,
-    },
-  },
+  cacheComponents: true,
+  partialPrefetching: true,
   outputFileTracingIncludes: {
     // Tracing keys are picomatch globs — escape the dynamic-segment brackets
     // so they're matched literally instead of as a character class.
