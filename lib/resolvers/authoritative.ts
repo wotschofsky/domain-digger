@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import dgram from 'node:dgram';
 import net from 'node:net';
 
@@ -269,10 +270,11 @@ export class AuthoritativeResolver extends DnsResolver {
     recordType,
     nameserver,
   }: AuthoritativeRequest) {
-    const id = Math.floor(Math.random() * 65535);
+    // Cryptographically secure transaction ID makes off-path spoofing
+    // meaningfully harder than Math.random allows
+    const id = randomInt(0, 65536);
     const packetBuffer = dnsPacket.encode({
       type: 'query',
-      // Randomize ID to avoid response mismatch
       id,
       questions: [{ type: recordType, name: domain } as Question],
     });
@@ -323,7 +325,7 @@ export class AuthoritativeResolver extends DnsResolver {
     recordType,
     nameserver,
   }: AuthoritativeRequest) {
-    const id = Math.floor(Math.random() * 65535);
+    const id = randomInt(0, 65536);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
       id,
