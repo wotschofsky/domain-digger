@@ -11,6 +11,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "NODE_ENV=development next typegen && tsgo --noEmit",
     "test": "vitest",
     "test:format": "prettier --cache --check .",
     "format": "prettier --cache --write ."
@@ -82,6 +83,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "eslint": "^9.39.1",
     "eslint-config-next": "16.3.0",
