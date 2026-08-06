@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "typescript",
+    "react",
+    "react-perf",
+    "nextjs",
+    "import",
+    "jsx-a11y",
+    "unicorn",
+    "oxc"
+  ],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "no-console": "error",
+
+    // TODO: Temporary - convert these back to errors once fixed
+    // Carried over from the ESLint config they replace.
+    "typescript/ban-ts-comment": "warn",
+    "typescript/consistent-type-imports": "warn",
+    "typescript/no-empty-object-type": "warn",
+    "typescript/no-explicit-any": "warn",
+    "typescript/no-unsafe-function-type": "warn",
+    "no-unused-vars": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "import/no-anonymous-default-export": "warn",
+
+    // eslint-config-next reported these as warnings as well, but oxlint files
+    // them under `correctness`, so they need pinning back down.
+    "nextjs/no-img-element": "warn",
+    "jsx-a11y/anchor-is-valid": "warn",
+    "jsx-a11y/click-events-have-key-events": "warn",
+    "jsx-a11y/no-autofocus": "warn",
+    "jsx-a11y/no-noninteractive-element-interactions": "warn",
+    "jsx-a11y/no-static-element-interactions": "warn",
+    "jsx-a11y/prefer-tag-over-role": "warn",
+
+    // Newly surfaced by oxlint, on code eslint-config-next never flagged.
+    // Kept as warnings so the switch doesn't turn CI red on existing code.
+    "jsx-a11y/heading-has-content": "warn",
+    "jsx-a11y/no-noninteractive-tabindex": "warn",
+    "unicorn/no-useless-spread": "warn"
+  },
+  "ignorePatterns": [".next", "bin", "node_modules"]
+}
