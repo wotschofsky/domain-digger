@@ -60,7 +60,7 @@ jobs:
       - name: Run Linter
         run: pnpm run lint
 
-  typechecking:
+  types:
     name: Type Checking
     runs-on: ubuntu-22.04
     timeout-minutes: 10
@@ -83,7 +83,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Type Checker
-        run: pnpm run typecheck
+        run: pnpm run test:types
 
   tests:
     name: Tests
