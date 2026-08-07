@@ -60,6 +60,31 @@ jobs:
       - name: Run Linter
         run: pnpm run lint
 
+  types:
+    name: Type Checking
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 9
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Type Checker
+        run: pnpm run test:types
+
   tests:
     name: Tests
     runs-on: ubuntu-22.04
