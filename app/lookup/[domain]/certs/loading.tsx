@@ -23,9 +23,8 @@ const CertsLoading: FC = () => (
       </TableRow>
     </TableHeader>
     <TableBody>
-      {Array.from({ length: 8 }).map(() => (
-        // eslint-disable-next-line react/jsx-key
-        <TableRow className="hover:bg-transparent">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <TableRow key={index} className="hover:bg-transparent">
           <TableCell className="pl-0">
             <Skeleton className="h-5 w-44 rounded-sm" />
           </TableCell>
