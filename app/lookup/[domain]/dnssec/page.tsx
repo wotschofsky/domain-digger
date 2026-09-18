@@ -159,7 +159,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
         ))}
       </div>
 
-      <p className="border-t border-zinc-200 pt-5 text-sm text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
         This checks DS digest linkage only, not signatures; expired or forged
         signatures are not detected.
       </p>
