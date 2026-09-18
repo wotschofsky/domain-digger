@@ -9,7 +9,11 @@ export type RawRecord = {
   data: string;
 };
 
-export type ResolverResponse = { records: RawRecord[]; trace: string[] };
+export type ResolverResponse = {
+  records: RawRecord[];
+  trace: string[];
+  rcode?: string;
+};
 
 export type ResolverMultiResponse = Record<string, ResolverResponse>;
 

@@ -470,6 +470,7 @@ export class AuthoritativeResolver extends DnsResolver {
   }: FetchRecordsParams): Promise<{
     answers: RawAnswer[];
     trace: string[];
+    rcode?: string;
   }> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
@@ -696,7 +697,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-  }): Promise<{ answers: RawAnswer[]; trace: string[] }> {
+  }): Promise<{ answers: RawAnswer[]; trace: string[]; rcode?: string }> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
     // unrelated records (e.g. glue promoted into it by a quirky server) must
@@ -718,6 +719,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
       return {
         answers: filteredAnswers,
+        rcode: packet.rcode,
         trace: [
           ...trace,
           `${recordType} ${domain} @ ${candidate} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
@@ -798,7 +800,7 @@ export class AuthoritativeResolver extends DnsResolver {
       });
     }
 
-    return { answers: [], trace };
+    return { answers: [], trace, rcode: packet.rcode };
   }
 
   // Follow a glueless referral: resolve the delegated NS hostnames to public
@@ -824,7 +826,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-  }): Promise<{ answers: RawAnswer[]; trace: string[] }> {
+  }): Promise<{ answers: RawAnswer[]; trace: string[]; rcode?: string }> {
     const subTrace: string[] = [];
     // Resolve the candidate NS hostnames concurrently and proceed with
     // the first usable result: done serially (or awaited jointly), a
@@ -920,7 +922,7 @@ export class AuthoritativeResolver extends DnsResolver {
     domain: string,
     recordType: RecordType,
   ): Promise<ResolverResponse> {
-    const { answers, trace } = await this.fetchRecordsRaw({
+    const { answers, trace, rcode } = await this.fetchRecordsRaw({
       domain,
       recordType,
     });
@@ -932,6 +934,6 @@ export class AuthoritativeResolver extends DnsResolver {
       data: this.recordToString(answer),
     }));
 
-    return { records, trace };
+    return { records, trace, rcode };
   }
 }

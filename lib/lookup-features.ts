@@ -18,6 +18,15 @@ export const LOOKUP_FEATURES = [
     lookupType: 'dns',
   },
   {
+    id: 'dnssec',
+    label: 'DNSSEC',
+    segment: 'dnssec',
+    path: '/dnssec',
+    landingPath: '/dnssec',
+    footerLabel: 'DNSSEC Lookup',
+    lookupType: 'dnssec',
+  },
+  {
     id: 'whois',
     label: 'Whois',
     segment: 'whois',

@@ -121,8 +121,25 @@ describe('AuthoritativeResolver transport policy', () => {
 
     await expect(
       resolver.resolveRecordType('example.com', 'A'),
-    ).resolves.toEqual(expect.objectContaining({ records: [] }));
+    ).resolves.toEqual(expect.objectContaining({ records: [], rcode: 'NOERROR' }));
     expect(udpTransport).toHaveBeenCalledTimes(1);
+  });
+
+  it('exposes NXDOMAIN separately from an empty NOERROR answer', async () => {
+    const resolver = new AuthoritativeResolver({
+      udpTransport: async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NXDOMAIN'),
+          flag_aa: true,
+        }) as DecodedPacket,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('missing.example', 'DNSKEY'),
+    ).resolves.toEqual(
+      expect.objectContaining({ records: [], rcode: 'NXDOMAIN' }),
+    );
   });
 
   it('surfaces all-REFUSED plain non-RRSIG queries as retryable failures', async () => {
