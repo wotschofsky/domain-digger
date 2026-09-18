@@ -50,16 +50,16 @@ const host = (name: string): Answer => ({
   data: '192.0.2.1',
 });
 
-const keyRecord = (name: string, key = testKey): Answer => ({
+const keyRecord = (name: string, key = testKey, flags = 257): Answer => ({
   name,
   type: 'DNSKEY',
   ttl: 60,
-  data: { flags: 257, algorithm: 8, key: Buffer.from(key, 'base64') },
+  data: { flags, algorithm: 8, key: Buffer.from(key, 'base64') },
 });
 
-const keyTag = (key: string): number => {
+const keyTag = (key: string, flags = 257): number => {
   const rdata = Buffer.concat([
-    Buffer.from([1, 1, 3, 8]),
+    Buffer.from([flags >> 8, flags & 0xff, 3, 8]),
     Buffer.from(key, 'base64'),
   ]);
   let sum = 0;
@@ -73,8 +73,9 @@ const keyTag = (key: string): number => {
 const dsRecord = (
   name: string,
   key = testKey,
-  digestType: 1 | 2 = 2,
+  digestType = 2,
   corrupt = false,
+  flags = 257,
 ): Answer => {
   const labels = name.split('.');
   const owner = Buffer.concat([
@@ -85,10 +86,14 @@ const dsRecord = (
     Buffer.from([0]),
   ]);
   const rdata = Buffer.concat([
-    Buffer.from([1, 1, 3, 8]),
+    Buffer.from([flags >> 8, flags & 0xff, 3, 8]),
     Buffer.from(key, 'base64'),
   ]);
-  const digest = createHash(digestType === 2 ? 'sha256' : 'sha1')
+  // Digest types without a hash here (e.g. 3, GOST) get a SHA-256 stand-in.
+  const digest = createHash(
+    ({ 1: 'sha1', 4: 'sha384' } as Record<number, string>)[digestType] ??
+      'sha256',
+  )
     .update(Buffer.concat([owner, rdata]))
     .digest();
   return {
@@ -96,7 +101,7 @@ const dsRecord = (
     type: 'DS',
     ttl: 60,
     data: {
-      keyTag: keyTag(key),
+      keyTag: keyTag(key, flags),
       algorithm: 8,
       digestType,
       digest: corrupt ? Buffer.alloc(digest.length) : digest,
@@ -362,5 +367,74 @@ describe('resolveDsChain', () => {
       ]),
     );
     expect(reverse.verdict).toBe('mismatch');
+  });
+
+  it('accepts a matching SHA-384 DS next to a stale SHA-256 DS', async () => {
+    const chain = await resolveDsChain(
+      'com',
+      dnsTree([
+        root(),
+        soa('com'),
+        keyRecord('com'),
+        dsRecord('com', testKey, 2, true),
+        dsRecord('com', testKey, 4),
+      ]),
+    );
+    expect(chain.verdict).toBe('intact');
+  });
+
+  it('ignores a matching SHA-1 DS when SHA-384 is present', async () => {
+    const chain = await resolveDsChain(
+      'com',
+      dnsTree([
+        root(),
+        soa('com'),
+        keyRecord('com'),
+        dsRecord('com', testKey, 1),
+        dsRecord('com', testKey, 4, true),
+      ]),
+    );
+    expect(chain.verdict).toBe('mismatch');
+  });
+
+  it('treats a DS set with only unsupported digests as unsigned', async () => {
+    const chain = await resolveDsChain(
+      'com',
+      dnsTree([
+        root(),
+        soa('com'),
+        keyRecord('com'),
+        dsRecord('com', testKey, 3),
+      ]),
+    );
+    expect(chain.verdict).toBe('unsigned');
+    expect(chain.breakAt).toBe('com');
+  });
+
+  it('does not match a DS against a DNSKEY without the Zone Key flag', async () => {
+    const chain = await resolveDsChain(
+      'com',
+      dnsTree([
+        root(),
+        soa('com'),
+        keyRecord('com', testKey, 1),
+        dsRecord('com', testKey, 2, false, 1),
+      ]),
+    );
+    expect(chain.verdict).toBe('mismatch');
+  });
+
+  it('does not treat a DNSKEY owned by a host as a zone cut', async () => {
+    const chain = await resolveDsChain(
+      'www.example.com',
+      dnsTree([
+        root(),
+        ...signedZone('com'),
+        ...signedZone('example.com'),
+        keyRecord('www.example.com'),
+      ]),
+    );
+    expect(chain.verdict).toBe('intact');
+    expect(chain.zones.at(-1)?.name).toBe('example.com');
   });
 });

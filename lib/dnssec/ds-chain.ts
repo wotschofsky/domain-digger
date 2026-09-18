@@ -133,6 +133,8 @@ const keyTag = (key: DnskeyData): number => {
 };
 
 const dsMatchesKey = (ds: DsData, key: DnskeyData, name: string): boolean => {
+  // A DS may only point at a key with the Zone Key flag (RFC 4034 section 5.2).
+  if ((key.flags & 0x0100) === 0) return false;
   if (ds.keyTag !== keyTag(key) || ds.algorithm !== key.algorithm) return false;
   const hash = HASH_ALGORITHMS[ds.digestType];
   if (!hash) return false;
@@ -197,14 +199,14 @@ export const resolveDsChain = async (
     }
     const dsRecords = isRoot ? ROOT_ANCHORS : dsOf(dsResponse!);
     // Only zone apexes link the chain. A name is one when a parent delegates
-    // it (the lookup was referred to its servers) or it has its own SOA,
-    // DNSKEY or DS. The SOA covers parent and child sharing servers, where no
-    // referral happens; the referral covers child servers that host no zone
-    // at the cut. Anything else (a host, a CNAME, an empty non-terminal) lives
-    // inside the zone above.
+    // it (the lookup was referred to its servers) or it has its own SOA or a
+    // parent DS; a DNSKEY RRset alone does not make a zone cut. The SOA
+    // covers parent and child sharing servers, where no referral happens; the
+    // referral covers child servers that host no zone at the cut. Anything
+    // else (a host, a CNAME, an empty non-terminal) lives inside the zone
+    // above.
     const isApex =
       isRoot ||
-      keys.length > 0 ||
       dsRecords.length > 0 ||
       [soaResponse, keyResponse, dsResponse].some(
         (response) => response?.zone === name,
@@ -214,15 +216,21 @@ export const resolveDsChain = async (
     const matches = dsRecords.map((ds) =>
       keys.some((key) => dsMatchesKey(ds, key, name)),
     );
-    // If a parent publishes SHA-256 DS records, use those for the decision.
-    // A matching SHA-1 record cannot hide a broken stronger digest.
-    const preferred = dsRecords.some((ds) => ds.digestType === 2)
-      ? dsRecords.flatMap((ds, i) => (ds.digestType === 2 ? [matches[i]] : []))
-      : matches;
+    // Only supported digests decide, and SHA-1 is ignored next to a stronger
+    // one (RFC 4509 section 3), so a matching SHA-1 record cannot hide a
+    // broken stronger digest. With no supported digest the zone cannot be
+    // authenticated and counts as unsigned (RFC 4035 section 5.2).
+    const supported = dsRecords.flatMap((ds, i) =>
+      HASH_ALGORITHMS[ds.digestType] ? [{ ds, matched: matches[i] }] : [],
+    );
+    const hasStrong = supported.some(({ ds }) => ds.digestType !== 1);
+    const deciding = supported.filter(
+      ({ ds }) => !hasStrong || ds.digestType !== 1,
+    );
     const ownStatus: DsChainVerdict =
-      dsRecords.length === 0
+      deciding.length === 0
         ? 'unsigned'
-        : preferred.some(Boolean)
+        : deciding.some(({ matched }) => matched)
           ? 'intact'
           : 'mismatch';
     if (verdict === 'intact' && ownStatus !== 'intact') {
