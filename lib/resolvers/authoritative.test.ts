@@ -121,7 +121,9 @@ describe('AuthoritativeResolver transport policy', () => {
 
     await expect(
       resolver.resolveRecordType('example.com', 'A'),
-    ).resolves.toEqual(expect.objectContaining({ records: [], rcode: 'NOERROR' }));
+    ).resolves.toEqual(
+      expect.objectContaining({ records: [], rcode: 'NOERROR' }),
+    );
     expect(udpTransport).toHaveBeenCalledTimes(1);
   });
 
