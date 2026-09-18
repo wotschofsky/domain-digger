@@ -121,9 +121,7 @@ describe('AuthoritativeResolver transport policy', () => {
 
     await expect(
       resolver.resolveRecordType('example.com', 'A'),
-    ).resolves.toEqual(
-      expect.objectContaining({ records: [], rcode: 'NOERROR' }),
-    );
+    ).resolves.toEqual(expect.objectContaining({ records: [] }));
     expect(udpTransport).toHaveBeenCalledTimes(1);
   });
 
@@ -131,16 +129,118 @@ describe('AuthoritativeResolver transport policy', () => {
     const resolver = new AuthoritativeResolver({
       udpTransport: async ({ domain, recordType }) =>
         ({
-          ...response(domain, recordType, 'NXDOMAIN'),
+          ...response(
+            domain,
+            recordType,
+            domain === 'missing.example' ? 'NXDOMAIN' : 'NOERROR',
+          ),
           flag_aa: true,
         }) as DecodedPacket,
       rootServers: async () => ['192.0.2.1'],
     });
 
     await expect(
-      resolver.resolveRecordType('missing.example', 'DNSKEY'),
+      resolver.resolveAnswers('missing.example', 'DNSKEY'),
     ).resolves.toEqual(
-      expect.objectContaining({ records: [], rcode: 'NXDOMAIN' }),
+      expect.objectContaining({ answers: [], rcode: 'NXDOMAIN' }),
+    );
+    await expect(
+      resolver.resolveAnswers('empty.example', 'DNSKEY'),
+    ).resolves.toEqual(
+      expect.objectContaining({ answers: [], rcode: 'NOERROR' }),
+    );
+  });
+
+  it('returns decoded DNSKEY rdata from resolveAnswers', async () => {
+    const key = {
+      flags: 257,
+      algorithm: 13,
+      key: Buffer.from('AQIDBA==', 'base64'),
+    };
+    const resolver = new AuthoritativeResolver({
+      udpTransport: async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'DNSKEY', ttl: 60, data: key },
+          ]),
+          flag_aa: true,
+        }) as DecodedPacket,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveAnswers('example.com', 'DNSKEY'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        answers: [expect.objectContaining({ type: 'DNSKEY', data: key })],
+        zone: '.',
+      }),
+    );
+  });
+
+  it('reports the zone cut a referral led to, even when its servers answer NODATA', async () => {
+    const resolver = new AuthoritativeResolver({
+      udpTransport: async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                {
+                  name: 'www.example.com',
+                  type: 'NS',
+                  ttl: 300,
+                  data: 'ns1.example.net',
+                },
+              ],
+              additionals: [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : ({
+              ...response(domain, recordType, 'NOERROR'),
+              flag_aa: true,
+            } as DecodedPacket),
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveAnswers('www.example.com', 'SOA'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        answers: [],
+        rcode: 'NOERROR',
+        zone: 'www.example.com',
+      }),
+    );
+  });
+
+  it('does not report a dangling CNAME target as NXDOMAIN for the queried name', async () => {
+    // RFC 6604: the rcode describes the end of the chain, not the owner.
+    const resolver = new AuthoritativeResolver({
+      udpTransport: async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NXDOMAIN', [
+            {
+              name: domain,
+              type: 'CNAME',
+              ttl: 60,
+              data: 'gone.example.com',
+            },
+          ]),
+          flag_aa: true,
+        }) as DecodedPacket,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveAnswers('dangling.example.com', 'SOA'),
+    ).resolves.toEqual(
+      expect.objectContaining({ answers: [], rcode: 'NOERROR' }),
     );
   });
 

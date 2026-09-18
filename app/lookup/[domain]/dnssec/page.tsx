@@ -44,7 +44,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   let chain;
   try {
     chain = await resolveDsChain(domain, (name, type) =>
-      resolver.resolveRecordType(name, type),
+      resolver.resolveAnswers(name, type),
     );
   } catch (error) {
     if (error instanceof DsChainNameNotFoundError) {
@@ -55,6 +55,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   }
 
   await recordLookupAfter(domain, 'dnssec', chain.zones.length > 0);
+  const coveringZone = chain.zones.at(-1)!.name;
 
   return (
     <div className="space-y-8">
@@ -65,6 +66,12 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
           {VERDICT_LABELS[chain.verdict]}
           {chain.breakAt ? ` at ${chain.breakAt}` : ''}
         </h2>
+        {coveringZone !== chain.name && (
+          <p className="text-sm">
+            {chain.name} is not a zone of its own; it is covered by{' '}
+            <span className="font-medium">{coveringZone}</span>.
+          </p>
+        )}
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           This view checks digest linkage without verifying signatures.
         </p>

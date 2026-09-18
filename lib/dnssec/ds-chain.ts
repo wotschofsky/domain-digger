@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 
-import type { DnskeyData, DsData } from 'dns-packet';
+import type { Answer, DnskeyData, DsData } from 'dns-packet';
 
-import type { RecordType, ResolverResponse } from '@/lib/resolvers/base';
+import type { RecordType } from '@/lib/resolvers/base';
 import { UserFacingError } from '@/lib/user-facing-error';
 
 export type DsChainVerdict = 'intact' | 'unsigned' | 'mismatch';
@@ -26,15 +26,23 @@ export type DsChainZone = {
 };
 
 export type DsChain = {
+  // The queried name, lowercased and without a trailing dot. When it is not
+  // a zone apex itself (a host, a wildcard, ...), the last zone is the one
+  // it lives in.
+  name: string;
   zones: DsChainZone[];
   verdict: DsChainVerdict;
   breakAt?: string;
 };
 
+// Answers must be decoded rdata owned by the queried name, as an
+// authoritative server returns them; rcode tells NXDOMAIN from NODATA for
+// the queried name itself. zone is the zone cut whose servers answered (the
+// deepest delegation followed, '.' for the root).
 export type DsChainQuery = (
   name: string,
-  type: Extract<RecordType, 'DNSKEY' | 'DS'>,
-) => Promise<Pick<ResolverResponse, 'records' | 'rcode'>>;
+  type: Extract<RecordType, 'SOA' | 'DNSKEY' | 'DS'>,
+) => Promise<{ answers: Answer[]; rcode?: string; zone: string }>;
 
 export class DsChainNameNotFoundError extends Error {}
 
@@ -134,36 +142,15 @@ const dsMatchesKey = (ds: DsData, key: DnskeyData, name: string): boolean => {
     .equals(ds.digest);
 };
 
-const parseKeys = (response: Pick<ResolverResponse, 'records'>): DnskeyData[] =>
-  response.records.flatMap(({ data }) => {
-    const match = /^(\d+)\s+(\d+)\s+([A-Za-z0-9+/]+={0,2})$/.exec(data);
-    if (!match) return [];
-    return [
-      {
-        flags: Number(match[1]),
-        algorithm: Number(match[2]),
-        key: Buffer.from(match[3], 'base64'),
-      },
-    ];
-  });
+const dnskeysOf = ({ answers }: { answers: Answer[] }): DnskeyData[] =>
+  answers.flatMap((answer) => (answer.type === 'DNSKEY' ? [answer.data] : []));
 
-const parseDs = (response: Pick<ResolverResponse, 'records'>): DsData[] =>
-  response.records.flatMap(({ data }) => {
-    const match = /^(\d+)\s+(\d+)\s+(\d+)\s+([\da-fA-F]+)$/.exec(data);
-    if (!match) return [];
-    return [
-      {
-        keyTag: Number(match[1]),
-        algorithm: Number(match[2]),
-        digestType: Number(match[3]),
-        digest: Buffer.from(match[4], 'hex'),
-      },
-    ];
-  });
+const dsOf = ({ answers }: { answers: Answer[] }): DsData[] =>
+  answers.flatMap((answer) => (answer.type === 'DS' ? [answer.data] : []));
 
-const suffixesFor = (domain: string): string[] => {
-  const clean = domain.toLowerCase().replace(/\.$/, '').replace(/^\*\./, '');
-  const labels = clean ? clean.split('.') : [];
+const suffixesFor = (name: string): string[] => {
+  const clean = name.replace(/^\*\./, '');
+  const labels = clean && clean !== '.' ? clean.split('.') : [];
   if (labels.length > 16) {
     throw new UserFacingError({
       title: 'Domain name is too deep',
@@ -177,25 +164,30 @@ export const resolveDsChain = async (
   domain: string,
   query: DsChainQuery,
 ): Promise<DsChain> => {
-  const names = suffixesFor(domain);
+  const queried = domain.toLowerCase().replace(/\.$/, '') || '.';
+  const names = suffixesFor(queried);
   const zones: DsChainZone[] = [];
   let verdict: DsChainVerdict = 'intact';
   let breakAt: string | undefined;
 
   for (const [index, name] of names.entries()) {
-    const [keyResponse, dsResponse] = await Promise.all([
+    const isRoot = index === 0;
+    const [soaResponse, keyResponse, dsResponse] = await Promise.all([
+      isRoot ? null : query(name, 'SOA'),
       query(name, 'DNSKEY'),
-      index === 0 ? Promise.resolve(null) : query(name, 'DS'),
+      isRoot ? null : query(name, 'DS'),
     ]);
     if (
       index === names.length - 1 &&
-      (keyResponse.rcode === 'NXDOMAIN' || dsResponse?.rcode === 'NXDOMAIN')
+      [soaResponse, keyResponse, dsResponse].some(
+        (response) => response?.rcode === 'NXDOMAIN',
+      )
     ) {
       throw new DsChainNameNotFoundError(name);
     }
 
-    const keys = parseKeys(keyResponse);
-    if (index === 0 && keys.length === 0) {
+    const keys = dnskeysOf(keyResponse);
+    if (isRoot && keys.length === 0) {
       throw new UserFacingError({
         title: 'Root DNSKEY records unavailable',
         description:
@@ -203,7 +195,22 @@ export const resolveDsChain = async (
         retryable: true,
       });
     }
-    const dsRecords = index === 0 ? ROOT_ANCHORS : parseDs(dsResponse!);
+    const dsRecords = isRoot ? ROOT_ANCHORS : dsOf(dsResponse!);
+    // Only zone apexes link the chain. A name is one when a parent delegates
+    // it (the lookup was referred to its servers) or it has its own SOA,
+    // DNSKEY or DS. The SOA covers parent and child sharing servers, where no
+    // referral happens; the referral covers child servers that host no zone
+    // at the cut. Anything else (a host, a CNAME, an empty non-terminal) lives
+    // inside the zone above.
+    const isApex =
+      isRoot ||
+      keys.length > 0 ||
+      dsRecords.length > 0 ||
+      [soaResponse, keyResponse, dsResponse].some(
+        (response) => response?.zone === name,
+      ) ||
+      soaResponse!.answers.some((answer) => answer.type === 'SOA');
+    if (!isApex) continue;
     const matches = dsRecords.map((ds) =>
       keys.some((key) => dsMatchesKey(ds, key, name)),
     );
@@ -242,5 +249,10 @@ export const resolveDsChain = async (
     });
   }
 
-  return { zones, verdict, ...(breakAt ? { breakAt } : {}) };
+  return {
+    name: queried,
+    zones,
+    verdict,
+    ...(breakAt ? { breakAt } : {}),
+  };
 };

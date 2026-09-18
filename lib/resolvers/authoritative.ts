@@ -116,10 +116,21 @@ export const isMatchingDnsResponse = (
     ),
   );
 
+// A walk's final answer. `zone` is the zone cut whose servers gave it: the
+// deepest delegation followed, or the root.
+type WalkResult = {
+  answers: RawAnswer[];
+  trace: string[];
+  rcode?: string;
+  zone: string;
+};
+
 type FetchRecordsParams = {
   domain: string;
   recordType: RecordType;
   nameservers?: string[];
+  // The zone cut `nameservers` were delegated for.
+  zone?: string;
   trace?: string[];
   depth?: number;
   deadlineAt?: number;
@@ -458,6 +469,7 @@ export class AuthoritativeResolver extends DnsResolver {
     domain,
     recordType,
     nameservers,
+    zone: delegatedZone,
     trace = [],
     depth = 0,
     // The deadline and query budget span the whole walk -- referrals and
@@ -467,11 +479,7 @@ export class AuthoritativeResolver extends DnsResolver {
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS),
     budget = { remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK },
-  }: FetchRecordsParams): Promise<{
-    answers: RawAnswer[];
-    trace: string[];
-    rcode?: string;
-  }> {
+  }: FetchRecordsParams): Promise<WalkResult> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
         `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
@@ -485,6 +493,7 @@ export class AuthoritativeResolver extends DnsResolver {
       nameservers && nameservers.length
         ? nameservers
         : (cached?.ips ?? (await this.getRootServers()).slice(0, 4));
+    const zone = (nameservers?.length ? delegatedZone : cached?.zone) || '.';
     const wantName = canonicalDnsName(domain);
     let lastResort: { result: DnsResponse; candidate: string } | null = null;
     const failedNameservers: string[] = [];
@@ -581,6 +590,7 @@ export class AuthoritativeResolver extends DnsResolver {
           domain,
           recordType,
           wantName,
+          zone,
           trace: acceptedTrace,
           depth,
           deadlineAt,
@@ -634,6 +644,7 @@ export class AuthoritativeResolver extends DnsResolver {
         domain,
         recordType,
         wantName,
+        zone,
         trace: lastResortTrace,
         depth,
         deadlineAt,
@@ -650,6 +661,7 @@ export class AuthoritativeResolver extends DnsResolver {
     if (allRefused && recordType === 'RRSIG') {
       return {
         answers: [],
+        zone,
         trace: [
           ...trace,
           `${recordType} ${domain} -> all nameservers returned an error: ${failedNameservers.join('; ')}`,
@@ -682,6 +694,7 @@ export class AuthoritativeResolver extends DnsResolver {
     domain,
     recordType,
     wantName,
+    zone,
     trace,
     depth,
     deadlineAt,
@@ -693,11 +706,12 @@ export class AuthoritativeResolver extends DnsResolver {
     domain: string;
     recordType: RecordType;
     wantName: string;
+    zone: string;
     trace: string[];
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-  }): Promise<{ answers: RawAnswer[]; trace: string[]; rcode?: string }> {
+  }): Promise<WalkResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
     // unrelated records (e.g. glue promoted into it by a quirky server) must
@@ -719,7 +733,10 @@ export class AuthoritativeResolver extends DnsResolver {
 
       return {
         answers: filteredAnswers,
-        rcode: packet.rcode,
+        // The name owns a record, so it exists: an NXDOMAIN here describes
+        // the end of a CNAME/DNAME chain (RFC 6604), not the queried name.
+        rcode: packet.rcode === 'NXDOMAIN' ? 'NOERROR' : packet.rcode,
+        zone,
         trace: [
           ...trace,
           `${recordType} ${domain} @ ${candidate} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
@@ -776,6 +793,7 @@ export class AuthoritativeResolver extends DnsResolver {
           domain,
           recordType,
           nameservers: addresses,
+          zone: canonicalDnsName(nsRedirects[0].name),
           trace: [
             ...trace,
             `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
@@ -800,7 +818,7 @@ export class AuthoritativeResolver extends DnsResolver {
       });
     }
 
-    return { answers: [], trace, rcode: packet.rcode };
+    return { answers: [], trace, rcode: packet.rcode, zone };
   }
 
   // Follow a glueless referral: resolve the delegated NS hostnames to public
@@ -826,7 +844,8 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-  }): Promise<{ answers: RawAnswer[]; trace: string[]; rcode?: string }> {
+  }): Promise<WalkResult> {
+    const zone = canonicalDnsName(nsRedirects[0].name);
     const subTrace: string[] = [];
     // Resolve the candidate NS hostnames concurrently and proceed with
     // the first usable result: done serially (or awaited jointly), a
@@ -885,6 +904,7 @@ export class AuthoritativeResolver extends DnsResolver {
         domain,
         recordType,
         nameservers: tried,
+        zone,
         trace: redirectTrace,
         depth: depth + 1,
         deadlineAt,
@@ -901,12 +921,13 @@ export class AuthoritativeResolver extends DnsResolver {
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
       if (!late.length) throw error;
-      this.delegationCache.delete(canonicalDnsName(nsRedirects[0].name));
+      this.delegationCache.delete(zone);
       this.cacheDelegation(nsRedirects[0].name, domain, late);
       return this.fetchRecordsRaw({
         domain,
         recordType,
         nameservers: late,
+        zone,
         trace: [
           ...redirectTrace,
           `${recordType} ${domain} -> retrying with late sibling nameservers: ${late.join(', ')}`,
@@ -918,14 +939,22 @@ export class AuthoritativeResolver extends DnsResolver {
     }
   }
 
+  // Decoded answers owned by the queried name, the response code (NXDOMAIN
+  // stays distinct from NODATA) and the zone cut whose servers answered. For
+  // callers that need structured rdata (DNSSEC) rather than presentation
+  // strings.
+  public resolveAnswers(
+    domain: string,
+    recordType: RecordType,
+  ): Promise<WalkResult> {
+    return this.fetchRecordsRaw({ domain, recordType });
+  }
+
   public async resolveRecordType(
     domain: string,
     recordType: RecordType,
   ): Promise<ResolverResponse> {
-    const { answers, trace, rcode } = await this.fetchRecordsRaw({
-      domain,
-      recordType,
-    });
+    const { answers, trace } = await this.resolveAnswers(domain, recordType);
 
     const records: RawRecord[] = answers.map((answer) => ({
       name: answer.name,
@@ -934,6 +963,6 @@ export class AuthoritativeResolver extends DnsResolver {
       data: this.recordToString(answer),
     }));
 
-    return { records, trace, rcode };
+    return { records, trace };
   }
 }
