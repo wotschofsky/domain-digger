@@ -18,6 +18,20 @@ For full functionality, Domain Digger relies on Google BigQuery.
 
 Credentials are provided through environment variables. Using [a .env file as per the Next.js docs](https://nextjs.org/docs/basic-features/environment-variables#loading-environment-variables) is recommended. All required variables are documented in the [example env file](./.env.example).
 
+### GitHub token
+
+`GITHUB_TOKEN` is used for two GitHub GraphQL queries: displaying recent
+stargazers and displaying GitHub Sponsors. It must be a personal access token
+(classic) created by the `wotschofsky` account with these scopes:
+
+- `public_repo` grants access to the stargazer list for the public
+  `wotschofsky/domain-digger` repository. GitHub restricts that list to
+  repository administrators and collaborators.
+- `read:org` allows the Sponsors query to resolve organization data.
+- `read:user` grants the access required by the Sponsors query.
+
+The broader `repo`, `admin:org` and `user` scopes are not required.
+
 ### Deployment Platform
 
 As of writing this, Vercel is the only platform able to correctly deploy Domain Digger. Both Cloudflare Pages and Netlify do not correctly support all required features.

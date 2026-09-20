@@ -6,11 +6,11 @@ import { BoundaryError } from '@/components/boundary-error';
 
 type DnssecErrorProps = {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 };
 
-const DnssecError: FC<DnssecErrorProps> = ({ error, unstable_retry }) => (
-  <BoundaryError error={error} retry={unstable_retry} />
+const DnssecError: FC<DnssecErrorProps> = ({ error, retry }) => (
+  <BoundaryError error={error} retry={retry} />
 );
 
 export default DnssecError;

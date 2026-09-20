@@ -42,7 +42,11 @@ type ProvidersProps = {
 };
 
 export const Providers: FC<ProvidersProps> = ({ children }) => (
-  <EvlogProvider service="domain-digger">
+  <EvlogProvider
+    service="domain-digger"
+    // Using the non-default endpoint since default _evlog is considered hidden by Next.js
+    transport={{ enabled: true, endpoint: '/api/evlog/ingest' }}
+  >
     <ThemeProvider attribute="class">
       <SWRConfig value={{ fetcher: swrFetcher }}>
         <CustomizedPlausibleProvider>{children}</CustomizedPlausibleProvider>

@@ -6,12 +6,11 @@ import { BoundaryError } from '@/components/boundary-error';
 
 type SubdomainsErrorProps = {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 };
 
-const SubdomainsError: FC<SubdomainsErrorProps> = ({
-  error,
-  unstable_retry,
-}) => <BoundaryError error={error} retry={unstable_retry} />;
+const SubdomainsError: FC<SubdomainsErrorProps> = ({ error, retry }) => (
+  <BoundaryError error={error} retry={retry} />
+);
 
 export default SubdomainsError;
