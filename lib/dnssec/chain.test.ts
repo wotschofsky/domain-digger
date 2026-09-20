@@ -72,7 +72,7 @@ describe('buildChain', () => {
     const chain = buildChain(zones, 1500);
     expect(chain.zones.map((z) => z.status)).toEqual(['secure', 'secure']);
     expect(chain.status).toBe('secure');
-    expect(chain.zones[1].dsRecords[0].matchedKeyIndexes).toEqual([0]);
+    expect(chain.zones[1].dsRecords[0].matchedKey).toBe(chain.zones[1].keys[0]);
     // Every secure zone carries its DNSKEY RRSIG's expiry for expiry warnings.
     expect(chain.zones.map((z) => z.dnskeySignature?.expiresAt)).toEqual([
       2000, 2000,

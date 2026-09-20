@@ -13,6 +13,7 @@ import dnsPacket, {
 
 import {
   canonicalDnsName,
+  DNSSEC_CHAIN_QUERIES_MAX,
   type DnssecChain,
   resolveDnssecChain,
 } from '@/lib/dnssec';
@@ -175,11 +176,14 @@ export class AuthoritativeResolver extends DnsResolver {
   // lookup's needs (a deep all-glueless walk stays under ~30).
   private static readonly MAX_CANDIDATES_PER_WALK = 50;
   // A DNSSEC chain shares one budget across every walk it makes (see
-  // resolveDnssecChain): up to 16 zones x 2 queries plus 10 leaf probes, most
-  // of which reuse a cached delegation and spend one candidate. Sized with
-  // headroom for that, while still capping a crafted deep name far below the
-  // ~1500 attempts it would reach with a fresh per-walk budget each time.
-  private static readonly MAX_CANDIDATES_PER_CHAIN = 300;
+  // resolveDnssecChain). DNSSEC_CHAIN_QUERIES_MAX is how many questions that
+  // walk can ask at most; most reuse a cached delegation and spend a single
+  // candidate, so allow several attempts each. Derived rather than restated,
+  // or adding a leaf probe type would silently invalidate this ceiling. Still
+  // caps a crafted deep name far below the ~1500 attempts it would reach with
+  // a fresh per-walk budget each time.
+  private static readonly MAX_CANDIDATES_PER_CHAIN =
+    DNSSEC_CHAIN_QUERIES_MAX * 7;
   // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
   // a single blackholed first server has to leave room to reach a healthy
   // fallback, while all-blackholed candidates stay bounded (~2 budgets).

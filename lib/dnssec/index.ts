@@ -34,11 +34,12 @@
 //   rrsig.ts      -- RRSIG verification over canonical RRsets
 //   rrset.ts      -- positive leaf RRset validation and classification
 //   chain.ts      -- root trust anchors and the top-down chain walk
+//   verdict.ts    -- which outcome the result leads with (precedence policy)
 //   resolve.ts    -- the zone walk over an injected, transport-agnostic query
 
 // Only what crosses the module boundary is re-exported here; the modules above
 // import each other by relative path.
-export { resolveDnssecChain } from './resolve';
+export { DNSSEC_CHAIN_QUERIES_MAX, resolveDnssecChain } from './resolve';
 export { normalizeDomain as canonicalDnsName } from './wire';
 export type {
   DnssecBreakReason,
@@ -50,5 +51,6 @@ export type {
   DnssecRrsetStatus,
   DnssecSignatureEvidence,
   DnssecStatus,
+  DnssecVerdict,
   DnssecZone,
 } from './types';

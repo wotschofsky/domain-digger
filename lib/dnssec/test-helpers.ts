@@ -7,7 +7,7 @@ import {
 import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 
 import { dsDigest } from './ds';
-import { canonicalRdata, computeKeyTag, dnskeyRdata, wireName } from './wire';
+import { computeKeyTag, dnskeyRdata, wireName } from './wire';
 
 // Signing-side test helpers: generated keypairs plus canonical RRSIG
 // construction, mirroring the encoding in wire.ts (RFC 4034 §3.1.8.1 / §6) so
@@ -34,9 +34,10 @@ export const dsForKey = (name: string, key: DnskeyData): DsData => ({
 
 // A live keypair whose DNSKEY we can sign with -- lets tests exercise the real
 // verify path (buildChain propagation, expiry, forgery) for keys we hold the
-// private half of. The golden vectors in test-vectors.ts independently prove
-// the canonical encoding against real-world signers, so a shared bug between
-// this signer and the verifier could not pass both.
+// private half of. Every signing routine below encodes the canonical form
+// independently of wire.ts, so a bug shared between this signer and the
+// verifier cannot pass both; the golden vectors in test-vectors.ts prove the
+// encoding against real-world signers as well.
 export const genKey = (
   algorithm: number,
 ): { priv: KeyObject; dnskey: DnskeyData } => {
@@ -140,6 +141,17 @@ export const signDnskeyRrset = (
   };
 };
 
+// DS RDATA (RFC 4034 §5.1): keyTag(2) | algorithm(1) | digestType(1) | digest.
+// Written out here rather than reusing wire.ts's canonicalRdata: a fixture
+// that shares an encoder with the verifier it is testing would hide a bug in
+// that encoder from the DS-signature suite entirely.
+const dsRdata = (record: DsData): Buffer =>
+  Buffer.concat([
+    u16(record.keyTag),
+    Buffer.from([record.algorithm, record.digestType]),
+    record.digest,
+  ]);
+
 export const signDsRrset = (
   ownerName: string,
   records: DsData[],
@@ -160,8 +172,7 @@ export const signDsRrset = (
     wireName(signerName),
   ]);
   const rrset = records
-    .map((record) => canonicalRdata('DS', record))
-    .filter((rdata): rdata is Buffer => rdata !== null)
+    .map(dsRdata)
     .sort(Buffer.compare)
     .map((rdata) =>
       Buffer.concat([

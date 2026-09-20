@@ -1,6 +1,7 @@
 import type { DnskeyData, RrsigData } from 'dns-packet';
 import { toType } from 'dns-packet/types';
 
+import { SUPPORTED_SIGNING_ALGORITHMS } from './algorithms';
 import { dnskeyToPublicKey, verifySignature } from './crypto';
 import type { DnssecAnswerRecord } from './types';
 import {
@@ -9,6 +10,7 @@ import {
   canonicalRr,
   computeKeyTag,
   dnskeyRdata,
+  isEligibleSigner,
   normalizeDomain,
   rrsigSigningPrefix,
 } from './wire';
@@ -29,8 +31,7 @@ import {
 const signerCandidates = (keys: DnskeyData[], rrsig: RrsigData): DnskeyData[] =>
   keys.filter(
     (k) =>
-      (k.flags & 0x0100) !== 0 &&
-      (k.flags & 0x0080) === 0 &&
+      isEligibleSigner(k) &&
       k.algorithm === rrsig.algorithm &&
       computeKeyTag(dnskeyRdata(k)) === rrsig.keyTag,
   );
@@ -88,6 +89,24 @@ export const rrsigMetadataIssue = (params: {
   if (!signerCandidates(keys, rrsig).length) return 'ineligible-signer';
   return null;
 };
+
+/**
+ * RFC 6840 §5.11 downgrade resistance: a signature made with an algorithm this
+ * validator can run outranks a co-published one it cannot. A zone must not turn
+ * a real failure into "unvalidatable" merely by also publishing an RRSIG in an
+ * unimplemented algorithm.
+ *
+ * `issue` is that RRSIG's `rrsigMetadataIssue`. A clean signature counts, and so
+ * do expired / not-yet-valid ones -- those are genuine failures of a path we
+ * could have verified. Any other metadata issue (wrong signer, wrong type, no
+ * eligible key) is unauthenticated noise and carries no weight.
+ */
+export const outranksUnsupported = (
+  rrsig: RrsigData,
+  issue: RrsigMetadataIssue | null,
+): boolean =>
+  SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm) &&
+  (issue === null || issue === 'expired' || issue === 'not-yet-valid');
 
 // An RRset is a set: duplicate copies of an identical RR in a packet must
 // contribute one canonical entry, or the signed data diverges from what the

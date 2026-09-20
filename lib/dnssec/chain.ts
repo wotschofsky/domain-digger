@@ -11,12 +11,13 @@ import {
 } from './algorithms';
 import { dsMatchesKey } from './ds';
 import {
+  outranksUnsupported,
   rrsigMetadataIssue,
   verifyDnskeyRrsig,
   verifyRrsetRrsig,
 } from './rrsig';
 import type {
-  DnssecChain,
+  DnssecChainResult,
   DnssecDs,
   DnssecKey,
   DnssecSignatureEvidence,
@@ -25,7 +26,14 @@ import type {
   DnssecZoneState,
   RawZone,
 } from './types';
-import { computeKeyTag, dnskeyRdata } from './wire';
+import {
+  computeKeyTag,
+  describeKeyFlags,
+  dnskeyRdata,
+  isEligibleSigner,
+  isRevokedKey,
+  isSepKey,
+} from './wire';
 
 // IANA root zone trust anchors: KSK-2017 and its successor KSK-2024, both
 // currently valid (https://data.iana.org/root-anchors/root-anchors.xml).
@@ -95,17 +103,11 @@ const failedSignatureAnalysis = (
     rrsig,
     issue: issueFor(rrsig),
   }));
-  // A failing supported-algorithm signature (crypto-invalid, expired, or not
-  // yet valid) outranks a clean unsupported one: a co-published algorithm this
-  // checker cannot run must not downgrade a bad signature to insecure
-  // (RFC 6840 §5.11). Deliberately narrow: a supported RRSIG whose metadata
-  // names a wrong or nonexistent signer is unauthenticated noise, and noise
-  // must not flip an unvalidatable zone to broken -- the unsupported bucket
-  // itself already requires the signer to be a genuinely served key.
-  const hasFailingSupported = issues.some(
-    ({ rrsig, issue }) =>
-      SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm) &&
-      (issue === null || issue === 'expired' || issue === 'not-yet-valid'),
+  // A failing supported-algorithm signature outranks a clean unsupported one,
+  // so a co-published algorithm this checker cannot run must not downgrade a
+  // bad signature to insecure.
+  const hasFailingSupported = issues.some(({ rrsig, issue }) =>
+    outranksUnsupported(rrsig, issue),
   );
   const unsupported = issues
     .filter(
@@ -265,16 +267,21 @@ const dsRrsetSignatureAnalysis = (
  *
  * `now` (Unix seconds) is the instant RRSIG validity is judged against; it
  * defaults to the current time and is injectable for deterministic tests.
+ *
+ * Returns only what the chain itself establishes. The queried name's own
+ * records, the coverage list and the overall verdict are the caller's to add
+ * (see resolve.ts), so nothing here invents a value it cannot know.
  */
 export const buildChain = (
   zones: RawZone[],
   now: number = Math.floor(Date.now() / 1000),
   options: { initialTrustAnchors?: DsData[] } = {},
-): DnssecChain => {
+): DnssecChainResult => {
   const out: DnssecZone[] = [];
   // Trust state carried down the chain: 'secure' while intact, otherwise the
   // reason it ended ('insecure' for an unsigned cut, 'broken' for a bogus zone).
   let chain: DnssecStatus = 'secure';
+  let breakAt: number | undefined;
 
   for (const [zoneIndex, zone] of zones.entries()) {
     const isRoot = zone.name === '.' || zone.name === '';
@@ -322,25 +329,41 @@ export const buildChain = (
       (ds) => !(ds.digestType === 1 && hasSha256OrStronger),
     );
 
-    const keys: DnssecKey[] = zone.keys.map((k) => {
+    // Pair each published DS with the served keys it hashes to, once. Both the
+    // key metadata and the DS rows below are derived from this, so the pairing
+    // is decided here rather than rediscovered by every consumer.
+    const matchesPerAnchor = anchors.map((ds) =>
+      zone.keys.flatMap((key, index) =>
+        dsMatchesKey(ds, key, zone.name) ? [index] : [],
+      ),
+    );
+    const dsMatchedIndexes = new Set(matchesPerAnchor.flat());
+
+    const keys: DnssecKey[] = zone.keys.map((k, index) => {
       const rdata = dnskeyRdata(k);
       return {
         keyTag: computeKeyTag(rdata),
         algorithm: k.algorithm,
         algorithmName: algorithmName(k.algorithm),
         flags: k.flags,
-        isSep: (k.flags & 0x0001) !== 0,
-        isRevoked: (k.flags & 0x0080) !== 0,
+        flagNames: describeKeyFlags(k),
+        isSep: isSepKey(k),
+        isRevoked: isRevokedKey(k),
         linked: usableAnchors.some((ds) => dsMatchesKey(ds, k, zone.name)),
+        dsMatched: dsMatchedIndexes.has(index),
         bits: keyBits(k),
         deprecated: isDeprecatedAlgorithm(k.algorithm),
       };
     });
 
-    const dsRecords: DnssecDs[] = anchors.map((ds) => {
-      const matchedKeyIndexes = zone.keys.flatMap((key, index) =>
-        dsMatchesKey(ds, key, zone.name) ? [index] : [],
-      );
+    // The root always carries both IANA anchors; outside a KSK rollover only
+    // one is served, and the other must not read as a broken link.
+    const anyAnchorMatched = matchesPerAnchor.some((match) => match.length > 0);
+
+    const dsRecords: DnssecDs[] = anchors.map((ds, anchorIndex) => {
+      const matchIndex = matchesPerAnchor[anchorIndex][0];
+      const matchedKey =
+        matchIndex === undefined ? undefined : keys[matchIndex];
       return {
         keyTag: ds.keyTag,
         algorithm: ds.algorithm,
@@ -348,14 +371,17 @@ export const buildChain = (
         digestType: ds.digestType,
         digestName: DIGEST_NAMES[ds.digestType] ?? `Digest ${ds.digestType}`,
         digestHex: ds.digest.toString('hex').toUpperCase(),
-        matched: matchedKeyIndexes.length > 0,
-        matchedKeyIndexes,
+        matchedKey,
+        standby: isRoot && matchedKey === undefined && anyAnchorMatched,
         weakDigest: isWeakDigest(ds.digestType),
       };
     });
 
     let state: DnssecZoneState;
     let dnskeySignature: DnssecSignatureEvidence | undefined;
+    // The chain already ended above this zone, so whatever status it gets was
+    // propagated rather than decided on its own records.
+    const inherited = chain !== 'secure';
     if (chain !== 'secure') {
       // The chain of trust already ended above this zone, so its own records are
       // unauthenticated. Propagate the reason: insecure below an unsigned cut,
@@ -400,10 +426,7 @@ export const buildChain = (
         // malformed key material stays bogus: that is a broken configuration,
         // not an unsupported one.
         const eligibleLinkedKeys = zone.keys.filter(
-          (key, index) =>
-            keys[index].linked &&
-            (key.flags & 0x0100) !== 0 &&
-            (key.flags & 0x0080) === 0,
+          (key, index) => keys[index].linked && isEligibleSigner(key),
         );
         const hasSupportedLinkedKey = eligibleLinkedKeys.some((key) =>
           SUPPORTED_SIGNING_ALGORITHMS.has(key.algorithm),
@@ -433,10 +456,15 @@ export const buildChain = (
       keys,
       dsRecords,
       ...state,
+      inherited,
       dsSignature: dsSignatureAnalysis?.evidence,
       dnskeySignature,
     });
-    // The first non-secure zone fixes the descended trust state.
+    // The first non-secure zone fixes the descended trust state, and is where
+    // the chain of trust ends.
+    if (chain === 'secure' && state.status !== 'secure') {
+      breakAt = zoneIndex;
+    }
     if (chain === 'secure') chain = state.status;
   }
 
@@ -446,13 +474,5 @@ export const buildChain = (
       ? 'secure'
       : 'insecure';
 
-  return {
-    zones: out,
-    status,
-    coverage: { checkedPositiveRrsetTypes: [] },
-    query: {
-      name: zones.at(-1)?.name ?? '',
-      observation: 'not-checked',
-    },
-  };
+  return { zones: out, status, breakAt };
 };

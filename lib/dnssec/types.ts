@@ -69,9 +69,16 @@ export type DnssecKey = {
   algorithm: number;
   algorithmName: string;
   flags: number;
+  flagNames: string; // the set flags, named: e.g. 'ZONE + SEP'
   isSep: boolean; // Secure Entry Point (KSK) -- signs the DNSKEY RRset
   isRevoked: boolean;
-  linked: boolean; // a parent DS / trust anchor matches this key
+  // A DS that a validator would actually use hashes to this key, so it
+  // authenticates the zone. Implies `dsMatched`.
+  linked: boolean;
+  // Some published DS hashes to this key, including one the downgrade rules
+  // rule out (SHA-1 beside a SHA-256, or an unsupported algorithm). Kept
+  // separate so the UI can pair every DS with its key without implying trust.
+  dsMatched: boolean;
   bits: number | null; // key strength in bits (RSA modulus / curve size)
   deprecated: boolean; // uses a deprecated/weak signing algorithm
 };
@@ -83,8 +90,12 @@ export type DnssecDs = {
   digestType: number;
   digestName: string;
   digestHex: string; // the DS digest, uppercase hex (a key fingerprint)
-  matched: boolean; // this DS hashes to one of the zone's DNSKEYs
-  matchedKeyIndexes: number[]; // exact DNSKEY positions; key tags alone can collide
+  // The zone DNSKEY this DS hashes to, by identity -- key tags alone collide.
+  // Absent when no served key matches.
+  matchedKey?: DnssecKey;
+  // A shipped trust anchor that is simply not in the served key set right now
+  // (the standby root KSK outside a rollover), rather than a broken link.
+  standby: boolean;
   weakDigest: boolean; // uses a deprecated digest (SHA-1 / GOST)
 };
 
@@ -145,7 +156,41 @@ export type DnssecZoneState =
       breakReason?: Exclude<DnssecBreakReason, 'unsupported-algorithm'>;
     };
 
-export type DnssecZone = DnssecZoneEvidence & DnssecZoneState;
+export type DnssecZone = DnssecZoneEvidence &
+  DnssecZoneState & {
+    // This zone's status was propagated from a break above it rather than
+    // decided on its own records. Recorded by the walk, which takes that
+    // branch explicitly, so nothing downstream has to rediscover it by
+    // scanning for the first non-secure zone.
+    inherited: boolean;
+  };
+
+/**
+ * Which outcome the page leads with. This is precedence policy, not wording:
+ * an unproved NXDOMAIN outranks a secure or unsigned chain but not a bogus one
+ * (a name that "does not exist" under a broken link is itself untrustworthy),
+ * an unproved NODATA outranks RRset problems, problems outrank unchecked
+ * RRsets, and a named break reason outranks the generic no-DS message. The
+ * copy for each outcome lives with the view.
+ */
+export type DnssecVerdict =
+  /** No zones were built -- nothing can be said. */
+  | { kind: 'unknown' }
+  /** The servers answered NXDOMAIN, which is not cryptographically proven. */
+  | { kind: 'nxdomain-unproved' }
+  /** The chain authenticates, but no positive record set was observed. */
+  | { kind: 'secure-nodata' }
+  | { kind: 'secure-rrset-problems'; rrsetTypes: string[] }
+  | { kind: 'secure-rrset-unchecked'; rrsetTypes: string[] }
+  | { kind: 'secure-validated'; validatedRrsetCount: number }
+  /** Every link holds; no leaf RRsets were validated to report. */
+  | { kind: 'secure' }
+  /** The chain ends at a zone that failed for a named reason. */
+  | { kind: 'break'; reason: DnssecBreakReason }
+  /** No DS was observed at the break zone -- an unsigned cut, not a proof. */
+  | { kind: 'unsigned-cut'; atLeaf: boolean }
+  /** A break with no reason recorded: no authenticated DS link was seen. */
+  | { kind: 'no-authenticated-ds' };
 
 // What a chain result covers: every delegation DS RRset is validated along the
 // secure path, every zone's DNSKEY RRset is validated, and the leaf's positive
@@ -156,15 +201,29 @@ export type DnssecCoverage = {
   checkedPositiveRrsetTypes: string[];
 };
 
-export type DnssecChain = {
+/**
+ * What the chain walk alone establishes, before the queried name's own records
+ * are probed. `resolveDnssecChain` composes this into a `DnssecChain`.
+ */
+export type DnssecChainResult = {
   zones: DnssecZone[];
   // Chain-only status. Positive leaf RRset results are reported separately.
   status: DnssecStatus;
+  // Index in `zones` of the first zone whose link to its parent does not hold,
+  // i.e. where the chain of trust ends. Absent when every link holds.
+  breakAt?: number;
+};
+
+export type DnssecChain = DnssecChainResult & {
   coverage: DnssecCoverage;
   query: {
     name: string;
     observation: DnssecQueryObservation;
   };
+  // The queried name's CNAME target, when it is an alias. Its own chain is not
+  // validated, so the UI must say so rather than imply coverage.
+  leafAlias?: string;
+  verdict: DnssecVerdict;
 };
 
 /** Raw per-zone records collected by the resolver, ordered root -> leaf. */

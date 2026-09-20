@@ -1,6 +1,7 @@
 import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
+import type { RecordType } from '@/lib/resolvers/base';
 import { UserFacingError } from '@/lib/user-facing-error';
 
 import {
@@ -10,6 +11,7 @@ import {
 } from './resolve';
 import { genKey } from './test-helpers';
 import { ROOT_DNSKEY_RRSIG, ROOT_DNSKEYS, ROOT_NOW } from './test-vectors';
+import type { DnssecAnswerRecord } from './types';
 
 type FakeZone = {
   keys?: DnskeyData[];
@@ -25,13 +27,29 @@ const SIGNED_ROOT: FakeZone = {
   keyRrsigs: [ROOT_DNSKEY_RRSIG],
 };
 
-/** Fake transport: names not listed answer empty (NODATA), like real DNS. */
+/**
+ * Fake transport. Every listed name is a zone cut with its own servers, so a
+ * query is answered by the deepest listed suffix of the queried name -- what a
+ * real referral walk reports as `zone`. A name that is not a cut answers empty
+ * (NODATA) from its enclosing zone, like real DNS. An entry carrying only an
+ * rcode is not a cut either: NXDOMAIN comes from the zone above it.
+ */
+const cutFor = (name: string, zones: Record<string, FakeZone>): string => {
+  const labels = name.split('.').filter(Boolean);
+  for (let i = 0; i < labels.length; i++) {
+    const candidate = labels.slice(i).join('.');
+    if (zones[candidate] && !zones[candidate].rcode) return candidate;
+  }
+  return '.';
+};
+
 const queryFrom =
   (zones: Record<string, FakeZone>): DnssecQuery =>
   async (name, type) => {
+    const zoneCut = cutFor(name, zones);
     const zone = zones[name];
-    if (!zone) return { answers: [] };
-    if (zone.rcode) return { answers: [], rcode: zone.rcode };
+    if (!zone) return { answers: [], zone: zoneCut };
+    if (zone.rcode) return { answers: [], zone: zoneCut, rcode: zone.rcode };
     if (type === 'DNSKEY') {
       return {
         answers: (zone.keys ?? []).map((data) => ({
@@ -40,21 +58,24 @@ const queryFrom =
           data,
         })),
         coveringRrsigs: zone.keyRrsigs,
+        zone: zoneCut,
       };
     }
     if (type === 'DS') {
       return {
         answers: (zone.ds ?? []).map((data) => ({ name, type: 'DS', data })),
         coveringRrsigs: zone.dsRrsigs,
+        zone: zoneCut,
       };
     }
-    return { answers: [] };
+    return { answers: [], zone: zoneCut };
   };
 
 describe('resolveDnssecChain', () => {
   it('does not claim authenticated nonexistence from a bare NXDOMAIN rcode', async () => {
     const query = queryFrom({
       '.': SIGNED_ROOT,
+      com: {},
       'nope.example.com': { rcode: 'NXDOMAIN' },
     });
     const chain = await resolveDnssecChain('nope.example.com', query, ROOT_NOW);
@@ -72,11 +93,11 @@ describe('resolveDnssecChain', () => {
   });
 
   it('renders an unsigned domain as insecure below a secure root', async () => {
-    const query = queryFrom({ '.': SIGNED_ROOT });
+    const query = queryFrom({ '.': SIGNED_ROOT, com: {} });
     const chain = await resolveDnssecChain('example.com', query, ROOT_NOW);
 
-    // 'com' serves no keys/DS in this fake, but empty labels above a kept
-    // zone stay: dropping them would graft the zone onto its grandparent.
+    // 'com' serves no keys/DS in this fake, but it is a delegated zone cut of
+    // its own, so it keeps its own link rather than being collapsed away.
     expect(chain?.zones.map((z) => z.name)).toEqual([
       '.',
       'com',
@@ -91,6 +112,7 @@ describe('resolveDnssecChain', () => {
   it('keeps deeper labels that are zone cuts and drops plain subdomains', async () => {
     const query = queryFrom({
       '.': SIGNED_ROOT,
+      com: {},
       'sub.example.com': { keys: [genKey(13).dnskey] },
     });
     const chain = await resolveDnssecChain(
@@ -108,11 +130,14 @@ describe('resolveDnssecChain', () => {
     ]);
   });
 
-  it('keeps an empty intermediate label above a deeper zone cut', async () => {
-    // Dropping sub.example.com would graft the signed island onto
-    // example.com and misvalidate its DS against the wrong keys.
+  it('keeps an unsigned delegation above a deeper zone cut', async () => {
+    // sub.example.com has its own servers but serves no keys. Dropping it
+    // would graft the signed island onto example.com and misvalidate its DS
+    // against the wrong keys.
     const query = queryFrom({
       '.': SIGNED_ROOT,
+      com: {},
+      'sub.example.com': {},
       'deep.sub.example.com': { keys: [genKey(13).dnskey] },
     });
     const chain = await resolveDnssecChain(
@@ -130,28 +155,15 @@ describe('resolveDnssecChain', () => {
     ]);
   });
 
-  it('drops an empty non-terminal when the deeper DS is signed from above it', async () => {
+  it('drops an empty non-terminal that no server is delegated for', async () => {
     // deep.sub.example.com is delegated directly from example.com; the
-    // sub.example.com label is an empty non-terminal, not an unsigned cut,
-    // and keeping it would break the valid chain with a false insecure.
-    const island = genKey(13);
-    const skippingDsRrsig: RrsigData = {
-      typeCovered: 'DS',
-      algorithm: 13,
-      labels: 4,
-      originalTTL: 300,
-      expiration: ROOT_NOW + 1000,
-      inception: ROOT_NOW - 1000,
-      keyTag: 1,
-      signersName: 'example.com',
-      signature: Buffer.alloc(64),
-    };
+    // sub.example.com label is an empty non-terminal, not an unsigned cut --
+    // no servers answer for it -- and keeping it would break the valid chain
+    // with a false insecure.
     const query = queryFrom({
       '.': SIGNED_ROOT,
-      'deep.sub.example.com': {
-        keys: [island.dnskey],
-        dsRrsigs: [skippingDsRrsig],
-      },
+      com: {},
+      'deep.sub.example.com': { keys: [genKey(13).dnskey] },
     });
     const chain = await resolveDnssecChain(
       'deep.sub.example.com',
@@ -175,7 +187,7 @@ describe('resolveDnssecChain', () => {
   });
 
   it('strips a wildcard prefix from the zone walk', async () => {
-    const query = queryFrom({ '.': SIGNED_ROOT });
+    const query = queryFrom({ '.': SIGNED_ROOT, com: {} });
     const chain = await resolveDnssecChain('*.Example.COM.', query, ROOT_NOW);
     expect(chain?.zones.map((z) => z.name)).toEqual([
       '.',
@@ -187,7 +199,7 @@ describe('resolveDnssecChain', () => {
   it('propagates transport failures instead of reporting a false verdict', async () => {
     const query: DnssecQuery = async (name, type) => {
       if (type === 'DS') throw new Error('socket timeout');
-      return { answers: [] };
+      return { answers: [], zone: '.' };
     };
     await expect(
       resolveDnssecChain('example.com', query, ROOT_NOW),
@@ -230,6 +242,17 @@ describe('resolveDnssecChain', () => {
     );
   });
 
+  it('reports the chain-only verdict when no leaf probe runs', async () => {
+    const query = queryFrom({ '.': SIGNED_ROOT, com: {} });
+    const chain = await resolveDnssecChain('example.com', query, ROOT_NOW);
+
+    expect(chain.verdict).toEqual({ kind: 'unsigned-cut', atLeaf: false });
+    expect(chain.breakAt).toBe(1);
+    expect(chain.zones.map((z) => z.inherited)).toEqual([false, false, true]);
+    // The leaf never validated, so nothing was probed.
+    expect(chain.coverage.checkedPositiveRrsetTypes).toEqual([]);
+  });
+
   it('requests DS RRsets with DNSSEC records enabled', async () => {
     const calls: Array<{ type: string; dnssecOk: boolean | undefined }> = [];
     const baseQuery = queryFrom({ '.': SIGNED_ROOT });
@@ -246,5 +269,139 @@ describe('resolveDnssecChain', () => {
         .filter((call) => call.type === 'DS')
         .every((call) => call.dnssecOk === true),
     ).toBe(true);
+  });
+});
+
+/**
+ * The leaf RRset probes only run once the chain authenticates down to the
+ * queried name. The signed root is the only zone these tests can anchor for
+ * real -- the IANA anchors are fixed and we do not hold the private half -- so
+ * the root doubles as the queried leaf. That exercises the orchestration
+ * (which types are probed, how their answers become one observation, what a
+ * failed probe means); the signature checking itself is covered against real
+ * keys in rrset.test.ts.
+ */
+describe('resolveDnssecChain leaf probes', () => {
+  type ProbeAnswer = DnssecAnswerRecord[] | 'throw' | 'nxdomain';
+
+  const rootLeafQuery =
+    (answers: Partial<Record<RecordType, ProbeAnswer>>): DnssecQuery =>
+    async (name, type) => {
+      if (type === 'DNSKEY') {
+        return {
+          answers: ROOT_DNSKEYS.map((data) => ({
+            name: '.',
+            type: 'DNSKEY',
+            data,
+          })),
+          coveringRrsigs: [ROOT_DNSKEY_RRSIG],
+          zone: '.',
+        };
+      }
+      const answer = answers[type];
+      if (answer === 'throw') throw new Error('socket timeout');
+      if (answer === 'nxdomain') {
+        return { answers: [], zone: '.', rcode: 'NXDOMAIN' };
+      }
+      return { answers: answer ?? [], zone: '.' };
+    };
+
+  const record = (type: string, data: unknown): DnssecAnswerRecord => ({
+    name: '.',
+    type,
+    data,
+  });
+
+  it('probes the common types and flags records served without an RRSIG', async () => {
+    const chain = await resolveDnssecChain(
+      '.',
+      rootLeafQuery({ TXT: [record('TXT', ['hello'])] }),
+      ROOT_NOW,
+    );
+
+    expect(chain.status).toBe('secure');
+    expect(chain.coverage.checkedPositiveRrsetTypes).toEqual([
+      'SOA',
+      'A',
+      'AAAA',
+      'NS',
+      'MX',
+      'TXT',
+      'CAA',
+      'SRV',
+      'NAPTR',
+      'CNAME',
+    ]);
+    expect(chain.query.observation).toBe('positive');
+    const txt = chain.zones[0].rrsets?.find((rrset) => rrset.type === 'TXT');
+    expect(txt?.reason).toBe('missing-rrsig');
+    expect(txt?.status).toBe('unsigned');
+    expect(chain.verdict).toEqual({
+      kind: 'secure-rrset-problems',
+      rrsetTypes: ['TXT'],
+    });
+  });
+
+  it('reports an unproved NODATA when every probe answers empty', async () => {
+    const chain = await resolveDnssecChain('.', rootLeafQuery({}), ROOT_NOW);
+
+    expect(chain.query.observation).toBe('unproved-nodata');
+    expect(chain.verdict).toEqual({ kind: 'secure-nodata' });
+    // Absent RRsets stay in the model so "not present" is distinguishable
+    // from "not checked", but none of them is a problem.
+    expect(
+      chain.zones[0].rrsets?.every((rrset) => rrset.status === 'absent'),
+    ).toBe(true);
+  });
+
+  it('reports an unproved NXDOMAIN when a probe says the name does not exist', async () => {
+    const chain = await resolveDnssecChain(
+      '.',
+      rootLeafQuery({ SOA: 'nxdomain' }),
+      ROOT_NOW,
+    );
+
+    expect(chain.query.observation).toBe('unproved-nxdomain');
+    expect(chain.verdict).toEqual({ kind: 'nxdomain-unproved' });
+  });
+
+  it('lets a positive answer outrank another probe’s NXDOMAIN', async () => {
+    const chain = await resolveDnssecChain(
+      '.',
+      rootLeafQuery({ SOA: 'nxdomain', A: [record('A', '192.0.2.1')] }),
+      ROOT_NOW,
+    );
+
+    expect(chain.query.observation).toBe('positive');
+  });
+
+  it('treats a failed probe as indeterminate, never as proof of absence', async () => {
+    const chain = await resolveDnssecChain(
+      '.',
+      rootLeafQuery({ MX: 'throw' }),
+      ROOT_NOW,
+    );
+
+    const mx = chain.zones[0].rrsets?.find((rrset) => rrset.type === 'MX');
+    expect(mx?.reason).toBe('lookup-failed');
+    expect(chain.query.observation).toBe('indeterminate');
+    expect(chain.verdict).toEqual({
+      kind: 'secure-rrset-unchecked',
+      rrsetTypes: ['MX'],
+    });
+  });
+
+  it('surfaces the queried name’s CNAME target as the leaf alias', async () => {
+    const chain = await resolveDnssecChain(
+      '.',
+      rootLeafQuery({ CNAME: [record('CNAME', 'Target.Example.')] }),
+      ROOT_NOW,
+    );
+
+    expect(chain.leafAlias).toBe('target.example');
+    const cname = chain.zones[0].rrsets?.find(
+      (rrset) => rrset.type === 'CNAME',
+    );
+    expect(cname?.cnameTarget).toBe('target.example');
   });
 });

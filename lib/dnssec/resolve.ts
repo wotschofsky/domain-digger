@@ -9,12 +9,15 @@ import { rrsetResult, signerId, validatePositiveRrset } from './rrset';
 import type {
   DnssecAnswerRecord,
   DnssecChain,
+  DnssecChainResult,
+  DnssecCoverage,
   DnssecKey,
   DnssecQueryObservation,
   DnssecRrset,
   RawZone,
 } from './types';
-import { normalizeDomain } from './wire';
+import { chainVerdict } from './verdict';
+import { isEligibleSigner, normalizeDomain } from './wire';
 
 // The DNSSEC chain walk, independent of DNS transport: callers inject a query
 // function, so the walk is unit-testable and any resolver capable of returning
@@ -22,6 +25,13 @@ import { normalizeDomain } from './wire';
 
 export type DnssecQueryResult = {
   answers: DnssecAnswerRecord[];
+  // The zone cut whose servers produced this answer: the deepest delegation
+  // the transport followed, '.' for the root. The queried name is a zone cut
+  // of its own exactly when this equals it -- which is what decides whether it
+  // gets its own link in the chain. Guessing it from the records instead costs
+  // a heuristic that cannot tell an unsigned delegation from an empty
+  // non-terminal, so the transport must report it.
+  zone: string;
   rcode?: string;
   // RRSIGs in the answer covering the queried type (present when queried with
   // the DNSSEC OK bit) -- they prove whether this RRset is signed.
@@ -95,6 +105,20 @@ const RRSET_PROBE_TYPES: RecordType[] = [
   'CNAME',
 ];
 
+// Bound total work, not just concurrency: a valid ~253-byte name can carry
+// ~125 labels, which would mean hundreds of authoritative walks for one public
+// request. Real DNSSEC hierarchies are far shallower.
+const MAX_WALK_ZONES = 16;
+
+/**
+ * The most DNS questions one chain walk can ask: a DNSKEY and a DS per zone,
+ * plus one probe per leaf RRset type. Transports size their own per-chain
+ * allowance from this instead of restating the arithmetic, so adding a probe
+ * type cannot silently invalidate a constant in another module.
+ */
+export const DNSSEC_CHAIN_QUERIES_MAX =
+  MAX_WALK_ZONES * 2 + RRSET_PROBE_TYPES.length;
+
 /**
  * Probe the queried name for common positive RRsets and validate each RRset's
  * covering RRSIG against the already-authenticated DNSKEYs of the signing
@@ -107,7 +131,7 @@ const probeLeafRrsets = async (
   zoneKeys: DnskeyData[],
   authenticatedKeys: DnssecKey[],
   query: DnssecQuery,
-  now?: number,
+  now: number,
 ): Promise<{
   rrsets: DnssecRrset[];
   observation: DnssecQueryObservation;
@@ -117,7 +141,7 @@ const probeLeafRrsets = async (
   // data, while only the KSK is directly DS-linked.
   const authenticatedKeyIds = new Set(
     authenticatedKeys
-      .filter((key) => (key.flags & 0x0100) !== 0 && !key.isRevoked)
+      .filter(isEligibleSigner)
       .map((key) => signerId(key.algorithm, key.keyTag)),
   );
 
@@ -208,6 +232,9 @@ export const resolveDnssecChain = async (
   // The zone walk strips a wildcard prefix (`*.` is not a zone cut), but the
   // leaf RRset probe must keep it: the user asked about the wildcard owner,
   // and its records differ from the parent name's.
+  // One clock for the whole check: the chain and the leaf RRsets must be
+  // judged against the same instant, or a signature can expire between them.
+  const at = now ?? Math.floor(Date.now() / 1000);
   const probeName = normalizeDomain(domain);
   const fqdn = probeName.replace(/^\*\./, '');
   const base = getBaseDomain(fqdn);
@@ -219,10 +246,6 @@ export const resolveDnssecChain = async (
   }
   // e.g. www.wsky.dev -> ['.', 'dev', 'wsky.dev', 'www.wsky.dev']
 
-  // Bound total work, not just concurrency: a valid ~253-byte name can carry
-  // ~125 labels, which would mean hundreds of authoritative walks for one
-  // public request. Real DNSSEC hierarchies are far shallower.
-  const MAX_WALK_ZONES = 16;
   if (zoneNames.length > MAX_WALK_ZONES) {
     throw new UserFacingError({
       title: 'Domain has too many labels',
@@ -244,7 +267,7 @@ export const resolveDnssecChain = async (
       query(name, 'DNSKEY', true),
       // The root has no parent to publish a DS; its anchors are built in.
       name === '.'
-        ? Promise.resolve<DnssecQueryResult>({ answers: [] })
+        ? Promise.resolve<DnssecQueryResult>({ answers: [], zone: '.' })
         : query(name, 'DS', true),
     ]);
     assertUsableDnssecResponse(name, 'DNSKEY', keyResult);
@@ -278,39 +301,20 @@ export const resolveDnssecChain = async (
   }));
 
   // Keep the root, the registered domain (so unsigned domains still render an
-  // honest "insecure"), and any deeper label that is an actual zone cut
-  // (publishes DNSKEY/DS). Plain subdomains of a signed zone carry no keys of
-  // their own and are dropped -- they are covered by that zone. (A TRAILING
-  // unsigned sub-delegation is also dropped; see the limitation in index.ts.)
-  const keep = candidates.map(
-    ({ name, keys, dsRecords }) =>
-      name === '.' || name === base || keys.length > 0 || dsRecords.length > 0,
+  // honest "insecure"), and every label that is genuinely its own zone cut --
+  // which the DNSKEY answer reports directly, because the servers that
+  // answered it are the ones delegated for that name. A plain subdomain is
+  // answered by its enclosing zone and is dropped; an unsigned delegation is
+  // answered by its own servers and is kept, so a signed island below it is
+  // not grafted onto its grandparent and misvalidated against the wrong keys.
+  // (A TRAILING unsigned sub-delegation is still dropped by buildChain's
+  // leaf handling; see the limitation in index.ts.)
+  const keep = zoneRecords.map(
+    ({ name, keyResult }) =>
+      name === '.' ||
+      name === base ||
+      normalizeDomain(keyResult.zone) === normalizeDomain(name),
   );
-  // But an empty label ABOVE a kept zone must stay when it could be an
-  // unsigned delegation: dropping it would graft the deeper zone onto its
-  // grandparent, misvalidating its DS against the wrong keys and rendering a
-  // signed island below an unsigned cut as a false "broken". The exception is
-  // an empty NON-terminal inside the parent zone -- when the deeper zone's DS
-  // RRSIG names a zone strictly above the empty label as its signer, the
-  // delegation legitimately skipped that label and keeping it would produce
-  // a false "insecure" instead.
-  const isProperAncestor = (ancestor: string, name: string) =>
-    ancestor === ''
-      ? name !== ''
-      : name !== ancestor && name.endsWith(`.${ancestor}`);
-  for (let i = keep.length - 1; i >= 0; i--) {
-    if (keep[i]) continue;
-    const deeperIndex = keep.findIndex((kept, index) => kept && index > i);
-    if (deeperIndex === -1) continue;
-    const skippedByDelegation = (candidates[deeperIndex].dsRrsigs ?? []).some(
-      (rrsig) =>
-        isProperAncestor(
-          normalizeDomain(rrsig.signersName),
-          candidates[i].name,
-        ),
-    );
-    if (!skippedByDelegation) keep[i] = true;
-  }
   const rawZones: RawZone[] = candidates.filter((_, index) => keep[index]);
 
   // The signed root zone always serves DNSKEY records. Getting none back means
@@ -328,48 +332,62 @@ export const resolveDnssecChain = async (
     });
   }
 
-  const chain = buildChain(rawZones, now);
+  const walked = buildChain(rawZones, at);
+
   const exactZoneResult =
     probeName === fqdn
       ? zoneRecords.find(({ name }) => name === fqdn)
       : undefined;
-  chain.query = {
-    name: probeName,
-    observation:
-      exactZoneResult?.keyResult.rcode === 'NXDOMAIN' ||
-      exactZoneResult?.dsResult.rcode === 'NXDOMAIN'
-        ? 'unproved-nxdomain'
-        : 'not-checked',
-  };
+  // DNSKEY/DS questions for the exact name may already have observed NXDOMAIN.
+  let observation: DnssecQueryObservation =
+    exactZoneResult?.keyResult.rcode === 'NXDOMAIN' ||
+    exactZoneResult?.dsResult.rcode === 'NXDOMAIN'
+      ? 'unproved-nxdomain'
+      : 'not-checked';
 
-  // Enrich the leaf with positive RRset validation results (the "what's
-  // protected" list shown on the chain's bottom card). This is only meaningful
-  // when the key chain validates to the signing zone.
-  const leaf = chain.zones.at(-1);
+  // Probe the leaf for positive RRsets (the "what's protected" list on the
+  // chain's bottom card). Only meaningful once the key chain validates to the
+  // signing zone.
+  const leaf = walked.zones.at(-1);
   const leafRaw = leaf
     ? rawZones.find((zone) => zone.name === leaf.name)
-    : null;
+    : undefined;
+
+  let zones = walked.zones;
+  let coverage: DnssecCoverage = { checkedPositiveRrsetTypes: [] };
+  let leafAlias: string | undefined;
+
   if (leaf && leafRaw && leaf.status === 'secure') {
-    chain.coverage.checkedPositiveRrsetTypes = [...RRSET_PROBE_TYPES];
-    const { rrsets, observation } = await probeLeafRrsets(
+    coverage = { checkedPositiveRrsetTypes: [...RRSET_PROBE_TYPES] };
+    const probed = await probeLeafRrsets(
       probeName,
       leaf.name,
       leafRaw.keys,
       leaf.keys,
       query,
-      now,
+      at,
     );
-    // DNSKEY/DS questions for the exact name may already have observed
-    // NXDOMAIN. Do not erase that stronger negative response merely because a
-    // later type probe came back as NODATA; a positive answer does override it.
+    // Do not erase a stronger negative response merely because a later type
+    // probe came back as NODATA; a positive answer does override it.
     if (
-      chain.query.observation !== 'unproved-nxdomain' ||
-      observation === 'positive'
-    ) {
-      chain.query.observation = observation;
-    }
-    leaf.rrsets = rrsets;
+      observation !== 'unproved-nxdomain' ||
+      probed.observation === 'positive'
+    )
+      observation = probed.observation;
+    zones = zones.map((zone, index) =>
+      index === zones.length - 1 ? { ...zone, rrsets: probed.rrsets } : zone,
+    );
+    leafAlias = probed.rrsets.find(
+      (rrset) => rrset.type === 'CNAME',
+    )?.cnameTarget;
   }
 
-  return chain;
+  const result: DnssecChainResult = { ...walked, zones };
+  return {
+    ...result,
+    coverage,
+    query: { name: probeName, observation },
+    leafAlias,
+    verdict: chainVerdict(result, observation),
+  };
 };

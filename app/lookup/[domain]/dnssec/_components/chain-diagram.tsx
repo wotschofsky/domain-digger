@@ -24,6 +24,7 @@ import type {
   DnssecRrsetStatus,
   DnssecSignatureEvidence,
   DnssecStatus,
+  DnssecVerdict,
   DnssecZone,
 } from '@/lib/dnssec';
 import { cn } from '@/lib/utils';
@@ -82,18 +83,6 @@ const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
   timeZone: 'UTC',
 });
 
-const decodeFlags = (flags: number): string => {
-  const parts: string[] = [];
-  if (flags & 0x0100) parts.push('ZONE');
-  if (flags & 0x0001) parts.push('SEP');
-  if (flags & 0x0080) parts.push('REVOKE');
-  return parts.join(' + ') || 'none';
-};
-
-/** First zone whose link to its parent doesn't hold — where the chain ends. */
-const breakIndex = (chain: DnssecChain): number =>
-  chain.zones.findIndex((z) => z.status !== 'secure');
-
 const zoneHeading = (zone: DnssecZone): string =>
   zone.name === '.' ? 'Root zone' : zone.name;
 
@@ -104,16 +93,9 @@ const zoneProse = (name: string): string =>
 const shortDigest = (hex: string): string =>
   hex.length > 16 ? `${hex.slice(0, 8)}…${hex.slice(-6)}` : hex;
 
-const visibleRrsets = (zone: DnssecZone | undefined): DnssecRrset[] =>
-  (zone?.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
-
-const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
-  visibleRrsets(zone).filter((rrset) =>
-    ['bogus', 'unsigned', 'unsupported'].includes(rrset.status),
-  );
-
-const rrsetUnknowns = (zone: DnssecZone | undefined): DnssecRrset[] =>
-  visibleRrsets(zone).filter((rrset) => rrset.status === 'indeterminate');
+/** Only RRsets worth showing: absent ones were probed and simply aren't there. */
+const visibleRrsets = (zone: DnssecZone): DnssecRrset[] =>
+  (zone.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
 
 // Chip tones stay within the app's zinc palette; red is reserved for the one
 // state that is actually an error (bogus/broken).
@@ -210,130 +192,122 @@ type VerdictPresentation = {
   remediation: string | null;
 };
 
-/** Plain-language verdict derived once for the header. */
+/** The zone where the chain ended, plus the names the copy refers to. */
+const breakContext = (chain: DnssecChain): BreakContext => {
+  const zone = chain.zones[chain.breakAt ?? 0];
+  const parent = chain.zones[(chain.breakAt ?? 0) - 1];
+  return {
+    zone,
+    zoneName: zoneProse(zone.name),
+    parentName: parent ? zoneProse(parent.name) : 'its parent',
+  };
+};
+
+/**
+ * Copy for the verdict the walk decided. Which outcome wins is policy and
+ * lives in lib/dnssec/verdict.ts; this only puts it into words. The switch is
+ * exhaustive, so a new outcome is a type error here rather than silent
+ * fall-through to the wrong sentence.
+ */
 export const verdictPresentation = (
   chain: DnssecChain,
 ): VerdictPresentation => {
-  const zones = chain.zones;
-  const leaf = zones.at(-1);
-  if (!leaf) return { title: 'Unknown', body: '', remediation: null };
-  const leafName = zoneProse(leaf.name);
+  const verdict = chain.verdict;
+  const leafName = zoneProse(chain.zones.at(-1)?.name ?? '');
   const observation = queryObservationSentence(chain);
+  const trailing = observation ? ` ${observation}` : '';
 
-  // The name's nonexistence leads over a secure or insecure chain. An
-  // unregistered name under a signed TLD has no DS of its own, which otherwise
-  // reads as an unsigned delegation and advises publishing a DS record for a
-  // domain the authoritative servers say does not exist. A bogus chain outranks
-  // it: an NXDOMAIN served under a broken link is itself untrustworthy, so the
-  // break verdict below leads and appends this observation.
-  if (
-    chain.query.observation === 'unproved-nxdomain' &&
-    chain.status !== 'broken'
-  ) {
-    return {
-      title: 'NXDOMAIN observed — not proven',
-      body:
-        chain.status === 'secure'
-          ? `The DNSSEC chain is authenticated to ${leafName}. ${observation}`
-          : (observation ?? ''),
-      remediation: null,
-    };
-  }
+  switch (verdict.kind) {
+    case 'unknown':
+      return { title: 'Unknown', body: '', remediation: null };
 
-  if (chain.status === 'secure') {
-    if (chain.query.observation === 'unproved-nodata') {
+    case 'nxdomain-unproved':
+      return {
+        title: 'NXDOMAIN observed — not proven',
+        body:
+          chain.status === 'secure'
+            ? `The DNSSEC chain is authenticated to ${leafName}. ${observation}`
+            : (observation ?? ''),
+        remediation: null,
+      };
+
+    case 'secure-nodata':
       return {
         title: 'Secure chain, no records observed',
         body: `The DNSSEC chain is authenticated to ${leafName}. ${observation}`,
         remediation: null,
       };
-    }
-    const problems = rrsetProblems(leaf);
-    if (problems.length > 0) {
-      const types = problems.map((rrset) => rrset.type).join(', ');
+
+    case 'secure-rrset-problems':
       return {
         title: 'Secure chain, RRset issues',
-        body: `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} ${problems.length === 1 ? 'has' : 'have'} positive RRset validation issues.`,
+        body: `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${verdict.rrsetTypes.join(', ')} ${verdict.rrsetTypes.length === 1 ? 'has' : 'have'} positive RRset validation issues.`,
         remediation: null,
       };
-    }
-    const unknowns = rrsetUnknowns(leaf);
-    if (unknowns.length > 0) {
-      const types = unknowns.map((rrset) => rrset.type).join(', ');
+
+    case 'secure-rrset-unchecked':
       return {
         title: 'Secure chain, partial RRsets',
-        body: `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${types} could not be checked.`,
+        body: `The delegation and DNSKEY chain is authenticated down to ${leafName}, but ${verdict.rrsetTypes.join(', ')} could not be checked.`,
         remediation: null,
       };
-    }
-    const validated = visibleRrsets(leaf).filter(
-      (rrset) => rrset.status === 'secure',
-    );
-    if (validated.length > 0) {
+
+    case 'secure-validated':
       return {
         title: 'Secure',
-        body: `Every link holds from the root trust anchor down to ${leafName}, and ${validated.length} existing record ${validated.length === 1 ? 'set has' : 'sets have'} valid, unexpired RRSIGs.`,
+        body: `Every link holds from the root trust anchor down to ${leafName}, and ${verdict.validatedRrsetCount} existing record ${verdict.validatedRrsetCount === 1 ? 'set has' : 'sets have'} valid, unexpired RRSIGs.`,
+        remediation: null,
+      };
+
+    case 'secure':
+      return {
+        title: 'Secure',
+        body: `Every link holds from the root trust anchor down to ${leafName}: each zone's key set is DS-linked and its DNSKEY signature verifies and is unexpired.${trailing}`,
+        remediation: null,
+      };
+
+    case 'break': {
+      const presentation = BREAK_PRESENTATION[verdict.reason];
+      const context = breakContext(chain);
+      return {
+        title:
+          verdict.reason === 'unsupported-algorithm'
+            ? 'Cannot validate'
+            : 'Broken',
+        body: `${presentation.body(context)}${trailing}`,
+        remediation: presentation.remediation(context),
+      };
+    }
+
+    case 'unsigned-cut': {
+      const { zoneName, parentName } = breakContext(chain);
+      return {
+        title: 'No DS observed',
+        body: `No DS record was observed for ${zoneName}, so the chain of trust stops at ${parentName}. Because negative DNSSEC proofs are not checked yet, this is an observation rather than cryptographic proof that DNSSEC is disabled.${trailing}`,
+        remediation: verdict.atLeaf
+          ? 'To enable DNSSEC: turn on signing at the DNS host (most managed providers have a one-click option), then publish the DS record it produces via the registrar.'
+          : null,
+      };
+    }
+
+    case 'no-authenticated-ds': {
+      const { zoneName, parentName } = breakContext(chain);
+      return {
+        title: chain.status === 'broken' ? 'Broken' : 'No DS observed',
+        body: `No authenticated DS link was observed from ${parentName} to ${zoneName}, so nothing below it (including ${leafName}) can be authenticated. Negative proof validation is outside this check's current scope.${trailing}`,
         remediation: null,
       };
     }
-    return {
-      title: 'Secure',
-      body: `Every link holds from the root trust anchor down to ${leafName}: each zone's key set is DS-linked and its DNSKEY signature verifies and is unexpired.${observation ? ` ${observation}` : ''}`,
-      remediation: null,
-    };
   }
-
-  const idx = breakIndex(chain);
-  const brk = zones[idx];
-  const zoneName = zoneProse(brk.name);
-  const parent = zones[idx - 1];
-  const parentName = parent ? zoneProse(parent.name) : 'its parent';
-
-  if (brk.breakReason) {
-    const presentation = BREAK_PRESENTATION[brk.breakReason];
-    const context = { zone: brk, zoneName, parentName };
-    return {
-      title:
-        brk.breakReason === 'unsupported-algorithm'
-          ? 'Cannot validate'
-          : 'Broken',
-      body: `${presentation.body(context)}${observation ? ` ${observation}` : ''}`,
-      remediation: presentation.remediation(context),
-    };
-  }
-
-  // An insecure zone with no reason is the observed unsigned cut. A broken
-  // zone without a reason can only be inherited and cannot be the first break.
-  if (brk.dsRecords.length === 0 && brk.keys.length === 0) {
-    return {
-      title: 'No DS observed',
-      body: `No DS record was observed for ${zoneName}, so the chain of trust stops at ${parentName}. Because negative DNSSEC proofs are not checked yet, this is an observation rather than cryptographic proof that DNSSEC is disabled.${observation ? ` ${observation}` : ''}`,
-      remediation:
-        idx === chain.zones.length - 1
-          ? 'To enable DNSSEC: turn on signing at the DNS host (most managed providers have a one-click option), then publish the DS record it produces via the registrar.'
-          : null,
-    };
-  }
-  return {
-    title: chain.status === 'broken' ? 'Broken' : 'No DS observed',
-    body: `No authenticated DS link was observed from ${parentName} to ${zoneName}, so nothing below it (including ${leafName}) can be authenticated. Negative proof validation is outside this check's current scope.${observation ? ` ${observation}` : ''}`,
-    remediation: null,
-  };
 };
 
-const leafAlias = (chain: DnssecChain): string | undefined =>
-  chain.zones.at(-1)?.rrsets?.find((rrset) => rrset.type === 'CNAME')
-    ?.cnameTarget;
-
 /**
- * Edge label + tone for the connector pointing from a parent into `zone`.
- * `inherited` marks zones below the first break: their status is propagated,
- * so the label must not restate the break zone's specific failure as if it
- * were this zone's own.
+ * Edge label + tone for the connector pointing from a parent into `zone`. A
+ * zone below the break carries an inherited status, so the label must not
+ * restate the break zone's specific failure as if it were this zone's own.
  */
 const edgeState = (
   zone: DnssecZone,
-  inherited = false,
 ): {
   label: string;
   line: string;
@@ -349,7 +323,7 @@ const edgeState = (
     };
   }
   if (zone.status === 'broken') {
-    const label = inherited
+    const label = zone.inherited
       ? 'Below a broken zone — not validated'
       : zone.breakReason
         ? BREAK_PRESENTATION[zone.breakReason].edgeLabel
@@ -363,7 +337,7 @@ const edgeState = (
   return {
     // 'unsupported-algorithm' covers both an unusable DS and an unimportable
     // DS-linked key, so don't blame the DS specifically.
-    label: inherited
+    label: zone.inherited
       ? 'Below an unauthenticated link — not validated'
       : zone.breakReason
         ? BREAK_PRESENTATION[zone.breakReason].edgeLabel
@@ -373,27 +347,27 @@ const edgeState = (
   };
 };
 
+// Outcomes where the chain itself holds but the answer carries a caveat, so
+// the icon warns rather than reassures. Everything else follows the chain's
+// own status. Derived from the same verdict as the wording, so the icon and
+// the sentence under it can no longer disagree.
+const CAVEAT_VERDICTS = new Set<DnssecVerdict['kind']>([
+  'nxdomain-unproved',
+  'secure-nodata',
+  'secure-rrset-problems',
+  'secure-rrset-unchecked',
+]);
+
 const VerdictHeader: FC<{ chain: DnssecChain }> = ({ chain }) => {
   const presentation = verdictPresentation(chain);
-  const problems =
-    chain.status === 'secure' ? rrsetProblems(chain.zones.at(-1)) : [];
-  // An NXDOMAIN observation raises an insecure chain's icon to the alert too
-  // (broken already alerts); other unproved negatives only outrank a secure
-  // chain's checkmark.
-  const hasUnprovedNegative =
-    chain.query.observation === 'unproved-nodata' ||
-    chain.query.observation === 'indeterminate';
-  const Icon =
-    problems.length > 0 ||
-    chain.query.observation === 'unproved-nxdomain' ||
-    (chain.status === 'secure' && hasUnprovedNegative)
-      ? ShieldAlertIcon
-      : chain.status === 'secure'
-        ? ShieldCheckIcon
-        : chain.status === 'broken'
-          ? ShieldAlertIcon
-          : ShieldOffIcon;
-  const alias = leafAlias(chain);
+  const Icon = CAVEAT_VERDICTS.has(chain.verdict.kind)
+    ? ShieldAlertIcon
+    : chain.status === 'secure'
+      ? ShieldCheckIcon
+      : chain.status === 'broken'
+        ? ShieldAlertIcon
+        : ShieldOffIcon;
+  const alias = chain.leafAlias;
 
   return (
     <IconAlert icon={Icon} title={presentation.title} className="max-w-none">
@@ -445,7 +419,7 @@ const KeyRow: FC<{ dnsKey: DnssecKey }> = ({ dnsKey: k }) => {
         {k.bits !== null && ` · ${k.bits}-bit`}
       </span>
       <span className="font-mono text-xs text-zinc-400 dark:text-zinc-500">
-        flags {k.flags} ({decodeFlags(k.flags)})
+        flags {k.flags} ({k.flagNames})
       </span>
       {k.isRevoked && (
         <span className="text-xs font-medium text-red-600 dark:text-red-400">
@@ -476,27 +450,23 @@ const DsRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
   </div>
 );
 
-const TrustLinkRow: FC<{
-  ds: DnssecDs;
-  dnsKey?: DnssecKey;
-  // A shipped trust anchor that simply isn't in the served key set right now
-  // (e.g. the standby root KSK outside a rollover) -- not a broken link.
-  standby?: boolean;
-}> = ({ ds, dnsKey, standby }) => (
+const TrustLinkRow: FC<{ ds: DnssecDs }> = ({ ds }) => (
   <li className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
     <DsRow ds={ds} />
     <ArrowRightIcon
-      aria-label={dnsKey ? 'matches' : standby ? 'standby' : 'does not match'}
+      aria-label={
+        ds.matchedKey ? 'matches' : ds.standby ? 'standby' : 'does not match'
+      }
       className={cn(
         'size-4',
-        dnsKey || standby
+        ds.matchedKey || ds.standby
           ? 'text-zinc-400 dark:text-zinc-500'
           : 'text-red-600 dark:text-red-400',
       )}
     />
-    {dnsKey ? (
-      <KeyRow dnsKey={dnsKey} />
-    ) : standby ? (
+    {ds.matchedKey ? (
+      <KeyRow dnsKey={ds.matchedKey} />
+    ) : ds.standby ? (
       <div className="py-2 text-sm text-zinc-500 dark:text-zinc-400">
         Standby anchor · not in the current key set
       </div>
@@ -674,13 +644,11 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
   isLeaf,
 }) => {
   const rrsets = visibleRrsets(zone);
-  const linkedKeyIndexes = new Set(
-    zone.dsRecords.flatMap((ds) => ds.matchedKeyIndexes),
-  );
-  const otherKeys = zone.keys.filter(
-    (_key, index) => !linkedKeyIndexes.has(index),
-  );
-  const standaloneKeys = zone.dsRecords.length > 0 ? otherKeys : zone.keys;
+  // Keys not already shown paired with the DS that vouches for them.
+  const standaloneKeys =
+    zone.dsRecords.length > 0
+      ? zone.keys.filter((key) => !key.dsMatched)
+      : zone.keys;
 
   return (
     <div className="space-y-4">
@@ -710,15 +678,6 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
               <TrustLinkRow
                 key={`${ds.keyTag}-${ds.algorithm}-${ds.digestType}-${ds.digestHex}`}
                 ds={ds}
-                dnsKey={zone.keys[ds.matchedKeyIndexes[0]]}
-                // The root always carries both IANA anchors; outside a KSK
-                // rollover only one is served, and the other must not read
-                // as a broken link under a secure root.
-                standby={
-                  zone.name === '.' &&
-                  !ds.matched &&
-                  zone.dsRecords.some((record) => record.matched)
-                }
               />
             ))}
           </ul>
@@ -774,23 +733,9 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
         </section>
       )}
 
-      {zone.dsRecords.length === 0 &&
-        (zone.dsSignature || zone.dnskeySignature) && (
-          <div className="flex flex-wrap gap-x-6">
-            {zone.dsSignature && (
-              <SignatureEvidence
-                label="Parent signature"
-                evidence={zone.dsSignature}
-              />
-            )}
-            {zone.dnskeySignature && (
-              <SignatureEvidence
-                label="Key-set signature"
-                evidence={zone.dnskeySignature}
-              />
-            )}
-          </div>
-        )}
+      {/* No branch for signature evidence without DS records: buildChain
+          derives both signatures from the same anchors it builds dsRecords
+          from, so a zone with no DS never carries either. */}
 
       {isLeaf && rrsets.length > 0 && (
         <section>
@@ -812,13 +757,12 @@ const ZoneDetail: FC<{ zone: DnssecZone; isLeaf: boolean }> = ({
 const RailRow: FC<{
   zone: DnssecZone;
   isLast: boolean;
-  inherited: boolean;
   // Line class of the edge spanning down into the NEXT zone -- coloring this
   // segment by the child's edge state puts the red/zinc on the actual break
   // edge instead of one segment too high.
   connectorLine?: string;
-}> = ({ zone, isLast, inherited, connectorLine }) => {
-  const edge = edgeState(zone, inherited);
+}> = ({ zone, isLast, connectorLine }) => {
+  const edge = edgeState(zone);
   const isRoot = zone.name === '.';
 
   return (
@@ -856,7 +800,7 @@ const RailRow: FC<{
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
             {isRoot && zone.status === 'secure'
               ? `Built-in IANA trust anchor (key tag ${zone.dsRecords
-                  .filter((d) => d.matched)
+                  .filter((d) => d.matchedKey)
                   .map((d) => d.keyTag)
                   .join(' & ')}).`
               : zone.status === 'secure'
@@ -877,9 +821,6 @@ type ChainDiagramProps = {
 };
 
 export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
-  const firstBreak = breakIndex(chain);
-  const isInherited = (i: number) => firstBreak !== -1 && i > firstBreak;
-
   return (
     <div className="space-y-6">
       <VerdictHeader chain={chain} />
@@ -896,10 +837,7 @@ export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
                 <RailRow
                   zone={zone}
                   isLast={!next}
-                  inherited={isInherited(i)}
-                  connectorLine={
-                    next ? edgeState(next, isInherited(i + 1)).line : undefined
-                  }
+                  connectorLine={next ? edgeState(next).line : undefined}
                 />
               </li>
             );

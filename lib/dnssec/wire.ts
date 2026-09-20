@@ -28,6 +28,41 @@ export const dnskeyRdata = (
   return Buffer.concat([head, key.key]);
 };
 
+// DNSKEY flags (RFC 4034 §2.1.1, RFC 5011 §7). Decoded here so the bit
+// positions live in exactly one place: every caller asks a named question
+// instead of re-spelling a mask.
+const DNSKEY_ZONE = 0x0100;
+const DNSKEY_REVOKE = 0x0080;
+const DNSKEY_SEP = 0x0001;
+
+type KeyFlags = Pick<DnskeyData, 'flags'>;
+
+/** Bit 7: the key may sign records in this zone (RFC 4034 §2.1.1). */
+export const isZoneKey = (key: KeyFlags): boolean =>
+  (key.flags & DNSKEY_ZONE) !== 0;
+
+/** Bit 8: the key revokes itself, so validators must not trust it (RFC 5011 §2.1). */
+export const isRevokedKey = (key: KeyFlags): boolean =>
+  (key.flags & DNSKEY_REVOKE) !== 0;
+
+/** Bit 15: Secure Entry Point, conventionally the KSK a DS points at. */
+export const isSepKey = (key: KeyFlags): boolean =>
+  (key.flags & DNSKEY_SEP) !== 0;
+
+/** A key eligible to make a signature: a zone key that has not revoked itself. */
+export const isEligibleSigner = (key: KeyFlags): boolean =>
+  isZoneKey(key) && !isRevokedKey(key);
+
+/** The set flags, named: e.g. `ZONE + SEP`. */
+export const describeKeyFlags = (key: KeyFlags): string =>
+  [
+    isZoneKey(key) && 'ZONE',
+    isSepKey(key) && 'SEP',
+    isRevokedKey(key) && 'REVOKE',
+  ]
+    .filter(Boolean)
+    .join(' + ') || 'none';
+
 /** Key tag computation per RFC 4034 Appendix B (general case). */
 export const computeKeyTag = (rdata: Buffer): number => {
   let ac = 0;

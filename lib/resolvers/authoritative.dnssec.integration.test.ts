@@ -18,10 +18,16 @@ describe('resolveDnssecChain root guard', () => {
     // that returns NOERROR/no-data for every query, including the root DNSKEY.
     vi.spyOn(
       resolver as unknown as {
-        fetchRecordsRaw: () => Promise<{ answers: []; trace: string[] }>;
+        fetchRecordsRaw: () => Promise<{
+          answers: [];
+          trace: string[];
+          zone: string;
+        }>;
       },
       'fetchRecordsRaw',
-    ).mockResolvedValue({ answers: [], trace: [] });
+      // An intercepting resolver still answers as the zone it was asked
+      // about, so the walk cannot dismiss this as "not a zone cut".
+    ).mockResolvedValue({ answers: [], trace: [], zone: '.' });
 
     await expect(resolver.resolveDnssecChain('google.com')).rejects.toThrow(
       UserFacingError,
@@ -126,7 +132,7 @@ live('resolveDnssecChain (live)', () => {
         expect(chain.zones.every((z) => z.status === 'secure')).toBe(true);
         // Every non-root secure zone is authenticated by a DS in its parent.
         for (const zone of chain.zones.slice(1)) {
-          expect(zone.dsRecords.some((ds) => ds.matched)).toBe(true);
+          expect(zone.dsRecords.some((ds) => ds.matchedKey)).toBe(true);
         }
         // Every zone serves at least one key, and the anchored key is a KSK/SEP.
         for (const zone of chain.zones) {

@@ -1,8 +1,12 @@
 import type { DnskeyData, RrsigData } from 'dns-packet';
 import { toType } from 'dns-packet/types';
 
-import { algorithmName, SUPPORTED_SIGNING_ALGORITHMS } from './algorithms';
-import { rrsigMetadataIssue, verifyRrsetRrsig } from './rrsig';
+import { algorithmName } from './algorithms';
+import {
+  outranksUnsupported,
+  rrsigMetadataIssue,
+  verifyRrsetRrsig,
+} from './rrsig';
 import type {
   DnssecAnswerRecord,
   DnssecRrset,
@@ -133,18 +137,12 @@ export const validatePositiveRrset = (params: {
               ? 'expired'
               : 'invalid-signature',
       });
-      // An expired or not-yet-valid supported-algorithm signature outranks a
-      // co-published in-window unsupported one (RFC 6840 §5.11) -- without
-      // this, the unsupported fallback below would mask the real failure.
-      if (
-        SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm) &&
-        (metadataIssue === 'expired' || metadataIssue === 'not-yet-valid')
-      ) {
-        sawSupportedSigner = true;
-      }
+      // Without this, the unsupported fallback below would mask a real failure
+      // in an algorithm we can actually run.
+      if (outranksUnsupported(rrsig, metadataIssue)) sawSupportedSigner = true;
       continue;
     }
-    if (!SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm)) {
+    if (!outranksUnsupported(rrsig, null)) {
       sawUnsupportedSigner = true;
       continue;
     }
