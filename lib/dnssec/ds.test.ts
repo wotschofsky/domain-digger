@@ -46,6 +46,11 @@ describe('DS digest linkage', () => {
     ).toBe(false);
   });
 
+  it('rejects a DNSKEY without the Zone Key flag', () => {
+    const key = { ...RFC_KEY, flags: RFC_KEY.flags & ~0x0100 };
+    expect(dsMatchesKey(RFC_DS, key, 'dskey.example.com')).toBe(false);
+  });
+
   it('rejects a DS whose key tag does not match the DNSKEY', () => {
     // Correct digest + algorithm but a deliberately wrong key tag: a validator
     // would never select this key, so it must not count as a match.

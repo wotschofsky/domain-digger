@@ -34,6 +34,8 @@ export const dsMatchesKey = (
   key: DnskeyData,
   zoneName: string,
 ): boolean => {
+  // RFC 4034 §5.2: a DS may only point at a Zone Key (bit 7).
+  if ((key.flags & 0x0100) === 0) return false;
   if (ds.algorithm !== key.algorithm) return false;
   if (ds.keyTag !== dnskeyKeyTag(key)) return false;
   const digest = dsDigest(zoneName, key, ds.digestType);

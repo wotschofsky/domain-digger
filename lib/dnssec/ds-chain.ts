@@ -83,10 +83,6 @@ export const dsDigestName = (digestType: number): string =>
 
 const keyTag = dnskeyKeyTag;
 
-const zoneDsMatchesKey = (ds: DsData, key: DnskeyData, name: string): boolean =>
-  // A DS may only point at a key with the Zone Key flag (RFC 4034 section 5.2).
-  (key.flags & 0x0100) !== 0 && dsMatchesKey(ds, key, name);
-
 const dnskeysOf = ({ answers }: { answers: Answer[] }): DnskeyData[] =>
   answers.flatMap((answer) => (answer.type === 'DNSKEY' ? [answer.data] : []));
 
@@ -157,7 +153,7 @@ export const resolveDsChain = async (
       soaResponse!.answers.some((answer) => answer.type === 'SOA');
     if (!isApex) continue;
     const matches = dsRecords.map((ds) =>
-      keys.some((key) => zoneDsMatchesKey(ds, key, name)),
+      keys.some((key) => dsMatchesKey(ds, key, name)),
     );
     // Only supported digests decide, and SHA-1 is ignored next to a stronger
     // one (RFC 4509 section 3), so a matching SHA-1 record cannot hide a
