@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { isDeprecatedAlgorithm, isWeakDigest, keyBits } from './algorithms';
+import {
+  algorithmName,
+  isDeprecatedAlgorithm,
+  isWeakDigest,
+  keyBits,
+} from './algorithms';
 import { RFC_KEY } from './test-vectors';
 
 describe('algorithm policy', () => {
@@ -20,5 +25,10 @@ describe('algorithm policy', () => {
     expect(isDeprecatedAlgorithm(13)).toBe(false); // ECDSAP256SHA256
     expect(isWeakDigest(1)).toBe(true); // SHA-1
     expect(isWeakDigest(2)).toBe(false); // SHA-256
+    expect(isWeakDigest(3)).toBe(true); // GOST
+  });
+  it('names known algorithms and falls back for unknown ones', () => {
+    expect(algorithmName(8)).toBe('RSASHA256');
+    expect(algorithmName(99)).toBe('Algorithm 99');
   });
 });

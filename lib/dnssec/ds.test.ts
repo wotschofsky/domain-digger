@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { dsDigest, dsMatchesKey } from './ds';
 import { RFC_DS, RFC_KEY } from './test-vectors';
-import { computeKeyTag, dnskeyRdata } from './wire';
+import { computeKeyTag, dnskeyKeyTag, dnskeyRdata } from './wire';
 
 describe('DS digest linkage', () => {
   it('computes the RFC 4034 DS digest (SHA-1)', () => {
@@ -23,12 +23,40 @@ describe('DS digest linkage', () => {
     expect(dsDigest('dskey.example.com', RFC_KEY, 99)).toBeNull();
   });
 
+  it('matches an RSAMD5 DS using the Appendix B.1 key tag', () => {
+    const key = {
+      flags: 256,
+      algorithm: 1,
+      key: Buffer.from([0x01, 0xaa, 0xbb, 0xcc]),
+    };
+    const ds = {
+      keyTag: dnskeyKeyTag(key),
+      algorithm: 1,
+      digestType: 1,
+      digest: dsDigest('example.com', key, 1)!,
+    };
+    expect(ds.keyTag).toBe(0xaabb);
+    expect(dsMatchesKey(ds, key, 'example.com')).toBe(true);
+    expect(
+      dsMatchesKey(
+        { ...ds, keyTag: computeKeyTag(dnskeyRdata(key)) },
+        key,
+        'example.com',
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects a DNSKEY without the Zone Key flag', () => {
+    const key = { ...RFC_KEY, flags: RFC_KEY.flags & ~0x0100 };
+    expect(dsMatchesKey(RFC_DS, key, 'dskey.example.com')).toBe(false);
+  });
+
   it('rejects a DS whose key tag does not match the DNSKEY', () => {
     // Correct digest + algorithm but a deliberately wrong key tag: a validator
     // would never select this key, so it must not count as a match.
     const good = {
       ...RFC_DS,
-      keyTag: computeKeyTag(dnskeyRdata(RFC_KEY)),
+      keyTag: dnskeyKeyTag(RFC_KEY),
       digest: dsDigest('example', RFC_KEY, 1)!,
     };
     const tagMismatch = { ...good, keyTag: good.keyTag + 1 };

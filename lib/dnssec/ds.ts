@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type { DnskeyData, DsData } from 'dns-packet';
 
 import { DIGEST_HASH_ALGOS } from './algorithms';
-import { computeKeyTag, dnskeyRdata, wireName } from './wire';
+import { dnskeyKeyTag, dnskeyRdata, wireName } from './wire';
 
 // DS digest linkage (RFC 4034 §5.1.4): does a parent's DS record actually
 // hash to one of the child zone's DNSKEYs?
@@ -34,8 +34,10 @@ export const dsMatchesKey = (
   key: DnskeyData,
   zoneName: string,
 ): boolean => {
+  // RFC 4034 §5.2: a DS may only point at a Zone Key (bit 7).
+  if ((key.flags & 0x0100) === 0) return false;
   if (ds.algorithm !== key.algorithm) return false;
-  if (ds.keyTag !== computeKeyTag(dnskeyRdata(key))) return false;
+  if (ds.keyTag !== dnskeyKeyTag(key)) return false;
   const digest = dsDigest(zoneName, key, ds.digestType);
   return digest !== null && digest.equals(ds.digest);
 };
