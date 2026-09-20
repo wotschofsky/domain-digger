@@ -10,7 +10,7 @@ import {
   isWeakDigest,
 } from './algorithms';
 import { dsMatchesKey } from './ds';
-import { computeKeyTag, dnskeyRdata } from './wire';
+import { dnskeyKeyTag } from './wire';
 
 export type DsChainVerdict = 'intact' | 'unsigned' | 'mismatch';
 
@@ -81,12 +81,7 @@ export const dnssecAlgorithmName = algorithmName;
 export const dsDigestName = (digestType: number): string =>
   DIGEST_NAMES[digestType] ?? `Digest ${digestType}`;
 
-const keyTag = (key: DnskeyData): number => {
-  const rdata = dnskeyRdata(key);
-  // RFC 4034 Appendix B.1 has a special case for the obsolete RSAMD5 key.
-  if (key.algorithm === 1) return (rdata.at(-3)! << 8) | rdata.at(-2)!;
-  return computeKeyTag(rdata);
-};
+const keyTag = dnskeyKeyTag;
 
 const zoneDsMatchesKey = (ds: DsData, key: DnskeyData, name: string): boolean =>
   // A DS may only point at a key with the Zone Key flag (RFC 4034 section 5.2).

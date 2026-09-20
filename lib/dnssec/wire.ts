@@ -36,3 +36,12 @@ export const computeKeyTag = (rdata: Buffer): number => {
   ac += (ac >> 16) & 0xffff;
   return ac & 0xffff;
 };
+
+/** Key tag of a DNSKEY, including the RSAMD5 exception (RFC 4034 Appendix B.1). */
+export const dnskeyKeyTag = (
+  key: Pick<DnskeyData, 'flags' | 'algorithm' | 'key'>,
+): number => {
+  const rdata = dnskeyRdata(key);
+  if (key.algorithm === 1) return (rdata.at(-3)! << 8) | rdata.at(-2)!;
+  return computeKeyTag(rdata);
+};
