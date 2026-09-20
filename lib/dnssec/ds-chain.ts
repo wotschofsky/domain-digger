@@ -1,9 +1,16 @@
-import { createHash } from 'node:crypto';
-
 import type { Answer, DnskeyData, DsData } from 'dns-packet';
 
 import type { RecordType } from '@/lib/resolvers/base';
 import { UserFacingError } from '@/lib/user-facing-error';
+
+import {
+  algorithmName,
+  DIGEST_HASH_ALGOS,
+  DIGEST_NAMES,
+  isWeakDigest,
+} from './algorithms';
+import { dsMatchesKey } from './ds';
+import { dnskeyKeyTag } from './wire';
 
 export type DsChainVerdict = 'intact' | 'unsigned' | 'mismatch';
 
@@ -69,80 +76,12 @@ const ROOT_ANCHORS: DsData[] = [
   },
 ];
 
-const ALGORITHM_NAMES: Record<number, string> = {
-  1: 'RSAMD5',
-  3: 'DSA',
-  5: 'RSASHA1',
-  6: 'DSA-NSEC3-SHA1',
-  7: 'RSASHA1-NSEC3-SHA1',
-  8: 'RSASHA256',
-  10: 'RSASHA512',
-  12: 'ECC-GOST',
-  13: 'ECDSAP256SHA256',
-  14: 'ECDSAP384SHA384',
-  15: 'ED25519',
-  16: 'ED448',
-};
-
-export const dnssecAlgorithmName = (algorithm: number): string =>
-  ALGORITHM_NAMES[algorithm] ?? `Algorithm ${algorithm}`;
+export const dnssecAlgorithmName = algorithmName;
 
 export const dsDigestName = (digestType: number): string =>
-  ({ 1: 'SHA-1', 2: 'SHA-256', 3: 'GOST R 34.11-94', 4: 'SHA-384' })[
-    digestType
-  ] ?? `Digest ${digestType}`;
+  DIGEST_NAMES[digestType] ?? `Digest ${digestType}`;
 
-const HASH_ALGORITHMS: Record<number, string> = {
-  1: 'sha1',
-  2: 'sha256',
-  4: 'sha384',
-};
-
-const wireName = (name: string): Buffer => {
-  if (name === '.') return Buffer.from([0]);
-  return Buffer.concat([
-    ...name
-      .toLowerCase()
-      .split('.')
-      .flatMap((label) => [
-        Buffer.from([Buffer.byteLength(label, 'ascii')]),
-        Buffer.from(label, 'ascii'),
-      ]),
-    Buffer.from([0]),
-  ]);
-};
-
-const dnskeyRdata = (key: DnskeyData): Buffer => {
-  const header = Buffer.alloc(4);
-  header.writeUInt16BE(key.flags, 0);
-  header.writeUInt8(3, 2);
-  header.writeUInt8(key.algorithm, 3);
-  return Buffer.concat([header, key.key]);
-};
-
-const keyTag = (key: DnskeyData): number => {
-  const rdata = dnskeyRdata(key);
-  // RFC 4034 Appendix B.1 has a special case for the obsolete RSAMD5 key.
-  if (key.algorithm === 1) return (rdata.at(-3)! << 8) | rdata.at(-2)!;
-  let sum = 0;
-  for (let i = 0; i < rdata.length; i++) {
-    sum += i & 1 ? rdata[i] : rdata[i] << 8;
-  }
-  sum += (sum >> 16) & 0xffff;
-  return sum & 0xffff;
-};
-
-const dsMatchesKey = (ds: DsData, key: DnskeyData, name: string): boolean => {
-  // A DS may only point at a key with the Zone Key flag (RFC 4034 section 5.2).
-  if ((key.flags & 0x0100) === 0) return false;
-  if (ds.keyTag !== keyTag(key) || ds.algorithm !== key.algorithm) return false;
-  const hash = HASH_ALGORITHMS[ds.digestType];
-  if (!hash) return false;
-  return createHash(hash)
-    .update(Buffer.concat([wireName(name), dnskeyRdata(key)]))
-    .digest()
-    .equals(ds.digest);
-};
+const keyTag = dnskeyKeyTag;
 
 const dnskeysOf = ({ answers }: { answers: Answer[] }): DnskeyData[] =>
   answers.flatMap((answer) => (answer.type === 'DNSKEY' ? [answer.data] : []));
@@ -221,7 +160,7 @@ export const resolveDsChain = async (
     // broken stronger digest. With no supported digest the zone cannot be
     // authenticated and counts as unsigned (RFC 4035 section 5.2).
     const supported = dsRecords.flatMap((ds, i) =>
-      HASH_ALGORITHMS[ds.digestType] ? [{ ds, matched: matches[i] }] : [],
+      DIGEST_HASH_ALGOS[ds.digestType] ? [{ ds, matched: matches[i] }] : [],
     );
     const hasStrong = supported.some(({ ds }) => ds.digestType !== 1);
     const deciding = supported.filter(
@@ -251,7 +190,7 @@ export const resolveDsChain = async (
         digestType: ds.digestType,
         digestHex: ds.digest.toString('hex').toUpperCase(),
         matched: matches[i],
-        weakDigest: ds.digestType === 1 || ds.digestType === 3,
+        weakDigest: isWeakDigest(ds.digestType),
       })),
       status: verdict,
     });
