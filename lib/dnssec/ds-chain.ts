@@ -88,11 +88,7 @@ const keyTag = (key: DnskeyData): number => {
   return computeKeyTag(rdata);
 };
 
-const zoneDsMatchesKey = (
-  ds: DsData,
-  key: DnskeyData,
-  name: string,
-): boolean =>
+const zoneDsMatchesKey = (ds: DsData, key: DnskeyData, name: string): boolean =>
   // A DS may only point at a key with the Zone Key flag (RFC 4034 section 5.2).
   (key.flags & 0x0100) !== 0 && dsMatchesKey(ds, key, name);
 
