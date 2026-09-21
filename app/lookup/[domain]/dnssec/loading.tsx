@@ -1,62 +1,42 @@
 import type { FC } from 'react';
 
+import { Alert } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const zones = [
-  { nameWidth: 'w-8', keys: 2, ds: 2 },
-  { nameWidth: 'w-16', keys: 2, ds: 1 },
-  { nameWidth: 'w-36', keys: 1, ds: 1 },
-] as const;
-
 const DnssecLoading: FC = () => (
-  <div className="space-y-8">
+  <>
     <p className="sr-only" role="status">
       Loading DNSSEC chain
     </p>
-    <div aria-hidden="true" className="space-y-8">
-      <header className="space-y-2">
-        <Skeleton className="h-8 w-48 rounded-sm" />
-        <Skeleton className="h-5 w-full max-w-sm rounded-sm" />
-      </header>
+    <div aria-hidden="true" className="space-y-6">
+      {/* Verdict header: mirrors the IconAlert the chain diagram renders. */}
+      <Alert className="max-w-none">
+        <Skeleton className="absolute top-4 left-4 size-4 rounded-full" />
+        <div className="pl-7">
+          <Skeleton className="h-4 w-28 rounded-sm" />
+          <Skeleton className="mt-2 h-4 w-3/4 rounded-sm" />
+        </div>
+      </Alert>
 
-      <div className="space-y-4">
-        {zones.map((zone, index) => (
-          <section
-            key={index}
-            className="rounded-lg border border-zinc-200 p-5 dark:border-zinc-800"
-          >
-            <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
-              <Skeleton className={`h-7 ${zone.nameWidth} rounded-sm`} />
-              <Skeleton className="h-5 w-16 rounded-sm" />
+      {/* Trust rail */}
+      <div>
+        <Skeleton className="mb-3 h-4 w-48 rounded-sm" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex gap-3 pb-6 sm:gap-4">
+            <div className="flex w-5 flex-col items-center sm:w-6">
+              <Skeleton className="mt-3.5 size-3 rounded-full" />
+              {i < 2 && <Skeleton className="my-1 h-24 w-px flex-1" />}
             </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-20 rounded-sm" />
-                {Array.from({ length: zone.keys }).map((_, keyIndex) => (
-                  <Skeleton
-                    key={keyIndex}
-                    className="h-5 w-44 max-w-full rounded-sm"
-                  />
-                ))}
-              </div>
-              <div className="space-y-3">
-                <Skeleton className="h-5 w-28 rounded-sm" />
-                {Array.from({ length: zone.ds }).map((_, dsIndex) => (
-                  <div key={dsIndex} className="space-y-1">
-                    <Skeleton className="h-5 w-48 max-w-full rounded-sm" />
-                    <Skeleton className="h-3 w-36 rounded-sm" />
-                  </div>
-                ))}
-              </div>
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-4 w-40 rounded-sm" />
+              <Skeleton className="h-4 w-24 rounded-sm" />
+              <Skeleton className="h-28 w-full rounded-md" />
             </div>
-          </section>
+          </div>
         ))}
       </div>
-
-      <Skeleton className="h-5 w-full max-w-xl rounded-sm" />
     </div>
-  </div>
+  </>
 );
 
 export default DnssecLoading;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { dsDigest, dsMatchesKey } from './ds';
 import { RFC_DS, RFC_KEY } from './test-vectors';
-import { computeKeyTag, dnskeyKeyTag, dnskeyRdata } from './wire';
+import { dnskeyKeyTag } from './wire';
 
 describe('DS digest linkage', () => {
   it('computes the RFC 4034 DS digest (SHA-1)', () => {
@@ -39,7 +39,8 @@ describe('DS digest linkage', () => {
     expect(dsMatchesKey(ds, key, 'example.com')).toBe(true);
     expect(
       dsMatchesKey(
-        { ...ds, keyTag: computeKeyTag(dnskeyRdata(key)) },
+        // The general (non-RSAMD5) checksum over the same RDATA.
+        { ...ds, keyTag: 0xc177 },
         key,
         'example.com',
       ),

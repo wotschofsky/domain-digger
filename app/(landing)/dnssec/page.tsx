@@ -6,15 +6,17 @@ import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const revalidate = 86400;
+export const revalidate = 86400; // 24 hours
 
 export const metadata: Metadata = {
-  title: 'DNSSEC DS Chain Lookup',
+  title: 'DNSSEC Lookup',
   openGraph: {
-    title: 'DNSSEC DS Chain Lookup',
+    title: 'DNSSEC Lookup',
     url: '/dnssec',
   },
-  alternates: { canonical: '/dnssec' },
+  alternates: {
+    canonical: '/dnssec',
+  },
 };
 
 const DnssecLandingPage: FC = () => (
@@ -24,14 +26,14 @@ const DnssecLandingPage: FC = () => (
         <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
           <section>
             <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-              Check the DNSSEC DS chain for any domain
+              Verify the DNSSEC chain of trust for any domain
             </h1>
             <div className="mx-auto w-full max-w-2xl">
               <SearchForm subpage="dnssec" autofocus />
             </div>
             <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-              Follow DS digest links from the IANA root anchors to the name you
-              enter. This is not full DNSSEC validation.
+              Trace the chain from the IANA root anchor to the domain and find
+              exactly where DNSSEC authentication holds or breaks
             </p>
           </section>
           <SponsorsSection />
@@ -45,13 +47,27 @@ const DnssecLandingPage: FC = () => (
 
     <div className="mx-auto max-w-4xl space-y-4 pt-16 text-center">
       <h2 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-        About this DNSSEC lookup
+        What is DNSSEC?
       </h2>
       <p>
-        A parent zone publishes a DS digest for a child zone’s DNSKEY. This
-        lookup compares those digests from the IANA root anchors down to the
-        queried name and shows where the chain stops. It does not check DNSSEC
-        signatures or other records.
+        DNSSEC (Domain Name System Security Extensions) adds a layer of trust to
+        the DNS by cryptographically signing records, so resolvers can verify
+        that an answer really came from the authoritative zone and was not
+        forged or tampered with in transit. Each zone signs its records with its
+        own keys, and a parent zone vouches for its child by publishing a
+        Delegation Signer (DS) record — building an unbroken chain of trust from
+        the root zone all the way down to the domain you are looking up.
+      </p>
+      <p>
+        This DNSSEC checker walks that chain from the root trust anchor down to
+        the queried domain. It authenticates each observed DS record set,
+        verifies that it matches the child&apos;s DNSKEY, validates every
+        zone&apos;s key-set signature, and checks common positive record types
+        at the queried name. Negative answers, unsigned subdelegations, and
+        CNAME targets are not validated yet, so missing data is reported as
+        observed rather than cryptographically proven. The result helps
+        administrators confirm signed deployments and diagnose broken trust
+        links.
       </p>
     </div>
   </div>
