@@ -14,18 +14,19 @@ import {
 import Link from 'next/link';
 import type { FC, ReactNode } from 'react';
 
-import type {
-  DnssecBreakReason,
-  DnssecChain,
-  DnssecDs,
-  DnssecKey,
-  DnssecRrset,
-  DnssecRrsetReason,
-  DnssecRrsetStatus,
-  DnssecSignatureEvidence,
-  DnssecStatus,
-  DnssecVerdict,
-  DnssecZone,
+import {
+  type DnssecBreakReason,
+  type DnssecChain,
+  type DnssecDs,
+  type DnssecKey,
+  type DnssecRrset,
+  type DnssecRrsetReason,
+  type DnssecRrsetStatus,
+  type DnssecSignatureEvidence,
+  type DnssecStatus,
+  type DnssecVerdict,
+  type DnssecZone,
+  visibleRrsets,
 } from '@/lib/dnssec';
 import { cn } from '@/lib/utils';
 
@@ -86,16 +87,12 @@ const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
 const zoneHeading = (zone: DnssecZone): string =>
   zone.name === '.' ? 'Root zone' : zone.name;
 
-/** The root reads as prose mid-sentence, unlike the card heading above. */
+/** The root reads as prose mid-sentence, unlike the zone heading above. */
 const zoneProse = (name: string): string =>
   name === '.' ? 'the root zone' : name;
 
 const shortDigest = (hex: string): string =>
   hex.length > 16 ? `${hex.slice(0, 8)}…${hex.slice(-6)}` : hex;
-
-/** Only RRsets worth showing: absent ones were probed and simply aren't there. */
-const visibleRrsets = (zone: DnssecZone): DnssecRrset[] =>
-  (zone.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
 
 // Chip tones stay within the app's zinc palette; red is reserved for the one
 // state that is actually an error (bogus/broken).
@@ -293,7 +290,7 @@ export const verdictPresentation = (
     case 'no-authenticated-ds': {
       const { zoneName, parentName } = breakContext(chain);
       return {
-        title: chain.status === 'broken' ? 'Broken' : 'No DS observed',
+        title: 'No DS observed',
         body: `No authenticated DS link was observed from ${parentName} to ${zoneName}, so nothing below it (including ${leafName}) can be authenticated. Negative proof validation is outside this check's current scope.${trailing}`,
         remediation: null,
       };
@@ -323,13 +320,10 @@ const edgeState = (
     };
   }
   if (zone.status === 'broken') {
-    const label = zone.inherited
-      ? 'Below a broken zone — not validated'
-      : zone.breakReason
-        ? BREAK_PRESENTATION[zone.breakReason].edgeLabel
-        : 'Authentication failed';
     return {
-      label,
+      label: zone.inherited
+        ? 'Below a broken zone — not validated'
+        : BREAK_PRESENTATION[zone.breakReason].edgeLabel,
       line: 'bg-red-500/70',
       text: 'text-red-700 dark:text-red-400',
     };
@@ -821,6 +815,11 @@ type ChainDiagramProps = {
 };
 
 export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
+  // The leaf carries one RRset per probed type, or none when it wasn't probed.
+  const probedTypes = (chain.zones.at(-1)?.rrsets ?? []).map(
+    (rrset) => rrset.type,
+  );
+
   return (
     <div className="space-y-6">
       <VerdictHeader chain={chain} />
@@ -850,8 +849,8 @@ export const ChainDiagram: FC<ChainDiagramProps> = ({ chain }) => {
         verifies the DS-to-DNSKEY linkage and DNSKEY signature of every zone
         down from the IANA root anchor, stopping at the first link that does not
         hold.{' '}
-        {chain.coverage.checkedPositiveRrsetTypes.length > 0
-          ? `At the queried name it checks these common positive types: ${chain.coverage.checkedPositiveRrsetTypes.join(', ')}. `
+        {probedTypes.length > 0
+          ? `At the queried name it checks these common positive types: ${probedTypes.join(', ')}. `
           : 'Positive records were not checked because the chain did not authenticate. '}
         It does not validate NSEC/NSEC3 negative proofs, discover unsigned
         subdelegations, or validate CNAME targets, so absent data is reported as

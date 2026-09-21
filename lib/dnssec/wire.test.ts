@@ -1,16 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { RFC_KEY } from './test-vectors';
-import {
-  canonicalRdata,
-  computeKeyTag,
-  dnskeyKeyTag,
-  dnskeyRdata,
-} from './wire';
+import { canonicalRdata, dnskeyKeyTag, dnskeyRdata } from './wire';
 
 describe('canonical wire encoding', () => {
   it('computes the RFC 4034 key tag', () => {
-    expect(computeKeyTag(dnskeyRdata(RFC_KEY))).toBe(60485);
     expect(dnskeyKeyTag(RFC_KEY)).toBe(60485);
   });
 
@@ -46,6 +40,7 @@ describe('canonical wire encoding', () => {
       key: Buffer.from([0x01, 0xaa, 0xbb, 0xcc]),
     };
     expect(dnskeyKeyTag(key)).toBe(0xaabb);
-    expect(dnskeyKeyTag(key)).not.toBe(computeKeyTag(dnskeyRdata(key)));
+    // The general checksum over the same RDATA would be 0xc177.
+    expect(dnskeyKeyTag(key)).not.toBe(0xc177);
   });
 });

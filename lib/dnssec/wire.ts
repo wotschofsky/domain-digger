@@ -63,8 +63,8 @@ export const describeKeyFlags = (key: KeyFlags): string =>
     .filter(Boolean)
     .join(' + ') || 'none';
 
-/** Key tag computation per RFC 4034 Appendix B (general case). */
-export const computeKeyTag = (rdata: Buffer): number => {
+/** Key tag checksum per RFC 4034 Appendix B (general case). */
+const computeKeyTag = (rdata: Buffer): number => {
   let ac = 0;
   for (let i = 0; i < rdata.length; i++) {
     ac += i & 1 ? rdata[i] : rdata[i] << 8;
@@ -203,7 +203,11 @@ export const canonicalOwnerForRrsig = (
   return suffix ? `*.${suffix}` : '*';
 };
 
-/** Key tag of a DNSKEY, including the RSAMD5 exception (RFC 4034 Appendix B.1). */
+/**
+ * Key tag of a DNSKEY, including the RSAMD5 exception (RFC 4034 Appendix B.1).
+ * The only key-tag question there is: every DS match, signer match and
+ * displayed tag goes through it, so they cannot disagree.
+ */
 export const dnskeyKeyTag = (
   key: Pick<DnskeyData, 'flags' | 'algorithm' | 'key'>,
 ): number => {

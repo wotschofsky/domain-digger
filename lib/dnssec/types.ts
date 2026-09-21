@@ -137,33 +137,33 @@ type DnssecZoneEvidence = {
   // retained on failures so an expired signature remains diagnosable.
   dsSignature?: DnssecSignatureEvidence;
   dnskeySignature?: DnssecSignatureEvidence;
-  // Positive leaf RRsets that were probed and validated. Absent RRsets are kept
-  // in the model so the UI can distinguish "not present" from "not checked".
+  // The queried name's RRsets, one per probed type, on the last zone of a
+  // chain that authenticated down to it. Absent ones are kept: the list is
+  // also the record of which types were checked, and its absence means none
+  // were. `visibleRrsets` is what is worth showing.
   rrsets?: DnssecRrset[];
 };
 
-// The discriminated shape prevents impossible combinations such as a secure
-// zone carrying a break reason. A missing reason on a non-secure zone means the
-// state was inherited from an earlier break in the chain.
+// The discriminated shape admits only what the walk produces. While the chain
+// above is intact a zone is judged on its own records: secure, or the zone
+// where the chain ends. A bogus end always names its reason; an insecure end
+// without one is an observed unsigned delegation (no DS). Below the end, a
+// zone's records are unauthenticated and its status is merely propagated.
 export type DnssecZoneState =
-  | { status: 'secure'; breakReason?: never }
+  | { status: 'secure'; inherited: false; breakReason?: never }
   | {
       status: 'insecure';
+      inherited: false;
       breakReason?: Extract<DnssecBreakReason, 'unsupported-algorithm'>;
     }
   | {
       status: 'broken';
-      breakReason?: Exclude<DnssecBreakReason, 'unsupported-algorithm'>;
-    };
+      inherited: false;
+      breakReason: Exclude<DnssecBreakReason, 'unsupported-algorithm'>;
+    }
+  | { status: 'insecure' | 'broken'; inherited: true; breakReason?: never };
 
-export type DnssecZone = DnssecZoneEvidence &
-  DnssecZoneState & {
-    // This zone's status was propagated from a break above it rather than
-    // decided on its own records. Recorded by the walk, which takes that
-    // branch explicitly, so nothing downstream has to rediscover it by
-    // scanning for the first non-secure zone.
-    inherited: boolean;
-  };
+export type DnssecZone = DnssecZoneEvidence & DnssecZoneState;
 
 /**
  * Which outcome the page leads with. This is precedence policy, not wording:
@@ -189,17 +189,8 @@ export type DnssecVerdict =
   | { kind: 'break'; reason: DnssecBreakReason }
   /** No DS was observed at the break zone -- an unsigned cut, not a proof. */
   | { kind: 'unsigned-cut'; atLeaf: boolean }
-  /** A break with no reason recorded: no authenticated DS link was seen. */
+  /** No DS was observed, yet the break zone serves keys nothing vouches for. */
   | { kind: 'no-authenticated-ds' };
-
-// What a chain result covers: every delegation DS RRset is validated along the
-// secure path, every zone's DNSKEY RRset is validated, and the leaf's positive
-// RRsets are checked for the common types below. Negative proofs (NSEC/NSEC3),
-// unsigned sub-delegations, and CNAME targets are out of scope -- see
-// lib/dnssec/index.ts.
-export type DnssecCoverage = {
-  checkedPositiveRrsetTypes: string[];
-};
 
 /**
  * What the chain walk alone establishes, before the queried name's own records
@@ -214,8 +205,11 @@ export type DnssecChainResult = {
   breakAt?: number;
 };
 
+// What a chain covers: every delegation DS RRset along the secure path, every
+// zone's DNSKEY RRset, and the leaf's positive RRsets for the probed types.
+// Negative proofs (NSEC/NSEC3), unsigned sub-delegations and CNAME targets are
+// out of scope -- see lib/dnssec/index.ts.
 export type DnssecChain = DnssecChainResult & {
-  coverage: DnssecCoverage;
   query: {
     name: string;
     observation: DnssecQueryObservation;

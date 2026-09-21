@@ -158,7 +158,8 @@ type FetchRecordsParams = {
 };
 
 type FetchRecordsRawResult = WalkResult & {
-  // Populated only when queried with dnssecOk.
+  // RRSIGs covering the queried type; servers only send them when queried
+  // with dnssecOk.
   coveringRrsigs?: RrsigData[];
   // DNAMEs from the answer section (CNAMEs may be synthesized and
   // legitimately unsigned, RFC 6672 §3.2).
@@ -702,11 +703,11 @@ export class AuthoritativeResolver extends DnsResolver {
     // Tolerate that one definitive policy response for RRSIG queries only,
     // and only when every attempted server returned it. Ordinary lookups,
     // SERVFAIL/FORMERR/NOTIMP, and mixed transport failures remain
-    // retryable errors rather than masquerading as an empty RRset.
-    // DNSSEC-walk queries (dnssecOk) always fail loud: an unanswered
-    // DNSKEY/DS must stay indeterminate, not read as a missing record.
+    // retryable errors rather than masquerading as an empty RRset. (The
+    // DNSSEC chain never asks for RRSIG itself, so its questions always fail
+    // loud: an unanswered DNSKEY/DS stays indeterminate.)
     const allRefused = refusedCount === candidateNameservers.length;
-    if (allRefused && !dnssecOk && recordType === 'RRSIG') {
+    if (allRefused && recordType === 'RRSIG') {
       return {
         answers: [],
         zone,
@@ -714,7 +715,6 @@ export class AuthoritativeResolver extends DnsResolver {
           ...trace,
           `${recordType} ${domain} -> all nameservers returned an error: ${failedNameservers.join('; ')}`,
         ],
-        rcode: 'REFUSED',
       };
     }
     throw new UserFacingError(
@@ -1060,11 +1060,12 @@ export class AuthoritativeResolver extends DnsResolver {
       Date.now() +
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS);
-    return resolveDnssecChain(domain, (name, type, dnssecOk) =>
+    return resolveDnssecChain(domain, (name, type) =>
       this.fetchRecordsRaw({
         domain: name,
         recordType: type,
-        dnssecOk,
+        // Every question the chain asks needs its RRSIGs back.
+        dnssecOk: true,
         budget,
         deadlineAt,
       }),

@@ -122,6 +122,9 @@ live('resolveDnssecChain (live)', () => {
       'nlnetlabs.nl', // RSA, DNSSEC-software vendor
       'isc.org', // RSA
       'internetsociety.org',
+      // co.uk is hosted on uk's own servers, which answer for it without a
+      // referral: a zone cut the transport never reports following.
+      'nominet.co.uk',
     ])(
       'reports %s as secure with an unbroken chain',
       async (domain) => {

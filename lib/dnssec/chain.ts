@@ -1,4 +1,4 @@
-import type { DsData, RrsigData } from 'dns-packet';
+import type { DnskeyData, DsData, RrsigData } from 'dns-packet';
 
 import {
   algorithmName,
@@ -10,30 +10,19 @@ import {
   SUPPORTED_SIGNING_ALGORITHMS,
 } from './algorithms';
 import { dsMatchesKey } from './ds';
-import {
-  outranksUnsupported,
-  rrsigMetadataIssue,
-  verifyDnskeyRrsig,
-  verifyRrsetRrsig,
-} from './rrsig';
+import { checkRrsetSignatures, type RrsetSignatureOutcome } from './rrsig';
 import type {
   DnssecChainResult,
   DnssecDs,
   DnssecKey,
   DnssecSignatureEvidence,
+  DnssecSignatureStatus,
   DnssecStatus,
   DnssecZone,
   DnssecZoneState,
   RawZone,
 } from './types';
-import {
-  computeKeyTag,
-  describeKeyFlags,
-  dnskeyRdata,
-  isEligibleSigner,
-  isRevokedKey,
-  isSepKey,
-} from './wire';
+import { describeKeyFlags, dnskeyKeyTag, isRevokedKey, isSepKey } from './wire';
 
 // IANA root zone trust anchors: KSK-2017 and its successor KSK-2024, both
 // currently valid (https://data.iana.org/root-anchors/root-anchors.xml).
@@ -61,190 +50,50 @@ export const ROOT_TRUST_ANCHORS: DsData[] = [
   },
 ];
 
-/**
- * The outcome of checking one RRset's covering RRSIGs. Keeps observed failure
- * metadata as well as the expiration of the last valid signature, so an expired
- * outage remains distinguishable from a missing or malformed signature.
- */
-type SignatureAnalysis = {
-  validUntil: number | null;
-  evidence: DnssecSignatureEvidence;
-};
-
-const evidenceFrom = (
-  status: DnssecSignatureEvidence['status'],
-  rrsigs: RawZone['keyRrsigs'],
-): DnssecSignatureEvidence => {
-  const signatures = rrsigs ?? [];
-  if (!signatures.length) return { status };
-  const selected =
-    status === 'not-yet-valid'
-      ? signatures.reduce((earliest, signature) =>
-          signature.inception < earliest.inception ? signature : earliest,
-        )
-      : signatures.reduce((latest, signature) =>
-          signature.expiration > latest.expiration ? signature : latest,
-        );
-  return {
-    status,
-    inceptionAt: selected.inception,
-    expiresAt: selected.expiration,
-  };
-};
-
-const failedSignatureAnalysis = (
-  rrsigs: RrsigData[],
-  issueFor: (rrsig: RrsigData) => ReturnType<typeof rrsigMetadataIssue>,
-): SignatureAnalysis => {
-  if (!rrsigs.length) {
-    return { validUntil: null, evidence: { status: 'missing' } };
-  }
-  const issues = rrsigs.map((rrsig) => ({
-    rrsig,
-    issue: issueFor(rrsig),
-  }));
-  // A failing supported-algorithm signature outranks a clean unsupported one,
-  // so a co-published algorithm this checker cannot run must not downgrade a
-  // bad signature to insecure.
-  const hasFailingSupported = issues.some(({ rrsig, issue }) =>
-    outranksUnsupported(rrsig, issue),
-  );
-  const unsupported = issues
-    .filter(
-      ({ rrsig, issue }) =>
-        issue === null && !SUPPORTED_SIGNING_ALGORITHMS.has(rrsig.algorithm),
-    )
-    .map(({ rrsig }) => rrsig);
-  if (unsupported.length && !hasFailingSupported) {
-    return {
-      validUntil: null,
-      evidence: evidenceFrom('unsupported', unsupported),
-    };
-  }
-  const expired = issues
-    .filter(({ issue }) => issue === 'expired')
-    .map(({ rrsig }) => rrsig);
-  if (expired.length) {
-    return {
-      validUntil: null,
-      evidence: evidenceFrom('expired', expired),
-    };
-  }
-  const notYetValid = issues
-    .filter(({ issue }) => issue === 'not-yet-valid')
-    .map(({ rrsig }) => rrsig);
-  if (notYetValid.length) {
-    return {
-      validUntil: null,
-      evidence: evidenceFrom('not-yet-valid', notYetValid),
-    };
-  }
-  return {
-    validUntil: null,
-    evidence: evidenceFrom('invalid', rrsigs),
-  };
+const SIGNATURE_STATUS: Record<RrsetSignatureOutcome, DnssecSignatureStatus> = {
+  valid: 'valid',
+  missing: 'missing',
+  'unsupported-algorithm': 'unsupported',
+  expired: 'expired',
+  'not-yet-valid': 'not-yet-valid',
+  invalid: 'invalid',
+  // Signed, but by no key the chain has authenticated.
+  'unauthenticated-signer': 'invalid',
+  // DS and DNSKEY RRsets are checked with wildcards disallowed, so the
+  // label count already fails such a signature as invalid.
+  'wildcard-expansion': 'invalid',
 };
 
 /**
- * The shared shape of both RRset checks: the newest signature that verifies
- * wins, and with none verifying the failure evidence explains why.
+ * What the RRSIGs over one of a zone's own link RRsets (its DS at the parent,
+ * its DNSKEYs at the apex) establish. Failure evidence is kept so an expired
+ * outage stays distinguishable from a missing or malformed signature.
  */
-const signatureAnalysis = (
-  rrsigs: RrsigData[],
-  verifies: (rrsig: RrsigData) => boolean,
-  issueFor: (rrsig: RrsigData) => ReturnType<typeof rrsigMetadataIssue>,
-): SignatureAnalysis => {
-  const valid = rrsigs.filter(verifies).map((rrsig) => rrsig.expiration);
-  if (!valid.length) return failedSignatureAnalysis(rrsigs, issueFor);
-  const validUntil = Math.max(...valid);
+const linkSignature = (params: {
+  type: 'DS' | 'DNSKEY';
+  zone: RawZone;
+  data: unknown[];
+  rrsigs: RrsigData[] | undefined;
+  signerName: string;
+  // Keys trusted to vouch for the RRset.
+  keys: DnskeyData[];
+  now: number;
+}): DnssecSignatureEvidence => {
+  const { type, zone, data, rrsigs, signerName, keys, now } = params;
+  const { outcome, rrsig } = checkRrsetSignatures({
+    type,
+    records: data.map((rdata) => ({ name: zone.name, type, data: rdata })),
+    rrsigs: rrsigs ?? [],
+    ownerName: zone.name,
+    signerName,
+    keys,
+    now,
+    allowWildcard: false,
+  });
   return {
-    validUntil,
-    evidence: evidenceFrom(
-      'valid',
-      rrsigs.filter((rrsig) => rrsig.expiration === validUntil),
-    ),
+    status: SIGNATURE_STATUS[outcome],
+    ...(rrsig && { inceptionAt: rrsig.inception, expiresAt: rrsig.expiration }),
   };
-};
-
-/**
- * Whether the zone's DNSKEY RRset carries a valid, unexpired RRSIG made by a key
- * the parent DS (or root anchor) authenticates. Only DS-linked keys are trusted
- * signers: a zone must not vouch for its own key set with a key nothing above it
- * has authenticated. `keys` is the already-computed metadata (for `.linked`).
- */
-const dnskeyRrsetSignatureAnalysis = (
-  zone: RawZone,
-  keys: DnssecKey[],
-  now: number,
-): SignatureAnalysis => {
-  // Restrict signer candidates to the DS-linked keys themselves (by identity,
-  // not by 16-bit tag): a colliding unanchored key must not be able to vouch
-  // for the key set. `keys` is index-aligned with zone.keys.
-  const linkedKeys = zone.keys.filter((_, i) => keys[i].linked);
-  const rrsigs = (zone.keyRrsigs ?? []).filter(
-    (rrsig) => rrsig.typeCovered === 'DNSKEY',
-  );
-  return signatureAnalysis(
-    rrsigs,
-    (rrsig) =>
-      verifyDnskeyRrsig({
-        rrsig,
-        keys: zone.keys,
-        ownerName: zone.name,
-        now,
-        signers: linkedKeys,
-      }),
-    (rrsig) =>
-      rrsigMetadataIssue({
-        rrsig,
-        type: 'DNSKEY',
-        ownerName: zone.name,
-        signerName: zone.name,
-        keys: linkedKeys,
-        now,
-        allowWildcard: false,
-      }),
-  );
-};
-
-/** Authenticate a child's DS RRset with the already-authenticated parent keys. */
-const dsRrsetSignatureAnalysis = (
-  zone: RawZone,
-  parent: RawZone,
-  now: number,
-): SignatureAnalysis => {
-  const records = zone.dsRecords.map((data) => ({
-    name: zone.name,
-    type: 'DS',
-    data,
-  }));
-  const rrsigs = (zone.dsRrsigs ?? []).filter(
-    (rrsig) => rrsig.typeCovered === 'DS',
-  );
-  return signatureAnalysis(
-    rrsigs,
-    (rrsig) =>
-      verifyRrsetRrsig({
-        rrsig,
-        type: 'DS',
-        records,
-        ownerName: zone.name,
-        signerName: parent.name,
-        keys: parent.keys,
-        now,
-        allowWildcard: false,
-      }),
-    (rrsig) =>
-      rrsigMetadataIssue({
-        rrsig,
-        type: 'DS',
-        ownerName: zone.name,
-        signerName: parent.name,
-        keys: parent.keys,
-        now,
-        allowWildcard: false,
-      }),
-  );
 };
 
 /**
@@ -265,16 +114,16 @@ const dsRrsetSignatureAnalysis = (
  * zone stays `broken`. A zone's own DS/DNSKEY state is only consulted while the
  * chain above it is still secure.
  *
- * `now` (Unix seconds) is the instant RRSIG validity is judged against; it
- * defaults to the current time and is injectable for deterministic tests.
+ * `now` (Unix seconds) is the instant RRSIG validity is judged against. The
+ * caller owns the clock, so a whole check is judged against one instant.
  *
  * Returns only what the chain itself establishes. The queried name's own
- * records, the coverage list and the overall verdict are the caller's to add
- * (see resolve.ts), so nothing here invents a value it cannot know.
+ * records and the overall verdict are the caller's to add (see resolve.ts), so
+ * nothing here invents a value it cannot know.
  */
 export const buildChain = (
   zones: RawZone[],
-  now: number = Math.floor(Date.now() / 1000),
+  now: number,
   options: { initialTrustAnchors?: DsData[] } = {},
 ): DnssecChainResult => {
   const out: DnssecZone[] = [];
@@ -285,29 +134,31 @@ export const buildChain = (
 
   for (const [zoneIndex, zone] of zones.entries()) {
     const isRoot = zone.name === '.' || zone.name === '';
+    // A non-root first zone is secure only when its caller supplied an explicit
+    // external trust anchor (useful for islands of security and unit tests). In
+    // production walks the root is always first, so every child DS authenticates.
     const anchors = isRoot
       ? ROOT_TRUST_ANCHORS
       : zoneIndex === 0
         ? (options.initialTrustAnchors ?? [])
         : zone.dsRecords;
     const parent = zoneIndex > 0 ? zones[zoneIndex - 1] : undefined;
-    // A non-root first zone is secure only when its caller supplied an explicit
-    // external trust anchor (useful for islands of security and unit tests). In
-    // production walks the root is always first, so every child DS authenticates.
-    const dsSignatureAnalysis =
+    // A DS RRset is parent-zone data: the authenticated parent's keys must
+    // have signed it before its digests mean anything.
+    const dsSignature =
       chain === 'secure' && !isRoot && parent && anchors.length > 0
-        ? dsRrsetSignatureAnalysis(zone, parent, now)
+        ? linkSignature({
+            type: 'DS',
+            zone,
+            data: zone.dsRecords,
+            rrsigs: zone.dsRrsigs,
+            signerName: parent.name,
+            keys: parent.keys,
+            now,
+          })
         : undefined;
-    const dsSignatureExpiresAt = dsSignatureAnalysis?.validUntil;
     const dsAuthenticationFailed =
-      chain === 'secure' &&
-      !isRoot &&
-      parent !== undefined &&
-      anchors.length > 0 &&
-      dsSignatureExpiresAt === null;
-    const dsSignatureAlgorithmUnsupported =
-      dsAuthenticationFailed &&
-      dsSignatureAnalysis?.evidence.status === 'unsupported';
+      dsSignature !== undefined && dsSignature.status !== 'valid';
     const authenticatedAnchors = dsAuthenticationFailed ? [] : anchors;
 
     // Anchors a validator would actually trust: supported digest and signing
@@ -338,23 +189,25 @@ export const buildChain = (
       ),
     );
     const dsMatchedIndexes = new Set(matchesPerAnchor.flat());
+    const linkedIndexes = new Set(
+      anchors.flatMap((ds, anchorIndex) =>
+        usableAnchors.includes(ds) ? matchesPerAnchor[anchorIndex] : [],
+      ),
+    );
 
-    const keys: DnssecKey[] = zone.keys.map((k, index) => {
-      const rdata = dnskeyRdata(k);
-      return {
-        keyTag: computeKeyTag(rdata),
-        algorithm: k.algorithm,
-        algorithmName: algorithmName(k.algorithm),
-        flags: k.flags,
-        flagNames: describeKeyFlags(k),
-        isSep: isSepKey(k),
-        isRevoked: isRevokedKey(k),
-        linked: usableAnchors.some((ds) => dsMatchesKey(ds, k, zone.name)),
-        dsMatched: dsMatchedIndexes.has(index),
-        bits: keyBits(k),
-        deprecated: isDeprecatedAlgorithm(k.algorithm),
-      };
-    });
+    const keys: DnssecKey[] = zone.keys.map((k, index) => ({
+      keyTag: dnskeyKeyTag(k),
+      algorithm: k.algorithm,
+      algorithmName: algorithmName(k.algorithm),
+      flags: k.flags,
+      flagNames: describeKeyFlags(k),
+      isSep: isSepKey(k),
+      isRevoked: isRevokedKey(k),
+      linked: linkedIndexes.has(index),
+      dsMatched: dsMatchedIndexes.has(index),
+      bits: keyBits(k),
+      deprecated: isDeprecatedAlgorithm(k.algorithm),
+    }));
 
     // The root always carries both IANA anchors; outside a KSK rollover only
     // one is served, and the other must not read as a broken link.
@@ -379,76 +232,78 @@ export const buildChain = (
 
     let state: DnssecZoneState;
     let dnskeySignature: DnssecSignatureEvidence | undefined;
-    // The chain already ended above this zone, so whatever status it gets was
-    // propagated rather than decided on its own records.
-    const inherited = chain !== 'secure';
     if (chain !== 'secure') {
       // The chain of trust already ended above this zone, so its own records are
       // unauthenticated. Propagate the reason: insecure below an unsigned cut,
       // broken below a bogus zone.
-      state = { status: chain };
-    } else if (dsSignatureAlgorithmUnsupported) {
-      state = { status: 'insecure', breakReason: 'unsupported-algorithm' };
+      state = { status: chain, inherited: true };
+    } else if (dsSignature?.status === 'unsupported') {
+      state = {
+        status: 'insecure',
+        inherited: false,
+        breakReason: 'unsupported-algorithm',
+      };
     } else if (dsAuthenticationFailed) {
-      // A DS RRset is itself parent-zone data. Digest linkage is meaningful
-      // only after its RRSIG verifies against the authenticated parent keys.
-      state = { status: 'broken', breakReason: 'bad-ds-signature' };
+      state = {
+        status: 'broken',
+        inherited: false,
+        breakReason: 'bad-ds-signature',
+      };
     } else if (anchors.length === 0) {
       // No DS from the parent (nor a trust anchor): an unsigned / insecure
       // delegation. The chain is unsigned from here down regardless of whether
       // this zone serves its own keys.
-      state = { status: 'insecure' };
+      state = { status: 'insecure', inherited: false };
     } else if (keys.length === 0) {
       // Parent vouches for this zone (DS present) but it serves no DNSKEY -> bogus.
-      state = { status: 'broken', breakReason: 'no-dnskey' };
+      state = { status: 'broken', inherited: false, breakReason: 'no-dnskey' };
       dnskeySignature = { status: 'missing' };
-    } else if (!keys.some((key) => key.linked)) {
+    } else if (linkedIndexes.size === 0) {
       // `linked` already applies the usable-anchor rules above: matches via
       // unsupported algorithms or non-preferred digests don't count
       // (RFC 6840 §5.11 / RFC 4509 §3 downgrade resistance).
+      // (if/else rather than a conditional expression, which sends TypeScript's
+      // inference of `chain` through `state` and back in a circle.)
       if (usableAnchors.length > 0) {
         // A usable DS authenticates none of the served keys -> bogus.
-        state = { status: 'broken', breakReason: 'ds-mismatch' };
+        state = {
+          status: 'broken',
+          inherited: false,
+          breakReason: 'ds-mismatch',
+        };
       } else {
         // Every DS uses a digest or signing algorithm this validator doesn't
         // support: unvalidatable -> insecure, not bogus (RFC 4035 §5.2).
-        state = { status: 'insecure', breakReason: 'unsupported-algorithm' };
+        state = {
+          status: 'insecure',
+          inherited: false,
+          breakReason: 'unsupported-algorithm',
+        };
       }
     } else {
-      const signatureAnalysis = dnskeyRrsetSignatureAnalysis(zone, keys, now);
-      dnskeySignature = signatureAnalysis.evidence;
-      if (signatureAnalysis.validUntil === null) {
-        // Keys link by digest, but the RRSIG over the DNSKEY RRset is missing,
-        // expired, or fails to verify -> the key set isn't validly signed (bogus).
-        // Exception: if no DS-linked key even uses an algorithm this validator
-        // implements (e.g. ECC-GOST), verification never ran -- the zone is
-        // unvalidatable, not bogus. A linked key with a supported algorithm but
-        // malformed key material stays bogus: that is a broken configuration,
-        // not an unsupported one.
-        const eligibleLinkedKeys = zone.keys.filter(
-          (key, index) => keys[index].linked && isEligibleSigner(key),
-        );
-        const hasSupportedLinkedKey = eligibleLinkedKeys.some((key) =>
-          SUPPORTED_SIGNING_ALGORITHMS.has(key.algorithm),
-        );
-        const hasUnsupportedLinkedKey = eligibleLinkedKeys.some(
-          (key) => !SUPPORTED_SIGNING_ALGORITHMS.has(key.algorithm),
-        );
-        if (
-          // A linked key with a supported algorithm means a validatable path
-          // exists; its failure stays bogus even when a co-published
-          // unsupported-algorithm signature is present (RFC 6840 §5.11).
-          hasSupportedLinkedKey ||
-          (signatureAnalysis.evidence.status !== 'unsupported' &&
-            !hasUnsupportedLinkedKey)
-        ) {
-          state = { status: 'broken', breakReason: 'bad-signature' };
-        } else {
-          state = { status: 'insecure', breakReason: 'unsupported-algorithm' };
-        }
-      } else {
-        state = { status: 'secure' };
-      }
+      // Only DS-linked keys may vouch for the key set (by identity, not by
+      // 16-bit tag): a zone must not authenticate its own DNSKEY RRset with a
+      // key nothing above it has authenticated. A linked key always uses an
+      // algorithm this validator runs -- usable anchors require one -- so a
+      // failure here is never "unvalidatable": missing, expired or forged, the
+      // key set isn't validly signed (bogus).
+      dnskeySignature = linkSignature({
+        type: 'DNSKEY',
+        zone,
+        data: zone.keys,
+        rrsigs: zone.keyRrsigs,
+        signerName: zone.name,
+        keys: zone.keys.filter((_, index) => linkedIndexes.has(index)),
+        now,
+      });
+      state =
+        dnskeySignature.status === 'valid'
+          ? { status: 'secure', inherited: false }
+          : {
+              status: 'broken',
+              inherited: false,
+              breakReason: 'bad-signature',
+            };
     }
 
     out.push({
@@ -456,23 +311,18 @@ export const buildChain = (
       keys,
       dsRecords,
       ...state,
-      inherited,
-      dsSignature: dsSignatureAnalysis?.evidence,
+      dsSignature,
       dnskeySignature,
     });
     // The first non-secure zone fixes the descended trust state, and is where
     // the chain of trust ends.
     if (chain === 'secure' && state.status !== 'secure') {
       breakAt = zoneIndex;
+      chain = state.status;
     }
-    if (chain === 'secure') chain = state.status;
   }
 
-  const status: DnssecStatus = out.some((z) => z.status === 'broken')
-    ? 'broken'
-    : out.every((z) => z.status === 'secure')
-      ? 'secure'
-      : 'insecure';
-
-  return { zones: out, status, breakAt };
+  // Everything below the break inherits its status, so the trust state the
+  // walk ended in is the chain's.
+  return { zones: out, status: chain, breakAt };
 };

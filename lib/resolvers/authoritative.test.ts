@@ -361,6 +361,49 @@ describe('AuthoritativeResolver transport policy', () => {
     ).rejects.toBeInstanceOf(UserFacingError);
   });
 
+  it('hands the DNSSEC walk only the RRSIGs covering the queried RRset, plus any DNAMEs', async () => {
+    const rrsig = (name: string, typeCovered: string) =>
+      ({ name, type: 'RRSIG', ttl: 300, data: { typeCovered } }) as Answer;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({
+          ...response(domain, recordType, 'NOERROR', [
+            {
+              name: 'example.com',
+              type: 'DNAME',
+              ttl: 300,
+              data: 'example.net',
+            },
+            { name: domain, type: 'CNAME', ttl: 300, data: 'www.example.net' },
+            // Owner names are case-insensitive.
+            rrsig('WWW.Example.COM', 'CNAME'),
+            rrsig(domain, 'A'),
+            rrsig('example.com', 'DNAME'),
+          ]),
+          flag_aa: true,
+        }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver['fetchRecordsRaw']({
+      domain: 'www.example.com',
+      recordType: 'CNAME',
+      dnssecOk: true,
+    });
+
+    expect(result.answers).toHaveLength(1);
+    expect(result.coveringRrsigs).toEqual([{ typeCovered: 'CNAME' }]);
+    expect(result.dnames).toEqual([
+      { name: 'example.com', target: 'example.net' },
+    ]);
+    expect(udpTransport.mock.calls.every(([request]) => request.dnssecOk)).toBe(
+      true,
+    );
+  });
+
   it('skips a non-authoritative response whose answers are all unrelated', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) =>
@@ -849,6 +892,13 @@ describe('AuthoritativeResolver transport policy', () => {
 
     // Per-walk budgets would allow ~50 per suffix query (well over 1000 here).
     expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(300);
+    // Every question a chain asks needs its RRSIGs back, so the adapter sets
+    // the DO bit itself rather than leaving it to the walk.
+    expect(
+      udpTransport.mock.calls
+        .filter(([request]) => ['DNSKEY', 'DS'].includes(request.recordType))
+        .every(([request]) => request.dnssecOk),
+    ).toBe(true);
   });
 
   it('prefers an authoritative sibling over a non-authoritative answer', async () => {

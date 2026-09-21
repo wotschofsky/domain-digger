@@ -15,13 +15,13 @@ export const visibleRrsets = (zone: DnssecZone | undefined): DnssecRrset[] =>
   (zone?.rrsets ?? []).filter((rrset) => rrset.status !== 'absent');
 
 /** RRsets that exist but failed validation or could not be validated. */
-export const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
+const rrsetProblems = (zone: DnssecZone | undefined): DnssecRrset[] =>
   visibleRrsets(zone).filter((rrset) =>
     ['bogus', 'unsigned', 'unsupported'].includes(rrset.status),
   );
 
 /** RRsets whose status could not be established at all. */
-export const rrsetUnchecked = (zone: DnssecZone | undefined): DnssecRrset[] =>
+const rrsetUnchecked = (zone: DnssecZone | undefined): DnssecRrset[] =>
   visibleRrsets(zone).filter((rrset) => rrset.status === 'indeterminate');
 
 const types = (rrsets: DnssecRrset[]): string[] =>
@@ -76,10 +76,11 @@ export const chainVerdict = (
     return { kind: 'break', reason: breakZone.breakReason };
   }
 
-  // A break with no reason is the observed unsigned cut: the parent published
-  // no DS and the zone serves no keys of its own. (A zone below the break
-  // carries no reason either, but it can never be the break itself.)
-  if (breakZone.dsRecords.length === 0 && breakZone.keys.length === 0) {
+  // A break with no reason is an observed unsigned delegation: the parent
+  // published no DS (the type rules out a reasonless bogus end, and a zone
+  // below the break can never be the break itself). Serving no keys either, it
+  // is plainly unsigned; with keys it is a signed zone nothing vouches for.
+  if (breakZone.keys.length === 0) {
     return { kind: 'unsigned-cut', atLeaf: breakAt === chain.zones.length - 1 };
   }
   return { kind: 'no-authenticated-ds' };

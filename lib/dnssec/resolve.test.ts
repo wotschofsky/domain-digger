@@ -4,11 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { RecordType } from '@/lib/resolvers/base';
 import { UserFacingError } from '@/lib/user-facing-error';
 
-import {
-  type DnssecQuery,
-  isDnameSynthesized,
-  resolveDnssecChain,
-} from './resolve';
+import { type DnssecQuery, resolveDnssecChain } from './resolve';
 import { genKey } from './test-helpers';
 import { ROOT_DNSKEY_RRSIG, ROOT_DNSKEYS, ROOT_NOW } from './test-vectors';
 import type { DnssecAnswerRecord } from './types';
@@ -19,6 +15,9 @@ type FakeZone = {
   ds?: DsData[];
   dsRrsigs?: RrsigData[];
   rcode?: string;
+  // Hosted on its parent's servers, which answer for it without a referral
+  // (co.uk on uk's servers): a zone cut the transport never follows.
+  sharesParentServers?: boolean;
 };
 
 // A validly-signed root (from the golden vectors), so chains anchor for real.
@@ -28,17 +27,19 @@ const SIGNED_ROOT: FakeZone = {
 };
 
 /**
- * Fake transport. Every listed name is a zone cut with its own servers, so a
- * query is answered by the deepest listed suffix of the queried name -- what a
- * real referral walk reports as `zone`. A name that is not a cut answers empty
- * (NODATA) from its enclosing zone, like real DNS. An entry carrying only an
- * rcode is not a cut either: NXDOMAIN comes from the zone above it.
+ * Fake transport. Every listed name is a zone cut, by default with its own
+ * servers, so a query is answered by the deepest such suffix of the queried
+ * name -- what a real referral walk reports as `zone`. A name that is not a
+ * cut answers empty (NODATA) from its enclosing zone, like real DNS. An entry
+ * carrying only an rcode is not a cut either: NXDOMAIN comes from the zone
+ * above it.
  */
 const cutFor = (name: string, zones: Record<string, FakeZone>): string => {
   const labels = name.split('.').filter(Boolean);
   for (let i = 0; i < labels.length; i++) {
     const candidate = labels.slice(i).join('.');
-    if (zones[candidate] && !zones[candidate].rcode) return candidate;
+    const zone = zones[candidate];
+    if (zone && !zone.rcode && !zone.sharesParentServers) return candidate;
   }
   return '.';
 };
@@ -155,6 +156,26 @@ describe('resolveDnssecChain', () => {
     ]);
   });
 
+  it("keeps a signed zone hosted on its parent's servers", async () => {
+    // uk's servers are also authoritative for co.uk and answer for it without
+    // a referral, so the transport never reports co.uk as a cut it followed.
+    // Dropping it would check example.co.uk's DS -- signed by co.uk -- against
+    // uk's keys and render a healthy chain as broken.
+    const query = queryFrom({
+      '.': SIGNED_ROOT,
+      uk: {},
+      'co.uk': { keys: [genKey(13).dnskey], sharesParentServers: true },
+    });
+    const chain = await resolveDnssecChain('example.co.uk', query, ROOT_NOW);
+
+    expect(chain.zones.map((z) => z.name)).toEqual([
+      '.',
+      'uk',
+      'co.uk',
+      'example.co.uk',
+    ]);
+  });
+
   it('drops an empty non-terminal that no server is delegated for', async () => {
     // deep.sub.example.com is delegated directly from example.com; the
     // sub.example.com label is an empty non-terminal, not an unsigned cut --
@@ -219,29 +240,6 @@ describe('resolveDnssecChain', () => {
     });
   });
 
-  it('recognizes only exact DNAME substitutions as synthesized CNAMEs', () => {
-    const dname = { name: 'example.com', target: 'example.net' };
-
-    // The synthesized substitution: www.example.com -> www.example.net.
-    expect(
-      isDnameSynthesized('www.example.com', 'www.example.net.', [dname]),
-    ).toBe(true);
-    // Unrelated DNAME must not excuse an unsigned CNAME.
-    expect(
-      isDnameSynthesized('www.example.com', 'cdn.example.org', [
-        { name: 'other.test', target: 'elsewhere.test' },
-      ]),
-    ).toBe(false);
-    // Right DNAME, wrong target: not the substitution.
-    expect(
-      isDnameSynthesized('www.example.com', 'cdn.example.net', [dname]),
-    ).toBe(false);
-    // DNAME applies only strictly below its owner.
-    expect(isDnameSynthesized('example.com', 'example.net', [dname])).toBe(
-      false,
-    );
-  });
-
   it('reports the chain-only verdict when no leaf probe runs', async () => {
     const query = queryFrom({ '.': SIGNED_ROOT, com: {} });
     const chain = await resolveDnssecChain('example.com', query, ROOT_NOW);
@@ -250,25 +248,7 @@ describe('resolveDnssecChain', () => {
     expect(chain.breakAt).toBe(1);
     expect(chain.zones.map((z) => z.inherited)).toEqual([false, false, true]);
     // The leaf never validated, so nothing was probed.
-    expect(chain.coverage.checkedPositiveRrsetTypes).toEqual([]);
-  });
-
-  it('requests DS RRsets with DNSSEC records enabled', async () => {
-    const calls: Array<{ type: string; dnssecOk: boolean | undefined }> = [];
-    const baseQuery = queryFrom({ '.': SIGNED_ROOT });
-    const query: DnssecQuery = async (name, type, dnssecOk) => {
-      calls.push({ type, dnssecOk });
-      return baseQuery(name, type, dnssecOk);
-    };
-
-    await resolveDnssecChain('example.com', query, ROOT_NOW);
-
-    expect(calls.filter((call) => call.type === 'DS')).not.toHaveLength(0);
-    expect(
-      calls
-        .filter((call) => call.type === 'DS')
-        .every((call) => call.dnssecOk === true),
-    ).toBe(true);
+    expect(chain.zones.at(-1)?.rrsets).toBeUndefined();
   });
 });
 
@@ -320,7 +300,9 @@ describe('resolveDnssecChain leaf probes', () => {
     );
 
     expect(chain.status).toBe('secure');
-    expect(chain.coverage.checkedPositiveRrsetTypes).toEqual([
+    // One RRset per probed type, absent ones included: the list is the record
+    // of what was checked.
+    expect(chain.zones[0].rrsets?.map((rrset) => rrset.type)).toEqual([
       'SOA',
       'A',
       'AAAA',

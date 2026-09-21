@@ -1,7 +1,7 @@
-import type { DnskeyData } from 'dns-packet';
+import type { DnskeyData, RrsigData } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
-import { verifyDnskeyRrsig, verifyRrsetRrsig } from './rrsig';
+import { checkRrsetSignatures } from './rrsig';
 import { genKey, signARecordRrset, signDnskeyRrset } from './test-helpers';
 import {
   ROOT_DNSKEY_RRSIG,
@@ -12,97 +12,127 @@ import {
   WSKY_NOW,
 } from './test-vectors';
 
-describe('verifyDnskeyRrsig (golden vectors)', () => {
+// A zone's DNSKEY RRset vouched for by its own keys, the way buildChain checks
+// it (there, narrowed to the DS-linked keys).
+const dnskeyOutcome = (params: {
+  rrsig: RrsigData;
+  keys: DnskeyData[];
+  ownerName: string;
+  now: number;
+}) =>
+  checkRrsetSignatures({
+    type: 'DNSKEY',
+    records: params.keys.map((data) => ({
+      name: params.ownerName,
+      type: 'DNSKEY',
+      data,
+    })),
+    rrsigs: [params.rrsig],
+    ownerName: params.ownerName,
+    signerName: params.ownerName,
+    keys: params.keys,
+    now: params.now,
+    allowWildcard: false,
+  }).outcome;
+
+const rrsetOutcome = ({
+  rrsig,
+  ...params
+}: Omit<Parameters<typeof checkRrsetSignatures>[0], 'rrsigs'> & {
+  rrsig: RrsigData;
+}) => checkRrsetSignatures({ ...params, rrsigs: [rrsig] }).outcome;
+
+describe('checkRrsetSignatures over DNSKEY RRsets (golden vectors)', () => {
   it('verifies the real root DNSKEY RRSIG (RSASHA256)', () => {
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: ROOT_DNSKEY_RRSIG,
         keys: ROOT_DNSKEYS,
         ownerName: '.',
         now: ROOT_NOW,
       }),
-    ).toBe(true);
+    ).toBe('valid');
   });
 
   it('verifies the real wsky.dev DNSKEY RRSIG (ECDSAP256SHA256)', () => {
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: WSKY_DNSKEY_RRSIG,
         keys: WSKY_DNSKEYS,
         ownerName: 'wsky.dev',
         now: WSKY_NOW,
       }),
-    ).toBe(true);
+    ).toBe('valid');
   });
 
   it('rejects an expired signature', () => {
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: ROOT_DNSKEY_RRSIG,
         keys: ROOT_DNSKEYS,
         ownerName: '.',
         now: ROOT_DNSKEY_RRSIG.expiration + 1,
       }),
-    ).toBe(false);
+    ).toBe('expired');
   });
 
   it('rejects a not-yet-valid signature', () => {
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: ROOT_DNSKEY_RRSIG,
         keys: ROOT_DNSKEYS,
         ownerName: '.',
         now: ROOT_DNSKEY_RRSIG.inception - 1,
       }),
-    ).toBe(false);
+    ).toBe('not-yet-valid');
   });
 
   it('rejects a tampered signature', () => {
     const signature = Buffer.from(ROOT_DNSKEY_RRSIG.signature);
     signature[0] ^= 0xff;
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: { ...ROOT_DNSKEY_RRSIG, signature },
         keys: ROOT_DNSKEYS,
         ownerName: '.',
         now: ROOT_NOW,
       }),
-    ).toBe(false);
+    ).toBe('invalid');
   });
 
   it('rejects when the RRset is altered (a DNSKEY dropped)', () => {
     // The RRSIG covers the whole DNSKEY RRset; removing any key changes the
     // canonical bytes and the signature no longer matches.
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: ROOT_DNSKEY_RRSIG,
         keys: ROOT_DNSKEYS.slice(1),
         ownerName: '.',
         now: ROOT_NOW,
       }),
-    ).toBe(false);
+    ).toBe('invalid');
   });
 
   it('rejects the wrong owner name', () => {
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: WSKY_DNSKEY_RRSIG,
         keys: WSKY_DNSKEYS,
         ownerName: 'other.dev',
         now: WSKY_NOW,
       }),
-    ).toBe(false);
+    ).toBe('invalid');
   });
 
   it('rejects when no served key has the signing tag', () => {
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: { ...ROOT_DNSKEY_RRSIG, keyTag: 11111 },
         keys: ROOT_DNSKEYS,
         ownerName: '.',
         now: ROOT_NOW,
       }),
-    ).toBe(false);
+    ).toBe('unauthenticated-signer');
   });
 
   it('rejects a DNSKEY RRSIG whose signer name is not the zone apex', () => {
@@ -115,13 +145,13 @@ describe('verifyDnskeyRrsig (golden vectors)', () => {
     // validating resolvers reject this (RFC 4035 §5.3.1).
     const wrongSigner = { ...rrsig, signersName: 'other' };
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig: wrongSigner,
         keys: [k.dnskey],
         ownerName: 'example',
         now: 1500,
       }),
-    ).toBe(false);
+    ).toBe('invalid');
   });
 
   it('rejects a DNSKEY RRSIG made by a revoked key (RFC 5011)', () => {
@@ -134,13 +164,13 @@ describe('verifyDnskeyRrsig (golden vectors)', () => {
       { inception: 1000, expiration: 2000 },
     );
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig,
         keys: [revoked],
         ownerName: 'example',
         now: 1500,
       }),
-    ).toBe(false);
+    ).toBe('unauthenticated-signer');
   });
 
   it('rejects a DNSKEY RRSIG made by a key without the ZONE flag', () => {
@@ -153,13 +183,13 @@ describe('verifyDnskeyRrsig (golden vectors)', () => {
       { inception: 1000, expiration: 2000 },
     );
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig,
         keys: [nonZone],
         ownerName: 'example',
         now: 1500,
       }),
-    ).toBe(false);
+    ).toBe('unauthenticated-signer');
   });
 
   it('rejects a crypto-valid DNSKEY RRSIG with an invalid Labels count', () => {
@@ -171,17 +201,17 @@ describe('verifyDnskeyRrsig (golden vectors)', () => {
     });
 
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig,
         keys: [signer.dnskey],
         ownerName: 'example',
         now: 1500,
       }),
-    ).toBe(false);
+    ).toBe('invalid');
   });
 });
 
-describe('verifyRrsetRrsig', () => {
+describe('checkRrsetSignatures over data RRsets', () => {
   it('verifies a positive A RRset RRSIG', () => {
     const ownerName = 'www.example';
     const signerName = 'example';
@@ -196,7 +226,7 @@ describe('verifyRrsetRrsig', () => {
     });
 
     expect(
-      verifyRrsetRrsig({
+      rrsetOutcome({
         rrsig,
         type: 'A',
         records,
@@ -205,7 +235,7 @@ describe('verifyRrsetRrsig', () => {
         keys: [signer.dnskey],
         now: 1500,
       }),
-    ).toBe(true);
+    ).toBe('valid');
   });
 
   it('verifies despite duplicate copies of a record in the answer', () => {
@@ -224,7 +254,7 @@ describe('verifyRrsetRrsig', () => {
     });
 
     expect(
-      verifyRrsetRrsig({
+      rrsetOutcome({
         rrsig,
         type: 'A',
         records: [...records, records[0]],
@@ -233,7 +263,7 @@ describe('verifyRrsetRrsig', () => {
         keys: [signer.dnskey],
         now: 1500,
       }),
-    ).toBe(true);
+    ).toBe('valid');
   });
 
   it('verifies a DNSKEY RRSIG despite a duplicated DNSKEY record', () => {
@@ -244,16 +274,16 @@ describe('verifyRrsetRrsig', () => {
     });
 
     expect(
-      verifyDnskeyRrsig({
+      dnskeyOutcome({
         rrsig,
         keys: [key.dnskey, key.dnskey],
         ownerName: 'example',
         now: 1500,
       }),
-    ).toBe(true);
+    ).toBe('valid');
   });
 
-  it('verifies a wildcard-expanded positive RRset', () => {
+  it('tells a wildcard expansion apart from a plain valid signature', () => {
     const ownerName = 'www.example';
     const signerName = 'example';
     const records = [
@@ -268,7 +298,7 @@ describe('verifyRrsetRrsig', () => {
     });
 
     expect(
-      verifyRrsetRrsig({
+      rrsetOutcome({
         rrsig,
         type: 'A',
         records,
@@ -277,7 +307,7 @@ describe('verifyRrsetRrsig', () => {
         keys: [signer.dnskey],
         now: 1500,
       }),
-    ).toBe(true);
+    ).toBe('wildcard-expansion');
   });
 
   it('rejects a crypto-valid RRSIG whose Labels count exceeds the owner', () => {
@@ -294,7 +324,7 @@ describe('verifyRrsetRrsig', () => {
     });
 
     expect(
-      verifyRrsetRrsig({
+      rrsetOutcome({
         rrsig,
         type: 'A',
         records,
@@ -303,6 +333,6 @@ describe('verifyRrsetRrsig', () => {
         keys: [signer.dnskey],
         now: 1500,
       }),
-    ).toBe(false);
+    ).toBe('invalid');
   });
 });

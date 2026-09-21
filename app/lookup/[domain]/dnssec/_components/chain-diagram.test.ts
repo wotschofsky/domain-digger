@@ -54,7 +54,6 @@ const zone = (over: Partial<DnssecZone> = {}): DnssecZone =>
 const chainWith = (over: Partial<DnssecChain> = {}): DnssecChain => ({
   status: 'secure',
   zones: [zone({ name: '.' }), zone()],
-  coverage: { checkedPositiveRrsetTypes: [] },
   query: { name: 'example.com', observation: 'not-checked' },
   verdict: { kind: 'secure' },
   ...over,
@@ -353,6 +352,38 @@ describe('DNSSEC chain presentation', () => {
     );
 
     expect(html).toContain('Positive records were not checked');
+  });
+
+  it('lists every probed type in the footer but only shows the RRsets that exist', () => {
+    const html = renderToStaticMarkup(
+      createElement(ChainDiagram, {
+        chain: chainWith({
+          zones: [
+            zone({ name: '.' }),
+            zone({
+              rrsets: [
+                {
+                  type: 'A',
+                  recordCount: 1,
+                  reason: 'validated',
+                  status: 'secure',
+                },
+                {
+                  type: 'MX',
+                  recordCount: 0,
+                  reason: 'no-records',
+                  status: 'absent',
+                },
+              ],
+            }),
+          ],
+        }),
+      }),
+    );
+
+    expect(html).toContain('checks these common positive types: A, MX.');
+    expect(html).toContain('RRSIG validates');
+    expect(html).not.toContain('No positive answer');
   });
 
   it('links a CNAME alias to its own DNSSEC lookup', () => {

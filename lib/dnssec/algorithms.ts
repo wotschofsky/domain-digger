@@ -45,8 +45,7 @@ const WEAK_DIGEST_TYPES = new Set([1, 3]);
 
 export const RSA_ALGORITHMS = new Set([1, 5, 7, 8, 10]);
 
-// Signing algorithms this validator can actually verify (see
-// dnskeyToPublicKey). A DS pointing at anything else must make the zone
+// Signing algorithms this validator can actually verify (see crypto.ts). A DS pointing at anything else must make the zone
 // insecure, not bogus (RFC 4035 §5.2). RSAMD5 (1) is excluded: it uses a
 // different key-tag algorithm (RFC 4034 App. B.1) and has no verify path here.
 export const SUPPORTED_SIGNING_ALGORITHMS = new Set([
@@ -61,22 +60,6 @@ const CURVE_BITS: Record<number, number> = {
   15: 256, // Ed25519
   16: 456, // Ed448
 };
-
-// Digest used by each signing algorithm's RRSIG (EdDSA hashes internally).
-export const HASH_BY_ALGORITHM: Record<number, string> = {
-  5: 'sha1', // RSASHA1
-  7: 'sha1', // RSASHA1-NSEC3-SHA1
-  8: 'sha256', // RSASHA256
-  10: 'sha512', // RSASHA512
-  13: 'sha256', // ECDSAP256SHA256
-  14: 'sha384', // ECDSAP384SHA384
-};
-
-export const EC_CURVE_NAME: Record<number, string> = {
-  13: 'P-256',
-  14: 'P-384',
-};
-export const EC_COORD_BYTES: Record<number, number> = { 13: 32, 14: 48 };
 
 export const isDeprecatedAlgorithm = (algorithm: number): boolean =>
   DEPRECATED_ALGORITHMS.has(algorithm);

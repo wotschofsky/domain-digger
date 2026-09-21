@@ -2,5 +2,4 @@
 // covers the main entry).
 declare module 'dns-packet/types' {
   export function toType(name: string): number;
-  export function toString(type: number): string;
 }

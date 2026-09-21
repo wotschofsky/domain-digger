@@ -5,19 +5,17 @@ import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
 
 import { buildChain } from './chain';
-import { rrsetResult, signerId, validatePositiveRrset } from './rrset';
+import { rrsetResult, validatePositiveRrset } from './rrset';
 import type {
   DnssecAnswerRecord,
   DnssecChain,
   DnssecChainResult,
-  DnssecCoverage,
-  DnssecKey,
   DnssecQueryObservation,
   DnssecRrset,
   RawZone,
 } from './types';
 import { chainVerdict } from './verdict';
-import { isEligibleSigner, normalizeDomain } from './wire';
+import { normalizeDomain } from './wire';
 
 // The DNSSEC chain walk, independent of DNS transport: callers inject a query
 // function, so the walk is unit-testable and any resolver capable of returning
@@ -25,16 +23,17 @@ import { isEligibleSigner, normalizeDomain } from './wire';
 
 export type DnssecQueryResult = {
   answers: DnssecAnswerRecord[];
-  // The zone cut whose servers produced this answer: the deepest delegation
-  // the transport followed, '.' for the root. The queried name is a zone cut
-  // of its own exactly when this equals it -- which is what decides whether it
-  // gets its own link in the chain. Guessing it from the records instead costs
-  // a heuristic that cannot tell an unsigned delegation from an empty
-  // non-terminal, so the transport must report it.
+  // The deepest delegation the transport followed to get this answer, '.' for
+  // the root. When it equals the queried name, that name is a zone cut with
+  // its own servers -- the only way to tell an unsigned delegation from an
+  // empty non-terminal, which serve identical (empty) records. The converse
+  // does not hold: servers hosting both parent and child (uk and co.uk)
+  // answer for the child without a referral, so this is a lower bound on the
+  // cut, never proof that the name is not one.
   zone: string;
   rcode?: string;
-  // RRSIGs in the answer covering the queried type (present when queried with
-  // the DNSSEC OK bit) -- they prove whether this RRset is signed.
+  // RRSIGs in the answer covering the queried type -- they prove whether this
+  // RRset is signed.
   coveringRrsigs?: RrsigData[];
   // DNAMEs from the full answer section: CNAMEs at the queried name may be
   // synthesized and legitimately unsigned (RFC 6672 §3.2).
@@ -42,33 +41,13 @@ export type DnssecQueryResult = {
 };
 
 /**
- * Whether `cnameTarget` at `name` is exactly the CNAME a server would
- * synthesize from one of the answered DNAMEs (RFC 6672 §2.2): the name must
- * lie strictly below a DNAME owner, and the target must be the queried
- * prefix grafted onto the DNAME target. An unrelated DNAME in the answer
- * must not excuse an unsigned CNAME.
+ * One DNS question, asked with the EDNS DNSSEC OK bit so the RRSIGs come back:
+ * every question this walk asks needs them, so setting it is the transport's
+ * job rather than a flag each call site has to remember.
  */
-export const isDnameSynthesized = (
-  name: string,
-  cnameTarget: string,
-  dnames: { name: string; target: string }[],
-): boolean => {
-  const qname = normalizeDomain(name);
-  const cname = normalizeDomain(cnameTarget);
-  return dnames.some(({ name: owner, target }) => {
-    const dnameOwner = normalizeDomain(owner);
-    const dnameTarget = normalizeDomain(target);
-    if (!dnameOwner || !qname.endsWith(`.${dnameOwner}`)) return false;
-    const prefix = qname.slice(0, qname.length - dnameOwner.length - 1);
-    return cname === (dnameTarget ? `${prefix}.${dnameTarget}` : prefix);
-  });
-};
-
-/** One DNS question: name + type, optionally with the EDNS DNSSEC OK bit. */
 export type DnssecQuery = (
   name: string,
   type: RecordType,
-  dnssecOk?: boolean,
 ) => Promise<DnssecQueryResult>;
 
 const isErrorRcode = (rcode: string | undefined): rcode is string =>
@@ -128,64 +107,33 @@ export const DNSSEC_CHAIN_QUERIES_MAX =
 const probeLeafRrsets = async (
   name: string,
   signerName: string,
+  // The signing zone's DNSKEY RRset, authenticated by the chain.
   zoneKeys: DnskeyData[],
-  authenticatedKeys: DnssecKey[],
   query: DnssecQuery,
   now: number,
 ): Promise<{
   rrsets: DnssecRrset[];
   observation: DnssecQueryObservation;
 }> => {
-  // Once the DNSKEY RRset has been authenticated by the chain, any key in that
-  // validated key set may sign positive data RRsets. Most zones use a ZSK for
-  // data, while only the KSK is directly DS-linked.
-  const authenticatedKeyIds = new Set(
-    authenticatedKeys
-      .filter(isEligibleSigner)
-      .map((key) => signerId(key.algorithm, key.keyTag)),
-  );
-
   const probes = await Promise.all(
     RRSET_PROBE_TYPES.map((type) =>
-      query(name, type, true)
+      query(name, type)
         .then(({ answers, coveringRrsigs, rcode, dnames }) => {
           // Some injected transports return DNS error rcodes instead of
           // throwing. They are indeterminate lookups, never proof of NODATA.
           if (isErrorRcode(rcode)) {
             throw new Error(`DNS ${rcode} for ${name} ${type}`);
           }
-          let rrset = validatePositiveRrset({
+          const rrset = validatePositiveRrset({
             type,
             ownerName: name,
             records: answers,
             rrsigs: coveringRrsigs ?? [],
             keys: zoneKeys,
-            authenticatedKeyIds,
             signerName,
             now,
+            dnames,
           });
-          // A CNAME synthesized from a DNAME intentionally carries no RRSIG;
-          // the signature lives on the DNAME (not validated here). Don't
-          // misreport such deployments as serving unsigned records -- but
-          // only when the CNAME really is the DNAME's substitution, so an
-          // unrelated DNAME can't excuse a genuinely unsigned CNAME.
-          const target = answers.find((a) => a.type === 'CNAME')?.data;
-          if (
-            rrset.reason === 'missing-rrsig' &&
-            type === 'CNAME' &&
-            typeof target === 'string' &&
-            isDnameSynthesized(name, target, dnames ?? [])
-          ) {
-            rrset = rrsetResult('dname-synthesized', {
-              type,
-              recordCount: rrset.recordCount,
-            });
-          }
-          // Surface the alias target: a validated CNAME only authenticates the
-          // pointer, not the target's chain, and the UI must say so.
-          if (type === 'CNAME' && typeof target === 'string') {
-            rrset.cnameTarget = normalizeDomain(target);
-          }
           return { rrset, rcode };
         })
         .catch(() => ({
@@ -261,14 +209,11 @@ export const resolveDnssecChain = async (
   // false "insecure".
   const fetchZone = async (name: string) => {
     const [keyResult, dsResult] = await Promise.all([
-      // DO bit set so the DNSKEY RRset's covering RRSIGs come back -- we
-      // cryptographically verify the key set is validly signed, not just
-      // digest-linked.
-      query(name, 'DNSKEY', true),
+      query(name, 'DNSKEY'),
       // The root has no parent to publish a DS; its anchors are built in.
       name === '.'
         ? Promise.resolve<DnssecQueryResult>({ answers: [], zone: '.' })
-        : query(name, 'DS', true),
+        : query(name, 'DS'),
     ]);
     assertUsableDnssecResponse(name, 'DNSKEY', keyResult);
     if (name !== '.') assertUsableDnssecResponse(name, 'DS', dsResult);
@@ -288,34 +233,38 @@ export const resolveDnssecChain = async (
     );
   }
 
-  const candidates = zoneRecords.map(({ name, keyResult, dsResult }) => ({
-    name,
-    keys: keyResult.answers
-      .filter((a) => a.type === 'DNSKEY')
-      .map((a) => a.data as DnskeyData),
-    dsRecords: dsResult.answers
-      .filter((a) => a.type === 'DS')
-      .map((a) => a.data as DsData),
-    keyRrsigs: keyResult.coveringRrsigs,
-    dsRrsigs: dsResult.coveringRrsigs,
-  }));
-
   // Keep the root, the registered domain (so unsigned domains still render an
-  // honest "insecure"), and every label that is genuinely its own zone cut --
-  // which the DNSKEY answer reports directly, because the servers that
-  // answered it are the ones delegated for that name. A plain subdomain is
-  // answered by its enclosing zone and is dropped; an unsigned delegation is
-  // answered by its own servers and is kept, so a signed island below it is
-  // not grafted onto its grandparent and misvalidated against the wrong keys.
-  // (A TRAILING unsigned sub-delegation is still dropped by buildChain's
-  // leaf handling; see the limitation in index.ts.)
-  const keep = zoneRecords.map(
-    ({ name, keyResult }) =>
-      name === '.' ||
-      name === base ||
-      normalizeDomain(keyResult.zone) === normalizeDomain(name),
+  // honest "insecure"), and every label that is genuinely its own zone cut.
+  // The records decide first: a DNSKEY RRset only exists at a zone apex and a
+  // DS only at a delegation, whoever served them. Failing both, the label is
+  // still a cut -- an unsigned delegation -- when its own servers answered,
+  // and keeping it stops a signed island below it from being grafted onto its
+  // grandparent and misvalidated against the wrong keys. A plain subdomain or
+  // an empty non-terminal is answered by its enclosing zone and is dropped.
+  // ponytail: an unsigned delegation hosted on its parent's servers is
+  // indistinguishable from a plain subdomain here; probe SOA if it matters.
+  const rawZones: RawZone[] = zoneRecords.flatMap(
+    ({ name, keyResult, dsResult }) => {
+      const zone: RawZone = {
+        name,
+        keys: keyResult.answers
+          .filter((a) => a.type === 'DNSKEY')
+          .map((a) => a.data as DnskeyData),
+        dsRecords: dsResult.answers
+          .filter((a) => a.type === 'DS')
+          .map((a) => a.data as DsData),
+        keyRrsigs: keyResult.coveringRrsigs,
+        dsRrsigs: dsResult.coveringRrsigs,
+      };
+      const isZoneCut =
+        name === '.' ||
+        name === base ||
+        zone.keys.length > 0 ||
+        zone.dsRecords.length > 0 ||
+        normalizeDomain(keyResult.zone) === name;
+      return isZoneCut ? [zone] : [];
+    },
   );
-  const rawZones: RawZone[] = candidates.filter((_, index) => keep[index]);
 
   // The signed root zone always serves DNSKEY records. Getting none back means
   // our path to DNS is compromised -- typically a network that intercepts
@@ -345,25 +294,21 @@ export const resolveDnssecChain = async (
       ? 'unproved-nxdomain'
       : 'not-checked';
 
-  // Probe the leaf for positive RRsets (the "what's protected" list on the
-  // chain's bottom card). Only meaningful once the key chain validates to the
-  // signing zone.
+  // Probe the leaf for positive RRsets (the "what's protected" list under the
+  // last zone). Only meaningful once the key chain validates to the signing
+  // zone.
+  // buildChain returns one zone per raw zone, in order.
   const leaf = walked.zones.at(-1);
-  const leafRaw = leaf
-    ? rawZones.find((zone) => zone.name === leaf.name)
-    : undefined;
+  const leafRaw = rawZones.at(-1);
 
   let zones = walked.zones;
-  let coverage: DnssecCoverage = { checkedPositiveRrsetTypes: [] };
   let leafAlias: string | undefined;
 
   if (leaf && leafRaw && leaf.status === 'secure') {
-    coverage = { checkedPositiveRrsetTypes: [...RRSET_PROBE_TYPES] };
     const probed = await probeLeafRrsets(
       probeName,
       leaf.name,
       leafRaw.keys,
-      leaf.keys,
       query,
       at,
     );
@@ -385,7 +330,6 @@ export const resolveDnssecChain = async (
   const result: DnssecChainResult = { ...walked, zones };
   return {
     ...result,
-    coverage,
     query: { name: probeName, observation },
     leafAlias,
     verdict: chainVerdict(result, observation),

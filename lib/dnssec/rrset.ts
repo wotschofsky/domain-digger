@@ -2,11 +2,7 @@ import type { DnskeyData, RrsigData } from 'dns-packet';
 import { toType } from 'dns-packet/types';
 
 import { algorithmName } from './algorithms';
-import {
-  outranksUnsupported,
-  rrsigMetadataIssue,
-  verifyRrsetRrsig,
-} from './rrsig';
+import { checkRrsetSignatures, type RrsetSignatureOutcome } from './rrsig';
 import type {
   DnssecAnswerRecord,
   DnssecRrset,
@@ -14,24 +10,11 @@ import type {
   DnssecRrsetReason,
 } from './types';
 import { RRSET_STATUS_BY_REASON } from './types';
-import {
-  canonicalOwnerForRrsig,
-  canonicalRdata,
-  computeKeyTag,
-  dnskeyRdata,
-  normalizeDomain,
-} from './wire';
+import { canonicalRdata, normalizeDomain } from './wire';
 
 // Positive leaf RRset validation: classify an answered RRset (secure /
 // unsigned / bogus / ...) by checking its covering RRSIGs against the zone's
 // DS-authenticated key set.
-
-/**
- * Identity used to gate trusted signers. The 16-bit key tag alone can collide
- * across algorithms, so trust decisions pair it with the algorithm number.
- */
-export const signerId = (algorithm: number, keyTag: number): string =>
-  `${algorithm}:${keyTag}`;
 
 export const rrsetResult = <Reason extends DnssecRrsetReason>(
   reason: Reason,
@@ -43,201 +26,108 @@ export const rrsetResult = <Reason extends DnssecRrsetReason>(
     ...fields,
   }) as Extract<DnssecRrset, { reason: Reason }>;
 
+const REASON_BY_OUTCOME: Record<RrsetSignatureOutcome, DnssecRrsetReason> = {
+  valid: 'validated',
+  'wildcard-expansion': 'wildcard-no-denial-proof',
+  missing: 'missing-rrsig',
+  'unauthenticated-signer': 'unauthenticated-signer',
+  'unsupported-algorithm': 'unsupported-algorithm',
+  expired: 'expired',
+  'not-yet-valid': 'not-yet-valid',
+  invalid: 'invalid-signature',
+};
+
+type Dname = { name: string; target: string };
+
+/**
+ * Whether `cnameTarget` at `name` is exactly the CNAME a server would
+ * synthesize from one of the answered DNAMEs (RFC 6672 §2.2): the name must
+ * lie strictly below a DNAME owner, and the target must be the queried
+ * prefix grafted onto the DNAME target. An unrelated DNAME in the answer
+ * must not excuse an unsigned CNAME.
+ */
+const isDnameSynthesized = (
+  name: string,
+  cnameTarget: string,
+  dnames: Dname[],
+): boolean => {
+  const qname = normalizeDomain(name);
+  const cname = normalizeDomain(cnameTarget);
+  return dnames.some(({ name: owner, target }) => {
+    const dnameOwner = normalizeDomain(owner);
+    const dnameTarget = normalizeDomain(target);
+    if (!dnameOwner || !qname.endsWith(`.${dnameOwner}`)) return false;
+    const prefix = qname.slice(0, qname.length - dnameOwner.length - 1);
+    return cname === (dnameTarget ? `${prefix}.${dnameTarget}` : prefix);
+  });
+};
+
 export const validatePositiveRrset = (params: {
   type: string;
   ownerName: string;
   records: DnssecAnswerRecord[];
   rrsigs: RrsigData[];
+  // The signing zone's DNSKEY RRset, already authenticated by the chain: any
+  // eligible key in it may sign data. Most zones use a ZSK for that, while
+  // only the KSK is directly DS-linked.
   keys: DnskeyData[];
-  // signerId()s of the keys in the DS-authenticated DNSKEY RRset.
-  authenticatedKeyIds: Set<string>;
   signerName: string;
-  now?: number;
+  now: number;
+  // DNAMEs served in the same answer, for recognizing a synthesized CNAME.
+  dnames?: Dname[];
 }): DnssecRrset => {
-  const {
-    type,
-    ownerName,
-    records,
-    rrsigs,
-    keys,
-    authenticatedKeyIds,
-    signerName,
-    now = Math.floor(Date.now() / 1000),
-  } = params;
+  const { type, ownerName, records, rrsigs, keys, signerName, now } = params;
   const typeRecords = records.filter((record) => record.type === type);
+  const target = type === 'CNAME' ? typeRecords[0]?.data : undefined;
+  const fields: DnssecRrsetFields = {
+    type,
+    recordCount: typeRecords.length,
+    // Surface the alias target: a validated CNAME only authenticates the
+    // pointer, not the target's chain, and the UI must say so.
+    ...(typeof target === 'string' && { cnameTarget: normalizeDomain(target) }),
+  };
 
-  if (typeRecords.length === 0) {
-    return rrsetResult('no-records', { type, recordCount: 0 });
-  }
-
-  if (!toType(type)) {
-    return rrsetResult('unsupported-type', {
-      type,
-      recordCount: typeRecords.length,
-    });
-  }
-
+  if (typeRecords.length === 0) return rrsetResult('no-records', fields);
+  if (!toType(type)) return rrsetResult('unsupported-type', fields);
   if (
     typeRecords.some((record) => canonicalRdata(type, record.data) === null)
   ) {
-    return rrsetResult('unsupported-rdata', {
-      type,
-      recordCount: typeRecords.length,
-    });
+    return rrsetResult('unsupported-rdata', fields);
   }
 
-  const covering = rrsigs.filter((rrsig) => rrsig.typeCovered === type);
-  if (covering.length === 0) {
-    return rrsetResult('missing-rrsig', {
-      type,
-      recordCount: typeRecords.length,
-    });
-  }
-
-  const authenticatedKeys = keys.filter((key) =>
-    authenticatedKeyIds.has(
-      signerId(key.algorithm, computeKeyTag(dnskeyRdata(key))),
-    ),
-  );
-  let sawAuthenticatedSigner = false;
-  let sawUnsupportedSigner = false;
-  let sawSupportedSigner = false;
-  let bestValid: RrsigData | null = null;
-  let bestWildcardValid: RrsigData | null = null;
-  // Every authenticated failure, so reason and evidence can be derived from
-  // one deterministically chosen signature instead of loop order.
-  const failures: Array<{
-    rrsig: RrsigData;
-    reason: 'expired' | 'not-yet-valid' | 'invalid-signature';
-  }> = [];
-  for (const rrsig of covering) {
-    // Signatures by unauthenticated signers (including revoked keys, which
-    // RFC 5011 §2.1 strips from the trusted set) carry no weight at all: they
-    // must influence neither validation nor the supported-vs-unsupported
-    // ranking below.
-    if (!authenticatedKeyIds.has(signerId(rrsig.algorithm, rrsig.keyTag))) {
-      continue;
-    }
-    sawAuthenticatedSigner = true;
-    const metadataIssue = rrsigMetadataIssue({
-      rrsig,
-      type,
-      ownerName,
-      signerName,
-      keys: authenticatedKeys,
-      now,
-    });
-    if (metadataIssue) {
-      failures.push({
-        rrsig,
-        reason:
-          metadataIssue === 'not-yet-valid'
-            ? 'not-yet-valid'
-            : metadataIssue === 'expired'
-              ? 'expired'
-              : 'invalid-signature',
-      });
-      // Without this, the unsupported fallback below would mask a real failure
-      // in an algorithm we can actually run.
-      if (outranksUnsupported(rrsig, metadataIssue)) sawSupportedSigner = true;
-      continue;
-    }
-    if (!outranksUnsupported(rrsig, null)) {
-      sawUnsupportedSigner = true;
-      continue;
-    }
-    sawSupportedSigner = true;
-    const verified = verifyRrsetRrsig({
-      rrsig,
-      type,
-      records: typeRecords,
-      ownerName,
-      signerName,
-      keys: authenticatedKeys,
-      now,
-    });
-    if (!verified) {
-      failures.push({ rrsig, reason: 'invalid-signature' });
-      continue;
-    }
-    // A signature covering fewer labels than the owner authenticates a
-    // wildcard expansion, which is only proven together with an NSEC/NSEC3
-    // denial that no closer name exists (RFC 4035 §5.3.4) -- not validated
-    // here, so it must not count as fully validated.
-    const isExpansion =
-      canonicalOwnerForRrsig(ownerName, rrsig) !==
-      (normalizeDomain(ownerName) || '.');
-    // Rollovers legitimately publish several currently-valid RRSIGs; report
-    // the longest-lived one (like the DNSKEY/DS paths do) so the expiry shown
-    // doesn't depend on response order.
-    if (isExpansion) {
-      if (!bestWildcardValid || rrsig.expiration > bestWildcardValid.expiration)
-        bestWildcardValid = rrsig;
-    } else if (!bestValid || rrsig.expiration > bestValid.expiration) {
-      bestValid = rrsig;
-    }
-  }
-
-  const bestVerified = bestValid ?? bestWildcardValid;
-  if (bestVerified) {
-    return rrsetResult(bestValid ? 'validated' : 'wildcard-no-denial-proof', {
-      type,
-      recordCount: typeRecords.length,
-      signerName: bestVerified.signersName,
-      signerKeyTag: bestVerified.keyTag,
-      signerAlgorithmName: algorithmName(bestVerified.algorithm),
-      signatureInceptionAt: bestVerified.inception,
-      signatureExpiresAt: bestVerified.expiration,
-      signatureOriginalTtl: bestVerified.originalTTL,
-    });
-  }
-
-  // Deterministic failure selection: bucket priority (expired before
-  // not-yet-valid before invalid, mirroring the DNSKEY/DS evidence order),
-  // longest-lived signature within the bucket. Reordering the same DNS
-  // answer must not change the reported reason or its evidence.
-  let chosen: (typeof failures)[number] | undefined;
-  for (const reason of [
-    'expired',
-    'not-yet-valid',
-    'invalid-signature',
-  ] as const) {
-    const bucket = failures.filter((failure) => failure.reason === reason);
-    if (bucket.length) {
-      // Total order over every displayed evidence field, so identical
-      // answers in any order render identical evidence.
-      const evidenceOrder = (a: RrsigData, b: RrsigData): number =>
-        b.expiration - a.expiration ||
-        a.keyTag - b.keyTag ||
-        a.algorithm - b.algorithm ||
-        a.signersName.localeCompare(b.signersName) ||
-        b.inception - a.inception ||
-        a.originalTTL - b.originalTTL;
-      chosen = bucket.reduce((best, failure) =>
-        evidenceOrder(failure.rrsig, best.rrsig) < 0 ? failure : best,
-      );
-      break;
-    }
-  }
-  const failureReason = chosen?.reason ?? 'invalid-signature';
-  const fallbackReason: DnssecRrsetReason = sawSupportedSigner
-    ? failureReason
-    : sawUnsupportedSigner
-      ? 'unsupported-algorithm'
-      : sawAuthenticatedSigner
-        ? failureReason
-        : 'unauthenticated-signer';
-  const evidence = chosen?.rrsig ?? covering[0];
-  return rrsetResult(fallbackReason, {
+  const { outcome, rrsig } = checkRrsetSignatures({
     type,
-    recordCount: typeRecords.length,
-    signerName: evidence?.signersName,
-    signerKeyTag: evidence?.keyTag,
-    signerAlgorithmName: evidence
-      ? algorithmName(evidence.algorithm)
-      : undefined,
-    signatureInceptionAt: evidence?.inception,
-    signatureExpiresAt: evidence?.expiration,
-    signatureOriginalTtl: evidence?.originalTTL,
+    records: typeRecords,
+    rrsigs,
+    ownerName,
+    signerName,
+    keys,
+    now,
+  });
+
+  // A CNAME synthesized from a DNAME intentionally carries no RRSIG; the
+  // signature lives on the DNAME (not validated here). Don't misreport such
+  // deployments as serving unsigned records -- but only when the CNAME really
+  // is the DNAME's substitution, so an unrelated DNAME can't excuse a
+  // genuinely unsigned CNAME.
+  if (
+    outcome === 'missing' &&
+    typeof target === 'string' &&
+    isDnameSynthesized(ownerName, target, params.dnames ?? [])
+  ) {
+    return rrsetResult('dname-synthesized', fields);
+  }
+
+  return rrsetResult(REASON_BY_OUTCOME[outcome], {
+    ...fields,
+    // Observed fields, even when the signature does not verify.
+    ...(rrsig && {
+      signerName: rrsig.signersName,
+      signerKeyTag: rrsig.keyTag,
+      signerAlgorithmName: algorithmName(rrsig.algorithm),
+      signatureInceptionAt: rrsig.inception,
+      signatureExpiresAt: rrsig.expiration,
+      signatureOriginalTtl: rrsig.originalTTL,
+    }),
   });
 };

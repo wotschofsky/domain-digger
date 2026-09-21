@@ -29,10 +29,11 @@
 //   types.ts      -- the chain/zone/key/DS/RRset data model
 //   algorithms.ts -- algorithm registry and policy (deprecated, weak, supported)
 //   wire.ts       -- canonical wire-format encoding (RFC 4034 §6)
-//   crypto.ts     -- DNSKEY -> node crypto key, raw signature verification
+//   crypto.ts     -- raw signature verification with a DNSKEY, per algorithm
 //   ds.ts         -- DS digest linkage (parent DS -> child DNSKEY)
-//   rrsig.ts      -- RRSIG verification over canonical RRsets
-//   rrset.ts      -- positive leaf RRset validation and classification
+//   rrsig.ts      -- what an RRset's covering RRSIGs establish: the one check
+//                    DS, DNSKEY and leaf RRsets all go through
+//   rrset.ts      -- positive leaf RRset classification (incl. CNAME/DNAME)
 //   chain.ts      -- root trust anchors and the top-down chain walk
 //   verdict.ts    -- which outcome the result leads with (precedence policy)
 //   resolve.ts    -- the zone walk over an injected, transport-agnostic query
@@ -40,6 +41,7 @@
 // Only what crosses the module boundary is re-exported here; the modules above
 // import each other by relative path.
 export { DNSSEC_CHAIN_QUERIES_MAX, resolveDnssecChain } from './resolve';
+export { visibleRrsets } from './verdict';
 export { normalizeDomain as canonicalDnsName } from './wire';
 export type {
   DnssecBreakReason,

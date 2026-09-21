@@ -1,9 +1,9 @@
 import type { DnskeyData } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
-import { signerId, validatePositiveRrset } from './rrset';
+import { validatePositiveRrset } from './rrset';
 import { genKey, signARecordRrset } from './test-helpers';
-import { computeKeyTag, dnskeyRdata } from './wire';
+import { dnskeyKeyTag } from './wire';
 
 describe('positive RRset validation', () => {
   const win = { inception: 1000, expiration: 2000 };
@@ -18,7 +18,7 @@ describe('positive RRset validation', () => {
   it('reports a signed positive RRset as secure', () => {
     const signer = genKey(13);
     const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
-    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
+    const keyTag = dnskeyKeyTag(signer.dnskey);
 
     expect(
       validatePositiveRrset({
@@ -27,7 +27,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [rrsig],
         keys: [signer.dnskey],
-        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
         signerName,
         now,
       }),
@@ -55,7 +54,7 @@ describe('positive RRset validation', () => {
       },
       win,
     );
-    const zskTag = computeKeyTag(dnskeyRdata(zskRecord));
+    const zskTag = dnskeyKeyTag(zskRecord);
 
     expect(
       validatePositiveRrset({
@@ -64,10 +63,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [rrsig],
         keys: [ksk.dnskey, zskRecord],
-        authenticatedKeyIds: new Set([
-          signerId(13, computeKeyTag(dnskeyRdata(ksk.dnskey))),
-          signerId(13, zskTag),
-        ]),
         signerName,
         now,
       }),
@@ -79,7 +74,6 @@ describe('positive RRset validation', () => {
 
   it('reports existing records without a covering RRSIG as unsigned', () => {
     const signer = genKey(13);
-    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
 
     expect(
       validatePositiveRrset({
@@ -88,7 +82,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [],
         keys: [signer.dnskey],
-        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
         signerName,
         now,
       }),
@@ -104,7 +97,6 @@ describe('positive RRset validation', () => {
     const rrsig = signARecordRrset(ownerName, records, signerName, signer, win);
     rrsig.signature = Buffer.from(rrsig.signature);
     rrsig.signature[0] ^= 0xff;
-    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
 
     expect(
       validatePositiveRrset({
@@ -113,7 +105,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [rrsig],
         keys: [signer.dnskey],
-        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
         signerName,
         now,
       }),
@@ -129,7 +120,7 @@ describe('positive RRset validation', () => {
       ...signer.dnskey,
       algorithm: 12,
     };
-    const keyTag = computeKeyTag(dnskeyRdata(unsupportedKey));
+    const keyTag = dnskeyKeyTag(unsupportedKey);
     const rrsig = {
       ...signARecordRrset(ownerName, records, signerName, signer, win),
       algorithm: 12,
@@ -143,7 +134,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [rrsig],
         keys: [unsupportedKey],
-        authenticatedKeyIds: new Set([signerId(12, keyTag)]),
         signerName,
         now,
       }),
@@ -160,7 +150,7 @@ describe('positive RRset validation', () => {
       flags: 0,
       algorithm: 12,
     };
-    const keyTag = computeKeyTag(dnskeyRdata(nonZoneKey));
+    const keyTag = dnskeyKeyTag(nonZoneKey);
     const rrsig = {
       ...signARecordRrset(ownerName, records, signerName, signer, win),
       algorithm: 12,
@@ -174,13 +164,14 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [rrsig],
         keys: [nonZoneKey],
-        authenticatedKeyIds: new Set([signerId(12, keyTag)]),
         signerName,
         now,
       }),
     ).toMatchObject({
+      // A key without the ZONE flag may not sign at all, so its signature is
+      // noise from an untrusted signer -- bogus, never "unsupported".
       status: 'bogus',
-      reason: 'invalid-signature',
+      reason: 'unauthenticated-signer',
     });
   });
 
@@ -190,7 +181,7 @@ describe('positive RRset validation', () => {
       ...signer.dnskey,
       algorithm: 12,
     };
-    const keyTag = computeKeyTag(dnskeyRdata(unsupportedKey));
+    const keyTag = dnskeyKeyTag(unsupportedKey);
     const rrsig = {
       ...signARecordRrset(ownerName, records, signerName, signer, win),
       algorithm: 12,
@@ -204,7 +195,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [rrsig],
         keys: [unsupportedKey],
-        authenticatedKeyIds: new Set([signerId(12, keyTag)]),
         signerName,
         now: win.expiration + 1,
       }),
@@ -216,7 +206,6 @@ describe('positive RRset validation', () => {
 
   it('reports the longest-lived expiry when several signatures verify', () => {
     const signer = genKey(13);
-    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
     const shortLived = signARecordRrset(
       ownerName,
       records,
@@ -239,7 +228,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [shortLived, longLived],
         keys: [signer.dnskey],
-        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
         signerName,
         now,
       }),
@@ -252,7 +240,6 @@ describe('positive RRset validation', () => {
 
   it('marks wildcard-expanded answers inconclusive without a denial proof', () => {
     const signer = genKey(13);
-    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
     // Signed at the wildcard owner: valid crypto, but proving it applies to
     // www.example also needs an NSEC/NSEC3 proof that no closer name exists.
     const wildcardSig = signARecordRrset(
@@ -270,7 +257,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [wildcardSig],
         keys: [signer.dnskey],
-        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
         signerName,
         now,
       }),
@@ -287,7 +273,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [wildcardSig],
         keys: [signer.dnskey],
-        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
         signerName,
         now,
       }),
@@ -299,7 +284,6 @@ describe('positive RRset validation', () => {
 
   it('reports the same failure reason regardless of signature order', () => {
     const signer = genKey(13);
-    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
     const expired = signARecordRrset(ownerName, records, signerName, signer, {
       inception: 100,
       expiration: 200,
@@ -325,7 +309,6 @@ describe('positive RRset validation', () => {
           records,
           rrsigs,
           keys: [signer.dnskey],
-          authenticatedKeyIds: new Set([signerId(13, keyTag)]),
           signerName,
           now,
         }),
@@ -343,8 +326,7 @@ describe('positive RRset validation', () => {
       ...signer.dnskey,
       algorithm: 12,
     };
-    const supportedTag = computeKeyTag(dnskeyRdata(signer.dnskey));
-    const unsupportedTag = computeKeyTag(dnskeyRdata(unsupportedKey));
+    const unsupportedTag = dnskeyKeyTag(unsupportedKey);
     const expiredSupported = signARecordRrset(
       ownerName,
       records,
@@ -365,10 +347,6 @@ describe('positive RRset validation', () => {
         records,
         rrsigs: [inWindowUnsupported, expiredSupported],
         keys: [signer.dnskey, unsupportedKey],
-        authenticatedKeyIds: new Set([
-          signerId(13, supportedTag),
-          signerId(12, unsupportedTag),
-        ]),
         signerName,
         now,
       }),
@@ -388,8 +366,8 @@ describe('positive RRset validation', () => {
         ownerName,
         records,
         rrsigs: [rrsig],
-        keys: [signer.dnskey],
-        authenticatedKeyIds: new Set<string>(),
+        // The zone's authenticated key set does not contain the signer.
+        keys: [genKey(13).dnskey],
         signerName,
         now,
       }),
@@ -399,9 +377,66 @@ describe('positive RRset validation', () => {
     });
   });
 
+  describe('CNAME RRsets', () => {
+    const cname = (target: string) => ({
+      type: 'CNAME',
+      ownerName,
+      records: [{ name: ownerName, type: 'CNAME', data: target }],
+      rrsigs: [],
+      keys: [genKey(13).dnskey],
+      signerName,
+      now,
+    });
+
+    it('surfaces the alias target, normalized', () => {
+      expect(validatePositiveRrset(cname('Target.Example.'))).toMatchObject({
+        reason: 'missing-rrsig',
+        cnameTarget: 'target.example',
+      });
+    });
+
+    it('excuses a missing RRSIG only for the exact DNAME substitution', () => {
+      // RFC 6672 §2.2: www.example + DNAME example -> example.net synthesizes
+      // www.example.net, which is legitimately unsigned.
+      const dname = { name: 'Example.', target: 'example.net' };
+
+      expect(
+        validatePositiveRrset({
+          ...cname('www.example.net.'),
+          dnames: [dname],
+        }),
+      ).toMatchObject({
+        status: 'unsupported',
+        reason: 'dname-synthesized',
+        cnameTarget: 'www.example.net',
+      });
+
+      for (const unrelated of [
+        // A different target than the substitution would produce.
+        { ...cname('cdn.example.net'), dnames: [dname] },
+        // A DNAME that does not own the queried name.
+        {
+          ...cname('www.example.net'),
+          dnames: [{ name: 'other.example', target: 'example.net' }],
+        },
+        // The DNAME owner itself is not redirected, only names below it.
+        {
+          ...cname('example.net'),
+          ownerName: 'example',
+          records: [{ name: 'example', type: 'CNAME', data: 'example.net' }],
+          dnames: [dname],
+        },
+      ]) {
+        expect(validatePositiveRrset(unrelated)).toMatchObject({
+          status: 'unsigned',
+          reason: 'missing-rrsig',
+        });
+      }
+    });
+  });
+
   it('reports absent positive RRsets without pretending to prove denial', () => {
     const signer = genKey(13);
-    const keyTag = computeKeyTag(dnskeyRdata(signer.dnskey));
 
     expect(
       validatePositiveRrset({
@@ -410,7 +445,6 @@ describe('positive RRset validation', () => {
         records: [],
         rrsigs: [],
         keys: [signer.dnskey],
-        authenticatedKeyIds: new Set([signerId(13, keyTag)]),
         signerName,
         now,
       }),

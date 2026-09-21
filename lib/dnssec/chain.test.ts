@@ -6,9 +6,10 @@ import { dsDigest } from './ds';
 import { dsForKey, genKey, signDnskeyRrset, signDsRrset } from './test-helpers';
 import { RFC_DS, RFC_KEY } from './test-vectors';
 import type { RawZone } from './types';
-import { computeKeyTag, dnskeyRdata } from './wire';
+import { dnskeyKeyTag } from './wire';
 
-const buildChain = (zones: RawZone[], now?: number) =>
+// Most chains here carry no signatures, so their verdict is time-independent.
+const buildChain = (zones: RawZone[], now = 1500) =>
   buildDnssecChain(zones, now, {
     initialTrustAnchors:
       zones[0] && zones[0].name !== '.' ? zones[0].dsRecords : undefined,
@@ -22,7 +23,7 @@ describe('buildChain', () => {
   // letting us exercise the secure path without forging the real root KSK.
   const dsFor = (name: string): DsData => ({
     ...RFC_DS,
-    keyTag: computeKeyTag(dnskeyRdata(sep)),
+    keyTag: dnskeyKeyTag(sep),
     digest: dsDigest(name, sep, 1)!,
   });
 
@@ -120,7 +121,7 @@ describe('buildChain', () => {
     // co-published SHA-256 DS fails to authenticate -- compliant validators
     // ignore the SHA-1 record and report the delegation bogus.
     const k = genKey(13);
-    const tag = computeKeyTag(dnskeyRdata(k.dnskey));
+    const tag = dnskeyKeyTag(k.dnskey);
     const sha1Match: DsData = {
       keyTag: tag,
       algorithm: 13,
@@ -156,7 +157,7 @@ describe('buildChain', () => {
     // RFC 4509 §3 only demotes SHA-1; SHA-256 and SHA-384 are both acceptable
     // paths, so a stale SHA-384 DS must not break a valid SHA-256 link.
     const k = genKey(13);
-    const tag = computeKeyTag(dnskeyRdata(k.dnskey));
+    const tag = dnskeyKeyTag(k.dnskey);
     const sha256Match: DsData = {
       keyTag: tag,
       algorithm: 13,
@@ -429,7 +430,7 @@ describe('buildChain signature enforcement', () => {
     const unsupportedRrsig = {
       ...signDsRrset('child.example', [childDs], 'example', parent, win),
       algorithm: 12,
-      keyTag: computeKeyTag(dnskeyRdata(unsupportedParentKey)),
+      keyTag: dnskeyKeyTag(unsupportedParentKey),
     };
     const parentRrset = [parent.dnskey, unsupportedParentKey];
     const chain = buildChain(
@@ -550,7 +551,7 @@ describe('buildChain signature enforcement', () => {
     const unsupportedSig = {
       ...signDnskeyRrset('child.example', childKeys, child, win),
       algorithm: 12,
-      keyTag: computeKeyTag(dnskeyRdata(unsupportedKey)),
+      keyTag: dnskeyKeyTag(unsupportedKey),
     };
     const chain = buildChain(
       [
@@ -598,7 +599,7 @@ describe('buildChain signature enforcement', () => {
     const inWindowUnsupported = {
       ...signDsRrset('child.example', [childDs], 'example', parent, win),
       algorithm: 12,
-      keyTag: computeKeyTag(dnskeyRdata(unsupportedParentKey)),
+      keyTag: dnskeyKeyTag(unsupportedParentKey),
     };
     const parentRrset = [parent.dnskey, unsupportedParentKey];
     const chain = buildChain(
