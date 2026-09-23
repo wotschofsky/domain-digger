@@ -1,16 +1,10 @@
 import type { Answer, DnskeyData, DsData, RrsigData } from 'dns-packet';
 
-import type { RecordType } from '@/lib/resolvers/base';
+import { canonicalDnsName, type RecordType } from '@/lib/resolvers/base';
 import { UserFacingError } from '@/lib/user-facing-error';
 
-import {
-  algorithmName,
-  DIGEST_HASH_ALGOS,
-  DIGEST_NAMES,
-  isWeakDigest,
-  SUPPORTED_SIGNING_ALGORITHMS,
-} from './algorithms';
-import { dsMatchesKey } from './ds';
+import { algorithmName, isWeakDigest } from './algorithms';
+import { linkKeys } from './ds';
 import { checkRrsetSignatures, type RrsetSignatureOutcome } from './rrsig';
 import { dnskeyKeyTag, dnskeyRdata, isSepKey } from './wire';
 
@@ -99,13 +93,6 @@ const ROOT_ANCHORS: DsData[] = [
   },
 ];
 
-export const dnssecAlgorithmName = algorithmName;
-
-export const dsDigestName = (digestType: number): string =>
-  DIGEST_NAMES[digestType] ?? `Digest ${digestType}`;
-
-const keyTag = dnskeyKeyTag;
-
 const dnskeysOf = ({ answers }: { answers: Answer[] }): DnskeyData[] =>
   answers.flatMap((answer) => (answer.type === 'DNSKEY' ? [answer.data] : []));
 
@@ -130,7 +117,7 @@ export const resolveDsChain = async (
   query: DsChainQuery,
   now = Math.floor(Date.now() / 1000),
 ): Promise<DsChain> => {
-  const queried = domain.toLowerCase().replace(/\.$/, '') || '.';
+  const queried = canonicalDnsName(domain) || '.';
   const names = suffixesFor(queried);
   const zones: DsChainZone[] = [];
   let verdict: DsChainVerdict = 'intact';
@@ -177,32 +164,12 @@ export const resolveDsChain = async (
       ) ||
       soaResponse!.answers.some((answer) => answer.type === 'SOA');
     if (!isApex) continue;
-    const matchedKeys = dsRecords.map((ds) =>
-      keys.filter((key) => dsMatchesKey(ds, key, name)),
-    );
-    // Only supported digests and signing algorithms decide, and SHA-1 is
-    // ignored next to a stronger digest (RFC 4509 section 3), so a matching
-    // SHA-1 record cannot hide a broken stronger digest. With nothing
-    // supported the zone cannot be authenticated and counts as unsigned
-    // (RFC 4035 section 5.2).
-    const supported = dsRecords.flatMap((ds, i) =>
-      DIGEST_HASH_ALGOS[ds.digestType] &&
-      SUPPORTED_SIGNING_ALGORITHMS.has(ds.algorithm)
-        ? [{ ds, keys: matchedKeys[i] }]
-        : [],
-    );
-    const hasStrong = supported.some(({ ds }) => ds.digestType !== 1);
-    const linkedKeys = supported
-      .filter(({ ds }) => !hasStrong || ds.digestType !== 1)
-      .flatMap((deciding) => deciding.keys);
+    const link = linkKeys(name, dsRecords, keys);
 
-    let ownStatus: DsChainVerdict = 'intact';
+    let ownStatus: DsChainVerdict =
+      link.status === 'linked' ? 'intact' : link.status;
     let keySignature: DsChainZone['keySignature'];
-    if (supported.length === 0) {
-      ownStatus = 'unsigned';
-    } else if (linkedKeys.length === 0) {
-      ownStatus = 'mismatch';
-    } else if (verdict === 'intact') {
+    if (link.status === 'linked' && verdict === 'intact') {
       // Only DS-linked keys may vouch for the key set: a zone must not
       // authenticate its DNSKEY RRset with a key nothing above it links.
       // Below a break nothing vouches for the DS itself, so there is no
@@ -213,7 +180,7 @@ export const resolveDsChain = async (
         rrsigs: keyResponse.coveringRrsigs ?? [],
         ownerName: name,
         signerName: name,
-        keys: linkedKeys,
+        keys: link.linkedKeys,
         now,
       });
       keySignature = {
@@ -233,16 +200,16 @@ export const resolveDsChain = async (
     zones.push({
       name,
       keys: keys.map((key) => ({
-        keyTag: keyTag(key),
+        keyTag: dnskeyKeyTag(key),
         algorithm: key.algorithm,
-        algorithmName: dnssecAlgorithmName(key.algorithm),
+        algorithmName: algorithmName(key.algorithm),
         isSep: isSepKey(key),
       })),
       dsRecords: dsRecords.map((ds, i) => ({
         keyTag: ds.keyTag,
         digestType: ds.digestType,
         digestHex: ds.digest.toString('hex').toUpperCase(),
-        matched: matchedKeys[i].length > 0,
+        matched: link.matched[i],
         weakDigest: isWeakDigest(ds.digestType),
       })),
       ...(keySignature && { keySignature }),

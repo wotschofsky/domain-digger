@@ -15,6 +15,7 @@ import { retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
 import {
+  canonicalDnsName,
   DnsResolver,
   type RawRecord,
   type RecordType,
@@ -23,9 +24,6 @@ import {
 import { isPublicIp } from './ip-filter';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
-
-const canonicalDnsName = (name: string): string =>
-  name.replace(/\.$/, '').toLowerCase();
 
 // EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
 // returns RRSIG records alongside the answer.
@@ -113,6 +111,9 @@ export type AuthoritativeResolverOptions = {
   // Time budget for trying fallback nameservers, shared across the whole
   // walk (see fetchRecordsRaw). Injectable for tests.
   fallbackDeadlineMs?: number;
+  // Set the EDNS DNSSEC OK (DO) bit on every query of this instance, so
+  // authoritative servers include RRSIGs.
+  dnssecOk?: boolean;
 };
 
 export const isMatchingDnsResponse = (
@@ -138,8 +139,8 @@ type WalkResult = {
   trace: string[];
   rcode?: string;
   zone: string;
-  // RRSIGs covering the queried type; servers only send them when queried
-  // with dnssecOk.
+  // RRSIGs covering the queried type; servers only send them when the
+  // resolver sets the dnssecOk option.
   coveringRrsigs?: RrsigData[];
 };
 
@@ -153,8 +154,6 @@ type FetchRecordsParams = {
   depth?: number;
   deadlineAt?: number;
   budget?: { remaining: number };
-  // Set the EDNS DNSSEC OK (DO) bit so authoritative servers include RRSIGs.
-  dnssecOk?: boolean;
 };
 
 export class AuthoritativeResolver extends DnsResolver {
@@ -503,7 +502,6 @@ export class AuthoritativeResolver extends DnsResolver {
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS),
     budget = { remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK },
-    dnssecOk = false,
   }: FetchRecordsParams): Promise<WalkResult> {
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
@@ -568,7 +566,7 @@ export class AuthoritativeResolver extends DnsResolver {
         domain,
         recordType,
         nameserver: candidate,
-        dnssecOk,
+        dnssecOk: this.options.dnssecOk ?? false,
       };
       let result: DnsResponse;
       try {
@@ -621,7 +619,6 @@ export class AuthoritativeResolver extends DnsResolver {
           depth,
           deadlineAt,
           budget,
-          dnssecOk,
         });
       } catch (error) {
         failedNameservers.push(
@@ -650,7 +647,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
-        dnssecOk,
       });
     }
 
@@ -677,7 +673,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
-        dnssecOk,
       });
     }
 
@@ -728,7 +723,6 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
-    dnssecOk,
   }: {
     packet: Packet;
     protocol: DnsResponse['protocol'];
@@ -741,7 +735,6 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-    dnssecOk: boolean;
   }): Promise<WalkResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
@@ -842,7 +835,6 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
           deadlineAt,
           budget,
-          dnssecOk,
         });
       }
 
@@ -857,7 +849,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
-        dnssecOk,
       });
     }
 
@@ -877,7 +868,6 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
-    dnssecOk,
   }: {
     nsRedirects: StringAnswer[];
     domain: string;
@@ -888,7 +878,6 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: { remaining: number };
-    dnssecOk: boolean;
   }): Promise<WalkResult> {
     const zone = canonicalDnsName(nsRedirects[0].name);
     const subTrace: string[] = [];
@@ -954,7 +943,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
-        dnssecOk,
       });
     } catch (error) {
       // Sibling NS lookups are still usable failover: the race above only
@@ -981,7 +969,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
-        dnssecOk,
       });
     }
   }
@@ -989,13 +976,13 @@ export class AuthoritativeResolver extends DnsResolver {
   // Decoded answers owned by the queried name, the response code (NXDOMAIN
   // stays distinct from NODATA) and the zone cut whose servers answered. For
   // callers that need structured rdata (DNSSEC) rather than presentation
-  // strings. With dnssecOk, the RRSIGs covering the answer come back too.
+  // strings. With the dnssecOk option, the RRSIGs covering the answer come
+  // back too.
   public resolveAnswers(
     domain: string,
     recordType: RecordType,
-    { dnssecOk = false }: { dnssecOk?: boolean } = {},
   ): Promise<WalkResult> {
-    return this.fetchRecordsRaw({ domain, recordType, dnssecOk });
+    return this.fetchRecordsRaw({ domain, recordType });
   }
 
   public async resolveRecordType(

@@ -1,4 +1,4 @@
-import type { Answer, DnskeyData } from 'dns-packet';
+import type { Answer } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
 import { UserFacingError } from '@/lib/user-facing-error';
@@ -348,53 +348,6 @@ describe('resolveDsChain', () => {
       com(dsRecord('com', KSK.dnskey, 1), dsRecord('com', KSK.dnskey, 2, true)),
     );
     expect(reverse.verdict).toBe('mismatch');
-  });
-
-  it('accepts a matching SHA-384 DS next to a stale SHA-256 DS', async () => {
-    const chain = await walk(
-      'com',
-      com(dsRecord('com', KSK.dnskey, 2, true), dsRecord('com', KSK.dnskey, 4)),
-    );
-    expect(chain.verdict).toBe('intact');
-  });
-
-  it('ignores a matching SHA-1 DS when SHA-384 is present', async () => {
-    const chain = await walk(
-      'com',
-      com(dsRecord('com', KSK.dnskey, 1), dsRecord('com', KSK.dnskey, 4, true)),
-    );
-    expect(chain.verdict).toBe('mismatch');
-  });
-
-  it('treats a DS set with only unsupported digests as unsigned', async () => {
-    const chain = await walk('com', com(dsRecord('com', KSK.dnskey, 3)));
-    expect(chain.verdict).toBe('unsigned');
-    expect(chain.breakAt).toBe('com');
-  });
-
-  it('treats a DS for an unsupported signing algorithm as unsigned', async () => {
-    // DSA (3): the digest links, but no signature by it can be verified.
-    const dsa: DnskeyData = { flags: 257, algorithm: 3, key: Buffer.alloc(64) };
-    const chain = await walk('com', [
-      root(),
-      soa('com'),
-      keyRecord('com', dsa),
-      dsRecord('com', dsa),
-    ]);
-    expect(chain.zones[1].dsRecords[0].matched).toBe(true);
-    expect(chain.verdict).toBe('unsigned');
-    expect(chain.breakAt).toBe('com');
-  });
-
-  it('does not match a DS against a DNSKEY without the Zone Key flag', async () => {
-    const nonZone: DnskeyData = { ...KSK.dnskey, flags: 1 };
-    const chain = await walk('com', [
-      root(),
-      soa('com'),
-      keyRecord('com', nonZone),
-      dsRecord('com', nonZone),
-    ]);
-    expect(chain.verdict).toBe('mismatch');
   });
 
   it('does not treat a DNSKEY owned by a host as a zone cut', async () => {

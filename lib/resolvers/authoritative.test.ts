@@ -263,11 +263,10 @@ describe('AuthoritativeResolver transport policy', () => {
     const resolver = new AuthoritativeResolver({
       udpTransport,
       rootServers: async () => ['192.0.2.1'],
-    });
-
-    const result = await resolver.resolveAnswers('example.com', 'DNSKEY', {
       dnssecOk: true,
     });
+
+    const result = await resolver.resolveAnswers('example.com', 'DNSKEY');
 
     expect(result.answers).toHaveLength(1);
     expect(result.coveringRrsigs).toEqual([{ typeCovered: 'DNSKEY' }]);

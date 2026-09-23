@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { FC } from 'react';
 
+import { digestName } from '@/lib/dnssec/algorithms';
 import {
   DsChainNameNotFoundError,
   type DsChainVerdict,
   type DsChainZone,
-  dsDigestName,
   resolveDsChain,
 } from '@/lib/dnssec/ds-chain';
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
@@ -69,11 +69,11 @@ const shortFingerprint = (hex: string): string =>
 
 const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   const { domain } = await params;
-  const resolver = new AuthoritativeResolver();
+  const resolver = new AuthoritativeResolver({ dnssecOk: true });
   let chain;
   try {
     chain = await resolveDsChain(domain, (name, type) =>
-      resolver.resolveAnswers(name, type, { dnssecOk: true }),
+      resolver.resolveAnswers(name, type),
     );
   } catch (error) {
     if (error instanceof DsChainNameNotFoundError) {
@@ -168,7 +168,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="font-mono">{ds.keyTag}</span>
                           <span className="text-zinc-600 dark:text-zinc-300">
-                            {dsDigestName(ds.digestType)}
+                            {digestName(ds.digestType)}
                           </span>
                           {ds.weakDigest && (
                             <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">

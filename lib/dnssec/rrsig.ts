@@ -1,12 +1,13 @@
 import type { DnskeyData, RrsigData } from 'dns-packet';
 import { toType } from 'dns-packet/types';
 
-import { verifyWithDnskey } from './crypto';
+import { canonicalDnsName } from '@/lib/resolvers/base';
+
+import { verifyWithDnskey } from './algorithms';
 import {
   canonicalRr,
   dnskeyKeyTag,
   isEligibleSigner,
-  normalizeDomain,
   rrsigSigningPrefix,
 } from './wire';
 
@@ -65,7 +66,7 @@ type RrsetSignatureParams = {
 };
 
 const labelCount = (name: string): number => {
-  const normalized = normalizeDomain(name);
+  const normalized = canonicalDnsName(name);
   return normalized ? normalized.split('.').length : 0;
 };
 
@@ -74,7 +75,7 @@ const metadataFailure = (
   rrsig: RrsigData,
   { ownerName, signerName, now }: RrsetSignatureParams,
 ): 'expired' | 'not-yet-valid' | 'invalid' | null => {
-  if (normalizeDomain(rrsig.signersName) !== normalizeDomain(signerName)) {
+  if (canonicalDnsName(rrsig.signersName) !== canonicalDnsName(signerName)) {
     return 'invalid';
   }
   // ponytail: exact label count, so no wildcard expansions; add RFC 4035

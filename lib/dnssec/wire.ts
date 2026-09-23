@@ -1,15 +1,17 @@
 import type { DnskeyData, RrsigData } from 'dns-packet';
 import { toType } from 'dns-packet/types';
 
+import { canonicalDnsName } from '@/lib/resolvers/base';
+
 // Canonical wire-format encoding (RFC 4034 §6): domain names, DNSKEY RDATA, and
 // the exact byte layout an RRSIG signature is computed over.
 
 /** Canonical wire-format encoding of a domain name (lowercase, length-prefixed). */
 export const wireName = (name: string): Buffer => {
-  const clean = name.replace(/\.$/, '');
+  const clean = canonicalDnsName(name);
   if (clean === '') return Buffer.from([0]); // root
   const parts: Buffer[] = [];
-  for (const label of clean.toLowerCase().split('.')) {
+  for (const label of clean.split('.')) {
     const labelBuf = Buffer.from(label, 'ascii');
     parts.push(Buffer.from([labelBuf.length]), labelBuf);
   }
@@ -41,17 +43,16 @@ type KeyFlags = Pick<DnskeyData, 'flags'>;
 export const isZoneKey = (key: KeyFlags): boolean =>
   (key.flags & DNSKEY_ZONE) !== 0;
 
-/** Bit 8: the key revokes itself, so validators must not trust it (RFC 5011 §2.1). */
-export const isRevokedKey = (key: KeyFlags): boolean =>
-  (key.flags & DNSKEY_REVOKE) !== 0;
-
 /** Bit 15: Secure Entry Point, conventionally the KSK a DS points at. */
 export const isSepKey = (key: KeyFlags): boolean =>
   (key.flags & DNSKEY_SEP) !== 0;
 
-/** A key eligible to make a signature: a zone key that has not revoked itself. */
+/**
+ * A key eligible to make a signature: a zone key that has not revoked itself
+ * (bit 8; validators must not trust a revoked key, RFC 5011 §2.1).
+ */
 export const isEligibleSigner = (key: KeyFlags): boolean =>
-  isZoneKey(key) && !isRevokedKey(key);
+  isZoneKey(key) && (key.flags & DNSKEY_REVOKE) === 0;
 
 /** RRSIG RDATA up to (but excluding) the signature, per RFC 4034 §3.1.8.1. */
 export const rrsigSigningPrefix = (rrsig: RrsigData): Buffer | null => {
@@ -85,11 +86,8 @@ export const canonicalRr = (
   return Buffer.concat([wireName(owner), head, rdata]);
 };
 
-export const normalizeDomain = (name: string): string =>
-  name.replace(/\.$/, '').toLowerCase();
-
 /** Key tag computation per RFC 4034 Appendix B (general case). */
-export const computeKeyTag = (rdata: Buffer): number => {
+const computeKeyTag = (rdata: Buffer): number => {
   let ac = 0;
   for (let i = 0; i < rdata.length; i++) {
     ac += i & 1 ? rdata[i] : rdata[i] << 8;
