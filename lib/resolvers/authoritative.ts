@@ -26,11 +26,13 @@ import { isPublicIp } from './ip-filter';
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
 // EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
-// returns RRSIG records alongside the answer.
+// returns RRSIG records alongside the answer. 1232 bytes keeps UDP answers
+// unfragmented on any path (DNS Flag Day 2020); larger ones come back with TC
+// and are retried over TCP instead of being lost to dropped fragments.
 const DNSSEC_OPT_RECORD = {
   type: 'OPT' as const,
   name: '.',
-  udpPayloadSize: 4096,
+  udpPayloadSize: 1232,
   extendedRcode: 0,
   ednsVersion: 0,
   flags: dnsPacket.DNSSEC_OK,

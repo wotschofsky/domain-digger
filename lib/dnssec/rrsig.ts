@@ -105,13 +105,12 @@ const metadataFailure = (
 
 // An RRset is a set: duplicate copies of an identical RR in a packet must
 // contribute one canonical entry, or the signed data diverges from what the
-// signer hashed and a valid signature reads as bogus (RFC 4034 §6.3).
-// ponytail: O(n^2) buffer scan; RRsets are a handful of records.
-const uniqueRdata = (buffers: Buffer[]): Buffer[] =>
-  buffers.filter(
-    (buffer, index) =>
-      buffers.findIndex((other) => other.equals(buffer)) === index,
-  );
+// signer hashed and a valid signature reads as bogus (RFC 4034 §6.3). Sorted
+// first, so duplicates are neighbours.
+const canonicalRdataSet = (rdatas: Buffer[]): Buffer[] =>
+  [...rdatas]
+    .sort(Buffer.compare)
+    .filter((rdata, i, sorted) => i === 0 || !rdata.equals(sorted[i - 1]));
 
 /**
  * Whether `rrsig` cryptographically checks out over the canonical RRset. Each
@@ -128,9 +127,9 @@ const verifies = (
   const prefix = rrsigSigningPrefix(rrsig);
   if (!rrType || !prefix) return false;
 
-  const rrset = uniqueRdata(rdatas)
-    .sort(Buffer.compare)
-    .map((rdata) => canonicalRr(ownerName, rrType, rrsig.originalTTL, rdata));
+  const rrset = canonicalRdataSet(rdatas).map((rdata) =>
+    canonicalRr(ownerName, rrType, rrsig.originalTTL, rdata),
+  );
 
   const signedData = Buffer.concat([prefix, ...rrset]);
   return candidates.some((signer) => {
