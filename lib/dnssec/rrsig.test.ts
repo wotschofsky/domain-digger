@@ -271,6 +271,60 @@ describe('checkRrsetSignatures over DNSKEY RRsets (golden vectors)', () => {
     );
   });
 
+  it('tries the longest-lived RRSIG first, whatever the answer order', () => {
+    const signer = genKey(13);
+    const keys = [signer.dnskey];
+    const genuine = signDnskeyRrset('example', keys, signer, {
+      inception: 1000,
+      expiration: 3000,
+    });
+    // Enough shorter-lived forgeries to spend the whole budget.
+    const forged = Array.from(
+      { length: 8 },
+      (_, n): RrsigData => ({
+        ...genuine,
+        expiration: 2000 + n,
+        signature: Buffer.alloc(64, n + 1),
+      }),
+    );
+    const outcome = (rrsigs: RrsigData[]) =>
+      checkRrsetSignatures({
+        type: 'DNSKEY',
+        rdatas: keys.map((key) => dnskeyRdata(key)),
+        rrsigs,
+        ownerName: 'example',
+        signerName: 'example',
+        keys,
+        now: 1500,
+      }).outcome;
+
+    expect(outcome([...forged, genuine])).toBe('valid');
+    expect(outcome([genuine, ...forged])).toBe('valid');
+  });
+
+  it('checks a key linked twice only once', () => {
+    // E.g. one key linked by both a SHA-256 and a SHA-384 DS record.
+    const signer = genKey(13);
+    const rrsig = {
+      ...signDnskeyRrset('example', [signer.dnskey], signer, {
+        inception: 1000,
+        expiration: 2000,
+      }),
+      signature: Buffer.alloc(64, 1),
+    };
+    vi.mocked(verifyWithDnskey).mockClear();
+
+    expect(
+      dnskeyOutcome({
+        rrsig,
+        keys: [signer.dnskey, { ...signer.dnskey }],
+        ownerName: 'example',
+        now: 1500,
+      }),
+    ).toBe('invalid');
+    expect(vi.mocked(verifyWithDnskey)).toHaveBeenCalledTimes(1);
+  });
+
   it('verifies a DNSKEY RRSIG despite a duplicated DNSKEY record', () => {
     const key = genKey(13);
     const rrsig = signDnskeyRrset('example', [key.dnskey], key, {

@@ -7,6 +7,7 @@ import { verifyWithDnskey } from './algorithms';
 import {
   canonicalRr,
   dnskeyKeyTag,
+  dnskeyRdata,
   isEligibleSigner,
   rrsigSigningPrefix,
 } from './wire';
@@ -17,12 +18,19 @@ import {
 type Signer = { key: DnskeyData; tag: number };
 
 // Keys carrying the REVOKE bit are excluded: validators must not accept
-// signatures from a key that revokes itself (RFC 5011 §2.1). Tags are computed
-// once per RRset, not once per (RRSIG, key) pair.
-const eligibleSigners = (keys: DnskeyData[]): Signer[] =>
-  keys
-    .filter((key) => isEligibleSigner(key))
-    .map((key) => ({ key, tag: dnskeyKeyTag(key) }));
+// signatures from a key that revokes itself (RFC 5011 §2.1). A key listed
+// twice (say, linked by both a SHA-256 and a SHA-384 DS) is kept once, so it
+// is never checked twice. Tags are computed once per RRset, not once per
+// (RRSIG, key) pair.
+const eligibleSigners = (keys: DnskeyData[]): Signer[] => {
+  const seen = new Set<string>();
+  return keys.filter(isEligibleSigner).flatMap((key) => {
+    const rdata = dnskeyRdata(key).toString('hex');
+    if (seen.has(rdata)) return [];
+    seen.add(rdata);
+    return [{ key, tag: dnskeyKeyTag(key) }];
+  });
+};
 
 /**
  * A 16-bit key tag is a checksum, not an identifier: distinct keys can share a
@@ -44,9 +52,9 @@ const signerCandidates = (signers: Signer[], rrsig: RrsigData): DnskeyData[] =>
 // answer demand a signature check per (RRSIG, key) pair. Like validating
 // resolvers, stop after a small budget: signature checks past it are skipped
 // and count as invalid, so a valid signature the budget never reaches does not
-// make the RRset valid. Above the budget, which signature is reported depends
-// on answer order. Honest zones need one check per RRSIG
-// and signing key, a few during a rollover.
+// make the RRset valid. RRSIGs are tried longest-lived first, so the outcome
+// does not depend on answer order. Honest zones need one check per RRSIG and
+// signing key, a few during a rollover.
 const MAX_VERIFICATIONS = 8;
 
 export type RrsetSignatureOutcome =
@@ -140,9 +148,8 @@ const verifies = (
 };
 
 // Total order over every field a caller may display, longest-lived first, so
-// the same DNS answer in any order reports the same signature, as long as
-// MAX_VERIFICATIONS is not reached. (Rollovers legitimately publish several
-// RRSIGs at once.)
+// the same DNS answer in any order reports the same signature. (Rollovers
+// legitimately publish several RRSIGs at once.)
 const evidenceOrder = (a: RrsigData, b: RrsigData): number =>
   b.expiration - a.expiration ||
   a.keyTag - b.keyTag ||
@@ -174,7 +181,13 @@ export const checkRrsetSignatures = (
   params: RrsetSignatureParams,
 ): RrsetSignatureCheck => {
   const { type, rrsigs, keys } = params;
-  const covering = rrsigs.filter((rrsig) => rrsig.typeCovered === type);
+  // Longest-lived first, so the budget goes to the signatures that would win;
+  // the signature bytes break ties the displayed fields leave.
+  const covering = rrsigs
+    .filter((rrsig) => rrsig.typeCovered === type)
+    .sort(
+      (a, b) => evidenceOrder(a, b) || Buffer.compare(a.signature, b.signature),
+    );
   if (!covering.length) return { outcome: 'missing' };
 
   const valid: RrsigData[] = [];
