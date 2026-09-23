@@ -27,10 +27,10 @@ const eligibleSigners = (keys: DnskeyData[]): Signer[] =>
 /**
  * A 16-bit key tag is a checksum, not an identifier: distinct keys can share a
  * tag (and an attacker can craft one that does), so signer selection must try
- * every candidate matching the RRSIG's (algorithm, key tag) pair -- gating on
- * the pair alone would let a colliding key impersonate the real signer, and
- * picking only the first match would falsely reject the second of two
- * legitimately colliding keys.
+ * every candidate matching the RRSIG's (algorithm, key tag) pair, within
+ * MAX_VERIFICATIONS -- gating on the pair alone would let a colliding key
+ * impersonate the real signer, and picking only the first match would falsely
+ * reject the second of two legitimately colliding keys.
  */
 const signerCandidates = (signers: Signer[], rrsig: RrsigData): DnskeyData[] =>
   signers
@@ -42,8 +42,11 @@ const signerCandidates = (signers: Signer[], rrsig: RrsigData): DnskeyData[] =>
 
 // KeyTrap (CVE-2023-50387): colliding key tags and stacks of RRSIGs let one
 // answer demand a signature check per (RRSIG, key) pair. Like validating
-// resolvers, stop after a small budget; past it the RRset reads as invalid.
-// Honest zones need one check per RRSIG, a few during a rollover.
+// resolvers, stop after a small budget: signature checks past it are skipped
+// and count as invalid, so a valid signature the budget never reaches does not
+// make the RRset valid. Above the budget, which signature is reported depends
+// on answer order. Honest zones need one check per RRSIG
+// and signing key, a few during a rollover.
 const MAX_VERIFICATIONS = 8;
 
 export type RrsetSignatureOutcome =
@@ -138,8 +141,9 @@ const verifies = (
 };
 
 // Total order over every field a caller may display, longest-lived first, so
-// the same DNS answer in any order reports the same signature. (Rollovers
-// legitimately publish several RRSIGs at once.)
+// the same DNS answer in any order reports the same signature, as long as
+// MAX_VERIFICATIONS is not reached. (Rollovers legitimately publish several
+// RRSIGs at once.)
 const evidenceOrder = (a: RrsigData, b: RrsigData): number =>
   b.expiration - a.expiration ||
   a.keyTag - b.keyTag ||
@@ -163,8 +167,9 @@ const pick = (
 
 /**
  * What the RRSIGs covering one RRset establish. The longest-lived signature
- * that verifies wins; with none verifying, the outcome names the failure that
- * best explains why: expired before not-yet-valid before invalid.
+ * that verifies within MAX_VERIFICATIONS wins; with none verifying, the
+ * outcome names the failure that best explains why: expired before
+ * not-yet-valid before invalid.
  */
 export const checkRrsetSignatures = (
   params: RrsetSignatureParams,
