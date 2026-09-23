@@ -1,6 +1,6 @@
-// Algorithm and DS digest names, plus which digests are too weak to count
-// as a strong match. Signing-algorithm verify policy lives with the
-// signature checker and is not needed for digest-linkage.
+// Algorithm registry and policy: which DNSSEC signing algorithms and DS digest
+// types exist, which digests are weak, and which signing algorithms this
+// validator can actually verify.
 
 const ALGORITHM_NAMES: Record<number, string> = {
   1: 'RSAMD5',
@@ -38,3 +38,33 @@ const WEAK_DIGEST_TYPES = new Set([1, 3]);
 
 export const isWeakDigest = (digestType: number): boolean =>
   WEAK_DIGEST_TYPES.has(digestType);
+
+export const RSA_ALGORITHMS = new Set([1, 5, 7, 8, 10]);
+
+// Signing algorithms this validator can actually verify (see crypto.ts). A DS
+// pointing at anything else must make the zone insecure, not bogus (RFC 4035
+// §5.2). RSAMD5 (1) is excluded: it uses a different key-tag algorithm
+// (RFC 4034 App. B.1) and has no verify path here.
+export const SUPPORTED_SIGNING_ALGORITHMS = new Set([
+  5, 7, 8, 10, 13, 14, 15, 16,
+]);
+
+/** Split an RFC 3110 RSA public key into its exponent and modulus. */
+export const rsaKeyParts = (
+  key: Buffer,
+): { exponent: Buffer; modulus: Buffer } | null => {
+  if (key.length < 1) return null;
+  let offset: number;
+  let expLen = key[0];
+  if (expLen === 0) {
+    if (key.length < 3) return null;
+    expLen = key.readUInt16BE(1);
+    offset = 3;
+  } else {
+    offset = 1;
+  }
+  const exponent = key.subarray(offset, offset + expLen);
+  const modulus = key.subarray(offset + expLen);
+  if (exponent.length === 0 || modulus.length === 0) return null;
+  return { exponent, modulus };
+};

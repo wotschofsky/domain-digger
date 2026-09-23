@@ -1,24 +1,25 @@
-import { createHash } from 'node:crypto';
-
-import type { Answer } from 'dns-packet';
+import type { Answer, DnskeyData } from 'dns-packet';
 import { describe, expect, it } from 'vitest';
 
 import { UserFacingError } from '@/lib/user-facing-error';
 
+import { dsDigest } from './ds';
 import {
   DsChainNameNotFoundError,
   type DsChainQuery,
   resolveDsChain,
 } from './ds-chain';
+import { genKey, signDnskeyRrset } from './test-helpers';
+import { ROOT_DNSKEY_RRSIG, ROOT_DNSKEYS, ROOT_NOW } from './test-vectors';
+import { dnskeyKeyTag } from './wire';
 
-// IANA root KSK public keys, used as fixed offline fixtures. The first is
-// KSK-2017 (20326), the second KSK-2024 (38696).
-const ROOT_KEYS = [
-  'AwEAAaz/tAm8yTn4Mfeh5eyI96WSVexTBAvkMgJzkKTOiW1vkIbzxeF3+/4RgWOq7HrxRixHlFlExOLAJr5emLvN7SWXgnLh4+B5xQlNVz8Og8kvArMtNROxVQuCaSnIDdD5LKyWbRd2n9WGe2R8PzgCmr3EgVLrjyBxWezF0jLHwVN8efS3rCj/EWgvIWgb9tarpVUDK/b58Da+sqqls3eNbuv7pr+eoZG+SrDK6nWeL3c6H5Apxz7LjVc1uTIdsIXxuOLYA4/ilBmSVIzuDWfdRUfhHdY6+cn8HFRm+2hM8AnXGXws9555KrUB5qihylGa8subX2Nn6UwNR1AkUTV74bU=',
-  'AwEAAa96jeuknZlaeSrvyAJj6ZHv28hhOKkx3rLGXVaC6rXTsDc449/cidltpkyGwCJNnOAlFNKF2jBosZBU5eeHspaQWOmOElZsjICMQMC3aeHbGiShvZsx4wMYSjH8e7Vrhbu6irwCzVBApESjbUdpWWmEnhathWu1jo+siFUiRAAxm9qyJNg/wOZqqzL/dL/q8PkcRU5oUKEpUge71M3ej2/7CPqpdVwuMoTvoB+ZOT4YeGyxMvHmbrxlFzGOHOijtzN+u1TQNatX2XBuzZNQ1K+s2CXkPIZo7s6JgZyvaBevYtxPvYLw4z9mR7K2vaF18UYH9Z9GNUUeayffKC73PYc=',
-];
-
-const testKey = 'AQIDBAUGBwgJCgsMDQ4PEA==';
+// Every walk is judged at ROOT_NOW, inside the captured root signature's
+// validity window. Zones below the root sign with one generated key.
+const NOW = ROOT_NOW;
+const DAY = 86_400;
+const WINDOW = { inception: NOW - DAY, expiration: NOW + DAY };
+type Signer = ReturnType<typeof genKey>;
+const KSK = genKey(13);
 
 const soa = (name: string): Answer => ({
   name,
@@ -50,59 +51,41 @@ const host = (name: string): Answer => ({
   data: '192.0.2.1',
 });
 
-const keyRecord = (name: string, key = testKey, flags = 257): Answer => ({
+const keyRecord = (name: string, key = KSK.dnskey): Answer => ({
   name,
   type: 'DNSKEY',
   ttl: 60,
-  data: { flags, algorithm: 8, key: Buffer.from(key, 'base64') },
+  data: key,
 });
 
-const keyTag = (key: string, flags = 257): number => {
-  const rdata = Buffer.concat([
-    Buffer.from([flags >> 8, flags & 0xff, 3, 8]),
-    Buffer.from(key, 'base64'),
-  ]);
-  let sum = 0;
-  for (const [i, octet] of rdata.entries()) {
-    sum += i % 2 ? octet : octet << 8;
-  }
-  sum += (sum >> 16) & 0xffff;
-  return sum & 0xffff;
-};
+// The RRSIG over a zone's DNSKEY RRset `keys`, made by `signer`.
+const keySig = (
+  name: string,
+  keys = [KSK.dnskey],
+  signer: Signer = KSK,
+  window = WINDOW,
+): Answer => ({
+  name,
+  type: 'RRSIG',
+  ttl: 60,
+  data: signDnskeyRrset(name, keys, signer, window),
+});
 
 const dsRecord = (
   name: string,
-  key = testKey,
+  key = KSK.dnskey,
   digestType = 2,
   corrupt = false,
-  flags = 257,
 ): Answer => {
-  const labels = name.split('.');
-  const owner = Buffer.concat([
-    ...labels.flatMap((label) => [
-      Buffer.from([label.length]),
-      Buffer.from(label),
-    ]),
-    Buffer.from([0]),
-  ]);
-  const rdata = Buffer.concat([
-    Buffer.from([flags >> 8, flags & 0xff, 3, 8]),
-    Buffer.from(key, 'base64'),
-  ]);
   // Digest types without a hash here (e.g. 3, GOST) get a SHA-256 stand-in.
-  const digest = createHash(
-    ({ 1: 'sha1', 4: 'sha384' } as Record<number, string>)[digestType] ??
-      'sha256',
-  )
-    .update(Buffer.concat([owner, rdata]))
-    .digest();
+  const digest = dsDigest(name, key, digestType) ?? dsDigest(name, key, 2)!;
   return {
     name,
     type: 'DS',
     ttl: 60,
     data: {
-      keyTag: keyTag(key, flags),
-      algorithm: 8,
+      keyTag: dnskeyKeyTag(key),
+      algorithm: key.algorithm,
       digestType,
       digest: corrupt ? Buffer.alloc(digest.length) : digest,
     },
@@ -110,12 +93,17 @@ const dsRecord = (
 };
 
 // A delegated, signed zone apex whose parent publishes a matching DS.
-const signedZone = (name: string, key = testKey): Answer[] => [
+const signedZone = (name: string): Answer[] => [
   ns(name),
   soa(name),
-  keyRecord(name, key),
-  dsRecord(name, key),
+  keyRecord(name),
+  dsRecord(name),
+  keySig(name),
 ];
+
+// com with its own SOA and validly signed KSK, under the parent DS `ds`.
+const com = (...ds: Answer[]): Answer[] =>
+  [root(), soa('com'), keyRecord('com'), keySig('com'), ...ds].flat();
 
 // Answers like AuthoritativeResolver.resolveAnswers over a small DNS tree:
 // a query returns the records its name owns, a name that owns nothing but
@@ -137,6 +125,13 @@ const dnsTree =
       answers: records.filter(
         (record) => record.name === name && record.type === type,
       ),
+      coveringRrsigs: records.flatMap((record) =>
+        record.name === name &&
+        record.type === 'RRSIG' &&
+        record.data.typeCovered === type
+          ? [record.data]
+          : [],
+      ),
       rcode:
         name === '.' ||
         records.some(
@@ -148,17 +143,23 @@ const dnsTree =
     };
   };
 
-const root = (key = ROOT_KEYS[0]) => keyRecord('.', key);
+// The real root DNSKEY RRset, both IANA KSKs included, and its RRSIG.
+const root = (): Answer[] => [
+  ...ROOT_DNSKEYS.map((key) => keyRecord('.', key)),
+  { name: '.', type: 'RRSIG', ttl: 60, data: ROOT_DNSKEY_RRSIG },
+];
+
+const walk = (name: string, records: (Answer | Answer[])[]) =>
+  resolveDsChain(name, dnsTree(records.flat()), NOW);
 
 describe('resolveDsChain', () => {
   it('follows matching DS digests to the full queried name', async () => {
-    const query = dnsTree([
+    const chain = await walk('WWW.Example.COM.', [
       root(),
-      ...signedZone('com'),
-      ...signedZone('example.com'),
-      ...signedZone('www.example.com'),
+      signedZone('com'),
+      signedZone('example.com'),
+      signedZone('www.example.com'),
     ]);
-    const chain = await resolveDsChain('WWW.Example.COM.', query);
     expect(chain.verdict).toBe('intact');
     expect(chain.breakAt).toBeUndefined();
     expect(chain.name).toBe('www.example.com');
@@ -169,18 +170,24 @@ describe('resolveDsChain', () => {
       'www.example.com',
     ]);
     expect(chain.zones.every((zone) => zone.status === 'intact')).toBe(true);
+    expect(chain.zones.map((zone) => zone.keySignature?.outcome)).toEqual([
+      'valid',
+      'valid',
+      'valid',
+      'valid',
+    ]);
+    expect(chain.zones[1].keySignature).toMatchObject({
+      expiration: WINDOW.expiration,
+    });
   });
 
   it('keeps a host inside its signed zone instead of calling it unsigned', async () => {
-    const chain = await resolveDsChain(
-      'www.example.com',
-      dnsTree([
-        root(),
-        ...signedZone('com'),
-        ...signedZone('example.com'),
-        host('www.example.com'),
-      ]),
-    );
+    const chain = await walk('www.example.com', [
+      root(),
+      signedZone('com'),
+      signedZone('example.com'),
+      host('www.example.com'),
+    ]);
     expect(chain.verdict).toBe('intact');
     expect(chain.breakAt).toBeUndefined();
     expect(chain.name).toBe('www.example.com');
@@ -192,15 +199,12 @@ describe('resolveDsChain', () => {
   });
 
   it('skips empty non-terminals between zone apexes', async () => {
-    const chain = await resolveDsChain(
-      'a.b.example.com',
-      dnsTree([
-        root(),
-        ...signedZone('com'),
-        ...signedZone('example.com'),
-        ...signedZone('a.b.example.com'),
-      ]),
-    );
+    const chain = await walk('a.b.example.com', [
+      root(),
+      signedZone('com'),
+      signedZone('example.com'),
+      signedZone('a.b.example.com'),
+    ]);
     expect(chain.verdict).toBe('intact');
     expect(chain.zones.map((zone) => zone.name)).toEqual([
       '.',
@@ -213,15 +217,12 @@ describe('resolveDsChain', () => {
   it('finds an unsigned child by its own SOA when it shares the parent servers', async () => {
     // No NS for example.com: the com servers host the child too, so the walk
     // is never referred and only the owned SOA marks the apex.
-    const chain = await resolveDsChain(
-      'www.example.com',
-      dnsTree([
-        root(),
-        ...signedZone('com'),
-        soa('example.com'),
-        host('www.example.com'),
-      ]),
-    );
+    const chain = await walk('www.example.com', [
+      root(),
+      signedZone('com'),
+      soa('example.com'),
+      host('www.example.com'),
+    ]);
     expect(chain.verdict).toBe('unsigned');
     expect(chain.breakAt).toBe('example.com');
     expect(chain.zones.map((zone) => zone.name)).toEqual([
@@ -235,16 +236,13 @@ describe('resolveDsChain', () => {
     // Like www.archives.gov: the parent delegates the name without a DS, but
     // the child servers answer from the parent's zone, so the child has no
     // SOA of its own and only the referral marks the cut.
-    const chain = await resolveDsChain(
-      'www.example.com',
-      dnsTree([
-        root(),
-        ...signedZone('com'),
-        ...signedZone('example.com'),
-        ns('www.example.com'),
-        host('www.example.com'),
-      ]),
-    );
+    const chain = await walk('www.example.com', [
+      root(),
+      signedZone('com'),
+      signedZone('example.com'),
+      ns('www.example.com'),
+      host('www.example.com'),
+    ]);
     expect(chain.verdict).toBe('unsigned');
     expect(chain.breakAt).toBe('www.example.com');
     expect(chain.zones.map((zone) => zone.name)).toEqual([
@@ -256,25 +254,18 @@ describe('resolveDsChain', () => {
   });
 
   it('keeps a wildcard query name and covers it by its zone', async () => {
-    const chain = await resolveDsChain(
-      '*.example.com',
-      dnsTree([root(), ...signedZone('com'), ...signedZone('example.com')]),
-    );
+    const chain = await walk('*.example.com', [
+      root(),
+      signedZone('com'),
+      signedZone('example.com'),
+    ]);
     expect(chain.verdict).toBe('intact');
     expect(chain.name).toBe('*.example.com');
     expect(chain.zones.at(-1)?.name).toBe('example.com');
   });
 
   it('marks an unsigned TLD and its descendants unsigned', async () => {
-    const chain = await resolveDsChain(
-      'example.com',
-      dnsTree([
-        root(),
-        soa('com'),
-        keyRecord('com'),
-        ...signedZone('example.com'),
-      ]),
-    );
+    const chain = await walk('example.com', [com(), signedZone('example.com')]);
     expect(chain.verdict).toBe('unsigned');
     expect(chain.breakAt).toBe('com');
     expect(chain.zones.map((zone) => zone.status)).toEqual([
@@ -282,43 +273,40 @@ describe('resolveDsChain', () => {
       'unsigned',
       'unsigned',
     ]);
+    // Nothing above vouches for example.com's DS, so its keys are not checked.
+    expect(chain.zones[2].keySignature).toBeUndefined();
   });
 
   it('reports a published DS with no matching DNSKEY as a mismatch', async () => {
-    const chain = await resolveDsChain(
-      'com',
-      dnsTree([
-        root(),
-        soa('com'),
-        keyRecord('com'),
-        dsRecord('com', testKey, 2, true),
-      ]),
-    );
+    const chain = await walk('com', com(dsRecord('com', KSK.dnskey, 2, true)));
     expect(chain.verdict).toBe('mismatch');
     expect(chain.breakAt).toBe('com');
     expect(chain.zones[1].dsRecords[0].matched).toBe(false);
   });
 
-  it.each(ROOT_KEYS)('accepts each pinned IANA root KSK', async (key) => {
-    const chain = await resolveDsChain('.', dnsTree([root(key)]));
+  it('links both pinned IANA root KSKs and verifies the root key set', async () => {
+    const chain = await walk('.', root());
     expect(chain.verdict).toBe('intact');
-    expect(chain.zones[0].dsRecords.filter((ds) => ds.matched)).toHaveLength(1);
+    expect(chain.zones[0].dsRecords.map((ds) => ds.matched)).toEqual([
+      true,
+      true,
+    ]);
+    expect(chain.zones[0].keySignature?.outcome).toBe('valid');
   });
 
   it('throws a retryable error when root DNSKEYs are empty', async () => {
-    await expect(
-      resolveDsChain('example.com', dnsTree([])),
-    ).rejects.toMatchObject({
+    await expect(walk('example.com', [])).rejects.toMatchObject({
       payload: { retryable: true },
     });
   });
 
   it('treats NXDOMAIN at the queried name as not found', async () => {
     await expect(
-      resolveDsChain(
-        'missing.example.com',
-        dnsTree([root(), ...signedZone('com'), ...signedZone('example.com')]),
-      ),
+      walk('missing.example.com', [
+        root(),
+        signedZone('com'),
+        signedZone('example.com'),
+      ]),
     ).rejects.toBeInstanceOf(DsChainNameNotFoundError);
   });
 
@@ -337,10 +325,9 @@ describe('resolveDsChain', () => {
   });
 
   it('prefers SHA-256 when SHA-1 and SHA-256 DS records coexist', async () => {
-    const records = [root(), soa('com'), keyRecord('com'), dsRecord('com')];
-    const chain = await resolveDsChain(
+    const chain = await walk(
       'com',
-      dnsTree([...records, dsRecord('com', testKey, 1, true)]),
+      com(dsRecord('com'), dsRecord('com', KSK.dnskey, 1, true)),
     );
     expect(chain.verdict).toBe('intact');
     expect(chain.zones[1].dsRecords).toEqual([
@@ -356,85 +343,128 @@ describe('resolveDsChain', () => {
       }),
     ]);
 
-    const reverse = await resolveDsChain(
+    const reverse = await walk(
       'com',
-      dnsTree([
-        root(),
-        soa('com'),
-        keyRecord('com'),
-        dsRecord('com', testKey, 1),
-        dsRecord('com', testKey, 2, true),
-      ]),
+      com(dsRecord('com', KSK.dnskey, 1), dsRecord('com', KSK.dnskey, 2, true)),
     );
     expect(reverse.verdict).toBe('mismatch');
   });
 
   it('accepts a matching SHA-384 DS next to a stale SHA-256 DS', async () => {
-    const chain = await resolveDsChain(
+    const chain = await walk(
       'com',
-      dnsTree([
-        root(),
-        soa('com'),
-        keyRecord('com'),
-        dsRecord('com', testKey, 2, true),
-        dsRecord('com', testKey, 4),
-      ]),
+      com(dsRecord('com', KSK.dnskey, 2, true), dsRecord('com', KSK.dnskey, 4)),
     );
     expect(chain.verdict).toBe('intact');
   });
 
   it('ignores a matching SHA-1 DS when SHA-384 is present', async () => {
-    const chain = await resolveDsChain(
+    const chain = await walk(
       'com',
-      dnsTree([
-        root(),
-        soa('com'),
-        keyRecord('com'),
-        dsRecord('com', testKey, 1),
-        dsRecord('com', testKey, 4, true),
-      ]),
+      com(dsRecord('com', KSK.dnskey, 1), dsRecord('com', KSK.dnskey, 4, true)),
     );
     expect(chain.verdict).toBe('mismatch');
   });
 
   it('treats a DS set with only unsupported digests as unsigned', async () => {
-    const chain = await resolveDsChain(
-      'com',
-      dnsTree([
-        root(),
-        soa('com'),
-        keyRecord('com'),
-        dsRecord('com', testKey, 3),
-      ]),
-    );
+    const chain = await walk('com', com(dsRecord('com', KSK.dnskey, 3)));
+    expect(chain.verdict).toBe('unsigned');
+    expect(chain.breakAt).toBe('com');
+  });
+
+  it('treats a DS for an unsupported signing algorithm as unsigned', async () => {
+    // DSA (3): the digest links, but no signature by it can be verified.
+    const dsa: DnskeyData = { flags: 257, algorithm: 3, key: Buffer.alloc(64) };
+    const chain = await walk('com', [
+      root(),
+      soa('com'),
+      keyRecord('com', dsa),
+      dsRecord('com', dsa),
+    ]);
+    expect(chain.zones[1].dsRecords[0].matched).toBe(true);
     expect(chain.verdict).toBe('unsigned');
     expect(chain.breakAt).toBe('com');
   });
 
   it('does not match a DS against a DNSKEY without the Zone Key flag', async () => {
-    const chain = await resolveDsChain(
-      'com',
-      dnsTree([
-        root(),
-        soa('com'),
-        keyRecord('com', testKey, 1),
-        dsRecord('com', testKey, 2, false, 1),
-      ]),
-    );
+    const nonZone: DnskeyData = { ...KSK.dnskey, flags: 1 };
+    const chain = await walk('com', [
+      root(),
+      soa('com'),
+      keyRecord('com', nonZone),
+      dsRecord('com', nonZone),
+    ]);
     expect(chain.verdict).toBe('mismatch');
   });
 
   it('does not treat a DNSKEY owned by a host as a zone cut', async () => {
-    const chain = await resolveDsChain(
-      'www.example.com',
-      dnsTree([
-        root(),
-        ...signedZone('com'),
-        ...signedZone('example.com'),
-        keyRecord('www.example.com'),
-      ]),
-    );
+    const chain = await walk('www.example.com', [
+      root(),
+      signedZone('com'),
+      signedZone('example.com'),
+      keyRecord('www.example.com'),
+    ]);
     expect(chain.verdict).toBe('intact');
     expect(chain.zones.at(-1)?.name).toBe('example.com');
+  });
+
+  it('breaks on an expired DNSKEY signature and propagates it down', async () => {
+    const expired = { inception: NOW - 2 * DAY, expiration: NOW - DAY };
+    const chain = await walk('www.example.com', [
+      root(),
+      signedZone('com'),
+      ns('example.com'),
+      soa('example.com'),
+      keyRecord('example.com'),
+      dsRecord('example.com'),
+      keySig('example.com', [KSK.dnskey], KSK, expired),
+      signedZone('www.example.com'),
+    ]);
+    expect(chain.verdict).toBe('bad-signature');
+    expect(chain.breakAt).toBe('example.com');
+    expect(chain.zones[2].keySignature).toEqual({
+      outcome: 'expired',
+      ...expired,
+    });
+    expect(chain.zones[3].status).toBe('bad-signature');
+    expect(chain.zones[3].keySignature).toBeUndefined();
+  });
+
+  it('breaks when the DNSKEY RRSIG is missing', async () => {
+    const chain = await walk('com', [
+      root(),
+      soa('com'),
+      keyRecord('com'),
+      dsRecord('com'),
+    ]);
+    expect(chain.verdict).toBe('bad-signature');
+    expect(chain.zones[1].keySignature).toEqual({ outcome: 'missing' });
+  });
+
+  it('breaks when only a key no DS links signed the key set', async () => {
+    const zsk = genKey(13);
+    const keys = [KSK.dnskey, zsk.dnskey];
+    const chain = await walk(
+      'com',
+      [
+        root(),
+        soa('com'),
+        keys.map((key) => keyRecord('com', key)),
+        dsRecord('com'),
+        keySig('com', keys, zsk),
+      ].flat(),
+    );
+    expect(chain.verdict).toBe('bad-signature');
+    expect(chain.zones[1].keySignature?.outcome).toBe('unauthenticated-signer');
+  });
+
+  it('breaks when the served key set is not the one that was signed', async () => {
+    const extra = genKey(13).dnskey;
+    const chain = await walk('com', [
+      com(dsRecord('com')),
+      keyRecord('com', extra),
+    ]);
+    expect(chain.verdict).toBe('bad-signature');
+    expect(chain.zones[1].keySignature?.outcome).toBe('invalid');
   });
 });

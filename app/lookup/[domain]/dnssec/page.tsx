@@ -5,6 +5,7 @@ import type { FC } from 'react';
 import {
   DsChainNameNotFoundError,
   type DsChainVerdict,
+  type DsChainZone,
   dsDigestName,
   resolveDsChain,
 } from '@/lib/dnssec/ds-chain';
@@ -20,9 +21,9 @@ export const generateMetadata = async ({
 }: DnssecResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
   return {
-    title: `DNSSEC DS Chain for ${domain}`,
+    title: `DNSSEC Lookup for ${domain}`,
     openGraph: {
-      title: `DNSSEC DS Chain for ${domain}`,
+      title: `DNSSEC Lookup for ${domain}`,
       url: `/lookup/${domain}/dnssec`,
     },
     alternates: { canonical: `/lookup/${domain}/dnssec` },
@@ -30,10 +31,38 @@ export const generateMetadata = async ({
 };
 
 const VERDICT_LABELS: Record<DsChainVerdict, string> = {
-  intact: 'DS chain intact',
+  intact: 'Chain intact',
   unsigned: 'Unsigned',
   mismatch: 'DS mismatch',
+  'bad-signature': 'Bad DNSKEY signature',
 };
+
+const formatDate = (unixSeconds: number): string =>
+  new Date(unixSeconds * 1000).toISOString().slice(0, 10);
+
+const describeKeySignature = ({
+  outcome,
+  inception,
+  expiration,
+}: NonNullable<DsChainZone['keySignature']>): string => {
+  switch (outcome) {
+    case 'valid':
+      return `Valid until ${formatDate(expiration!)}`;
+    case 'expired':
+      return `Expired on ${formatDate(expiration!)}`;
+    case 'not-yet-valid':
+      return `Not valid before ${formatDate(inception!)}`;
+    case 'missing':
+      return 'Missing';
+    case 'unauthenticated-signer':
+      return 'Not made by a DS-linked key';
+    case 'invalid':
+      return 'Invalid';
+  }
+};
+
+const isBroken = (status: DsChainVerdict): boolean =>
+  status === 'mismatch' || status === 'bad-signature';
 
 const shortFingerprint = (hex: string): string =>
   hex.length > 24 ? `${hex.slice(0, 16)}…${hex.slice(-8)}` : hex;
@@ -44,7 +73,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   let chain;
   try {
     chain = await resolveDsChain(domain, (name, type) =>
-      resolver.resolveAnswers(name, type),
+      resolver.resolveAnswers(name, type, { dnssecOk: true }),
     );
   } catch (error) {
     if (error instanceof DsChainNameNotFoundError) {
@@ -61,7 +90,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
     <div className="space-y-8">
       <header className="space-y-2">
         <h2
-          className={`text-2xl font-semibold tracking-tight ${chain.verdict === 'mismatch' ? 'text-red-700 dark:text-red-400' : ''}`}
+          className={`text-2xl font-semibold tracking-tight ${isBroken(chain.verdict) ? 'text-red-700 dark:text-red-400' : ''}`}
         >
           {VERDICT_LABELS[chain.verdict]}
           {chain.breakAt ? ` at ${chain.breakAt}` : ''}
@@ -73,7 +102,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
           </p>
         )}
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          This view checks digest linkage without verifying signatures.
+          This view checks DS digest links and DNSKEY signatures.
         </p>
       </header>
 
@@ -86,7 +115,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
             <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-lg font-semibold break-all">{zone.name}</h3>
               <span
-                className={`text-sm font-medium ${zone.status === 'mismatch' ? 'text-red-700 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-300'}`}
+                className={`text-sm font-medium ${isBroken(zone.status) ? 'text-red-700 dark:text-red-400' : 'text-zinc-600 dark:text-zinc-300'}`}
               >
                 {zone.status === 'intact'
                   ? 'Intact'
@@ -114,6 +143,13 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
                 ) : (
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     No DNSKEYs
+                  </p>
+                )}
+                {zone.keySignature && (
+                  <p
+                    className={`mt-3 text-sm ${zone.keySignature.outcome === 'valid' ? 'text-zinc-600 dark:text-zinc-300' : 'text-red-700 dark:text-red-400'}`}
+                  >
+                    Signature: {describeKeySignature(zone.keySignature)}
                   </p>
                 )}
               </div>
@@ -167,8 +203,8 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
       </div>
 
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        This checks DS digest linkage only, not signatures; expired or forged
-        signatures are not detected.
+        Signatures over DS records and the queried name’s own records are not
+        verified yet, so a forged DS or record is not detected.
       </p>
     </div>
   );

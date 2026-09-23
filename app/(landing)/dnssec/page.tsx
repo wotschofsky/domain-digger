@@ -9,9 +9,9 @@ import { TrustSection } from '../_components/trust-section';
 export const revalidate = 86400;
 
 export const metadata: Metadata = {
-  title: 'DNSSEC DS Chain Lookup',
+  title: 'DNSSEC Lookup',
   openGraph: {
-    title: 'DNSSEC DS Chain Lookup',
+    title: 'DNSSEC Lookup',
     url: '/dnssec',
   },
   alternates: { canonical: '/dnssec' },
@@ -24,14 +24,14 @@ const DnssecLandingPage: FC = () => (
         <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
           <section>
             <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-              Check the DNSSEC DS chain for any domain
+              Check the DNSSEC chain of trust for any domain
             </h1>
             <div className="mx-auto w-full max-w-2xl">
               <SearchForm subpage="dnssec" autofocus />
             </div>
             <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-              Follow DS digest links from the IANA root anchors to the name you
-              enter. This is not full DNSSEC validation.
+              Follow DS digest links and DNSKEY signatures from the IANA root
+              anchors to the name you enter. This is not full DNSSEC validation.
             </p>
           </section>
           <SponsorsSection />
@@ -48,10 +48,10 @@ const DnssecLandingPage: FC = () => (
         About this DNSSEC lookup
       </h2>
       <p>
-        A parent zone publishes a DS digest for a child zone’s DNSKEY. This
-        lookup compares those digests from the IANA root anchors down to the
-        queried name and shows where the chain stops. It does not check DNSSEC
-        signatures or other records.
+        A parent zone publishes a DS digest for a child zone’s DNSKEY, and that
+        key signs the child’s DNSKEY set. This lookup checks both from the IANA
+        root anchors down to the queried name and shows where the chain stops.
+        It does not yet check signatures over DS records or other records.
       </p>
     </div>
   </div>
