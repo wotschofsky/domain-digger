@@ -415,11 +415,12 @@ export class AuthoritativeResolver extends DnsResolver {
   private async sendRequest(
     request: AuthoritativeRequest,
   ): Promise<DnsResponse> {
-    // DNS queries are first attempted over UDP per convention. However, UDP
-    // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
-    // that limit the server truncates the response and sets the TC flag,
-    // signaling the client to retry over TCP where the full response (up to
-    // 64 KB) can be delivered.
+    // DNS queries are first attempted over UDP per convention. UDP responses
+    // are limited to 512 bytes (RFC 1035), or to the advertised EDNS payload
+    // size when the query carries an OPT record (dnssecOk). When the answer
+    // exceeds that limit the server truncates the response and sets the TC
+    // flag, signaling the client to retry over TCP where the full response
+    // (up to 64 KB) can be delivered.
     const udpResponse = this.options.udpTransport
       ? await this.options.udpTransport(request)
       : await this.sendUdpRequest(request);

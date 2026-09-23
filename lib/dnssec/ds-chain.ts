@@ -13,7 +13,8 @@ export type DsChainVerdict =
   | 'unsigned'
   | 'mismatch'
   // A DS links a key, but that key has not validly signed the zone's DNSKEY
-  // RRset: missing, expired, not yet valid, or forged.
+  // RRset: missing, expired, not yet valid, forged, or signed only by a key no
+  // DS links.
   | 'bad-signature';
 
 export type DsChainZone = {
@@ -111,11 +112,13 @@ const suffixesFor = (name: string): string[] => {
   return ['.', ...labels.map((_, index) => labels.slice(-index - 1).join('.'))];
 };
 
-// `now` (Unix seconds) is the instant every signature is judged against.
+// `now` (Unix seconds) pins the instant every signature is judged against.
+// Without it each signature is judged when it is checked, so a signature that
+// expires while the walk is under way is not reported valid.
 export const resolveDsChain = async (
   domain: string,
   query: DsChainQuery,
-  now = Math.floor(Date.now() / 1000),
+  now?: number,
 ): Promise<DsChain> => {
   const queried = canonicalDnsName(domain) || '.';
   const names = suffixesFor(queried);
@@ -181,7 +184,7 @@ export const resolveDsChain = async (
         ownerName: name,
         signerName: name,
         keys: link.linkedKeys,
-        now,
+        now: now ?? Math.floor(Date.now() / 1000),
       });
       keySignature = {
         outcome,

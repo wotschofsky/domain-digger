@@ -14,23 +14,37 @@ import {
 // RRSIG verification (RFC 4034 §3.1.8.1): decide what an RRset's covering
 // signatures establish.
 
+type Signer = { key: DnskeyData; tag: number };
+
+// Keys carrying the REVOKE bit are excluded: validators must not accept
+// signatures from a key that revokes itself (RFC 5011 §2.1). Tags are computed
+// once per RRset, not once per (RRSIG, key) pair.
+const eligibleSigners = (keys: DnskeyData[]): Signer[] =>
+  keys
+    .filter((key) => isEligibleSigner(key))
+    .map((key) => ({ key, tag: dnskeyKeyTag(key) }));
+
 /**
  * A 16-bit key tag is a checksum, not an identifier: distinct keys can share a
  * tag (and an attacker can craft one that does), so signer selection must try
  * every candidate matching the RRSIG's (algorithm, key tag) pair -- gating on
  * the pair alone would let a colliding key impersonate the real signer, and
  * picking only the first match would falsely reject the second of two
- * legitimately colliding keys. Keys carrying the REVOKE bit are excluded:
- * validators must not accept signatures from a key that revokes itself
- * (RFC 5011 §2.1).
+ * legitimately colliding keys.
  */
-const signerCandidates = (keys: DnskeyData[], rrsig: RrsigData): DnskeyData[] =>
-  keys.filter(
-    (k) =>
-      isEligibleSigner(k) &&
-      k.algorithm === rrsig.algorithm &&
-      dnskeyKeyTag(k) === rrsig.keyTag,
-  );
+const signerCandidates = (signers: Signer[], rrsig: RrsigData): DnskeyData[] =>
+  signers
+    .filter(
+      ({ key, tag }) =>
+        key.algorithm === rrsig.algorithm && tag === rrsig.keyTag,
+    )
+    .map(({ key }) => key);
+
+// KeyTrap (CVE-2023-50387): colliding key tags and stacks of RRSIGs let one
+// answer demand a signature check per (RRSIG, key) pair. Like validating
+// resolvers, stop after a small budget; past it the RRset reads as invalid.
+// Honest zones need one check per RRSIG, a few during a rollover.
+const MAX_VERIFICATIONS = 8;
 
 export type RrsetSignatureOutcome =
   | 'valid'
@@ -96,12 +110,17 @@ const uniqueRdata = (buffers: Buffer[]): Buffer[] =>
       buffers.findIndex((other) => other.equals(buffer)) === index,
   );
 
-/** Whether `rrsig` cryptographically checks out over the canonical RRset. */
+/**
+ * Whether `rrsig` cryptographically checks out over the canonical RRset. Each
+ * verification spends one unit of `budget`; with none left it is false.
+ */
 const verifies = (
   rrsig: RrsigData,
   candidates: DnskeyData[],
   { type, rdatas, ownerName }: RrsetSignatureParams,
+  budget: { remaining: number },
 ): boolean => {
+  if (budget.remaining <= 0) return false;
   const rrType = toType(type);
   const prefix = rrsigSigningPrefix(rrsig);
   if (!rrType || !prefix) return false;
@@ -111,9 +130,11 @@ const verifies = (
     .map((rdata) => canonicalRr(ownerName, rrType, rrsig.originalTTL, rdata));
 
   const signedData = Buffer.concat([prefix, ...rrset]);
-  return candidates.some((signer) =>
-    verifyWithDnskey(signer, signedData, rrsig.signature),
-  );
+  return candidates.some((signer) => {
+    if (budget.remaining <= 0) return false;
+    budget.remaining--;
+    return verifyWithDnskey(signer, signedData, rrsig.signature);
+  });
 };
 
 // Total order over every field a caller may display, longest-lived first, so
@@ -159,15 +180,17 @@ export const checkRrsetSignatures = (
     invalid: [] as RrsigData[],
   };
   let sawTrustedSigner = false;
+  const signers = eligibleSigners(keys);
+  const budget = { remaining: MAX_VERIFICATIONS };
 
   for (const rrsig of covering) {
-    const candidates = signerCandidates(keys, rrsig);
+    const candidates = signerCandidates(signers, rrsig);
     if (!candidates.length) continue;
     sawTrustedSigner = true;
 
     const failure = metadataFailure(rrsig, params);
     if (failure) failures[failure].push(rrsig);
-    else if (verifies(rrsig, candidates, params)) valid.push(rrsig);
+    else if (verifies(rrsig, candidates, params, budget)) valid.push(rrsig);
     else failures.invalid.push(rrsig);
   }
 

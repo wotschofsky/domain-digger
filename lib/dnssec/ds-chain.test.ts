@@ -1,5 +1,5 @@
 import type { Answer } from 'dns-packet';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { UserFacingError } from '@/lib/user-facing-error';
 
@@ -381,6 +381,24 @@ describe('resolveDsChain', () => {
     });
     expect(chain.zones[3].status).toBe('bad-signature');
     expect(chain.zones[3].keySignature).toBeUndefined();
+  });
+
+  it('judges each signature when it is checked, not when the walk started', async () => {
+    // Only Date is faked, so the walk's own awaits still run.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(NOW * 1000);
+      const tree = dnsTree([root(), signedZone('com')].flat());
+      const chain = await resolveDsChain('com', async (name, type) => {
+        // com's key-set signature expires while the walk is under way.
+        if (name === 'com') vi.setSystemTime((WINDOW.expiration + 1) * 1000);
+        return tree(name, type);
+      });
+      expect(chain.zones[0].keySignature?.outcome).toBe('valid');
+      expect(chain.zones[1].keySignature?.outcome).toBe('expired');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('breaks when the DNSKEY RRSIG is missing', async () => {

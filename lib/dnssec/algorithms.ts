@@ -2,9 +2,10 @@ import { createPublicKey, verify as cryptoVerify } from 'node:crypto';
 
 import type { DnskeyData } from 'dns-packet';
 
-// Algorithm registry: every DNSSEC signing algorithm and DS digest type, with
-// what this validator knows about each. One row per algorithm, so whether an
-// algorithm is supported can never drift from whether it can be verified.
+// Algorithm registry: the DNSSEC signing algorithms and DS digest types this
+// lookup knows, with what it can do with each. One row per algorithm, so
+// whether an algorithm is supported can never drift from whether it can be
+// verified.
 
 // How to turn a DNSKEY's wire-format public key into a node crypto key and
 // verify an RRSIG with it (EdDSA hashes internally).
@@ -15,7 +16,7 @@ type Verifier =
 
 // Algorithms without a verifier cannot be validated here: a DS pointing at
 // one must make the zone insecure, not bogus (RFC 4035 §5.2). RSAMD5 has
-// none: it uses a different key-tag algorithm (RFC 4034 App. B.1).
+// none: validators must not validate it (RFC 8624 §3.1).
 const SIGNING: Record<number, { name: string; verifier?: Verifier }> = {
   1: { name: 'RSAMD5' },
   3: { name: 'DSA' },

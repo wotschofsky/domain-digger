@@ -1,6 +1,8 @@
 import type { DnskeyData, RrsigData } from 'dns-packet';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import type * as Algorithms from './algorithms';
+import { verifyWithDnskey } from './algorithms';
 import { checkRrsetSignatures } from './rrsig';
 import { genKey, signDnskeyRrset } from './test-helpers';
 import {
@@ -11,7 +13,25 @@ import {
   WSKY_DNSKEYS,
   WSKY_NOW,
 } from './test-vectors';
-import { dnskeyRdata } from './wire';
+import { dnskeyKeyTag, dnskeyRdata } from './wire';
+
+// Count signature verifications while keeping the real crypto.
+vi.mock('./algorithms', async (importOriginal) => {
+  const actual = await importOriginal<typeof Algorithms>();
+  return { ...actual, verifyWithDnskey: vi.fn(actual.verifyWithDnskey) };
+});
+
+// Different key material with the same RFC 4034 key tag: moving `n` between
+// two odd-offset bytes leaves the checksum unchanged.
+const sameTagKey = (key: Buffer, n: number): Buffer => {
+  const odd = [...key.keys()].filter((i) => i % 2 === 1);
+  const up = odd.find((i) => key[i] + n <= 255)!;
+  const down = odd.find((i) => i !== up && key[i] - n >= 0)!;
+  const variant = Buffer.from(key);
+  variant[up] += n;
+  variant[down] -= n;
+  return variant;
+};
 
 // A zone's DNSKEY RRset vouched for by its own keys, the way resolveDsChain checks
 // it (there, narrowed to the DS-linked keys).
@@ -198,6 +218,59 @@ describe('checkRrsetSignatures over DNSKEY RRsets (golden vectors)', () => {
       }),
     ).toBe('invalid');
   });
+  it('tries every key sharing the signer tag, so a legitimate collision verifies', () => {
+    const signer = genKey(13);
+    const decoy = { ...signer.dnskey, key: sameTagKey(signer.dnskey.key, 1) };
+    expect(dnskeyKeyTag(decoy)).toBe(dnskeyKeyTag(signer.dnskey));
+    const keys = [decoy, signer.dnskey];
+    const rrsig = signDnskeyRrset('example', keys, signer, {
+      inception: 1000,
+      expiration: 2000,
+    });
+
+    expect(
+      dnskeyOutcome({ rrsig, keys, ownerName: 'example', now: 1500 }),
+    ).toBe('valid');
+  });
+
+  it('bounds signature checks when many linked keys share a key tag (KeyTrap)', () => {
+    const base = { flags: 257, algorithm: 13, key: Buffer.alloc(64, 0x40) };
+    const keys = Array.from({ length: 16 }, (_, n) => ({
+      ...base,
+      key: sameTagKey(base.key, n),
+    }));
+    expect(new Set(keys.map((key) => dnskeyKeyTag(key))).size).toBe(1);
+    const rrsigs = keys.map(
+      (_, n): RrsigData => ({
+        typeCovered: 'DNSKEY',
+        algorithm: 13,
+        labels: 1,
+        originalTTL: 3600,
+        expiration: 2000,
+        inception: 1000,
+        keyTag: dnskeyKeyTag(base),
+        signersName: 'example',
+        signature: Buffer.alloc(64, n),
+      }),
+    );
+    vi.mocked(verifyWithDnskey).mockClear();
+
+    const { outcome } = checkRrsetSignatures({
+      type: 'DNSKEY',
+      rdatas: keys.map((key) => dnskeyRdata(key)),
+      rrsigs,
+      ownerName: 'example',
+      signerName: 'example',
+      keys,
+      now: 1500,
+    });
+
+    expect(outcome).toBe('invalid');
+    expect(vi.mocked(verifyWithDnskey).mock.calls.length).toBeLessThanOrEqual(
+      8,
+    );
+  });
+
   it('verifies a DNSKEY RRSIG despite a duplicated DNSKEY record', () => {
     const key = genKey(13);
     const rrsig = signDnskeyRrset('example', [key.dnskey], key, {
