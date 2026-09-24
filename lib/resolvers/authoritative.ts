@@ -7,6 +7,7 @@ import dnsPacket, {
   type DecodedPacket,
   type Packet,
   type Question,
+  type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
 
@@ -14,6 +15,7 @@ import { retry } from '@/lib/utils';
 
 import { UserFacingError } from '../user-facing-error';
 import {
+  canonicalDnsName,
   DnsResolver,
   type RawRecord,
   type RecordType,
@@ -23,8 +25,20 @@ import { isPublicIp } from './ip-filter';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
-const canonicalDnsName = (name: string): string =>
-  name.replace(/\.$/, '').toLowerCase();
+// EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
+// returns RRSIG records alongside the answer. 1232 bytes keeps UDP answers
+// unfragmented on any path (DNS Flag Day 2020); larger ones come back with TC
+// and are retried over TCP instead of being lost to dropped fragments.
+const DNSSEC_OPT_RECORD = {
+  type: 'OPT' as const,
+  name: '.',
+  udpPayloadSize: 1232,
+  extendedRcode: 0,
+  ednsVersion: 0,
+  flags: dnsPacket.DNSSEC_OK,
+  flag_do: true,
+  options: [],
+};
 
 // A legitimate referral delegates a zone the queried name lives under.
 // Anything else -- an upward referral to the root ('' is never a match) or
@@ -81,6 +95,7 @@ export type AuthoritativeRequest = {
   domain: string;
   recordType: RecordType;
   nameserver: string;
+  dnssecOk: boolean;
 };
 
 export type AuthoritativeUdpTransport = (
@@ -98,6 +113,9 @@ export type AuthoritativeResolverOptions = {
   // Time budget for trying fallback nameservers, shared across the whole
   // walk (see fetchRecordsRaw). Injectable for tests.
   fallbackDeadlineMs?: number;
+  // Set the EDNS DNSSEC OK (DO) bit on every query of this instance, so
+  // authoritative servers include RRSIGs.
+  dnssecOk?: boolean;
 };
 
 export const isMatchingDnsResponse = (
@@ -123,6 +141,9 @@ type WalkResult = {
   trace: string[];
   rcode?: string;
   zone: string;
+  // RRSIGs covering the queried type; servers only send them when the
+  // resolver sets the dnssecOk option.
+  coveringRrsigs?: RrsigData[];
 };
 
 type FetchRecordsParams = {
@@ -279,6 +300,7 @@ export class AuthoritativeResolver extends DnsResolver {
     domain,
     recordType,
     nameserver,
+    dnssecOk,
   }: AuthoritativeRequest) {
     const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.encode({
@@ -286,6 +308,7 @@ export class AuthoritativeResolver extends DnsResolver {
       // Randomize ID to avoid response mismatch
       id,
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<DecodedPacket>((resolve, reject) => {
@@ -333,12 +356,14 @@ export class AuthoritativeResolver extends DnsResolver {
     domain,
     recordType,
     nameserver,
+    dnssecOk,
   }: AuthoritativeRequest) {
     const id = Math.floor(Math.random() * 65535);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
       id,
       questions: [{ type: recordType, name: domain } as Question],
+      ...(dnssecOk && { additionals: [DNSSEC_OPT_RECORD] }),
     });
 
     return new Promise<Packet>((resolve, reject) => {
@@ -392,11 +417,12 @@ export class AuthoritativeResolver extends DnsResolver {
   private async sendRequest(
     request: AuthoritativeRequest,
   ): Promise<DnsResponse> {
-    // DNS queries are first attempted over UDP per convention. However, UDP
-    // responses are limited to 512 bytes (RFC 1035). When the answer exceeds
-    // that limit the server truncates the response and sets the TC flag,
-    // signaling the client to retry over TCP where the full response (up to
-    // 64 KB) can be delivered.
+    // DNS queries are first attempted over UDP per convention. UDP responses
+    // are limited to 512 bytes (RFC 1035), or to the advertised EDNS payload
+    // size when the query carries an OPT record (dnssecOk). When the answer
+    // exceeds that limit the server truncates the response and sets the TC
+    // flag, signaling the client to retry over TCP where the full response
+    // (up to 64 KB) can be delivered.
     const udpResponse = this.options.udpTransport
       ? await this.options.udpTransport(request)
       : await this.sendUdpRequest(request);
@@ -543,6 +569,7 @@ export class AuthoritativeResolver extends DnsResolver {
         domain,
         recordType,
         nameserver: candidate,
+        dnssecOk: this.options.dnssecOk ?? false,
       };
       let result: DnsResponse;
       try {
@@ -731,6 +758,15 @@ export class AuthoritativeResolver extends DnsResolver {
           answer.type === recordType,
       ) as RawAnswer[];
 
+      const coveringRrsigs = packet.answers
+        .filter(
+          (answer): answer is Extract<Answer, { type: 'RRSIG' }> =>
+            answer.type === 'RRSIG' &&
+            canonicalDnsName(answer.name) === wantName &&
+            answer.data.typeCovered === recordType,
+        )
+        .map((sig) => sig.data);
+
       return {
         answers: filteredAnswers,
         // The name owns a record, so it exists: an NXDOMAIN here describes
@@ -741,6 +777,7 @@ export class AuthoritativeResolver extends DnsResolver {
           ...trace,
           `${recordType} ${domain} @ ${candidate} (${protocol}) -> answer: ${filteredAnswers.map(this.recordToString).join(', ')}`,
         ],
+        coveringRrsigs,
       };
     }
 
@@ -942,7 +979,8 @@ export class AuthoritativeResolver extends DnsResolver {
   // Decoded answers owned by the queried name, the response code (NXDOMAIN
   // stays distinct from NODATA) and the zone cut whose servers answered. For
   // callers that need structured rdata (DNSSEC) rather than presentation
-  // strings.
+  // strings. With the dnssecOk option, the RRSIGs covering the answer come
+  // back too.
   public resolveAnswers(
     domain: string,
     recordType: RecordType,

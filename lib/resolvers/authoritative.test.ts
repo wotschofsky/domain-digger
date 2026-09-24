@@ -219,6 +219,63 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
+  it('keeps the DO bit across a referral and returns only covering RRSIGs', async () => {
+    const rrsig = (name: string, typeCovered: string) =>
+      ({ name, type: 'RRSIG', ttl: 300, data: { typeCovered } }) as Answer;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                {
+                  name: 'example.com',
+                  type: 'NS',
+                  ttl: 300,
+                  data: 'ns1.example.net',
+                },
+              ],
+              additionals: [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : ({
+              ...response(domain, recordType, 'NOERROR', [
+                {
+                  name: domain,
+                  type: 'DNSKEY',
+                  ttl: 300,
+                  data: { flags: 257, algorithm: 13, key: Buffer.alloc(64) },
+                },
+                // Owner names are case-insensitive.
+                rrsig('Example.COM', 'DNSKEY'),
+                rrsig(domain, 'SOA'),
+                rrsig('www.example.com', 'DNSKEY'),
+              ]),
+              flag_aa: true,
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+      dnssecOk: true,
+    });
+
+    const result = await resolver.resolveAnswers('example.com', 'DNSKEY');
+
+    expect(result.answers).toHaveLength(1);
+    expect(result.coveringRrsigs).toEqual([{ typeCovered: 'DNSKEY' }]);
+    expect(udpTransport).toHaveBeenCalledTimes(2);
+    expect(udpTransport.mock.calls.every(([request]) => request.dnssecOk)).toBe(
+      true,
+    );
+  });
+
   it('does not report a dangling CNAME target as NXDOMAIN for the queried name', async () => {
     // RFC 6604: the rcode describes the end of the chain, not the owner.
     const resolver = new AuthoritativeResolver({

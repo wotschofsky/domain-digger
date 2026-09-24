@@ -1,14 +1,17 @@
-import type { DnskeyData } from 'dns-packet';
+import type { DnskeyData, RrsigData } from 'dns-packet';
+import { toType } from 'dns-packet/types';
 
-// Wire-format pieces the DS digest needs (RFC 4034 §5.1.4 / Appendix B).
-// RRSIG canonicalization stays with the signature checker.
+import { canonicalDnsName } from '@/lib/resolvers/base';
+
+// Canonical wire-format encoding (RFC 4034 §6): domain names, DNSKEY RDATA, and
+// the exact byte layout an RRSIG signature is computed over.
 
 /** Canonical wire-format encoding of a domain name (lowercase, length-prefixed). */
 export const wireName = (name: string): Buffer => {
-  const clean = name.replace(/\.$/, '');
+  const clean = canonicalDnsName(name);
   if (clean === '') return Buffer.from([0]); // root
   const parts: Buffer[] = [];
-  for (const label of clean.toLowerCase().split('.')) {
+  for (const label of clean.split('.')) {
     const labelBuf = Buffer.from(label, 'ascii');
     parts.push(Buffer.from([labelBuf.length]), labelBuf);
   }
@@ -27,8 +30,64 @@ export const dnskeyRdata = (
   return Buffer.concat([head, key.key]);
 };
 
+// DNSKEY flags (RFC 4034 §2.1.1, RFC 5011 §7). Decoded here so the bit
+// positions live in exactly one place: every caller asks a named question
+// instead of re-spelling a mask.
+const DNSKEY_ZONE = 0x0100;
+const DNSKEY_REVOKE = 0x0080;
+const DNSKEY_SEP = 0x0001;
+
+type KeyFlags = Pick<DnskeyData, 'flags'>;
+
+/** Bit 7: the key may sign records in this zone (RFC 4034 §2.1.1). */
+export const isZoneKey = (key: KeyFlags): boolean =>
+  (key.flags & DNSKEY_ZONE) !== 0;
+
+/** Bit 15: Secure Entry Point, conventionally the KSK a DS points at. */
+export const isSepKey = (key: KeyFlags): boolean =>
+  (key.flags & DNSKEY_SEP) !== 0;
+
+/**
+ * A key eligible to make a signature: a zone key that has not revoked itself
+ * (bit 8; validators must not trust a revoked key, RFC 5011 §2.1).
+ */
+export const isEligibleSigner = (key: KeyFlags): boolean =>
+  isZoneKey(key) && (key.flags & DNSKEY_REVOKE) === 0;
+
+/** RRSIG RDATA up to (but excluding) the signature, per RFC 4034 §3.1.8.1. */
+export const rrsigSigningPrefix = (rrsig: RrsigData): Buffer | null => {
+  // dns-packet's toType returns 0 for names it doesn't know.
+  const typeCovered = toType(rrsig.typeCovered);
+  if (!typeCovered) return null;
+  const head = Buffer.alloc(18);
+  head.writeUInt16BE(typeCovered, 0);
+  head.writeUInt8(rrsig.algorithm, 2);
+  head.writeUInt8(rrsig.labels, 3);
+  head.writeUInt32BE(rrsig.originalTTL >>> 0, 4);
+  head.writeUInt32BE(rrsig.expiration >>> 0, 8);
+  head.writeUInt32BE(rrsig.inception >>> 0, 12);
+  head.writeUInt16BE(rrsig.keyTag, 16);
+  // Signer's name in canonical (lowercase, uncompressed) wire form.
+  return Buffer.concat([head, wireName(rrsig.signersName)]);
+};
+
+/** One canonical RR: owner | type | class(IN) | originalTTL | rdlen | rdata. */
+export const canonicalRr = (
+  owner: string,
+  type: number,
+  originalTTL: number,
+  rdata: Buffer,
+): Buffer => {
+  const head = Buffer.alloc(10);
+  head.writeUInt16BE(type, 0);
+  head.writeUInt16BE(1, 2); // class IN
+  head.writeUInt32BE(originalTTL >>> 0, 4);
+  head.writeUInt16BE(rdata.length, 8);
+  return Buffer.concat([wireName(owner), head, rdata]);
+};
+
 /** Key tag computation per RFC 4034 Appendix B (general case). */
-export const computeKeyTag = (rdata: Buffer): number => {
+const computeKeyTag = (rdata: Buffer): number => {
   let ac = 0;
   for (let i = 0; i < rdata.length; i++) {
     ac += i & 1 ? rdata[i] : rdata[i] << 8;

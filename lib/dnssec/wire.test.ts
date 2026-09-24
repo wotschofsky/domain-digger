@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import { RFC_KEY } from './test-vectors';
-import { computeKeyTag, dnskeyKeyTag, dnskeyRdata } from './wire';
+import { dnskeyKeyTag } from './wire';
 
 describe('canonical wire encoding', () => {
   it('computes the RFC 4034 key tag', () => {
-    expect(computeKeyTag(dnskeyRdata(RFC_KEY))).toBe(60485);
     expect(dnskeyKeyTag(RFC_KEY)).toBe(60485);
   });
 
@@ -15,7 +14,7 @@ describe('canonical wire encoding', () => {
       algorithm: 1,
       key: Buffer.from([0x01, 0xaa, 0xbb, 0xcc]),
     };
+    // The general-case checksum over this RDATA would be 0xc177.
     expect(dnskeyKeyTag(key)).toBe(0xaabb);
-    expect(dnskeyKeyTag(key)).not.toBe(computeKeyTag(dnskeyRdata(key)));
   });
 });

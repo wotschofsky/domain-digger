@@ -2,6 +2,10 @@ import type { ALL_RECORD_TYPES } from '@/lib/data';
 
 export type RecordType = (typeof ALL_RECORD_TYPES)[number];
 
+// Case-insensitive, trailing-dot-free form for comparing DNS names.
+export const canonicalDnsName = (name: string): string =>
+  name.replace(/\.$/, '').toLowerCase();
+
 export type RawRecord = {
   name: string;
   type: RecordType;
