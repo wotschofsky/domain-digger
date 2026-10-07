@@ -50,7 +50,7 @@ describe.each([
   it('passes the caller’s cancellation signal to the shared transport', async () => {
     const controller = new AbortController();
     const resolver = new Resolver({ signal: controller.signal });
-    await resolver.resolveAnswers('_for-sale.example.com', 'TXT');
+    await resolver.resolveAnswers('_service.example.com', 'TXT');
     expect(fetchMock.mock.calls[0][1]).toMatchObject({
       cache: 'no-store',
       signal: controller.signal,
