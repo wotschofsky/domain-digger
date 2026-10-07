@@ -80,26 +80,22 @@ describe('domain summary API', () => {
     );
   });
 
-  it('returns WHOIS without caching a failed sale lookup', async () => {
-    lookupSale.mockRejectedValue(new Error('Timeout'));
-    const response = await GET(request('example.com'));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ whois, sale: null });
-    expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(logger.error).toHaveBeenCalledWith(new Error('Timeout'));
-  });
-
-  it('does not cache unexpected WHOIS failures', async () => {
-    lookupWhois.mockRejectedValue(new Error('Unexpected failure'));
-    const response = await GET(request('example.com'));
-    expect(response.status).toBe(500);
-    expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(await response.json()).toEqual({
-      error: true,
-      message: 'Error fetching domain summary',
-    });
-    expect(logger.error).toHaveBeenCalledOnce();
-  });
+  it.each(['WHOIS', 'sale'])(
+    'fails the whole request without caching when the %s lookup rejects',
+    async (lookup) => {
+      const error = new Error('Lookup failed');
+      (lookup === 'WHOIS' ? lookupWhois : lookupSale).mockRejectedValue(error);
+      const response = await GET(request('example.com'));
+      expect(response.status).toBe(500);
+      expect(response.headers.get('Cache-Control')).toBe('no-store');
+      expect(await response.json()).toEqual({
+        error: true,
+        message: 'Error fetching domain summary',
+      });
+      expect(logger.error).toHaveBeenCalledOnce();
+      expect(logger.error).toHaveBeenCalledWith(error);
+    },
+  );
 
   it('starts both lookups before waiting for either to finish', async () => {
     let resolveWhois!: (value: typeof whois) => void;

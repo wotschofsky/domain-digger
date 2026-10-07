@@ -125,7 +125,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   }
 
   const { whois, sale } = data;
-  const listing = sale?.listing;
+  const listing = sale.listing;
   const saleUrl =
     listing?.links.find((link) => /^https?:\/\//i.test(link)) ??
     listing?.links.find((link) => link.startsWith('mailto:'));
@@ -141,7 +141,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
         value={whois.createdAt || 'Unavailable'}
       />
       <DomainSummaryTile title="DNSSEC" value={whois.dnssec || 'Unavailable'} />
-      {sale && listing && (
+      {listing && (
         <DomainSummaryTile
           title={`For sale${sale.domain !== domain ? ` (${sale.domain})` : ''}`}
           value={

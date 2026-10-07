@@ -98,11 +98,11 @@ describe('domain summary sale link', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
-  it('keeps WHOIS visible when sale information is unavailable', async () => {
+  it('shows WHOIS without a sale tile when there is no listing', async () => {
     fixtures.summary.mockReturnValue({
       data: {
         whois: { registered: true, registrar: 'Example registrar' },
-        sale: null,
+        sale: { domain: 'example.com', listing: null },
       },
       isLoading: false,
     });

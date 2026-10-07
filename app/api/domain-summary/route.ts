@@ -7,7 +7,7 @@ import { getWhoisSummary } from '@/lib/whois';
 
 export type DomainSummaryResponse = {
   whois: Awaited<ReturnType<typeof getWhoisSummary>>;
-  sale: ForSaleSummary | null;
+  sale: ForSaleSummary;
 };
 
 export const GET = withEvlog(async (request: Request) => {
@@ -27,18 +27,12 @@ export const GET = withEvlog(async (request: Request) => {
   try {
     const [whois, sale] = await Promise.all([
       getWhoisSummary(domain),
-      lookupForSale(domain).catch((error) => {
-        log.set({ event: 'for_sale_lookup_failed' });
-        log.error(error instanceof Error ? error : new Error(String(error)));
-        return null;
-      }),
+      lookupForSale(domain),
     ]);
 
     return NextResponse.json({ whois, sale } satisfies DomainSummaryResponse, {
       headers: {
-        'Cache-Control': sale
-          ? 'public, max-age=600, s-maxage=1800'
-          : 'no-store',
+        'Cache-Control': 'public, max-age=600, s-maxage=1800',
       },
     });
   } catch (error) {
