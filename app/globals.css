@@ -146,3 +146,85 @@
     @apply border-border;
   }
 }
+
+/*
+  View transitions for the lookup results (see app/lookup/[domain]/layout.tsx).
+  Only the results card animates; the rest of the page swaps instantly.
+*/
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(.results-forward),
+::view-transition-group(.results-back),
+::view-transition-group(.results-fade) {
+  animation-duration: 200ms;
+}
+
+::view-transition-old(.results-forward) {
+  animation:
+    120ms ease-in both results-fade-out,
+    120ms ease-in both results-slide-to-left;
+}
+::view-transition-new(.results-forward) {
+  animation:
+    200ms ease-out 60ms both results-fade-in,
+    200ms ease-out 60ms both results-slide-from-right;
+}
+::view-transition-old(.results-back) {
+  animation:
+    120ms ease-in both results-fade-out,
+    120ms ease-in both results-slide-to-right;
+}
+::view-transition-new(.results-back) {
+  animation:
+    200ms ease-out 60ms both results-fade-in,
+    200ms ease-out 60ms both results-slide-from-left;
+}
+::view-transition-old(.results-fade) {
+  animation: 120ms ease-in both results-fade-out;
+}
+::view-transition-new(.results-fade) {
+  animation: 200ms ease-out 60ms both results-fade-in;
+}
+
+@keyframes results-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes results-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes results-slide-to-left {
+  to {
+    transform: translateX(-24px);
+  }
+}
+@keyframes results-slide-to-right {
+  to {
+    transform: translateX(24px);
+  }
+}
+@keyframes results-slide-from-right {
+  from {
+    transform: translateX(24px);
+  }
+}
+@keyframes results-slide-from-left {
+  from {
+    transform: translateX(-24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

@@ -2,7 +2,7 @@ import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { notFound } from 'next/navigation';
-import { type FC, type ReactNode } from 'react';
+import { type FC, type ReactNode, ViewTransition } from 'react';
 
 import { Card } from '@/components/ui/card';
 
@@ -92,9 +92,18 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
 
         <div className="flex flex-1 flex-col p-3">
           <Card className="flex-1 py-8">
-            <div className="container px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
-              {children}
-            </div>
+            <ViewTransition
+              default="none"
+              update={{
+                'tab-forward': 'results-forward',
+                'tab-back': 'results-back',
+                default: 'results-fade',
+              }}
+            >
+              <div className="container px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
+                {children}
+              </div>
+            </ViewTransition>
           </Card>
         </div>
       </main>
