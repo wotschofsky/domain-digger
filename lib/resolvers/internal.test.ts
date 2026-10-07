@@ -1,42 +1,42 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ResolverMultiResponse, ResolverResponse } from './base';
 import { InternalDoHResolver } from './internal';
 
-global.fetch = vi.fn();
+const fetchMock = vi.fn();
+vi.mock('@/env', () => ({
+  env: {
+    SITE_URL: 'https://example.com',
+    INTERNAL_API_SECRET: 'secret',
+  },
+}));
 
 describe('InternalDoHResolver', () => {
-  beforeAll(() => {
-    vi.mock('@/env', () => ({
-      env: {
-        SITE_URL: 'https://example.com',
-        INTERNAL_API_SECRET: 'secret',
-      },
-    }));
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
-  afterAll(() => {
-    vi.resetAllMocks();
-  });
+  afterEach(() => vi.unstubAllGlobals());
 
   it('should successfully resolve DNS records', async () => {
     const resolver = new InternalDoHResolver('cdg', 'google');
-    const mockRawRecord = [{ data: '192.168.1.1' }];
-    const mockResponse = {
-      ok: true,
-      json: () => Promise.resolve({ A: mockRawRecord }),
-      status: 200,
-      statusText: 'OK',
+    const summary: ResolverResponse = {
+      records: [
+        { name: 'example.com', type: 'A', TTL: 300, data: '192.168.1.1' },
+      ],
+      trace: ['DNS lookup'],
     };
+    fetchMock.mockResolvedValue(Response.json({ A: summary }));
 
-    vi.mocked(fetch).mockResolvedValue(mockResponse as Response);
-
-    const records = await resolver.resolveRecordType('example.com', 'A');
-    expect(records).toEqual(mockRawRecord);
+    const result = await resolver.resolveRecordType('example.com', 'A');
+    expect(result).toEqual(summary);
     expect(fetch).toHaveBeenCalledWith(
       new URL(
         'https://example.com/api/internal/resolve/cdg?resolver=google&type=A&domain=example.com',
       ),
       {
+        cache: 'no-store',
         headers: {
           Authorization: 'secret',
         },
@@ -46,13 +46,12 @@ describe('InternalDoHResolver', () => {
 
   it('should throw an error on failed DNS resolution', async () => {
     const resolver = new InternalDoHResolver('lhr', 'alibaba');
-    const mockResponse = {
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-    };
-
-    vi.mocked(fetch).mockResolvedValue(mockResponse as Response);
+    fetchMock.mockResolvedValue(
+      new Response(null, {
+        status: 500,
+        statusText: 'Internal Server Error',
+      }),
+    );
 
     await expect(
       resolver.resolveRecordType('example.com', 'A'),
@@ -61,18 +60,19 @@ describe('InternalDoHResolver', () => {
 
   it('should handle multiple DNS record types', async () => {
     const resolver = new InternalDoHResolver('hkg', 'cloudflare');
-    const mockRecords = {
-      A: [{ data: '192.168.1.1' }],
-      AAAA: [{ data: '::1' }],
+    const mockRecords: ResolverMultiResponse = {
+      A: {
+        records: [
+          { name: 'example.com', type: 'A', TTL: 300, data: '192.168.1.1' },
+        ],
+        trace: ['IPv4 lookup'],
+      },
+      AAAA: {
+        records: [{ name: 'example.com', type: 'AAAA', TTL: 300, data: '::1' }],
+        trace: ['IPv6 lookup'],
+      },
     };
-    const mockResponse = {
-      ok: true,
-      json: () => Promise.resolve(mockRecords),
-      status: 200,
-      statusText: 'OK',
-    };
-
-    vi.mocked(fetch).mockResolvedValue(mockResponse as Response);
+    fetchMock.mockResolvedValue(Response.json(mockRecords));
 
     const records = await resolver.resolveRecordTypes('example.com', [
       'A',
@@ -84,6 +84,7 @@ describe('InternalDoHResolver', () => {
         'https://example.com/api/internal/resolve/hkg?resolver=cloudflare&type=A&type=AAAA&domain=example.com',
       ),
       {
+        cache: 'no-store',
         headers: {
           Authorization: 'secret',
         },

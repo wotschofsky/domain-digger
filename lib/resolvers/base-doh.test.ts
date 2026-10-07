@@ -1,42 +1,44 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BaseDoHResolver, type DoHResponse } from './base-doh';
+import { BaseDoHResolver, type DoHAnswer, type DoHResponse } from './base-doh';
 
 describe('BaseDoHResolver', () => {
-  const mockSendRequest = vi.fn();
+  const fetchMock = vi.fn();
 
-  class TestDoHResolver extends BaseDoHResolver {}
+  class TestDoHResolver extends BaseDoHResolver {
+    constructor() {
+      super('https://dns.google/resolve', 'application/json');
+    }
+  }
 
   const mockDoHResponse = (
-    answers: Partial<NonNullable<DoHResponse['Answer']>[number]>[] = [],
+    answers: Partial<DoHAnswer>[] = [],
   ): DoHResponse => ({
     Status: 0,
     TC: false,
-    RD: true,
-    RA: true,
-    AD: false,
-    CD: false,
-    Question: [{ name: 'example.com', type: 1 }],
     Answer: answers.map((ans) => ({
-      name: ans.name || 'example.com',
-      type: ans.type || 1,
-      TTL: ans.TTL || 300,
-      data: ans.data || 'data',
+      name: ans.name ?? 'example.com',
+      type: ans.type ?? 1,
+      TTL: ans.TTL ?? 300,
+      data: ans.data ?? 'data',
     })),
   });
 
   beforeEach(() => {
-    mockSendRequest.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
+  afterEach(() => vi.unstubAllGlobals());
+
   it('should correctly resolve records from DoH response', async () => {
-    mockSendRequest.mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockDoHResponse([{ type: 1 }])),
       url: 'https://dns.google/resolve',
     });
 
-    const resolver = new TestDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver();
     const records = await resolver.resolveRecordType('example.com', 'A');
 
     expect(records).toEqual({
@@ -50,17 +52,20 @@ describe('BaseDoHResolver', () => {
       ],
       trace: ['HTTPS GET https://dns.google/resolve -> answer: data'],
     });
-    expect(mockSendRequest).toHaveBeenCalledWith('example.com', 'A');
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL('https://dns.google/resolve?name=example.com&type=A'),
+      expect.objectContaining({ cache: 'no-store' }),
+    );
   });
 
   it('should handle empty answers by returning an empty array', async () => {
-    mockSendRequest.mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       json: () => Promise.resolve(mockDoHResponse([])),
       url: 'https://dns.google/resolve',
     });
 
-    const resolver = new TestDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver();
     const records = await resolver.resolveRecordType('example.com', 'A');
 
     expect(records).toEqual({
@@ -70,14 +75,14 @@ describe('BaseDoHResolver', () => {
   });
 
   it('should throw a user-facing error for bad HTTP responses', async () => {
-    mockSendRequest.mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
       url: 'https://dns.google/resolve',
     });
 
-    const resolver = new TestDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver();
 
     await expect(
       resolver.resolveRecordType('example.com', 'A'),
@@ -90,12 +95,12 @@ describe('BaseDoHResolver', () => {
       { name: 'alias.example', type: 16, TTL: 300, data: '"some TXT"' },
       { name: 'alias.example', type: 65000, TTL: 300, data: 'unknown type' },
     ];
-    mockSendRequest.mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ Status: 0, Answer: answers }),
       url: 'https://cloudflare-dns.com/dns-query',
     });
-    const resolver = new TestDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver();
     expect(
       (await resolver.resolveAnswers('example.com', 'TXT')).answers,
     ).toEqual(answers);
@@ -109,12 +114,12 @@ describe('BaseDoHResolver', () => {
   it.each([{ Status: 0 }, { Status: 3 }])(
     'treats %j as an empty answer',
     async (body) => {
-      mockSendRequest.mockResolvedValue({
+      fetchMock.mockResolvedValue({
         ok: true,
         json: async () => body,
         url: 'https://cloudflare-dns.com/dns-query',
       });
-      const resolver = new TestDoHResolver(mockSendRequest);
+      const resolver = new TestDoHResolver();
       expect(await resolver.resolveRecordType('example.com', 'TXT')).toEqual({
         records: [],
         trace: ['HTTPS GET https://cloudflare-dns.com/dns-query -> no answer'],
@@ -123,7 +128,7 @@ describe('BaseDoHResolver', () => {
   );
 
   it('preserves aliases when NXDOMAIN describes the end of a CNAME chain', async () => {
-    mockSendRequest.mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({
         ...mockDoHResponse(),
@@ -134,7 +139,7 @@ describe('BaseDoHResolver', () => {
       }),
       url: 'https://cloudflare-dns.com/dns-query',
     });
-    const resolver = new TestDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver();
     const result = await resolver.resolveAnswers('example.com', 'CNAME');
     expect(result.rcode).toBe(3);
     expect(result.answers).toEqual([
@@ -172,12 +177,12 @@ describe('BaseDoHResolver', () => {
       Answer: [{ name: 'example.com', type: 16, TTL: 300, data: null }],
     },
   ])('rejects DNS errors and malformed responses: %j', async (body) => {
-    mockSendRequest.mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       json: async () => body,
       url: 'https://cloudflare-dns.com/dns-query',
     });
-    const resolver = new TestDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver();
     await expect(
       resolver.resolveRecordType('example.com', 'TXT'),
     ).rejects.toThrow();
@@ -188,13 +193,13 @@ describe('BaseDoHResolver', () => {
     [429, true],
     [503, true],
   ])('marks HTTP %i as retryable=%s', async (status, retryable) => {
-    mockSendRequest.mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: false,
       status,
       statusText: 'Failure',
       url: 'https://cloudflare-dns.com/dns-query',
     });
-    const resolver = new TestDoHResolver(mockSendRequest);
+    const resolver = new TestDoHResolver();
     await expect(
       resolver.resolveRecordType('example.com', 'TXT'),
     ).rejects.toMatchObject({
@@ -204,10 +209,8 @@ describe('BaseDoHResolver', () => {
   });
 
   it('propagates transport failures', async () => {
-    mockSendRequest.mockRejectedValue(
-      new DOMException('Cancelled', 'AbortError'),
-    );
-    const resolver = new TestDoHResolver(mockSendRequest);
+    fetchMock.mockRejectedValue(new DOMException('Cancelled', 'AbortError'));
+    const resolver = new TestDoHResolver();
     await expect(resolver.resolveAnswers('example.com', 'TXT')).rejects.toThrow(
       'Cancelled',
     );

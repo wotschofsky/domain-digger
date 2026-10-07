@@ -4,67 +4,59 @@ import { RECORD_TYPES_BY_DECIMAL } from '../data';
 import { UserFacingError } from '../user-facing-error';
 import { DnsResolver, type RecordType, type ResolverResponse } from './base';
 
-export type DoHResponse = {
-  Status: number;
-  TC: boolean;
-  RD: boolean;
-  RA: boolean;
-  AD: boolean;
-  CD: boolean;
-  Question: {
-    name: string;
-    type: number;
-  }[];
-  Answer?: {
-    name: string;
-    type: number;
-    TTL: number;
-    data: string;
-  }[];
-  Authority?: {
-    name: string;
-    type: number;
-    TTL: number;
-    data: string;
-  }[];
-};
-
-type DoHAnswer = NonNullable<DoHResponse['Answer']>[number];
+const answerSchema = z.object({
+  name: z.string(),
+  type: z.number().int().nonnegative(),
+  TTL: z.number().int().nonnegative(),
+  data: z.string(),
+});
 
 const responseSchema = z.object({
   Status: z.number().int(),
   TC: z.boolean().optional(),
-  Answer: z
-    .array(
-      z.object({
-        name: z.string(),
-        type: z.number().int().nonnegative(),
-        TTL: z.number().int().nonnegative(),
-        data: z.string(),
-      }),
-    )
-    .optional(),
+  Answer: z.array(answerSchema).optional(),
 });
+
+export type DoHAnswer = z.infer<typeof answerSchema>;
+export type DoHResponse = z.infer<typeof responseSchema>;
+
+export type DoHResolverResponse = {
+  answers: DoHAnswer[];
+  rcode: number;
+  trace: string[];
+};
+
+export type DoHResolverOptions = {
+  signal?: AbortSignal;
+};
 
 const recordTypes: Readonly<Record<number, RecordType | undefined>> =
   RECORD_TYPES_BY_DECIMAL;
 
 export abstract class BaseDoHResolver extends DnsResolver {
   constructor(
-    private sendRequest: (
-      domain: string,
-      type: RecordType,
-    ) => Promise<Response>,
+    private readonly endpoint: string,
+    private readonly accept: string,
+    private readonly options: DoHResolverOptions = {},
   ) {
     super();
   }
 
-  // Keep aliases and their TTLs for callers that need the whole answer section.
+  // Preserve the whole answer section, including aliases and unknown types.
   public async resolveAnswers(
     domain: string,
     type: RecordType,
-  ): Promise<{ answers: DoHAnswer[]; rcode: number; trace: string[] }> {
-    const response = await this.sendRequest(domain, type);
+  ): Promise<DoHResolverResponse> {
+    const url = new URL(this.endpoint);
+    url.searchParams.set('name', domain);
+    url.searchParams.set('type', type);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: this.accept },
+      cache: 'no-store',
+      signal: this.options.signal,
+    });
     if (!response.ok) {
       const retryable = response.status === 429 || response.status >= 500;
       throw new UserFacingError(

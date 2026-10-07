@@ -118,7 +118,6 @@ export const lookupForSale = async (
   const baseDomain = getBaseDomain(domain).toLowerCase();
   const resolver = new CloudflareDoHResolver({
     signal: AbortSignal.timeout(2500),
-    cache: 'no-store',
   });
   const { answers, rcode } = await resolver.resolveAnswers(
     `_for-sale.${baseDomain}`,
