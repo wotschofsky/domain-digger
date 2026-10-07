@@ -53,6 +53,15 @@ export const LOOKUP_FEATURES = [
     footerLabel: 'Subdomains Finder',
     lookupType: 'subdomains',
   },
+  {
+    id: 'exposure',
+    label: 'Exposure',
+    segment: 'exposure',
+    path: '/exposure',
+    landingPath: '/exposure',
+    footerLabel: 'Domain Exposure',
+    lookupType: 'exposure',
+  },
 ] as const;
 
 export type LookupType = (typeof LOOKUP_FEATURES)[number]['lookupType'];
