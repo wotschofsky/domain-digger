@@ -184,8 +184,31 @@ describe('BaseDoHResolver', () => {
     });
     const resolver = new TestDoHResolver();
     await expect(
-      resolver.resolveRecordType('example.com', 'TXT'),
+      resolver.resolveAnswers('example.com', 'TXT'),
     ).rejects.toThrow();
+  });
+
+  it('keeps the other record types when the resolver cannot answer one', async () => {
+    fetchMock.mockImplementation(async (url: URL) => ({
+      ok: true,
+      json: async () =>
+        url.searchParams.get('type') === 'RRSIG'
+          ? { Status: 2 }
+          : mockDoHResponse([{ type: 1 }]),
+      url: url.href,
+    }));
+    const resolver = new TestDoHResolver();
+    const results = await resolver.resolveRecordTypes('example.com', [
+      'A',
+      'RRSIG',
+    ]);
+    expect(results.A.records).toHaveLength(1);
+    expect(results.RRSIG).toEqual({
+      records: [],
+      trace: [
+        'HTTPS GET https://dns.google/resolve?name=example.com&type=RRSIG -> DNS status 2',
+      ],
+    });
   });
 
   it.each([
