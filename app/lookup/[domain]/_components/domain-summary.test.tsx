@@ -31,6 +31,7 @@ describe('domain summary sale link', () => {
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     fixtures.whois.isLoading = false;
+    fixtures.sale.data.listing.prices = ['EUR 2500'];
     fixtures.sale.data.listing.links = ['https://seller.example/buy'];
     container = document.createElement('div');
     document.body.append(container);
@@ -89,13 +90,46 @@ describe('domain summary sale link', () => {
     expect(container.querySelector('button')).not.toBeNull();
   });
 
-  it('shows a plain value when there is no website URL', async () => {
+  it('links an email listing to the seller’s email address', async () => {
+    fixtures.sale.data.listing.prices = ['USD 195000'];
+    fixtures.sale.data.listing.links = ['mailto:sales@sun.com.py'];
+    await render();
+    const link = container.querySelector('a')!;
+    expect(link.textContent).toBe('$195,000');
+    expect(link.getAttribute('href')).toBe('mailto:sales@sun.com.py');
+    expect(link.getAttribute('aria-label')).toBe('Contact seller by email');
+    expect(link.hasAttribute('target')).toBe(false);
+    expect(container.querySelector('button')).toBeNull();
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('supports email listings without an asking price', async () => {
+    fixtures.sale.data.listing.prices = [];
+    fixtures.sale.data.listing.links = ['mailto:seller@example.com'];
+    await render();
+    expect(container.querySelector('a')?.textContent).toBe(
+      'Advertised for sale',
+    );
+  });
+
+  it('prefers a website listing when an email address is also available', async () => {
     fixtures.sale.data.listing.links = [
       'mailto:seller@example.com',
-      'tel:+4930123456',
+      'https://seller.example/buy',
     ];
+    await render();
+    expect(container.querySelector('a')).toBeNull();
+    await act(async () => container.querySelector('button')!.click());
+    expect(
+      document.querySelector('[role="alertdialog"] a')?.getAttribute('href'),
+    ).toBe('https://seller.example/buy');
+  });
+
+  it('shows a plain value when there is no website or email URL', async () => {
+    fixtures.sale.data.listing.links = ['tel:+4930123456'];
     await render();
     expect(container.textContent).toContain('€2,500');
     expect(container.querySelector('button')).toBeNull();
+    expect(container.querySelector('a')).toBeNull();
   });
 });

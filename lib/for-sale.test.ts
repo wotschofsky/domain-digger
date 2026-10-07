@@ -165,6 +165,27 @@ describe('for-sale lookup', () => {
     });
   });
 
+  it('handles the email listing published by forsaledns.net', async () => {
+    respond({
+      Status: 0,
+      Answer: [
+        answer('v=FORSALE1;furi=mailto:sales@sun.com.py'),
+        answer('v=FORSALE1;fval=USD195000'),
+      ],
+    });
+    expect(await lookupForSale('forsaledns.net')).toEqual({
+      summary: {
+        domain: 'forsaledns.net',
+        listing: {
+          prices: ['USD 195000'],
+          links: ['mailto:sales@sun.com.py'],
+          texts: [],
+        },
+      },
+      ttl: 300,
+    });
+  });
+
   it.each([
     '"v=FORSALE1;ftxt=\\999"',
     '"v=FORSALE1;ftxt=\\255"',

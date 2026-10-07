@@ -1,6 +1,6 @@
 'use client';
 
-import { ExternalLinkIcon } from 'lucide-react';
+import { ExternalLinkIcon, MailIcon } from 'lucide-react';
 import type { FC, ReactNode } from 'react';
 import useSWR from 'swr';
 import useSWRImmutable from 'swr/immutable';
@@ -54,12 +54,24 @@ type SaleListingLinkProps = {
 const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
   if (!href) return children;
 
+  const className =
+    'inline-flex cursor-pointer items-center gap-1 text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-4';
+
+  if (href.startsWith('mailto:')) {
+    return (
+      <a href={href} className={className} aria-label="Contact seller by email">
+        <span>{children}</span>
+        <MailIcon className="size-3.5 shrink-0" aria-hidden="true" />
+      </a>
+    );
+  }
+
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <button
           type="button"
-          className="inline-flex cursor-pointer items-center gap-1 text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
+          className={className}
           aria-label="View sale listing on an external website"
         >
           <span>{children}</span>
@@ -100,7 +112,9 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     { shouldRetryOnError: false },
   );
   const listing = sale?.listing;
-  const saleUrl = listing?.links.find((link) => /^https?:\/\//i.test(link));
+  const saleUrl =
+    listing?.links.find((link) => /^https?:\/\//i.test(link)) ??
+    listing?.links.find((link) => link.startsWith('mailto:'));
 
   return (
     <div className="flex flex-wrap gap-8">
