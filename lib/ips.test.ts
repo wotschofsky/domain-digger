@@ -183,8 +183,8 @@ describe('lookupReverse', () => {
     );
   });
 
-  it.each([{ Status: 0 }, { Status: 3 }])(
-    'returns no hostnames for an empty DNS response: %j',
+  it.each([{ Status: 0 }, { Status: 3 }, { Status: 2 }])(
+    'returns no hostnames for a DNS response without answers: %j',
     async (body) => {
       fetchMock.mockResolvedValue(Response.json(body));
       expect(await lookupReverse('8.8.4.4')).toEqual([]);

@@ -42,11 +42,12 @@ export abstract class BaseDoHResolver extends DnsResolver {
     super();
   }
 
-  // Preserve the whole answer section, including aliases and unknown types.
-  public async resolveAnswers(
+  // `failure` is set when the resolver answered but could not complete the
+  // lookup; HTTP and malformed responses throw.
+  private async query(
     domain: string,
     type: RecordType,
-  ): Promise<DoHResolverResponse> {
+  ): Promise<DoHResolverResponse & { failure?: string }> {
     const url = new URL(this.endpoint);
     url.searchParams.set('name', domain);
     url.searchParams.set('type', type);
@@ -74,7 +75,36 @@ export abstract class BaseDoHResolver extends DnsResolver {
       );
     }
     const results = responseSchema.parse(await response.json());
-    if (results.TC || ![0, 3].includes(results.Status)) {
+    const failure = results.TC
+      ? 'Truncated DNS response'
+      : [0, 3].includes(results.Status)
+        ? undefined
+        : `DNS status ${results.Status}`;
+
+    const answers = failure ? undefined : results.Answer;
+    return {
+      answers: answers ?? [],
+      rcode: results.Status,
+      trace: [
+        `HTTPS GET ${response.url} -> ${
+          failure ??
+          (answers
+            ? `answer: ${answers.map((answer) => answer.data).join(', ')}`
+            : 'no answer')
+        }`,
+      ],
+      failure,
+    };
+  }
+
+  // Preserve the whole answer section, including aliases and unknown types.
+  // Throws on a DNS-level failure, so an empty result always means no data.
+  public async resolveAnswers(
+    domain: string,
+    type: RecordType,
+  ): Promise<DoHResolverResponse> {
+    const { failure, ...response } = await this.query(domain, type);
+    if (failure) {
       throw new UserFacingError(
         {
           title: 'DNS resolver could not complete the lookup',
@@ -82,35 +112,19 @@ export abstract class BaseDoHResolver extends DnsResolver {
             'The DNS resolver returned an error or incomplete response. Please try again shortly.',
           retryable: true,
         },
-        {
-          cause: new Error(
-            results.TC
-              ? 'Truncated DNS response'
-              : `DNS status ${results.Status}`,
-          ),
-        },
+        { cause: new Error(failure) },
       );
     }
-
-    const answers = results.Answer;
-    return {
-      answers: answers ?? [],
-      rcode: results.Status,
-      trace: [
-        `HTTPS GET ${response.url} -> ${
-          answers
-            ? `answer: ${answers.map((answer) => answer.data).join(', ')}`
-            : 'no answer'
-        }`,
-      ],
-    };
+    return response;
   }
 
+  // A DNS-level failure yields no records and is noted in the trace, so one
+  // unanswerable type (e.g. SERVFAIL for RRSIG) cannot fail a whole batch.
   public async resolveRecordType(
     domain: string,
     type: RecordType,
   ): Promise<ResolverResponse> {
-    const { answers, trace } = await this.resolveAnswers(domain, type);
+    const { answers, trace } = await this.query(domain, type);
 
     const records = answers
       .filter((answer) => recordTypes[answer.type] === type)
