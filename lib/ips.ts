@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
+import { CloudflareDoHResolver } from './resolvers/cloudflare';
 import { UserFacingError } from './user-facing-error';
 
 type IpDetails = {
@@ -110,17 +111,14 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
     });
   }
 
-  const reverseDnsName = ipToDnsName(ip);
-
-  let response: Response;
   try {
-    response = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(reverseDnsName)}&type=PTR`,
-      {
-        headers: { Accept: 'application/dns-json' },
-      },
+    const { records } = await new CloudflareDoHResolver().resolveRecordType(
+      ipToDnsName(ip),
+      'PTR',
     );
+    return records.map((record) => record.data.replace(/\.$/, ''));
   } catch (error) {
+    if (error instanceof UserFacingError) throw error;
     throw new UserFacingError(
       {
         title: "Couldn't reach Cloudflare DNS",
@@ -131,27 +129,6 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
       { cause: error },
     );
   }
-
-  if (!response.ok)
-    throw new UserFacingError(
-      {
-        title: 'Cloudflare DNS is unavailable',
-        description:
-          'Cloudflare DNS returned an error and may be temporarily down. Please try again shortly.',
-        retryable: true,
-      },
-      {
-        cause: new Error(
-          `Cloudflare DNS responded with HTTP ${response.status} ${response.statusText}`,
-        ),
-      },
-    );
-
-  const data = await response.json();
-
-  return data.Answer
-    ? data.Answer.map((record: { data: string }) => record.data.slice(0, -1))
-    : [];
 };
 
 // Standardize last segment of IP address to reduce the number of requests and avoid rate limiting

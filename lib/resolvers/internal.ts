@@ -26,7 +26,7 @@ export class InternalDoHResolver extends DnsResolver {
     return baseUrl;
   }
 
-  private get requestInit() {
+  private get requestInit(): RequestInit {
     const headers: Record<string, string> = {};
 
     if (env.INTERNAL_API_SECRET) {
@@ -38,11 +38,7 @@ export class InternalDoHResolver extends DnsResolver {
         env.VERCEL_AUTOMATION_BYPASS_SECRET;
     }
 
-    if (Object.keys(headers).length === 0) {
-      return {};
-    }
-
-    return { headers };
+    return { cache: 'no-store', headers };
   }
 
   public async resolveRecordType(
