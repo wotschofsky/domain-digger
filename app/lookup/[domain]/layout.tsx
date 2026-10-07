@@ -11,11 +11,10 @@ import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
 import { Footer } from '../../_components/footer';
 import { Header } from '../../_components/header';
-import { ForSaleInfo } from './_components/for-sale-info';
+import { DomainSummary } from './_components/domain-summary';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
 import { ShareButton } from './_components/share-button';
-import { WhoisQuickInfo } from './_components/whois-quick-info';
 
 const StarReminder = dynamic(() =>
   import('./_components/star-reminder').then((m) => ({
@@ -84,10 +83,7 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
           </div>
 
           <RelatedDomains domain={domain} />
-          <div className="flex flex-wrap gap-8">
-            <WhoisQuickInfo domain={domain} />
-            <ForSaleInfo domain={domain} />
-          </div>
+          <DomainSummary domain={domain} />
         </div>
 
         <div className="container">
