@@ -56,19 +56,11 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   );
   const listing = sale?.listing;
   const saleUrl = listing?.links.find((link) => /^https?:\/\//i.test(link));
-  const saleValue = listing && (
-    <>
-      {listing.prices.length
-        ? listing.prices.map(formatSalePrice).join(' / ')
-        : 'Advertised for sale'}
-      {listing.prices.length > 0 && (
-        <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">
-          {' '}
-          (indicative)
-        </span>
-      )}
-    </>
-  );
+  const saleValue =
+    listing &&
+    (listing.prices.length
+      ? listing.prices.map(formatSalePrice).join(' / ')
+      : 'Advertised for sale');
 
   return (
     <div className="flex flex-wrap gap-8">
