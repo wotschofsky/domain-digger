@@ -112,10 +112,7 @@ const decodeTxt = (data: string): string | null => {
 
 export const lookupForSale = async (
   domain: string,
-): Promise<{
-  summary: ForSaleSummary;
-  ttl: number;
-}> => {
+): Promise<ForSaleSummary> => {
   if (!isValidDomain(domain)) throw new Error('Invalid domain');
 
   const baseDomain = getBaseDomain(domain).toLowerCase();
@@ -131,15 +128,5 @@ export const lookupForSale = async (
     .filter((answer) => answer.type === 16)
     .map((answer) => decodeTxt(answer.data))
     .filter((record): record is string => record !== null);
-  const listing = parseForSaleRecords(records);
-
-  return {
-    summary: { domain: baseDomain, listing },
-    // Include alias TTLs, cap at one hour, and don't cache negative answers
-    // without their SOA-derived negative TTL. Failures are handled by the route.
-    ttl:
-      listing && answers.length
-        ? Math.min(3600, ...answers.map((answer) => answer.TTL))
-        : 0,
-  };
+  return { domain: baseDomain, listing: parseForSaleRecords(records) };
 };

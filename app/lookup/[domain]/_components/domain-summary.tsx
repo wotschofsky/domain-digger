@@ -2,7 +2,6 @@
 
 import { ExternalLinkIcon, MailIcon } from 'lucide-react';
 import type { FC, ReactNode } from 'react';
-import useSWR from 'swr';
 import useSWRImmutable from 'swr/immutable';
 
 import {
@@ -18,8 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import type { ForSaleResponse } from '@/app/api/for-sale/route';
-import type { WhoisSummaryResponse } from '@/app/api/whois-summary/route';
+import type { DomainSummaryResponse } from '@/app/api/domain-summary/route';
 import { formatSalePrice } from '@/lib/format-sale-price';
 
 type DomainSummaryTileProps = {
@@ -104,13 +102,29 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
 };
 
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
-  const { data: whois, isLoading } = useSWRImmutable<WhoisSummaryResponse>(
-    `/api/whois-summary?domain=${encodeURIComponent(domain)}`,
+  const { data, isLoading } = useSWRImmutable<DomainSummaryResponse>(
+    `/api/domain-summary?domain=${encodeURIComponent(domain)}`,
   );
-  const { data: sale } = useSWR<ForSaleResponse>(
-    `/api/for-sale?domain=${encodeURIComponent(domain)}`,
-    { shouldRetryOnError: false },
-  );
+
+  if (isLoading || !data) {
+    return (
+      <div className="flex flex-wrap gap-8">
+        <DomainSummaryTile title="Registrar" loading />
+        <DomainSummaryTile title="Creation Date" loading />
+        <DomainSummaryTile title="DNSSEC" loading />
+      </div>
+    );
+  }
+
+  if (!data.whois.registered) {
+    return (
+      <div className="flex flex-wrap gap-8">
+        <DomainSummaryTile title="Status" value="Not registered" />
+      </div>
+    );
+  }
+
+  const { whois, sale } = data;
   const listing = sale?.listing;
   const saleUrl =
     listing?.links.find((link) => /^https?:\/\//i.test(link)) ??
@@ -118,31 +132,16 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
 
   return (
     <div className="flex flex-wrap gap-8">
-      {isLoading || !whois ? (
-        <>
-          <DomainSummaryTile title="Registrar" loading />
-          <DomainSummaryTile title="Creation Date" loading />
-          <DomainSummaryTile title="DNSSEC" loading />
-        </>
-      ) : !whois.registered ? (
-        <DomainSummaryTile title="Status" value="Not registered" />
-      ) : (
-        <>
-          <DomainSummaryTile
-            title="Registrar"
-            value={whois.registrar || 'Unavailable'}
-          />
-          <DomainSummaryTile
-            title="Creation Date"
-            value={whois.createdAt || 'Unavailable'}
-          />
-          <DomainSummaryTile
-            title="DNSSEC"
-            value={whois.dnssec || 'Unavailable'}
-          />
-        </>
-      )}
-      {listing && (!whois || whois.registered) && (
+      <DomainSummaryTile
+        title="Registrar"
+        value={whois.registrar || 'Unavailable'}
+      />
+      <DomainSummaryTile
+        title="Creation Date"
+        value={whois.createdAt || 'Unavailable'}
+      />
+      <DomainSummaryTile title="DNSSEC" value={whois.dnssec || 'Unavailable'} />
+      {sale && listing && (
         <DomainSummaryTile
           title={`For sale${sale.domain !== domain ? ` (${sale.domain})` : ''}`}
           value={

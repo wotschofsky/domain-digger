@@ -119,11 +119,8 @@ describe('for-sale lookup', () => {
   it('looks up the registrable base domain with a deadline and no upstream cache', async () => {
     respond({ Status: 0, Answer: [answer('"v=FORSALE1;fval=EUR2500"')] });
     expect(await lookupForSale('*.WWW.Example.com.')).toEqual({
-      summary: {
-        domain: 'example.com',
-        listing: { prices: ['EUR 2500'], links: [], texts: [] },
-      },
-      ttl: 300,
+      domain: 'example.com',
+      listing: { prices: ['EUR 2500'], links: [], texts: [] },
     });
     const [url, options] = fetchMock.mock.calls[0];
     expect(url.toString()).toBe(
@@ -143,9 +140,9 @@ describe('for-sale lookup', () => {
         ),
       ],
     });
-    expect((await lookupForSale('example.com')).summary.listing?.texts).toEqual(
-      ['Grüße "friend" \\ end'],
-    );
+    expect((await lookupForSale('example.com')).listing?.texts).toEqual([
+      'Grüße "friend" \\ end',
+    ]);
   });
 
   it('handles plain TXT content for Atom listings', async () => {
@@ -159,7 +156,7 @@ describe('for-sale lookup', () => {
         ),
       ],
     });
-    expect((await lookupForSale('example.com')).summary.listing).toEqual({
+    expect((await lookupForSale('example.com')).listing).toEqual({
       prices: ['USD 71256'],
       links: ['https://www.atom.com/name/recruitable?utm_source=forsale-dns'],
       texts: ['This domain is for sale on atom.com'],
@@ -175,15 +172,12 @@ describe('for-sale lookup', () => {
       ],
     });
     expect(await lookupForSale('forsaledns.net')).toEqual({
-      summary: {
-        domain: 'forsaledns.net',
-        listing: {
-          prices: ['USD 195000'],
-          links: ['mailto:sales@sun.com.py'],
-          texts: [],
-        },
+      domain: 'forsaledns.net',
+      listing: {
+        prices: ['USD 195000'],
+        links: ['mailto:sales@sun.com.py'],
+        texts: [],
       },
-      ttl: 300,
     });
   });
 
@@ -194,22 +188,19 @@ describe('for-sale lookup', () => {
     '"v=FORSALE1;',
   ])('ignores malformed presentation data: %s', async (data) => {
     respond({ Status: 0, Answer: [answer(data)] });
-    expect((await lookupForSale('example.com')).summary.listing).toBeNull();
+    expect((await lookupForSale('example.com')).listing).toBeNull();
   });
 
-  it('uses the smallest TTL including aliases and caps it at one hour', async () => {
+  it('ignores non-TXT answers while preserving version-only listings', async () => {
     respond({
       Status: 0,
       Answer: [answer('alias.example.', 30, 5), answer('"v=FORSALE1;"', 7200)],
     });
-    expect((await lookupForSale('example.com')).ttl).toBe(30);
-    respond({ Status: 0, Answer: [answer('"v=FORSALE1;"', 7200)] });
-    expect((await lookupForSale('example.com')).ttl).toBe(3600);
-  });
-
-  it('does not cache a zero-TTL signal', async () => {
-    respond({ Status: 0, Answer: [answer('"v=FORSALE1;"', 0)] });
-    expect((await lookupForSale('example.com')).ttl).toBe(0);
+    expect((await lookupForSale('example.com')).listing).toEqual({
+      prices: [],
+      links: [],
+      texts: [],
+    });
   });
 
   it.each([
@@ -217,13 +208,16 @@ describe('for-sale lookup', () => {
     { Status: 3 },
     { Status: 3, Answer: [answer('"v=FORSALE1;"')] },
     { Status: 0, Answer: [answer('"unrelated TXT"')] },
-  ])('returns no signal without negative caching: %j', async (body) => {
-    respond(body);
-    expect(await lookupForSale('example.com')).toEqual({
-      summary: { domain: 'example.com', listing: null },
-      ttl: 0,
-    });
-  });
+  ])(
+    'returns no listing for successful responses without a signal: %j',
+    async (body) => {
+      respond(body);
+      expect(await lookupForSale('example.com')).toEqual({
+        domain: 'example.com',
+        listing: null,
+      });
+    },
+  );
 
   it.each([
     { Status: 2 },
