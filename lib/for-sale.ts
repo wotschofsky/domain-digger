@@ -100,7 +100,7 @@ const decodeTxt = (data: string): string | null => {
   if (bytes.length > 255) return null;
 
   try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
       new Uint8Array(bytes),
     );
   } catch {

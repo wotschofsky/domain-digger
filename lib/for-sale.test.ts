@@ -269,6 +269,14 @@ describe('for-sale lookup', () => {
     expect((await lookupForSale('example.com')).listing).toBeNull();
   });
 
+  it('does not accept a UTF-8 byte order mark before the version marker', async () => {
+    respond({
+      Status: 0,
+      Answer: [answer(String.raw`"\239\187\191v=FORSALE1;fval=USD1"`)],
+    });
+    expect((await lookupForSale('example.com')).listing).toBeNull();
+  });
+
   it.each([
     `"v=FORSALE1;ftxt=${'x'.repeat(240)}"`,
     `"v=FORSALE1;ftxt=${String.raw`\195\188`.repeat(120)}"`,
