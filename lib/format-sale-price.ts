@@ -21,7 +21,7 @@ export const formatSalePrice = (price: string): string => {
       currency,
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
-      trailingZeroDisplay: 'stripIfInteger',
+      trailingZeroDisplay: fractionDigits ? 'auto' : 'stripIfInteger',
     }).format(amount as Intl.StringNumericLiteral);
   } catch {
     // Nonstandard currency codes remain readable instead of breaking the tile.

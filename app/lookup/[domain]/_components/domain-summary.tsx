@@ -2,7 +2,7 @@
 
 import { ExternalLinkIcon, MailIcon } from 'lucide-react';
 import type { FC, ReactNode } from 'react';
-import useSWRImmutable from 'swr/immutable';
+import useSWR from 'swr';
 
 import {
   AlertDialog,
@@ -15,10 +15,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
 import type { DomainSummaryResponse } from '@/app/api/domain-summary/route';
 import { formatSalePrice } from '@/lib/format-sale-price';
+import { canonicalDnsName } from '@/lib/resolvers/base';
 
 type DomainSummaryTileProps = {
   title: string;
@@ -57,8 +59,9 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
 
   if (href.startsWith('mailto:')) {
     return (
-      <a href={href} className={className} aria-label="Contact seller by email">
+      <a href={href} className={className}>
         <span>{children}</span>
+        <span className="sr-only"> — Contact seller by email</span>
         <MailIcon className="size-3.5 shrink-0" aria-hidden="true" />
       </a>
     );
@@ -67,12 +70,12 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <button
-          type="button"
-          className={className}
-          aria-label="View sale listing on an external website"
-        >
+        <button type="button" className={className}>
           <span>{children}</span>
+          <span className="sr-only">
+            {' '}
+            — View sale listing on an external website
+          </span>
           <ExternalLinkIcon className="size-3.5 shrink-0" aria-hidden="true" />
         </button>
       </AlertDialogTrigger>
@@ -102,9 +105,28 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
 };
 
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
-  const { data, isLoading } = useSWRImmutable<DomainSummaryResponse>(
-    `/api/domain-summary?domain=${encodeURIComponent(domain)}`,
-  );
+  const { data, error, isLoading, isValidating, mutate } =
+    useSWR<DomainSummaryResponse>(
+      `/api/domain-summary?domain=${encodeURIComponent(domain)}`,
+    );
+
+  if (error && !data) {
+    return (
+      <div className="flex items-center gap-4">
+        <p role="alert" className="text-sm text-zinc-500 dark:text-zinc-400">
+          Domain summary unavailable.
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isValidating}
+          onClick={() => void mutate().catch(() => undefined)}
+        >
+          {isValidating ? 'Retrying…' : 'Retry'}
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading || !data) {
     return (
@@ -143,7 +165,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
       <DomainSummaryTile title="DNSSEC" value={whois.dnssec || 'Unavailable'} />
       {listing && (
         <DomainSummaryTile
-          title={`For sale${sale.domain !== domain ? ` (${sale.domain})` : ''}`}
+          title={`For sale${sale.domain !== canonicalDnsName(domain) ? ` (${sale.domain})` : ''}`}
           value={
             <SaleListingLink href={saleUrl}>
               {listing.prices.length

@@ -2,8 +2,9 @@ import { CloudflareDoHResolver } from './resolvers/cloudflare';
 import { getBaseDomain, isValidDomain } from './utils';
 
 const VERSION = 'v=FORSALE1;';
-const UNSAFE_CHARACTERS =
-  /[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+const MAX_ANSWERS = 256;
+const MAX_ANSWER_BYTES = 4096;
+const UNSAFE_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\p{Bidi_Control}]/gu;
 
 export type ForSaleListing = {
   prices: string[];
@@ -17,11 +18,7 @@ export type ForSaleSummary = {
 };
 
 const safeLink = (value: string): string | null => {
-  if (
-    /[\s\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/u.test(
-      value,
-    )
-  )
+  if (/[\s\u0000-\u001f\u007f-\u009f\p{Bidi_Control}]/u.test(value))
     return null;
   try {
     const url = new URL(value);
@@ -72,33 +69,30 @@ export const parseForSaleRecords = (
 };
 
 // Accept plain TXT content or quoted DNS presentation data from DoH resolvers.
-// Decode decimal octet escapes in the latter before UTF-8 interpretation;
-// concatenate chunks for robustness (§3.2).
+// Sale records must contain a single character-string (§2.4).
+// Decode decimal octet escapes before interpreting their UTF-8 content.
 const decodeTxt = (data: string): string | null => {
   if (!data.startsWith('"')) return data;
 
+  const match = /^"((?:[^"\\]|\\[\s\S])*)"$/u.exec(data);
+  if (!match) return null;
+  const content = match[1];
   const bytes: number[] = [];
-  const chunks = /\s*"((?:[^"\\]|\\[\s\S])*)"\s*/gy;
-  while (chunks.lastIndex < data.length) {
-    const match = chunks.exec(data);
-    if (!match) return null;
-    const content = match[1];
-    for (let i = 0; i < content.length; ) {
-      if (content[i] === '\\') {
-        const decimal = content.slice(i + 1, i + 4);
-        if (/^[0-9]{3}$/.test(decimal)) {
-          const octet = Number(decimal);
-          if (octet > 255) return null;
-          bytes.push(octet);
-          i += 4;
-          continue;
-        }
-        i++;
+  for (let i = 0; i < content.length; ) {
+    if (content[i] === '\\') {
+      const decimal = content.slice(i + 1, i + 4);
+      if (/^[0-9]{3}$/.test(decimal)) {
+        const octet = Number(decimal);
+        if (octet > 255) return null;
+        bytes.push(octet);
+        i += 4;
+        continue;
       }
-      const character = String.fromCodePoint(content.codePointAt(i)!);
-      bytes.push(...new TextEncoder().encode(character));
-      i += character.length;
+      i++;
     }
+    const character = String.fromCodePoint(content.codePointAt(i)!);
+    bytes.push(...new TextEncoder().encode(character));
+    i += character.length;
   }
 
   try {
@@ -106,7 +100,12 @@ const decodeTxt = (data: string): string | null => {
       new Uint8Array(bytes),
     );
   } catch {
-    return null;
+    // Invalid optional bytes must not hide an otherwise valid sale signal.
+    return VERSION.split('').every(
+      (character, index) => bytes[index] === character.charCodeAt(0),
+    )
+      ? VERSION
+      : null;
   }
 };
 
@@ -116,6 +115,9 @@ export const lookupForSale = async (
   if (!isValidDomain(domain)) throw new Error('Invalid domain');
 
   const baseDomain = getBaseDomain(domain).toLowerCase();
+  if (baseDomain === 'arpa' || baseDomain.endsWith('.arpa'))
+    return { domain: baseDomain, listing: null };
+
   const resolver = new CloudflareDoHResolver({
     signal: AbortSignal.timeout(2500),
   });
@@ -123,6 +125,16 @@ export const lookupForSale = async (
     `_for-sale.${baseDomain}`,
     'TXT',
   );
+  if (
+    answers.length > MAX_ANSWERS ||
+    answers.some(
+      ({ data }) =>
+        data.length > MAX_ANSWER_BYTES ||
+        new TextEncoder().encode(data).length > MAX_ANSWER_BYTES,
+    )
+  )
+    throw new Error('For-sale DNS response exceeds size limits');
+
   const records = (rcode === 0 ? answers : [])
     .filter((answer) => answer.type === 16)
     .map((answer) => decodeTxt(answer.data))

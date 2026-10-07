@@ -73,6 +73,7 @@ describe('RFC 10023 records', () => {
     'https://seller.example/has space',
     'https://seller.example/\n',
     'https://seller.example/\u202etest',
+    'https://seller.example/\u061ctest',
   ])('does not expose unsafe links: %s', (link) => {
     expect(parseForSaleRecords([`v=FORSALE1;furi=${link}`])?.links).toEqual([]);
   });
@@ -92,6 +93,30 @@ describe('RFC 10023 records', () => {
     ).toEqual(['Hello world !']);
   });
 
+  it.each([
+    '\u061c',
+    '\u200e',
+    '\u200f',
+    '\u202a',
+    '\u202b',
+    '\u202c',
+    '\u202d',
+    '\u202e',
+    '\u2066',
+    '\u2067',
+    '\u2068',
+    '\u2069',
+  ])('sanitizes each Unicode bidi control: %j', (control) => {
+    expect(
+      parseForSaleRecords([`v=FORSALE1;ftxt=Hello${control}world`])?.texts,
+    ).toEqual(['Hello world']);
+    expect(
+      parseForSaleRecords([
+        `v=FORSALE1;furi=https://seller.example/${control}test`,
+      ])?.links,
+    ).toEqual([]);
+  });
+
   it('keeps the signal but discards oversized content by UTF-8 byte length', () => {
     expect(parseForSaleRecords([`v=FORSALE1;ftxt=${'€'.repeat(100)}`])).toEqual(
       { prices: [], links: [], texts: [] },
@@ -101,8 +126,13 @@ describe('RFC 10023 records', () => {
 
 describe('for-sale lookup', () => {
   const fetchMock = vi.fn();
-  const answer = (data: string, TTL = 300, type = 16) => ({
-    name: '_for-sale.example.com.',
+  const answer = (
+    data: string,
+    TTL = 300,
+    type = 16,
+    name = '_for-sale.example.com.',
+  ) => ({
+    name,
     type,
     TTL,
     data,
@@ -131,12 +161,12 @@ describe('for-sale lookup', () => {
     expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 
-  it('decodes quoted chunks, escaped quotes, backslashes and UTF-8 octets', async () => {
+  it('decodes escaped quotes, backslashes and UTF-8 octets', async () => {
     respond({
       Status: 0,
       Answer: [
         answer(
-          String.raw`"v=FORSALE1;" "ftxt=Gr\195\188\195\159e \"friend\" \\ end"`,
+          String.raw`"v=FORSALE1;ftxt=Gr\195\188\195\159e \"friend\" \\ end"`,
         ),
       ],
     });
@@ -167,8 +197,18 @@ describe('for-sale lookup', () => {
     respond({
       Status: 0,
       Answer: [
-        answer('"v=FORSALE1;furi=mailto:sales@sun.com.py"'),
-        answer('"v=FORSALE1;fval=USD195000"'),
+        answer(
+          '"v=FORSALE1;furi=mailto:sales@sun.com.py"',
+          300,
+          16,
+          '_for-sale.forsaledns.net.',
+        ),
+        answer(
+          '"v=FORSALE1;fval=USD195000"',
+          300,
+          16,
+          '_for-sale.forsaledns.net.',
+        ),
       ],
     });
     expect(await lookupForSale('forsaledns.net')).toEqual({
@@ -179,16 +219,76 @@ describe('for-sale lookup', () => {
         texts: [],
       },
     });
+    expect(fetchMock.mock.calls[0][0].searchParams.get('name')).toBe(
+      '_for-sale.forsaledns.net',
+    );
   });
 
   it.each([
     '"v=FORSALE1;ftxt=\\999"',
-    '"v=FORSALE1;ftxt=\\255"',
     '"v=FORSALE1;" garbage',
     '"v=FORSALE1;',
+    '"v=FORSALE1;" "fval=USD10"',
+    '"v=FOR" "SALE1;"',
   ])('ignores malformed presentation data: %s', async (data) => {
     respond({ Status: 0, Answer: [answer(data)] });
     expect((await lookupForSale('example.com')).listing).toBeNull();
+  });
+
+  it.each(['fcod', 'ftxt', 'furi', 'fval'])(
+    'preserves the sale marker when %s contains invalid UTF-8',
+    async (tag) => {
+      respond({ Status: 0, Answer: [answer(`"v=FORSALE1;${tag}=\\255"`)] });
+      expect((await lookupForSale('example.com')).listing).toEqual({
+        prices: [],
+        links: [],
+        texts: [],
+      });
+    },
+  );
+
+  it('does not accept invalid UTF-8 in the version marker', async () => {
+    respond({ Status: 0, Answer: [answer('"v=FORSALE\\255;fcod=opaque"')] });
+    expect((await lookupForSale('example.com')).listing).toBeNull();
+  });
+
+  it.each([
+    '51.198.in-addr.arpa',
+    '0.1.ip6.arpa',
+    '1.2.e164.arpa',
+    'WWW.IN-ADDR.ARPA.',
+  ])('skips infrastructure domains before querying DNS: %s', async (domain) => {
+    expect((await lookupForSale(domain)).listing).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('accepts answer sets at the processing limits', async () => {
+    respond({
+      Status: 0,
+      Answer: Array.from({ length: 256 }, () =>
+        answer(
+          'v=FORSALE1;ftxt=' + 'x'.repeat(4096 - 'v=FORSALE1;ftxt='.length),
+        ),
+      ),
+    });
+    expect((await lookupForSale('example.com')).listing).toEqual({
+      prices: [],
+      links: [],
+      texts: [],
+    });
+  });
+
+  it.each(
+    [
+      Array.from({ length: 257 }, () => answer('v=FORSALE1;')),
+      [answer('x'.repeat(4097))],
+      [answer('€'.repeat(1366))],
+    ].map((answers) => ({ answers })),
+  )('rejects oversized DNS responses', async ({ answers }) => {
+    respond({ Status: 0, Answer: answers });
+    await expect(lookupForSale('example.com')).rejects.toThrow(
+      'exceeds size limits',
+    );
   });
 
   it('ignores non-TXT answers while preserving version-only listings', async () => {
