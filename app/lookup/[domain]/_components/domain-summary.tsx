@@ -46,6 +46,51 @@ const DomainSummaryTile: FC<DomainSummaryTileProps> = ({
   </div>
 );
 
+type SaleListingLinkProps = {
+  href?: string;
+  children: ReactNode;
+};
+
+const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
+  if (!href) return children;
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex cursor-pointer items-center gap-1 text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
+          aria-label="View sale listing on an external website"
+        >
+          <span>{children}</span>
+          <ExternalLinkIcon className="size-3.5 shrink-0" aria-hidden="true" />
+        </button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Open external website?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This is an external website that Domain Digger does not control.
+            Verify the listing and price with the seller.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <p className="text-sm break-all" dir="ltr">
+          {href}
+        </p>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction asChild>
+            <a href={href} target="_blank" rel="noopener noreferrer nofollow">
+              Continue
+              <ExternalLinkIcon className="ml-2 size-4" aria-hidden="true" />
+            </a>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+};
+
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   const { data: whois, isLoading } = useSWRImmutable<WhoisSummaryResponse>(
     `/api/whois-summary?domain=${encodeURIComponent(domain)}`,
@@ -56,11 +101,6 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   );
   const listing = sale?.listing;
   const saleUrl = listing?.links.find((link) => /^https?:\/\//i.test(link));
-  const saleValue =
-    listing &&
-    (listing.prices.length
-      ? listing.prices.map(formatSalePrice).join(' / ')
-      : 'Advertised for sale');
 
   return (
     <div className="flex flex-wrap gap-8">
@@ -92,53 +132,11 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
         <DomainSummaryTile
           title={`For sale${sale.domain !== domain ? ` (${sale.domain})` : ''}`}
           value={
-            saleUrl ? (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <button
-                    type="button"
-                    className="inline-flex cursor-pointer items-center gap-1 text-left hover:underline focus-visible:outline-2 focus-visible:outline-offset-4"
-                    aria-label="View sale listing on an external website"
-                  >
-                    <span>{saleValue}</span>
-                    <ExternalLinkIcon
-                      className="size-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                  </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Open external website?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This is an external website that Domain Digger does not
-                      control. Verify the listing and price with the seller.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <p className="text-sm break-all" dir="ltr">
-                    {saleUrl}
-                  </p>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction asChild>
-                      <a
-                        href={saleUrl}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                      >
-                        Continue
-                        <ExternalLinkIcon
-                          className="ml-2 size-4"
-                          aria-hidden="true"
-                        />
-                      </a>
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : (
-              saleValue
-            )
+            <SaleListingLink href={saleUrl}>
+              {listing.prices.length
+                ? listing.prices.map(formatSalePrice).join(' / ')
+                : 'Advertised for sale'}
+            </SaleListingLink>
           }
         />
       )}

@@ -9,21 +9,18 @@ export const formatSalePrice = (price: string): string => {
 
   try {
     // A fixed locale keeps server and client rendering consistent.
-    const defaults = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency,
-    }).resolvedOptions();
+    const currencyDigits =
+      new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency,
+      }).resolvedOptions().maximumFractionDigits ?? 2;
+    const digits = Math.max(currencyDigits, fractionDigits);
+
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency,
-      minimumFractionDigits: Math.max(
-        defaults.minimumFractionDigits ?? 2,
-        fractionDigits,
-      ),
-      maximumFractionDigits: Math.max(
-        defaults.maximumFractionDigits ?? 2,
-        fractionDigits,
-      ),
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
       trailingZeroDisplay: 'stripIfInteger',
     }).format(amount as Intl.StringNumericLiteral);
   } catch {

@@ -41,35 +41,35 @@ const safeLink = (value: string): string | null => {
 export const parseForSaleRecords = (
   records: string[],
 ): ForSaleListing | null => {
-  const listing: ForSaleListing = { prices: [], links: [], texts: [] };
-  let found = false;
-  for (const record of records) {
-    if (!record.startsWith(VERSION)) continue;
-    found = true;
+  const saleRecords = records.filter((record) => record.startsWith(VERSION));
+  if (!saleRecords.length) return null;
+
+  const prices = new Set<string>();
+  const links = new Set<string>();
+  const texts = new Set<string>();
+
+  for (const record of saleRecords) {
     if (new TextEncoder().encode(record).length > 255) continue;
+
     const content = record.slice(VERSION.length).trimStart();
-    const value = content.slice(5);
-    if (
-      content.startsWith('fval=') &&
-      /^[A-Z]+[0-9]+(?:\.[0-9]+)?$/.test(value)
-    ) {
-      listing.prices.push(value.replace(/^([A-Z]+)/, '$1 '));
-    } else if (content.startsWith('furi=')) {
+    const separator = content.indexOf('=');
+    if (separator === -1) continue;
+
+    const tag = content.slice(0, separator);
+    const value = content.slice(separator + 1);
+
+    if (tag === 'fval' && /^[A-Z]+[0-9]+(?:\.[0-9]+)?$/.test(value)) {
+      prices.add(value.replace(/^([A-Z]+)/, '$1 '));
+    } else if (tag === 'furi') {
       const link = safeLink(value);
-      if (link) listing.links.push(link);
-    } else if (content.startsWith('ftxt=')) {
+      if (link) links.add(link);
+    } else if (tag === 'ftxt') {
       const text = value.replace(UNSAFE_CHARACTERS, ' ').trim();
-      if (text) listing.texts.push(text);
+      if (text) texts.add(text);
     }
     // fcod is a cooperating party's opaque code, not a URL we can decode.
   }
-  return found
-    ? {
-        prices: [...new Set(listing.prices)],
-        links: [...new Set(listing.links)],
-        texts: [...new Set(listing.texts)],
-      }
-    : null;
+  return { prices: [...prices], links: [...links], texts: [...texts] };
 };
 
 // Google DoH can return plain TXT content or quoted DNS presentation data.
@@ -77,10 +77,10 @@ export const parseForSaleRecords = (
 // concatenate chunks for robustness (§3.2).
 const decodeTxt = (data: string): string | null => {
   if (!data.startsWith('"')) return data;
+
   const bytes: number[] = [];
   const chunks = /\s*"((?:[^"\\]|\\[\s\S])*)"\s*/gy;
-  let position = 0;
-  while (position < data.length) {
+  while (chunks.lastIndex < data.length) {
     const match = chunks.exec(data);
     if (!match) return null;
     const content = match[1];
@@ -100,8 +100,8 @@ const decodeTxt = (data: string): string | null => {
       bytes.push(...new TextEncoder().encode(character));
       i += character.length;
     }
-    position = chunks.lastIndex;
   }
+
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(
       new Uint8Array(bytes),
@@ -134,10 +134,12 @@ export const lookupForSale = async (
   ttl: number;
 }> => {
   if (!isValidDomain(domain)) throw new Error('Invalid domain');
+
   const baseDomain = getBaseDomain(domain).toLowerCase();
   const url = new URL('https://dns.google/resolve');
   url.searchParams.set('name', `_for-sale.${baseDomain}`);
   url.searchParams.set('type', 'TXT');
+
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(2500),
@@ -145,16 +147,19 @@ export const lookupForSale = async (
   });
   if (!response.ok)
     throw new Error(`For-sale DNS lookup failed: HTTP ${response.status}`);
+
   const result = responseSchema.parse(await response.json());
   if (result.TC || ![0, 3].includes(result.Status)) {
     throw new Error(`For-sale DNS lookup failed: status ${result.Status}`);
   }
+
   const answers = result.Status === 0 ? (result.Answer ?? []) : [];
   const records = answers
     .filter((answer) => answer.type === 16)
     .map((answer) => decodeTxt(answer.data))
     .filter((record): record is string => record !== null);
   const listing = parseForSaleRecords(records);
+
   return {
     summary: { domain: baseDomain, listing },
     // Include alias TTLs, cap at one hour, and don't cache negative answers
