@@ -117,10 +117,27 @@ describe('RFC 10023 records', () => {
     ).toEqual([]);
   });
 
-  it('keeps the signal but discards oversized content by UTF-8 byte length', () => {
-    expect(parseForSaleRecords([`v=FORSALE1;ftxt=${'€'.repeat(100)}`])).toEqual(
-      { prices: [], links: [], texts: [] },
-    );
+  it('ignores oversized records before recognizing a sale signal', () => {
+    expect(
+      parseForSaleRecords([`v=FORSALE1;ftxt=${'€'.repeat(100)}`]),
+    ).toBeNull();
+  });
+
+  it('enforces the 255-octet boundary using UTF-8 byte length', () => {
+    const text = `${'€'.repeat(79)}xx`;
+    const record = `v=FORSALE1;ftxt=${text}`;
+    expect(new TextEncoder().encode(record).length).toBe(255);
+    expect(parseForSaleRecords([record])?.texts).toEqual([text]);
+    expect(parseForSaleRecords([record + 'x'])).toBeNull();
+  });
+
+  it('keeps valid records when another answer is oversized', () => {
+    expect(
+      parseForSaleRecords([
+        `v=FORSALE1;ftxt=${'x'.repeat(256)}`,
+        'v=FORSALE1;fval=USD10',
+      ])?.prices,
+    ).toEqual(['USD 10']);
   });
 });
 
@@ -253,6 +270,24 @@ describe('for-sale lookup', () => {
   });
 
   it.each([
+    `"v=FORSALE1;ftxt=${'x'.repeat(240)}"`,
+    `"v=FORSALE1;ftxt=${String.raw`\195\188`.repeat(120)}"`,
+    `"v=FORSALE1;fcod=${String.raw`\255`.repeat(240)}"`,
+  ])(
+    'ignores overlong quoted records, including invalid optional UTF-8',
+    async (data) => {
+      respond({ Status: 0, Answer: [answer(data)] });
+      expect((await lookupForSale('example.com')).listing).toBeNull();
+    },
+  );
+
+  it('accepts a quoted record at the 255-octet boundary', async () => {
+    const text = 'x'.repeat(239);
+    respond({ Status: 0, Answer: [answer(`"v=FORSALE1;ftxt=${text}"`)] });
+    expect((await lookupForSale('example.com')).listing?.texts).toEqual([text]);
+  });
+
+  it.each([
     '51.198.in-addr.arpa',
     '0.1.ip6.arpa',
     '1.2.e164.arpa',
@@ -271,11 +306,7 @@ describe('for-sale lookup', () => {
         ),
       ),
     });
-    expect((await lookupForSale('example.com')).listing).toEqual({
-      prices: [],
-      links: [],
-      texts: [],
-    });
+    expect((await lookupForSale('example.com')).listing).toBeNull();
   });
 
   it.each(

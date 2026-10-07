@@ -37,7 +37,11 @@ const safeLink = (value: string): string | null => {
 export const parseForSaleRecords = (
   records: string[],
 ): ForSaleListing | null => {
-  const saleRecords = records.filter((record) => record.startsWith(VERSION));
+  const saleRecords = records.filter(
+    (record) =>
+      record.startsWith(VERSION) &&
+      new TextEncoder().encode(record).length <= 255,
+  );
   if (!saleRecords.length) return null;
 
   const prices = new Set<string>();
@@ -45,8 +49,6 @@ export const parseForSaleRecords = (
   const texts = new Set<string>();
 
   for (const record of saleRecords) {
-    if (new TextEncoder().encode(record).length > 255) continue;
-
     const content = record.slice(VERSION.length).trimStart();
     const separator = content.indexOf('=');
     if (separator === -1) continue;
@@ -94,6 +96,8 @@ const decodeTxt = (data: string): string | null => {
     bytes.push(...new TextEncoder().encode(character));
     i += character.length;
   }
+
+  if (bytes.length > 255) return null;
 
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(
