@@ -127,8 +127,9 @@ describe('for-sale lookup', () => {
     });
     const [url, options] = fetchMock.mock.calls[0];
     expect(url.toString()).toBe(
-      'https://dns.google/resolve?name=_for-sale.example.com&type=TXT',
+      'https://cloudflare-dns.com/dns-query?name=_for-sale.example.com&type=TXT',
     );
+    expect(options.headers.Accept).toBe('application/dns-json');
     expect(options.cache).toBe('no-store');
     expect(options.signal).toBeInstanceOf(AbortSignal);
   });
@@ -147,7 +148,7 @@ describe('for-sale lookup', () => {
     );
   });
 
-  it('handles plain TXT content returned by Google for Atom listings', async () => {
+  it('handles plain TXT content for Atom listings', async () => {
     respond({
       Status: 0,
       Answer: [
@@ -169,8 +170,8 @@ describe('for-sale lookup', () => {
     respond({
       Status: 0,
       Answer: [
-        answer('v=FORSALE1;furi=mailto:sales@sun.com.py'),
-        answer('v=FORSALE1;fval=USD195000'),
+        answer('"v=FORSALE1;furi=mailto:sales@sun.com.py"'),
+        answer('"v=FORSALE1;fval=USD195000"'),
       ],
     });
     expect(await lookupForSale('forsaledns.net')).toEqual({
@@ -214,6 +215,7 @@ describe('for-sale lookup', () => {
   it.each([
     { Status: 0 },
     { Status: 3 },
+    { Status: 3, Answer: [answer('"v=FORSALE1;"')] },
     { Status: 0, Answer: [answer('"unrelated TXT"')] },
   ])('returns no signal without negative caching: %j', async (body) => {
     respond(body);
@@ -236,7 +238,9 @@ describe('for-sale lookup', () => {
 
   it('rejects HTTP and network failures', async () => {
     respond({}, 503);
-    await expect(lookupForSale('example.com')).rejects.toThrow('HTTP 503');
+    await expect(lookupForSale('example.com')).rejects.toMatchObject({
+      cause: { message: expect.stringContaining('HTTP 503') },
+    });
     fetchMock.mockRejectedValue(new DOMException('Timed out', 'TimeoutError'));
     await expect(lookupForSale('example.com')).rejects.toThrow('Timed out');
   });

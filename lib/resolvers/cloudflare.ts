@@ -1,15 +1,17 @@
 import { BaseDoHResolver } from './base-doh';
 
 export class CloudflareDoHResolver extends BaseDoHResolver {
-  constructor() {
-    super((domain, type) =>
-      fetch(
-        `https://cloudflare-dns.com/dns-query?name=${domain}&type=${type}`,
-        {
-          method: 'GET',
-          headers: { Accept: 'application/dns-json' },
-        },
-      ),
-    );
+  constructor(options: Pick<RequestInit, 'cache' | 'signal'> = {}) {
+    super((domain, type) => {
+      const url = new URL('https://cloudflare-dns.com/dns-query');
+      url.searchParams.set('name', domain);
+      url.searchParams.set('type', type);
+
+      return fetch(url, {
+        ...options,
+        method: 'GET',
+        headers: { Accept: 'application/dns-json' },
+      });
+    });
   }
 }

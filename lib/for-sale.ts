@@ -1,5 +1,4 @@
-import { z } from 'zod';
-
+import { CloudflareDoHResolver } from './resolvers/cloudflare';
 import { getBaseDomain, isValidDomain } from './utils';
 
 const VERSION = 'v=FORSALE1;';
@@ -72,7 +71,7 @@ export const parseForSaleRecords = (
   return { prices: [...prices], links: [...links], texts: [...texts] };
 };
 
-// Google DoH can return plain TXT content or quoted DNS presentation data.
+// Accept plain TXT content or quoted DNS presentation data from DoH resolvers.
 // Decode decimal octet escapes in the latter before UTF-8 interpretation;
 // concatenate chunks for robustness (§3.2).
 const decodeTxt = (data: string): string | null => {
@@ -111,22 +110,6 @@ const decodeTxt = (data: string): string | null => {
   }
 };
 
-const responseSchema = z.object({
-  Status: z.number().int(),
-  TC: z.boolean().optional(),
-  Answer: z
-    .array(
-      z.object({
-        name: z.string(),
-        type: z.number().int(),
-        TTL: z.number().int().nonnegative(),
-        data: z.string().max(4096),
-      }),
-    )
-    .max(256)
-    .optional(),
-});
-
 export const lookupForSale = async (
   domain: string,
 ): Promise<{
@@ -136,25 +119,15 @@ export const lookupForSale = async (
   if (!isValidDomain(domain)) throw new Error('Invalid domain');
 
   const baseDomain = getBaseDomain(domain).toLowerCase();
-  const url = new URL('https://dns.google/resolve');
-  url.searchParams.set('name', `_for-sale.${baseDomain}`);
-  url.searchParams.set('type', 'TXT');
-
-  const response = await fetch(url, {
-    headers: { Accept: 'application/json' },
+  const resolver = new CloudflareDoHResolver({
     signal: AbortSignal.timeout(2500),
     cache: 'no-store',
   });
-  if (!response.ok)
-    throw new Error(`For-sale DNS lookup failed: HTTP ${response.status}`);
-
-  const result = responseSchema.parse(await response.json());
-  if (result.TC || ![0, 3].includes(result.Status)) {
-    throw new Error(`For-sale DNS lookup failed: status ${result.Status}`);
-  }
-
-  const answers = result.Status === 0 ? (result.Answer ?? []) : [];
-  const records = answers
+  const { answers, rcode } = await resolver.resolveAnswers(
+    `_for-sale.${baseDomain}`,
+    'TXT',
+  );
+  const records = (rcode === 0 ? answers : [])
     .filter((answer) => answer.type === 16)
     .map((answer) => decodeTxt(answer.data))
     .filter((record): record is string => record !== null);

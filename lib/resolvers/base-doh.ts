@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { RECORD_TYPES_BY_DECIMAL } from '../data';
 import { UserFacingError } from '../user-facing-error';
 import { DnsResolver, type RecordType, type ResolverResponse } from './base';
@@ -27,6 +29,26 @@ export type DoHResponse = {
   }[];
 };
 
+type DoHAnswer = NonNullable<DoHResponse['Answer']>[number];
+
+const responseSchema = z.object({
+  Status: z.number().int(),
+  TC: z.boolean().optional(),
+  Answer: z
+    .array(
+      z.object({
+        name: z.string(),
+        type: z.number().int().nonnegative(),
+        TTL: z.number().int().nonnegative(),
+        data: z.string(),
+      }),
+    )
+    .optional(),
+});
+
+const recordTypes: Readonly<Record<number, RecordType | undefined>> =
+  RECORD_TYPES_BY_DECIMAL;
+
 export abstract class BaseDoHResolver extends DnsResolver {
   constructor(
     private sendRequest: (
@@ -37,10 +59,11 @@ export abstract class BaseDoHResolver extends DnsResolver {
     super();
   }
 
-  public async resolveRecordType(
+  // Keep aliases and their TTLs for callers that need the whole answer section.
+  public async resolveAnswers(
     domain: string,
     type: RecordType,
-  ): Promise<ResolverResponse> {
+  ): Promise<{ answers: DoHAnswer[]; rcode: number; trace: string[] }> {
     const response = await this.sendRequest(domain, type);
     if (!response.ok) {
       const retryable = response.status === 429 || response.status >= 500;
@@ -58,34 +81,54 @@ export abstract class BaseDoHResolver extends DnsResolver {
         },
       );
     }
-    const results = (await response.json()) as DoHResponse;
-
-    if (!results.Answer) {
-      return {
-        records: [],
-        trace: [`HTTPS GET ${response.url} -> no answer`],
-      };
+    const results = responseSchema.parse(await response.json());
+    if (results.TC || ![0, 3].includes(results.Status)) {
+      throw new UserFacingError(
+        {
+          title: 'DNS resolver could not complete the lookup',
+          description:
+            'The DNS resolver returned an error or incomplete response. Please try again shortly.',
+          retryable: true,
+        },
+        {
+          cause: new Error(
+            results.TC
+              ? 'Truncated DNS response'
+              : `DNS status ${results.Status}`,
+          ),
+        },
+      );
     }
 
-    const filteredAnswers = results.Answer.filter(
-      (answer) =>
-        answer.type in RECORD_TYPES_BY_DECIMAL &&
-        // @ts-expect-error
-        RECORD_TYPES_BY_DECIMAL[answer.type] === type,
-    );
-
-    const cleanedAnswers = filteredAnswers.map((answer) => ({
-      name: answer.name,
-      type,
-      TTL: answer.TTL,
-      data: answer.data,
-    }));
-
+    const answers = results.Answer;
     return {
-      records: cleanedAnswers,
+      answers: answers ?? [],
+      rcode: results.Status,
       trace: [
-        `HTTPS GET ${response.url} -> answer: ${cleanedAnswers.map((a) => a.data).join(', ')}`,
+        `HTTPS GET ${response.url} -> ${
+          answers
+            ? `answer: ${answers.map((answer) => answer.data).join(', ')}`
+            : 'no answer'
+        }`,
       ],
     };
+  }
+
+  public async resolveRecordType(
+    domain: string,
+    type: RecordType,
+  ): Promise<ResolverResponse> {
+    const { answers, trace } = await this.resolveAnswers(domain, type);
+
+    const records = answers
+      .filter((answer) => recordTypes[answer.type] === type)
+      .map((answer) => ({
+        name: answer.name,
+        type,
+        TTL: answer.TTL,
+        data: answer.data,
+      }));
+
+    return { records, trace };
   }
 }
