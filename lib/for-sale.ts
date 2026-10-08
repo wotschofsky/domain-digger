@@ -67,9 +67,13 @@ const comparePrices = (a: string, b: string) => {
   );
 };
 
+// Within a scheme, websites on a plain host come before internationalized
+// ones: lookalike names are a risk there (§4), and their punycode form is
+// harder to check before opening the link.
 const compareLinks = (a: string, b: string) => {
   const preference = (link: string) =>
-    LINK_SCHEMES.findIndex((scheme) => link.startsWith(scheme));
+    2 * LINK_SCHEMES.findIndex((scheme) => link.startsWith(scheme)) +
+    Number(/^https?:\/\/(?:[^/?#]*\.)?xn--/.test(link));
   return compare(preference(a), preference(b)) || compare(a, b);
 };
 

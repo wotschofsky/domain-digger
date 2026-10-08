@@ -99,6 +99,24 @@ describe('RFC 10023 records', () => {
     expect(parseForSaleRecords(records.toReversed())).toEqual(sorted);
   });
 
+  it('lists a website on a plain host before an internationalized one', () => {
+    expect(
+      parseForSaleRecords([
+        'v=FORSALE1;furi=mailto:hello@seller.example',
+        'v=FORSALE1;furi=http://seller.example/plain',
+        'v=FORSALE1;furi=https://example.com.xn--9db.xn--9dbq2a/',
+        'v=FORSALE1;furi=https://xn--80ak6aa92e.com/',
+        'v=FORSALE1;furi=https://example.nl/for-sale.txt',
+      ])?.links,
+    ).toEqual([
+      'https://example.nl/for-sale.txt',
+      'https://example.com.xn--9db.xn--9dbq2a/',
+      'https://xn--80ak6aa92e.com/',
+      'http://seller.example/plain',
+      'mailto:hello@seller.example',
+    ]);
+  });
+
   it('treats a semicolon in content as part of the value, not another tag', () => {
     expect(
       parseForSaleRecords(['v=FORSALE1;ftxt=Contact me;fval=EUR500']),
