@@ -147,7 +147,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   }
 
   const { whois } = data;
-  // A sale signal is only shown for a registration WHOIS actually confirmed.
+  // No sale tile when the WHOIS lookup failed and registration is only assumed.
   const sale = whois.unknown ? null : data.sale;
   const listing = sale?.listing;
   const saleUrl =

@@ -1,10 +1,11 @@
+import type * as Whoiser from 'whoiser';
 import { describe, expect, it, vi } from 'vitest';
 
 import { formatDate, getWhoisSummary } from './whois';
 
 const { whoisDomain } = vi.hoisted(() => ({ whoisDomain: vi.fn() }));
 vi.mock('whoiser', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('whoiser')>()),
+  ...(await importOriginal<typeof Whoiser>()),
   whoisDomain,
 }));
 
@@ -24,6 +25,15 @@ describe('getWhoisSummary', () => {
       registrar: null,
       createdAt: null,
       dnssec: null,
+    });
+  });
+
+  it('marks registration as unknown when the WHOIS server query errors', async () => {
+    // whoiser resolves socket errors and timeouts instead of rejecting.
+    whoisDomain.mockResolvedValue({ 'whois.example': { error: 'Timeout' } });
+    expect(await getWhoisSummary('example.com')).toMatchObject({
+      registered: true,
+      unknown: true,
     });
   });
 

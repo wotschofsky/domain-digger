@@ -101,7 +101,8 @@ export const getWhoisSummary = async (
 
     const firstResult = getFirstResult(results);
 
-    if (!firstResult) {
+    // whoiser resolves socket errors and timeouts as { error } per server.
+    if (!firstResult || 'error' in firstResult) {
       throw new Error('No valid result found for domain ' + domain);
     }
 
