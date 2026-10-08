@@ -61,6 +61,11 @@ describe('RFC 10023 records', () => {
       'v=FORSALE1;fval=EUR1000',
       'v=FORSALE1;fval=EUR250.5',
       'v=FORSALE1;fval=BTC0.5',
+      'v=FORSALE1;fval=BTC0.25',
+      `v=FORSALE1;fval=JPY1${'0'.repeat(30)}`,
+      `v=FORSALE1;fval=JPY${'9'.repeat(30)}`,
+      'v=FORSALE1;fval=JPY9007199254740993',
+      'v=FORSALE1;fval=JPY9007199254740992',
       'v=FORSALE1;furi=tel:+4930123456',
       'v=FORSALE1;furi=mailto:hello@seller.example',
       'v=FORSALE1;furi=http://seller.example/plain',
@@ -70,7 +75,17 @@ describe('RFC 10023 records', () => {
       'v=FORSALE1;ftxt=First',
     ];
     const sorted = {
-      prices: ['BTC 0.5', 'EUR 250.5', 'EUR 1000', 'USD 900'],
+      prices: [
+        'BTC 0.25',
+        'BTC 0.5',
+        'EUR 250.5',
+        'EUR 1000',
+        'JPY 9007199254740992',
+        'JPY 9007199254740993',
+        `JPY ${'9'.repeat(30)}`,
+        `JPY 1${'0'.repeat(30)}`,
+        'USD 900',
+      ],
       links: [
         'https://seller.example/a',
         'https://seller.example/b',
@@ -261,14 +276,7 @@ describe('for-sale lookup', () => {
     });
   });
 
-  it('keeps a listing found on one name when the other lookup fails', async () => {
-    respondByName({
-      '_for-sale.broken.example.com': { Status: 2 },
-      '_for-sale.example.com': usd,
-    });
-    expect((await lookupForSale('broken.example.com')).domain).toBe(
-      'example.com',
-    );
+  it('keeps the listing on the searched name when the fallback lookup fails', async () => {
     respondByName({
       '_for-sale.dynamic.example.com': eur,
       '_for-sale.example.com': new DOMException('Timed out', 'TimeoutError'),
@@ -278,9 +286,29 @@ describe('for-sale lookup', () => {
     );
   });
 
-  it('rejects when a lookup fails and no listing was found', async () => {
-    respondByName({ '_for-sale.broken.example.com': { Status: 2 } });
-    await expect(lookupForSale('broken.example.com')).rejects.toThrow();
+  it.each([{ Status: 2 }, new DOMException('Timed out', 'TimeoutError')])(
+    'does not fall back while the lookup of the searched name has failed: %j',
+    async (failure) => {
+      respondByName({
+        '_for-sale.shop.example.com': failure,
+        '_for-sale.example.com': usd,
+      });
+      await expect(lookupForSale('shop.example.com')).rejects.toThrow();
+    },
+  );
+
+  it('rejects when the fallback lookup fails and the searched name has no listing', async () => {
+    respondByName({ '_for-sale.example.com': { Status: 2 } });
+    await expect(lookupForSale('www.example.com')).rejects.toThrow();
+  });
+
+  it('queries only the registrable domain when the searched name cannot take the label', async () => {
+    const domain = `${'a'.repeat(63)}.${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(40)}.example.com`;
+    expect(domain.length).toBeLessThanOrEqual(253);
+    expect(`_for-sale.${domain}`.length).toBeGreaterThan(253);
+    respondByName({ '_for-sale.example.com': usd });
+    expect((await lookupForSale(domain)).domain).toBe('example.com');
+    expect(queriedNames()).toEqual(['_for-sale.example.com']);
   });
 
   it('decodes escaped quotes, backslashes and UTF-8 octets', async () => {

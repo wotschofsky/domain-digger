@@ -44,6 +44,17 @@ const safeLink = (value: string): string | null => {
 const compare = (a: string | number, b: string | number) =>
   a < b ? -1 : a > b ? 1 : 0;
 
+// Order decimal strings by value without converting them to floats.
+const compareAmounts = (a: string, b: string) => {
+  const [integerA, fractionA = ''] = a.replace(/^0+(?=\d)/, '').split('.');
+  const [integerB, fractionB = ''] = b.replace(/^0+(?=\d)/, '').split('.');
+  return (
+    compare(integerA.length, integerB.length) ||
+    compare(integerA, integerB) ||
+    compare(fractionA.replace(/0+$/, ''), fractionB.replace(/0+$/, ''))
+  );
+};
+
 // DNS returns an RRset in no particular order, so details are sorted to show
 // the same listing on every lookup: prices by currency, then amount.
 const comparePrices = (a: string, b: string) => {
@@ -51,7 +62,7 @@ const comparePrices = (a: string, b: string) => {
   const [currencyB, amountB] = b.split(' ');
   return (
     compare(currencyA, currencyB) ||
-    compare(Number(amountA), Number(amountB)) ||
+    compareAmounts(amountA, amountB) ||
     compare(a, b)
   );
 };
@@ -75,7 +86,8 @@ export const parseForSaleRecords = (
   const texts = new Set<string>();
 
   for (const record of saleRecords) {
-    // Content past the 255 octets of one character-string is invalid (§2.4).
+    // A valid record fits one character-string of 255 octets (§2.4), so a
+    // longer one, counted over all of its joined strings, loses its content.
     if (new TextEncoder().encode(record).length > 255) continue;
 
     const content = record.slice(VERSION.length).trimStart();
@@ -181,10 +193,13 @@ export const lookupForSale = async (
     return { domain: baseDomain, listing: null };
 
   // The leaf may sit at any level of the DNS (§2.6), so a record on the
-  // searched name comes first. Its registrable domain is the fallback, so a
-  // host such as www still shows that the domain it belongs to is for sale.
+  // searched name comes first. The registrable domain is the only fallback:
+  // www.example.com still shows that example.com is for sale, but no name
+  // in between is queried.
   const name = canonicalDnsName(domain).replace(/^\*\./, '');
-  const names = [...new Set([name, baseDomain])];
+  const names = [...new Set([name, baseDomain])].filter(
+    (candidate) => `_for-sale.${candidate}`.length <= 253,
+  );
 
   const resolver = new CloudflareDoHResolver({
     signal: AbortSignal.timeout(2500),
@@ -193,11 +208,10 @@ export const lookupForSale = async (
     names.map((candidate) => lookupListing(resolver, candidate)),
   );
   for (const [index, result] of results.entries()) {
-    if (result.status === 'fulfilled' && result.value)
-      return { domain: names[index], listing: result.value };
+    // The fallback only counts once the searched name is known to have no
+    // listing, so a failed lookup of that name never shows the fallback's.
+    if (result.status === 'rejected') throw result.reason;
+    if (result.value) return { domain: names[index], listing: result.value };
   }
-  // No listing anywhere: a failed lookup means that is not known for sure.
-  const failure = results.find((result) => result.status === 'rejected');
-  if (failure) throw failure.reason;
   return { domain: baseDomain, listing: null };
 };
