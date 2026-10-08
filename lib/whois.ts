@@ -71,6 +71,8 @@ type WhoisSummary =
     }
   | {
       registered: true;
+      // Set when the lookup failed, so registration was assumed, not confirmed.
+      unknown?: true;
       registrar: string | null;
       createdAt: string | null;
       dnssec: string | null;
@@ -99,7 +101,8 @@ export const getWhoisSummary = async (
 
     const firstResult = getFirstResult(results);
 
-    if (!firstResult) {
+    // whoiser resolves socket errors and timeouts as { error } per server.
+    if (!firstResult || 'error' in firstResult) {
       throw new Error('No valid result found for domain ' + domain);
     }
 
@@ -133,6 +136,7 @@ export const getWhoisSummary = async (
   } catch {
     return {
       registered: true,
+      unknown: true,
       registrar: null,
       createdAt: null,
       dnssec: null,
