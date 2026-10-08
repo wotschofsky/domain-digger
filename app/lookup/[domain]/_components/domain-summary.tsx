@@ -146,8 +146,10 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     );
   }
 
-  const { whois, sale } = data;
-  const listing = sale.listing;
+  const { whois } = data;
+  // A sale signal is only shown for a registration WHOIS actually confirmed.
+  const sale = whois.unknown ? null : data.sale;
+  const listing = sale?.listing;
   const saleUrl =
     listing?.links.find((link) => /^https?:\/\//i.test(link)) ??
     listing?.links.find((link) => link.startsWith('mailto:'));
@@ -163,7 +165,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
         value={whois.createdAt || 'Unavailable'}
       />
       <DomainSummaryTile title="DNSSEC" value={whois.dnssec || 'Unavailable'} />
-      {listing && (
+      {sale && listing && (
         <DomainSummaryTile
           title={`For sale${sale.domain !== canonicalDnsName(domain) ? ` (${sale.domain})` : ''}`}
           value={

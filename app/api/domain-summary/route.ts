@@ -7,7 +7,8 @@ import { getWhoisSummary } from '@/lib/whois';
 
 export type DomainSummaryResponse = {
   whois: Awaited<ReturnType<typeof getWhoisSummary>>;
-  sale: ForSaleSummary;
+  // null when the sale lookup failed; WHOIS is still returned.
+  sale: ForSaleSummary | null;
 };
 
 export const GET = withEvlog(async (request: Request) => {
@@ -27,12 +28,19 @@ export const GET = withEvlog(async (request: Request) => {
   try {
     const [whois, sale] = await Promise.all([
       getWhoisSummary(domain),
-      lookupForSale(domain),
+      lookupForSale(domain).catch((error) => {
+        log.set({ event: 'sale_lookup_failed' });
+        log.error(error instanceof Error ? error : new Error(String(error)));
+        return null;
+      }),
     ]);
 
     return NextResponse.json({ whois, sale } satisfies DomainSummaryResponse, {
       headers: {
-        'Cache-Control': 'public, max-age=600, s-maxage=1800',
+        // Retry a failed sale lookup soon instead of hiding a listing.
+        'Cache-Control': sale
+          ? 'public, max-age=600, s-maxage=1800'
+          : 'public, max-age=60, s-maxage=60',
       },
     });
   } catch (error) {

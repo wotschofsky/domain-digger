@@ -121,6 +121,32 @@ describe('domain summary sale link', () => {
     expect(container.textContent).not.toContain('For sale');
   });
 
+  it('shows WHOIS without a sale tile when the sale lookup failed', async () => {
+    fixtures.summary.mockReturnValue({
+      data: {
+        whois: { registered: true, registrar: 'Example registrar' },
+        sale: null,
+      },
+      isLoading: false,
+    });
+    await render();
+    expect(container.textContent).toContain('Example registrar');
+    expect(container.textContent).not.toContain('For sale');
+  });
+
+  it('hides sale information when WHOIS could not establish registration', async () => {
+    fixtures.summary.mockReturnValue({
+      data: {
+        whois: { registered: true, unknown: true, registrar: null },
+        sale: { domain: 'example.com', listing: fixtures.listing },
+      },
+      isLoading: false,
+    });
+    await render();
+    expect(container.textContent).toContain('Unavailable');
+    expect(container.textContent).not.toContain('For sale');
+  });
+
   it('hides sale information for an unregistered domain', async () => {
     fixtures.summary.mockReturnValue({
       data: {

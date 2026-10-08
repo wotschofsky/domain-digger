@@ -71,6 +71,8 @@ type WhoisSummary =
     }
   | {
       registered: true;
+      // Set when the lookup failed, so registration was assumed, not confirmed.
+      unknown?: true;
       registrar: string | null;
       createdAt: string | null;
       dnssec: string | null;
@@ -133,6 +135,7 @@ export const getWhoisSummary = async (
   } catch {
     return {
       registered: true,
+      unknown: true,
       registrar: null,
       createdAt: null,
       dnssec: null,
