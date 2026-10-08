@@ -3,7 +3,11 @@ export const formatSalePrice = (price: string): string => {
   const match = /^([A-Z]+) (\d+(?:\.\d+)?)$/.exec(price);
   if (!match) return price;
 
-  const [, currency, amount] = match;
+  const [, currency, rawAmount] = match;
+  // Trailing fraction zeros carry no value; "12.8900000" reads as "12.89".
+  const amount = rawAmount.includes('.')
+    ? rawAmount.replace(/\.?0+$/, '')
+    : rawAmount;
   const fractionDigits = amount.split('.')[1]?.length ?? 0;
   if (fractionDigits > 100) return price;
 
@@ -21,10 +25,10 @@ export const formatSalePrice = (price: string): string => {
       currency,
       minimumFractionDigits: digits,
       maximumFractionDigits: digits,
-      trailingZeroDisplay: fractionDigits ? 'auto' : 'stripIfInteger',
+      trailingZeroDisplay: 'stripIfInteger',
     }).format(amount as Intl.StringNumericLiteral);
   } catch {
     // Nonstandard currency codes remain readable instead of breaking the tile.
-    return price;
+    return `${currency} ${amount}`;
   }
 };
