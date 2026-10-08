@@ -37,10 +37,11 @@ export const GET = withEvlog(async (request: Request) => {
 
     return NextResponse.json({ whois, sale } satisfies DomainSummaryResponse, {
       headers: {
-        // Retry a failed sale lookup soon instead of hiding a listing.
-        'Cache-Control': sale
-          ? 'public, max-age=600, s-maxage=1800'
-          : 'public, max-age=60, s-maxage=60',
+        // Retry a failed lookup soon instead of hiding a listing.
+        'Cache-Control':
+          sale && !(whois.registered && whois.unknown)
+            ? 'public, max-age=600, s-maxage=1800'
+            : 'public, max-age=60, s-maxage=60',
       },
     });
   } catch (error) {

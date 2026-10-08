@@ -107,6 +107,16 @@ describe('domain summary API', () => {
     expect(logger.error).toHaveBeenCalledWith(error);
   });
 
+  it('uses the short cache when WHOIS registration is unknown', async () => {
+    const unknown = { ...whois, unknown: true };
+    lookupWhois.mockResolvedValue(unknown);
+    const response = await GET(request('example.com'));
+    expect(await response.json()).toEqual({ whois: unknown, sale });
+    expect(response.headers.get('Cache-Control')).toBe(
+      'public, max-age=60, s-maxage=60',
+    );
+  });
+
   it('starts both lookups before waiting for either to finish', async () => {
     let resolveWhois!: (value: typeof whois) => void;
     let resolveSale!: (value: typeof sale) => void;
