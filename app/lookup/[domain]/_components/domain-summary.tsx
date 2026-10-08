@@ -167,7 +167,9 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
       <DomainSummaryTile title="DNSSEC" value={whois.dnssec || 'Unavailable'} />
       {sale && listing && (
         <DomainSummaryTile
-          title={`For sale${sale.domain !== canonicalDnsName(domain) ? ` (${sale.domain})` : ''}`}
+          // Advertised prices are not binding and are labelled as such, as
+          // RFC 10023 (§4) asks of anyone displaying them.
+          title={`For sale${sale.domain !== canonicalDnsName(domain) ? ` (${sale.domain})` : ''}${listing.prices.length ? ' · indicative price' : ''}`}
           value={
             <SaleListingLink href={saleUrl}>
               {listing.prices.length
