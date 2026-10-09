@@ -1,7 +1,9 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import Image from 'next/image';
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'edge';
 export const contentType = 'image/png';
 
 const fetchArrayBuffer = async (url: string | URL) =>
@@ -23,7 +25,7 @@ export const handler = async ({ params: paramsPromise }: OGImageProps) => {
     fetchArrayBuffer(
       'https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff',
     ),
-    fetchArrayBuffer(new URL('@/assets/globe.png', import.meta.url)),
+    readFile(join(process.cwd(), 'assets/globe.png')),
   ]);
 
   return new ImageResponse(
