@@ -183,6 +183,19 @@ describe('domain summary sale link', () => {
     expect(container.querySelector('a span')?.textContent).toBe(
       'Advertised for sale',
     );
+    expect(container.textContent).not.toContain('indicative');
+  });
+
+  it.each([
+    { links: ['https://seller.example/buy'] },
+    { links: ['mailto:seller@example.com'] },
+    { links: [] },
+  ])('labels an advertised price as indicative: $links', async ({ links }) => {
+    fixtures.listing.links = links;
+    await render();
+    expect(
+      [...container.querySelectorAll('h3')].map((title) => title.textContent),
+    ).toContain('For sale · indicative price');
   });
 
   it('prefers a website listing when an email address is also available', async () => {
@@ -218,6 +231,19 @@ describe('domain summary sale link', () => {
   it('identifies the listing domain for a subdomain search', async () => {
     await render('www.example.com');
     expect(container.textContent).toContain('For sale (example.com)');
+  });
+
+  it('omits the suffix when the listing is on the searched subdomain itself', async () => {
+    fixtures.summary.mockReturnValue({
+      data: {
+        whois: { registered: true, registrar: 'Example registrar' },
+        sale: { domain: 'dynamic.example.com', listing: fixtures.listing },
+      },
+      isLoading: false,
+    });
+    await render('dynamic.example.com');
+    expect(container.textContent).toContain('For sale');
+    expect(container.textContent).not.toContain('(dynamic.example.com)');
   });
 
   it('shows a retryable error instead of loading forever, then recovers', async () => {
