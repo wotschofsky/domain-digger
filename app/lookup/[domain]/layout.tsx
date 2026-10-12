@@ -11,7 +11,7 @@ import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
 import { Footer } from '../../_components/footer';
 import { Header } from '../../_components/header';
-import { CarbonAd } from './_components/carbon-ad';
+import { CarbonAdRail } from './_components/carbon-ad';
 import { DomainSummary } from './_components/domain-summary';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
@@ -96,12 +96,7 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
             <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
               <div className="min-w-0 flex-1">{children}</div>
 
-              {/* Width is reserved in CSS so the results don't shift when the ad mounts */}
-              <aside className="hidden w-80 shrink-0 xl:block">
-                <ClientOnly>
-                  <CarbonAd className="sticky top-6" />
-                </ClientOnly>
-              </aside>
+              <CarbonAdRail />
             </div>
           </Card>
         </div>

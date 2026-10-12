@@ -1,14 +1,16 @@
 'use client';
 
 import { useMediaQuery } from '@uidotdev/usehooks';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
 import { type FC, useEffect, useRef } from 'react';
+
+import { ClientOnly } from '@/components/client-only';
 
 type CarbonAdProps = {
   className?: string;
 };
 
-export const CarbonAd: FC<CarbonAdProps> = ({ className }) => {
+const CarbonAd: FC<CarbonAdProps> = ({ className }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   // Desktop only, matching the `xl` breakpoint the slot is shown at. The script
@@ -34,4 +36,22 @@ export const CarbonAd: FC<CarbonAdProps> = ({ className }) => {
   }, [pathname, isDesktop]);
 
   return <div ref={containerRef} className={className} />;
+};
+
+// These tabs need the full width of the results card
+const FULL_WIDTH_TABS = ['certs', 'map'];
+
+export const CarbonAdRail: FC = () => {
+  const tab = useSelectedLayoutSegment();
+
+  if (tab && FULL_WIDTH_TABS.includes(tab)) return null;
+
+  // Width is reserved in CSS so the results don't shift when the ad mounts
+  return (
+    <aside className="hidden w-80 shrink-0 xl:block">
+      <ClientOnly>
+        <CarbonAd className="sticky top-6" />
+      </ClientOnly>
+    </aside>
+  );
 };
