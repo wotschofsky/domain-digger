@@ -146,3 +146,10 @@
     @apply border-border;
   }
 }
+
+/* Carbon's ad card ships light colors only */
+.dark #carbon-responsive {
+  --carbon-bg-primary: var(--color-zinc-900);
+  --carbon-bg-secondary: var(--color-zinc-800);
+  --carbon-text-color: var(--color-zinc-200);
+}
