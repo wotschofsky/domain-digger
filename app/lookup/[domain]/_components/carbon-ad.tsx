@@ -96,11 +96,12 @@ export const CarbonAdRail: FC = () => {
 
   if (blocked || (tab && FULL_WIDTH_TABS.includes(tab))) return null;
 
-  // Width is reserved in CSS so the results don't shift when the ad mounts
+  // Width is reserved in CSS so the results don't shift when the ad mounts.
+  // Without JavaScript no ad can load, so the rail gives its width back.
   return (
-    <aside className="hidden w-80 shrink-0 xl:block">
+    <aside className="hidden w-80 shrink-0 xl:block xl:noscript:hidden">
       <ClientOnly>
-        <CarbonAd className="sticky top-6" onBlocked={handleBlocked} />
+        <CarbonAd className="sticky top-6 min-h-52" onBlocked={handleBlocked} />
       </ClientOnly>
     </aside>
   );
