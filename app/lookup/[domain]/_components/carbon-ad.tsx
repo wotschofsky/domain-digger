@@ -34,8 +34,9 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     const container = containerRef.current;
     if (!container || !isDesktop) return;
 
-    // Carbon inserts an ad for every request that finishes, so requests that
-    // overlap (a quick tab switch) would stack ads. Its policy allows one.
+    // Carbon inserts an ad for every request that finishes. Refreshes wait for
+    // the previous ad, so this only catches a request left over from before
+    // the slot was moved. Carbon's policy allows one ad.
     const observer = new MutationObserver(() => {
       container
         .querySelectorAll('#carbonads')
@@ -79,7 +80,11 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     if (!isDesktop || servedPathname.current === pathname) return;
     servedPathname.current = pathname;
 
-    window._carbonads?.refresh();
+    // No ad in the slot means a request is still in flight. Its ad serves this
+    // page too, and a second request would only race it.
+    if (containerRef.current?.querySelector('#carbonads')) {
+      window._carbonads?.refresh();
+    }
   }, [pathname, isDesktop]);
 
   return <div ref={containerRef} className={className} />;
