@@ -1,9 +1,8 @@
 'use client';
 
+import { useMediaQuery } from '@uidotdev/usehooks';
 import { usePathname } from 'next/navigation';
 import { type FC, useEffect, useRef } from 'react';
-
-import { cn } from '@/lib/utils';
 
 type CarbonAdProps = {
   className?: string;
@@ -12,13 +11,16 @@ type CarbonAdProps = {
 export const CarbonAd: FC<CarbonAdProps> = ({ className }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  // Desktop only, matching the `xl` breakpoint the slot is shown at. The script
+  // must not load while the slot is hidden, or Carbon counts unseen ads.
+  const isDesktop = useMediaQuery('(min-width: 80rem)');
 
   // Carbon renders the ad next to its own script tag, so the tag has to live
   // inside the slot. Re-inserting it per pathname serves a fresh ad on
   // client-side navigations, which Carbon's placement policy permits.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || !isDesktop) return;
 
     const script = document.createElement('script');
     script.async = true;
@@ -29,9 +31,7 @@ export const CarbonAd: FC<CarbonAdProps> = ({ className }) => {
     container.appendChild(script);
 
     return () => container.replaceChildren();
-  }, [pathname]);
+  }, [pathname, isDesktop]);
 
-  // Reserves the height of a typical ad so the page barely shifts on load.
-  // Carbon's embed code suggests 280px, which leaves a visible gap below.
-  return <div ref={containerRef} className={cn('min-h-52', className)} />;
+  return <div ref={containerRef} className={className} />;
 };

@@ -59,36 +59,32 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
     <>
       <Header showSearch={true} />
       <main className="flex w-full flex-1 flex-col">
-        <div className="container flex flex-col gap-8 pt-12 pb-8 lg:flex-row lg:items-start">
-          <div className="min-w-0 flex-1 space-y-6">
-            <div className="flex w-full items-center gap-4">
-              {/* Bottom padding added to avoid clipping */}
-              <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
-                <span className="block text-zinc-500 dark:text-zinc-400">
-                  Results for
-                </span>
-                {isWildcardDomain(domain) ? (
-                  <span className="block text-4xl font-bold">{domain}</span>
-                ) : (
-                  <a
-                    className="block text-4xl font-bold"
-                    href={`https://${domain}`}
-                    target="_blank"
-                    rel="noreferrer nofollow"
-                  >
-                    {domain} <ExternalLinkIcon className="inline-block" />
-                  </a>
-                )}
-              </h1>
+        <div className="container space-y-6 pt-12 pb-8">
+          <div className="flex w-full items-center gap-4">
+            {/* Bottom padding added to avoid clipping */}
+            <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
+              <span className="block text-zinc-500 dark:text-zinc-400">
+                Results for
+              </span>
+              {isWildcardDomain(domain) ? (
+                <span className="block text-4xl font-bold">{domain}</span>
+              ) : (
+                <a
+                  className="block text-4xl font-bold"
+                  href={`https://${domain}`}
+                  target="_blank"
+                  rel="noreferrer nofollow"
+                >
+                  {domain} <ExternalLinkIcon className="inline-block" />
+                </a>
+              )}
+            </h1>
 
-              <ShareButton />
-            </div>
-
-            <RelatedDomains domain={domain} />
-            <DomainSummary domain={domain} />
+            <ShareButton />
           </div>
 
-          <CarbonAd className="w-full shrink-0 lg:w-80" />
+          <RelatedDomains domain={domain} />
+          <DomainSummary domain={domain} />
         </div>
 
         <div className="container">
@@ -97,8 +93,15 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
 
         <div className="flex flex-1 flex-col p-3">
           <Card className="flex-1 py-8">
-            <div className="container px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
-              {children}
+            <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
+              <div className="min-w-0 flex-1">{children}</div>
+
+              {/* Width is reserved in CSS so the results don't shift when the ad mounts */}
+              <aside className="hidden w-80 shrink-0 xl:block">
+                <ClientOnly>
+                  <CarbonAd className="sticky top-6" />
+                </ClientOnly>
+              </aside>
             </div>
           </Card>
         </div>
