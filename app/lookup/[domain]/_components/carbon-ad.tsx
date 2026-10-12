@@ -6,6 +6,12 @@ import { type FC, useCallback, useEffect, useRef, useState } from 'react';
 
 import { ClientOnly } from '@/components/client-only';
 
+declare global {
+  interface Window {
+    _carbonads?: { refresh: () => void };
+  }
+}
+
 type CarbonAdProps = {
   className?: string;
   onBlocked: () => void;
@@ -19,36 +25,53 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
   const isDesktop = useMediaQuery('(min-width: 80rem)');
 
   // Carbon renders the ad next to its own script tag, so the tag has to live
-  // inside the slot. Re-inserting it per pathname serves a fresh ad on
-  // client-side navigations, which Carbon's placement policy permits.
+  // inside the slot. It is added once: a second copy fetches a second ad.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !isDesktop) return;
 
-    const script = document.createElement('script');
-    script.async = true;
-    script.type = 'text/javascript';
-    script.src =
-      '//cdn.carbonads.com/carbon.js?serve=CWBI62QJ&placement=diggertools&format=cover';
-    script.id = '_carbonads_js';
+    // Carbon inserts an ad for every request that finishes, so requests that
+    // overlap (a quick tab switch) would stack ads. Its policy allows one.
+    const observer = new MutationObserver(() => {
+      container
+        .querySelectorAll('#carbonads')
+        .forEach((ad, index) => index > 0 && ad.remove());
+    });
+    observer.observe(container, { childList: true });
+
+    if (!container.querySelector('script')) {
+      const script = document.createElement('script');
+      script.async = true;
+      script.type = 'text/javascript';
+      script.src =
+        '//cdn.carbonads.com/carbon.js?serve=CWBI62QJ&placement=diggertools&format=cover';
+      script.id = '_carbonads_js';
+      script.onerror = onBlocked;
+      container.appendChild(script);
+    }
 
     // Ad blockers either fail the script or hide what it renders. The delay
-    // gives Carbon time to fetch and insert the ad after its script loads.
-    let timer: number;
-    script.onerror = onBlocked;
-    script.onload = () => {
-      timer = window.setTimeout(() => {
-        const ad = container.querySelector<HTMLElement>('#carbonads');
-        if (!ad?.offsetHeight) onBlocked();
-      }, 3000);
-    };
-    container.appendChild(script);
+    // gives Carbon time to load, fetch and insert the ad.
+    const timer = window.setTimeout(() => {
+      const ad = container.querySelector<HTMLElement>('#carbonads');
+      if (!ad?.offsetHeight) onBlocked();
+    }, 5000);
 
     return () => {
       window.clearTimeout(timer);
-      container.replaceChildren();
+      observer.disconnect();
     };
-  }, [pathname, isDesktop, onBlocked]);
+  }, [isDesktop, onBlocked]);
+
+  // Serves a fresh ad on client-side navigations, which Carbon's placement
+  // policy permits, through Carbon's own refresh rather than a second script.
+  const servedPathname = useRef(pathname);
+  useEffect(() => {
+    if (servedPathname.current === pathname) return;
+    servedPathname.current = pathname;
+
+    if (isDesktop) window._carbonads?.refresh();
+  }, [pathname, isDesktop]);
 
   return <div ref={containerRef} className={className} />;
 };
