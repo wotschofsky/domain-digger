@@ -15,6 +15,8 @@ declare global {
 // carbon.js must only ever load once per document, so the tag outlives the
 // slot and is moved back in when the slot returns from an ad-free tab
 let script: HTMLScriptElement | undefined;
+// Once no ad could be shown, later lookups in this document skip the wait
+let adBlocked = false;
 
 type CarbonAdProps = {
   className?: string;
@@ -34,13 +36,16 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     const container = containerRef.current;
     if (!container || !isDesktop) return;
 
-    // Carbon inserts an ad for every request that finishes. Refreshes wait for
-    // the previous ad, so this only catches a request left over from before
-    // the slot was moved. Carbon's policy allows one ad.
+    // Carbon inserts an ad for every response it gets and cancels nothing.
+    // Moving the tag into a new slot refreshes even if an earlier request is
+    // still pending, so two ads can land. Carbon's policy allows one.
+    let adSeen = Boolean(
+      container.querySelector<HTMLElement>('#carbonads')?.offsetHeight,
+    );
     const observer = new MutationObserver(() => {
-      container
-        .querySelectorAll('#carbonads')
-        .forEach((ad, index) => index > 0 && ad.remove());
+      const ads = container.querySelectorAll<HTMLElement>('#carbonads');
+      if (ads[0]?.offsetHeight) adSeen = true;
+      ads.forEach((ad, index) => index > 0 && ad.remove());
     });
     observer.observe(container, { childList: true });
 
@@ -60,10 +65,11 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     }
 
     // Ad blockers either fail the script or hide what it renders. The delay
-    // gives Carbon time to load, fetch and insert the ad.
+    // gives Carbon time to load, fetch and insert the ad. An ad that was
+    // visible at any point counts: a refresh empties the slot for a moment.
     const timer = window.setTimeout(() => {
       const ad = container.querySelector<HTMLElement>('#carbonads');
-      if (!ad?.offsetHeight) onBlocked();
+      if (!adSeen && !ad?.offsetHeight) onBlocked();
     }, 5000);
 
     return () => {
@@ -80,8 +86,9 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     if (!isDesktop || servedPathname.current === pathname) return;
     servedPathname.current = pathname;
 
-    // No ad in the slot means a request is still in flight. Its ad serves this
-    // page too, and a second request would only race it.
+    // With no ad in the slot there is nothing to replace. Usually a request is
+    // still in flight and its ad serves this page too. If that request ended
+    // without an ad, the slot stays empty until the rail is mounted again.
     if (containerRef.current?.querySelector('#carbonads')) {
       window._carbonads?.refresh();
     }
@@ -96,8 +103,11 @@ const FULL_WIDTH_TABS = ['certs', 'map'];
 export const CarbonAdRail: FC = () => {
   const tab = useSelectedLayoutSegment();
   // Gives the results their full width back when no ad shows up
-  const [blocked, setBlocked] = useState(false);
-  const handleBlocked = useCallback(() => setBlocked(true), []);
+  const [blocked, setBlocked] = useState(adBlocked);
+  const handleBlocked = useCallback(() => {
+    adBlocked = true;
+    setBlocked(true);
+  }, []);
 
   if (blocked || (tab && FULL_WIDTH_TABS.includes(tab))) return null;
 
