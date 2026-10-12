@@ -12,6 +12,10 @@ declare global {
   }
 }
 
+// carbon.js must only ever load once per document, so the tag outlives the
+// slot and is moved back in when the slot returns from an ad-free tab
+let script: HTMLScriptElement | undefined;
+
 type CarbonAdProps = {
   className?: string;
   onBlocked: () => void;
@@ -25,7 +29,7 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
   const isDesktop = useMediaQuery('(min-width: 80rem)');
 
   // Carbon renders the ad next to its own script tag, so the tag has to live
-  // inside the slot. It is added once: a second copy fetches a second ad.
+  // inside the slot.
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !isDesktop) return;
@@ -39,15 +43,19 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     });
     observer.observe(container, { childList: true });
 
-    if (!container.querySelector('script')) {
-      const script = document.createElement('script');
+    if (!script) {
+      script = document.createElement('script');
       script.async = true;
       script.type = 'text/javascript';
       script.src =
         '//cdn.carbonads.com/carbon.js?serve=CWBI62QJ&placement=diggertools&format=cover';
       script.id = '_carbonads_js';
-      script.onerror = onBlocked;
+    }
+    script.onerror = onBlocked;
+    if (script.parentNode !== container) {
       container.appendChild(script);
+      // Moving the tag doesn't run it again, so ask Carbon for an ad directly
+      window._carbonads?.refresh();
     }
 
     // Ad blockers either fail the script or hide what it renders. The delay
@@ -67,10 +75,11 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
   // policy permits, through Carbon's own refresh rather than a second script.
   const servedPathname = useRef(pathname);
   useEffect(() => {
-    if (servedPathname.current === pathname) return;
+    // Not marked as served while hidden, so widening the window catches up
+    if (!isDesktop || servedPathname.current === pathname) return;
     servedPathname.current = pathname;
 
-    if (isDesktop) window._carbonads?.refresh();
+    window._carbonads?.refresh();
   }, [pathname, isDesktop]);
 
   return <div ref={containerRef} className={className} />;
