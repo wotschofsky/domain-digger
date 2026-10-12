@@ -31,6 +31,7 @@ export const CarbonAd: FC<CarbonAdProps> = ({ className }) => {
     return () => container.replaceChildren();
   }, [pathname]);
 
-  // min-height comes from Carbon's embed code and keeps the page from shifting
-  return <div ref={containerRef} className={cn('min-h-[280px]', className)} />;
+  // Reserves the height of a typical ad so the page barely shifts on load.
+  // Carbon's embed code suggests 280px, which leaves a visible gap below.
+  return <div ref={containerRef} className={cn('min-h-52', className)} />;
 };
