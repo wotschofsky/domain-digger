@@ -11,6 +11,7 @@ import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
 import { Footer } from '../../_components/footer';
 import { Header } from '../../_components/header';
+import { CarbonAd } from './_components/carbon-ad';
 import { DomainSummary } from './_components/domain-summary';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
@@ -58,32 +59,36 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
     <>
       <Header showSearch={true} />
       <main className="flex w-full flex-1 flex-col">
-        <div className="container space-y-6 pt-12 pb-8">
-          <div className="flex w-full items-center gap-4">
-            {/* Bottom padding added to avoid clipping */}
-            <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
-              <span className="block text-zinc-500 dark:text-zinc-400">
-                Results for
-              </span>
-              {isWildcardDomain(domain) ? (
-                <span className="block text-4xl font-bold">{domain}</span>
-              ) : (
-                <a
-                  className="block text-4xl font-bold"
-                  href={`https://${domain}`}
-                  target="_blank"
-                  rel="noreferrer nofollow"
-                >
-                  {domain} <ExternalLinkIcon className="inline-block" />
-                </a>
-              )}
-            </h1>
+        <div className="container flex flex-col gap-8 pt-12 pb-8 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1 space-y-6">
+            <div className="flex w-full items-center gap-4">
+              {/* Bottom padding added to avoid clipping */}
+              <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
+                <span className="block text-zinc-500 dark:text-zinc-400">
+                  Results for
+                </span>
+                {isWildcardDomain(domain) ? (
+                  <span className="block text-4xl font-bold">{domain}</span>
+                ) : (
+                  <a
+                    className="block text-4xl font-bold"
+                    href={`https://${domain}`}
+                    target="_blank"
+                    rel="noreferrer nofollow"
+                  >
+                    {domain} <ExternalLinkIcon className="inline-block" />
+                  </a>
+                )}
+              </h1>
 
-            <ShareButton />
+              <ShareButton />
+            </div>
+
+            <RelatedDomains domain={domain} />
+            <DomainSummary domain={domain} />
           </div>
 
-          <RelatedDomains domain={domain} />
-          <DomainSummary domain={domain} />
+          <CarbonAd className="w-full shrink-0 lg:w-80" />
         </div>
 
         <div className="container">
