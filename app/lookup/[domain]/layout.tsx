@@ -11,6 +11,7 @@ import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
 import { Footer } from '../../_components/footer';
 import { Header } from '../../_components/header';
+import { CarbonAdRail } from './_components/carbon-ad';
 import { DomainSummary } from './_components/domain-summary';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
@@ -92,8 +93,10 @@ const LookupLayout: FC<LookupLayoutProps> = async (props) => {
 
         <div className="flex flex-1 flex-col p-3">
           <Card className="flex-1 py-8">
-            <div className="container px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
-              {children}
+            <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
+              <div className="min-w-0 flex-1">{children}</div>
+
+              <CarbonAdRail />
             </div>
           </Card>
         </div>
