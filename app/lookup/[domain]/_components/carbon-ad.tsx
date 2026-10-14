@@ -114,7 +114,7 @@ export const CarbonAdRail: FC = () => {
   // Width is reserved in CSS so the results don't shift when the ad mounts.
   // Without JavaScript no ad can load, so the rail gives its width back.
   return (
-    <aside className="hidden w-80 shrink-0 xl:block xl:noscript:hidden">
+    <aside className="hidden w-60 shrink-0 xl:block xl:noscript:hidden">
       <ClientOnly>
         <CarbonAd className="sticky top-6 min-h-52" onBlocked={handleBlocked} />
       </ClientOnly>
