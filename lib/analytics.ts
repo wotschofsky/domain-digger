@@ -1,6 +1,8 @@
 import { log } from 'evlog/next/client';
 import { usePlausible } from 'next-plausible';
 
+import { capturePostHogEvent } from '@/lib/posthog';
+
 type EmptyEvent = Record<string, never>;
 
 type Events = {
@@ -24,6 +26,7 @@ export const useAnalytics = () => {
   const reportEvent = <T extends keyof Events>(event: T, props: Events[T]) => {
     log.info({ message: 'analytics_event', event, props });
     plausible(event, { props });
+    capturePostHogEvent(event, props);
   };
 
   return {
