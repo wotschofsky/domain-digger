@@ -19,6 +19,7 @@ import {
   DnsResolver,
   type RawRecord,
   type RecordType,
+  type ResolverMultiResponse,
   type ResolverResponse,
 } from './base';
 import { isPublicIp } from './ip-filter';
@@ -989,6 +990,44 @@ export class AuthoritativeResolver extends DnsResolver {
     recordType: RecordType,
   ): Promise<WalkResult> {
     return this.fetchRecordsRaw({ domain, recordType });
+  }
+
+  public override async resolveRecordTypes(
+    domain: string,
+    types: readonly RecordType[],
+  ): Promise<ResolverMultiResponse> {
+    const results = await Promise.allSettled(
+      types.map((type) => this.resolveRecordType(domain, type)),
+    );
+    const firstFailure = results.find((result) => result.status === 'rejected');
+    const hasRecords = results.some(
+      (result) =>
+        result.status === 'fulfilled' && result.value.records.length > 0,
+    );
+    // Empty successful types must not turn an entirely unusable lookup into
+    // a misleading "no records" page (e.g. a broken Route 53 delegation).
+    if (firstFailure && !hasRecords) throw firstFailure.reason;
+
+    return Object.fromEntries(
+      results.map((result, index) => [
+        types[index],
+        result.status === 'fulfilled'
+          ? result.value
+          : {
+              records: [],
+              trace: [],
+              error:
+                result.reason instanceof UserFacingError
+                  ? result.reason.payload
+                  : {
+                      title: 'DNS lookup failed',
+                      description:
+                        'This record type could not be retrieved. Please try again shortly.',
+                      retryable: true,
+                    },
+            },
+      ]),
+    );
   }
 
   public async resolveRecordType(
