@@ -523,7 +523,7 @@ export class AuthoritativeResolver extends DnsResolver {
     const wantName = canonicalDnsName(domain);
     let lastResort: { result: DnsResponse; candidate: string } | null = null;
     const failedNameservers: string[] = [];
-    let refusedCount = 0;
+    let unsupportedRrsigCount = 0;
 
     // The trace prefix any accepted response shares: the failures skipped to
     // reach it, plus a note when its UDP answer was truncated and retried over
@@ -586,7 +586,9 @@ export class AuthoritativeResolver extends DnsResolver {
       const verdict = classifyCandidateResponse(result.packet, wantName);
       if (verdict.kind === 'rcode-error') {
         failedNameservers.push(`${candidate}: DNS ${verdict.rcode}`);
-        if (verdict.rcode === 'REFUSED') refusedCount++;
+        if (verdict.rcode === 'REFUSED' || verdict.rcode === 'NOTIMP') {
+          unsupportedRrsigCount++;
+        }
         continue;
       }
       if (verdict.kind === 'deferred') {
@@ -679,13 +681,14 @@ export class AuthoritativeResolver extends DnsResolver {
       });
     }
 
-    // Some authoritatives REFUSE direct RRSIG browsing (e.g. Cloudflare).
-    // Tolerate that one definitive policy response for RRSIG queries only,
-    // and only when every attempted server returned it. Ordinary lookups,
-    // SERVFAIL/FORMERR/NOTIMP, and mixed transport failures remain
-    // retryable errors rather than masquerading as an empty RRset.
-    const allRefused = refusedCount === candidateNameservers.length;
-    if (allRefused && recordType === 'RRSIG') {
+    // Some authoritatives decline direct RRSIG browsing with REFUSED or
+    // NOTIMP, including mixed responses within one delegation. Tolerate
+    // those responses only for RRSIG and only when every candidate returned
+    // one. Ordinary lookups, SERVFAIL/FORMERR, skipped candidates, and
+    // transport failures must still surface as retryable errors.
+    const allUnsupported =
+      unsupportedRrsigCount === candidateNameservers.length;
+    if (allUnsupported && recordType === 'RRSIG') {
       return {
         answers: [],
         zone,

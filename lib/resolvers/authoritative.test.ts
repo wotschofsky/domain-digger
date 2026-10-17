@@ -78,6 +78,72 @@ describe('AuthoritativeResolver transport policy', () => {
     ).resolves.toEqual(expect.objectContaining({ records: [] }));
   });
 
+  it.each([
+    ['NOTIMP', 'REFUSED'],
+    ['NOTIMP', 'NOTIMP'],
+  ])(
+    'keeps the records page usable when RRSIG browsing returns %s and %s',
+    async (first, second) => {
+      const resolver = new AuthoritativeResolver({
+        rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+        udpTransport: async ({ domain, recordType, nameserver }) => ({
+          ...response(
+            domain,
+            recordType,
+            recordType === 'RRSIG'
+              ? nameserver === '192.0.2.1'
+                ? first
+                : second
+              : 'NOERROR',
+            recordType === 'A'
+              ? [{ name: domain, type: 'A', ttl: 300, data: '203.0.113.10' }]
+              : [],
+          ),
+          flag_aa: true,
+        }),
+      });
+      await expect(
+        resolver.resolveRecordTypes('example.com', ['A', 'RRSIG']),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          A: expect.objectContaining({
+            records: [expect.objectContaining({ data: '203.0.113.10' })],
+          }),
+          RRSIG: expect.objectContaining({ records: [] }),
+        }),
+      );
+    },
+  );
+
+  it.each(['SERVFAIL', 'FORMERR'])(
+    'does not hide RRSIG %s mixed with NOTIMP',
+    async (rcode) => {
+      const resolver = new AuthoritativeResolver({
+        rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+        udpTransport: async ({ domain, recordType, nameserver }) =>
+          response(
+            domain,
+            recordType,
+            nameserver === '192.0.2.1' ? 'NOTIMP' : rcode,
+          ),
+      });
+      await expect(
+        resolver.resolveRecordType('example.com', 'RRSIG'),
+      ).rejects.toBeInstanceOf(UserFacingError);
+    },
+  );
+
+  it('keeps NOTIMP an error for ordinary record types', async () => {
+    const resolver = new AuthoritativeResolver({
+      rootServers: async () => ['192.0.2.1'],
+      udpTransport: async ({ domain, recordType }) =>
+        response(domain, recordType, 'NOTIMP'),
+    });
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
   it('skips a lame empty response and accepts an authoritative sibling', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) =>
