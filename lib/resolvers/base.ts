@@ -1,4 +1,5 @@
 import type { ALL_RECORD_TYPES } from '@/lib/data';
+import type { UserFacingErrorPayload } from '@/lib/user-facing-error';
 
 export type RecordType = (typeof ALL_RECORD_TYPES)[number];
 
@@ -13,7 +14,13 @@ export type RawRecord = {
   data: string;
 };
 
-export type ResolverResponse = { records: RawRecord[]; trace: string[] };
+export type ResolverResponse = {
+  records: RawRecord[];
+  trace: string[];
+  // A failed type is unknown, not a confirmed empty RRset. Keep this plain
+  // data so partial responses can cross the server/client boundary.
+  error?: UserFacingErrorPayload;
+};
 
 export type ResolverMultiResponse = Record<string, ResolverResponse>;
 
