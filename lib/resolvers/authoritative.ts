@@ -147,23 +147,6 @@ type WalkResult = {
   coveringRrsigs?: RrsigData[];
 };
 
-// Shared by all glueless branches of one top-level query. Reusing a cached
-// request (including a rejection) consumes neither another slot nor packets.
-// A new top-level query gets a fresh budget and can retry transient failures.
-type WalkBudget = {
-  remaining: number;
-  requests: Map<string, Promise<DnsResponse>>;
-  remainingSteps: number;
-};
-
-const requestKey = ({
-  domain,
-  recordType,
-  nameserver,
-  dnssecOk,
-}: AuthoritativeRequest) =>
-  JSON.stringify([canonicalDnsName(domain), recordType, nameserver, dnssecOk]);
-
 type FetchRecordsParams = {
   domain: string;
   recordType: RecordType;
@@ -173,8 +156,7 @@ type FetchRecordsParams = {
   trace?: string[];
   depth?: number;
   deadlineAt?: number;
-  budget?: WalkBudget;
-  ancestors?: ReadonlySet<string>;
+  budget?: { remaining: number };
 };
 
 export class AuthoritativeResolver extends DnsResolver {
@@ -472,7 +454,7 @@ export class AuthoritativeResolver extends DnsResolver {
         }),
       ),
     {
-      cacheKeyFn: requestKey,
+      cacheKeyFn: (key) => JSON.stringify(key),
     },
   );
 
@@ -523,22 +505,8 @@ export class AuthoritativeResolver extends DnsResolver {
     deadlineAt = Date.now() +
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS),
-    budget = {
-      remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK,
-      requests: new Map(),
-      remainingSteps:
-        AuthoritativeResolver.MAX_CANDIDATES_PER_WALK *
-        AuthoritativeResolver.MAX_RECURSION_DEPTH,
-    },
-    ancestors = new Set<string>(),
+    budget = { remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK },
   }: FetchRecordsParams): Promise<WalkResult> {
-    // Cached responses cost no packets, but a malicious graph can still fork
-    // exponentially through shared subwalks. Bound that processing separately.
-    if (budget.remainingSteps-- <= 0) {
-      throw new Error(
-        `DNS traversal budget exhausted while resolving ${domain}`,
-      );
-    }
     if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
       throw new Error(
         `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
@@ -585,46 +553,32 @@ export class AuthoritativeResolver extends DnsResolver {
     // ponytail: past the deadline the ceiling is depth x one retry budget;
     // the platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
+      if (budget.remaining <= 0) {
+        failedNameservers.push(
+          `${candidate}: skipped, candidate budget exhausted`,
+        );
+        break;
+      }
       if (failedNameservers.length > 0 && Date.now() >= deadlineAt) {
         failedNameservers.push(
           `${candidate}: skipped, fallback deadline exceeded`,
         );
         break;
       }
+      budget.remaining--;
       const loaderKey = {
         domain,
         recordType,
         nameserver: candidate,
         dnssecOk: this.options.dnssecOk ?? false,
       };
-      const key = requestKey(loaderKey);
-      // Branch-local ancestry catches circular glueless dependencies as well
-      // as repeated referrals. Siblings keep their own path and can still win.
-      if (ancestors.has(key)) {
-        failedNameservers.push(`${candidate}: DNS referral loop detected`);
-        continue;
-      }
-      let pending = budget.requests.get(key);
-      if (!pending) {
-        if (budget.remaining <= 0) {
-          failedNameservers.push(
-            `${candidate}: skipped, candidate budget exhausted`,
-          );
-          break;
-        }
-        budget.remaining--;
-        pending = this.requestLoader.load(loaderKey).catch((error) => {
-          // Retain the rejected promise in this walk, but let a subsequent
-          // top-level query retry instead of poisoning the resolver instance.
-          this.requestLoader.clear(loaderKey);
-          throw error;
-        });
-        budget.requests.set(key, pending);
-      }
       let result: DnsResponse;
       try {
-        result = await pending;
+        result = await this.requestLoader.load(loaderKey);
       } catch (error) {
+        // DataLoader caches rejections; clear the key so a transient failure
+        // doesn't poison every later identical query in this walk.
+        this.requestLoader.clear(loaderKey);
         failedNameservers.push(
           `${candidate}: ${error instanceof Error ? error.message : 'request failed'}`,
         );
@@ -671,7 +625,6 @@ export class AuthoritativeResolver extends DnsResolver {
           depth,
           deadlineAt,
           budget,
-          ancestors: new Set([...ancestors, key]),
         });
       } catch (error) {
         failedNameservers.push(
@@ -700,7 +653,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
-        ancestors,
       });
     }
 
@@ -727,15 +679,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
-        ancestors: new Set([
-          ...ancestors,
-          requestKey({
-            domain,
-            recordType,
-            nameserver: lastResort.candidate,
-            dnssecOk: this.options.dnssecOk ?? false,
-          }),
-        ]),
       });
     }
 
@@ -787,7 +730,6 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
-    ancestors,
   }: {
     packet: Packet;
     protocol: DnsResponse['protocol'];
@@ -799,8 +741,7 @@ export class AuthoritativeResolver extends DnsResolver {
     trace: string[];
     depth: number;
     deadlineAt: number;
-    budget: WalkBudget;
-    ancestors: ReadonlySet<string>;
+    budget: { remaining: number };
   }): Promise<WalkResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
@@ -844,14 +785,6 @@ export class AuthoritativeResolver extends DnsResolver {
       };
     }
 
-    if (
-      (packet as DecodedPacket).flag_aa &&
-      (packet.rcode === 'NXDOMAIN' ||
-        packet.authorities?.some((answer) => answer.type === 'SOA'))
-    ) {
-      return { answers: [], trace, rcode: packet.rcode, zone };
-    }
-
     // We must validate referrals before following them: an attacker controlling
     // a delegated zone can otherwise point our recursive query at loopback or
     // RFC1918 addresses and turn this resolver into an SSRF primitive. Only
@@ -869,13 +802,6 @@ export class AuthoritativeResolver extends DnsResolver {
     );
 
     if (nsRedirects.length) {
-      const currentZone = canonicalDnsName(zone);
-      const nextZone = canonicalDnsName(nsRedirects[0].name);
-      // A referral must advance down the tree. Repeating a zone cut (even
-      // with different servers) or walking upward cannot resolve the query.
-      if (currentZone && !nextZone.endsWith(`.${currentZone}`)) {
-        throw new Error(`DNS referral loop detected: ${zone} -> ${nextZone}`);
-      }
       // Trust a glue A record only if it names one of this referral's
       // delegated NS hostnames and points at a publicly routable IP.
       // We deliberately accept out-of-bailiwick glue (an NS host not under
@@ -916,7 +842,6 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
           deadlineAt,
           budget,
-          ancestors,
         });
       }
 
@@ -931,7 +856,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
-        ancestors,
       });
     }
 
@@ -951,7 +875,6 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
-    ancestors,
   }: {
     nsRedirects: StringAnswer[];
     domain: string;
@@ -961,8 +884,7 @@ export class AuthoritativeResolver extends DnsResolver {
     trace: string[];
     depth: number;
     deadlineAt: number;
-    budget: WalkBudget;
-    ancestors: ReadonlySet<string>;
+    budget: { remaining: number };
   }): Promise<WalkResult> {
     const zone = canonicalDnsName(nsRedirects[0].name);
     const subTrace: string[] = [];
@@ -984,7 +906,6 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
           deadlineAt,
           budget,
-          ancestors,
         });
         subTrace.push(...resolved.trace);
         // resolved.answers are all A records (filtered by type), so
@@ -1029,7 +950,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
-        ancestors,
       });
     } catch (error) {
       // Sibling NS lookups are still usable failover: the race above only
@@ -1056,7 +976,6 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
-        ancestors,
       });
     }
   }
