@@ -10,6 +10,7 @@ import dnsPacket, {
   type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
+import { log } from 'evlog';
 
 import { retry } from '@/lib/utils';
 
@@ -1024,9 +1025,24 @@ export class AuthoritativeResolver extends DnsResolver {
         response[types[index]] = result.value;
         continue;
       }
+      const { reason } = result;
+      const err = reason instanceof Error ? reason : new Error(String(reason));
+      // Not rethrown, so onRequestError never sees it. evlog JSON-stringifies
+      // events in production, which drops an Error's own fields: copy them.
+      log.error({
+        message: 'record_type_lookup_failed',
+        domain,
+        recordType: types[index],
+        error: {
+          name: err.name,
+          message: err.message,
+          stack: err.stack,
+          cause: (err.cause as Error | undefined)?.message,
+        },
+      });
       const error =
-        result.reason instanceof UserFacingError
-          ? result.reason.payload
+        reason instanceof UserFacingError
+          ? reason.payload
           : FALLBACK_LOOKUP_ERROR;
       response[types[index]] = { records: [], trace: [], error };
     }

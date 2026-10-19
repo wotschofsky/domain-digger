@@ -17,7 +17,10 @@ export type RawRecord = {
 export type ResolverResponse = {
   records: RawRecord[];
   trace: string[];
-  // A failed type is unknown, not a confirmed empty RRset. Keep this plain
+  // Set only by AuthoritativeResolver.resolveRecordTypes for a type whose
+  // lookup failed: it is unknown, not a confirmed empty RRset. Other paths
+  // (DoH DNS-level errors, tolerated RRSIG refusals) still return a failed
+  // lookup as an empty response noted only in the trace. Keep this plain
   // data so partial responses can cross the server/client boundary.
   error?: UserFacingErrorPayload;
 };
