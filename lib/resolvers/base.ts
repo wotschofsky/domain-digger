@@ -21,7 +21,7 @@ export type ResolverResponse = {
   // lookup failed: it is unknown, not a confirmed empty RRset. Other paths
   // (DoH DNS-level errors, tolerated RRSIG refusals) still return a failed
   // lookup as an empty response noted only in the trace. Keep this plain
-  // data so partial responses can cross the server/client boundary.
+  // data so the response stays JSON-serializable.
   error?: UserFacingErrorPayload;
 };
 
