@@ -13,7 +13,10 @@ import dnsPacket, {
 
 import { retry } from '@/lib/utils';
 
-import { UserFacingError } from '../user-facing-error';
+import {
+  UserFacingError,
+  type UserFacingErrorPayload,
+} from '../user-facing-error';
 import {
   canonicalDnsName,
   DnsResolver,
@@ -157,6 +160,13 @@ type FetchRecordsParams = {
   depth?: number;
   deadlineAt?: number;
   budget?: { remaining: number };
+};
+
+const FALLBACK_LOOKUP_ERROR: UserFacingErrorPayload = {
+  title: 'DNS lookup failed',
+  description:
+    'This record type could not be retrieved. Please try again shortly.',
+  retryable: true,
 };
 
 export class AuthoritativeResolver extends DnsResolver {
@@ -1008,26 +1018,19 @@ export class AuthoritativeResolver extends DnsResolver {
     // a misleading "no records" page (e.g. a broken Route 53 delegation).
     if (firstFailure && !hasRecords) throw firstFailure.reason;
 
-    return Object.fromEntries(
-      results.map((result, index) => [
-        types[index],
-        result.status === 'fulfilled'
-          ? result.value
-          : {
-              records: [],
-              trace: [],
-              error:
-                result.reason instanceof UserFacingError
-                  ? result.reason.payload
-                  : {
-                      title: 'DNS lookup failed',
-                      description:
-                        'This record type could not be retrieved. Please try again shortly.',
-                      retryable: true,
-                    },
-            },
-      ]),
-    );
+    const response: ResolverMultiResponse = {};
+    for (const [index, result] of results.entries()) {
+      if (result.status === 'fulfilled') {
+        response[types[index]] = result.value;
+        continue;
+      }
+      const error =
+        result.reason instanceof UserFacingError
+          ? result.reason.payload
+          : FALLBACK_LOOKUP_ERROR;
+      response[types[index]] = { records: [], trace: [], error };
+    }
+    return response;
   }
 
   public async resolveRecordType(
