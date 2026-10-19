@@ -31,8 +31,10 @@ const address = (name: string, data = '203.0.113.10'): Answer => ({
 });
 // evlog JSON-stringifies events in production, so only what survives a JSON
 // round-trip reaches the log.
-const loggedFailures = (logError: { mock: { calls: unknown[][] } }) =>
-  logError.mock.calls.map(([event]) => JSON.parse(JSON.stringify(event)));
+const loggedFailures = (spy: { mock: { calls: unknown[][] } }) =>
+  spy.mock.calls
+    .map(([event]) => JSON.parse(JSON.stringify(event)))
+    .filter((event) => event.message === 'record_type_lookup_failed');
 
 describe('AuthoritativeResolver partial results', () => {
   afterEach(() => {
@@ -40,6 +42,7 @@ describe('AuthoritativeResolver partial results', () => {
   });
 
   it('preserves A records and explicitly marks a refused PTR lookup as failed', async () => {
+    const logWarn = vi.spyOn(log, 'warn').mockImplementation(() => {});
     const logError = vi.spyOn(log, 'error').mockImplementation(() => {});
     const resolver = new AuthoritativeResolver({
       rootServers: async () => ['192.0.2.1'],
@@ -62,7 +65,8 @@ describe('AuthoritativeResolver partial results', () => {
     expect(JSON.parse(JSON.stringify(result)).PTR.error).toEqual(
       result.PTR.error,
     );
-    expect(loggedFailures(logError)).toEqual([
+    expect(loggedFailures(logError)).toEqual([]);
+    expect(loggedFailures(logWarn)).toEqual([
       expect.objectContaining({
         domain: 'example.com',
         recordType: 'PTR',
@@ -92,6 +96,7 @@ describe('AuthoritativeResolver partial results', () => {
   });
 
   it('does not serialize unexpected internal errors into partial results', async () => {
+    const logWarn = vi.spyOn(log, 'warn').mockImplementation(() => {});
     const logError = vi.spyOn(log, 'error').mockImplementation(() => {});
     const resolver = new AuthoritativeResolver({
       rootServers: async () => ['192.0.2.1'],
@@ -111,6 +116,7 @@ describe('AuthoritativeResolver partial results', () => {
     ]);
     expect(result.PTR.error?.title).toBe('DNS lookup failed');
     expect(JSON.stringify(result)).not.toContain('private transport details');
+    expect(loggedFailures(logWarn)).toEqual([]);
     expect(loggedFailures(logError)).toEqual([
       expect.objectContaining({
         recordType: 'PTR',

@@ -1026,10 +1026,13 @@ export class AuthoritativeResolver extends DnsResolver {
         continue;
       }
       const { reason } = result;
+      const expected = reason instanceof UserFacingError;
       const err = reason instanceof Error ? reason : new Error(String(reason));
       // Not rethrown, so onRequestError never sees it. evlog JSON-stringifies
       // events in production, which drops an Error's own fields: copy them.
-      log.error({
+      // Expected failures (e.g. a refused PTR) only warn, so error alerts
+      // stay reserved for bugs.
+      log[expected ? 'warn' : 'error']({
         message: 'record_type_lookup_failed',
         domain,
         recordType: types[index],
@@ -1040,10 +1043,7 @@ export class AuthoritativeResolver extends DnsResolver {
           cause: (err.cause as Error | undefined)?.message,
         },
       });
-      const error =
-        reason instanceof UserFacingError
-          ? reason.payload
-          : FALLBACK_LOOKUP_ERROR;
+      const error = expected ? reason.payload : FALLBACK_LOOKUP_ERROR;
       response[types[index]] = { records: [], trace: [], error };
     }
     return response;
