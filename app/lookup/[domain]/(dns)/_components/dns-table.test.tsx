@@ -41,9 +41,6 @@ describe('partial DNS results', () => {
     expect(
       container.querySelector('[role="alert"]')?.textContent,
     ).not.toContain('AAAA:');
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      'Refresh the page to retry',
-    );
     expect(container.querySelector('table')?.textContent).toContain(
       '203.0.113.10',
     );

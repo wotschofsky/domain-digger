@@ -1,7 +1,7 @@
+import { TriangleAlertIcon } from 'lucide-react';
 import naturalCompare from 'natural-compare-lite';
 import { type FC, Fragment } from 'react';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Collapsible,
   CollapsibleContent,
@@ -19,6 +19,7 @@ import type { RecordContextEntry } from '@/lib/record-context';
 import type { ResolverMultiResponse } from '@/lib/resolvers/base';
 import { cn } from '@/lib/utils';
 
+import { IconAlert } from '../../_components/icon-alert';
 import { RecordRow } from './record-row';
 import { StackedRecord } from './stacked-record';
 
@@ -30,21 +31,22 @@ type DnsTableProps = {
 export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
   <>
     {Object.values(records).some((response) => response.error) && (
-      <Alert className="mt-8">
-        <AlertTitle>Some DNS lookups failed</AlertTitle>
-        <AlertDescription>
-          <p>Available records are shown below. Refresh the page to retry.</p>
-          <ul className="mt-2 list-inside list-disc">
-            {Object.entries(records).map(([type, response]) =>
-              response.error ? (
-                <li key={type}>
-                  <strong>{type}:</strong> {response.error.title}
-                </li>
-              ) : null,
-            )}
-          </ul>
-        </AlertDescription>
-      </Alert>
+      <IconAlert
+        className="mt-8 max-w-none"
+        icon={TriangleAlertIcon}
+        title="Some DNS lookups failed"
+      >
+        <ul>
+          {Object.entries(records).map(([type, response]) =>
+            response.error ? (
+              <li key={type}>
+                <span className="font-medium">{type}:</span>{' '}
+                {response.error.title}
+              </li>
+            ) : null,
+          )}
+        </ul>
+      </IconAlert>
     )}
     {Object.entries(records).map(([recordType, response]) => {
       if (!response || response.records.length === 0) {
