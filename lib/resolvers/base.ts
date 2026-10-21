@@ -1,4 +1,5 @@
 import type { ALL_RECORD_TYPES } from '@/lib/data';
+import type { UserFacingErrorPayload } from '@/lib/user-facing-error';
 
 export type RecordType = (typeof ALL_RECORD_TYPES)[number];
 
@@ -13,7 +14,16 @@ export type RawRecord = {
   data: string;
 };
 
-export type ResolverResponse = { records: RawRecord[]; trace: string[] };
+export type ResolverResponse = {
+  records: RawRecord[];
+  trace: string[];
+  // Set only by AuthoritativeResolver.resolveRecordTypes for a type whose
+  // lookup failed: it is unknown, not a confirmed empty RRset. Other paths
+  // (DoH DNS-level errors, tolerated RRSIG refusals) still return a failed
+  // lookup as an empty response noted only in the trace. Keep this plain
+  // data so the response stays JSON-serializable.
+  error?: UserFacingErrorPayload;
+};
 
 export type ResolverMultiResponse = Record<string, ResolverResponse>;
 
