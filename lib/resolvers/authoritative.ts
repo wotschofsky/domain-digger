@@ -687,7 +687,7 @@ export class AuthoritativeResolver extends DnsResolver {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. replaced mid-request); drop it and re-walk from the root
       // once instead of failing the lookup. Requests that already failed in
-      // this walk are not re-sent, so only servers not yet tried can help.
+      // this walk are not re-sent: a server that failed here stays failed.
       // This takes priority over any non-authoritative lastResort answer --
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds.
@@ -846,9 +846,10 @@ export class AuthoritativeResolver extends DnsResolver {
       };
     }
 
-    // DS lives in the parent. A child apex's own DS NODATA skips this, so the
-    // NS it carries fails as a same-zone referral below and a DS-unaware
-    // parent's referral there falls over to a sibling parent.
+    // DS lives in the parent, so a child apex's own negative answer to it
+    // skips this shortcut. If it carries the zone's NS, they fail as a
+    // same-zone referral below and a sibling parent is tried; without NS it
+    // still ends the walk at the final return.
     if (
       (packet as DecodedPacket).flag_aa &&
       (packet.rcode === 'NXDOMAIN' ||
