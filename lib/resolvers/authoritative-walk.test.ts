@@ -13,7 +13,6 @@ const reply = (
   name: string,
   type: RecordType,
   answers: Answer[] = [],
-  rcode = 'NOERROR',
 ): DecodedPacket =>
   ({
     type: 'response',
@@ -22,9 +21,31 @@ const reply = (
     answers,
     authorities: [],
     additionals: [],
-    rcode,
+    rcode: 'NOERROR',
     flag_aa: true,
   }) as unknown as DecodedPacket;
+// Authoritative NODATA carrying the zone's SOA and NS (RFC 2308 type 1).
+const nodata = (name: string, type: RecordType, zone: string, host: string) =>
+  ({
+    ...reply(name, type),
+    authorities: [
+      {
+        name: zone,
+        type: 'SOA',
+        ttl: 300,
+        data: {
+          mname: host,
+          rname: `hostmaster.${zone}`,
+          serial: 1,
+          refresh: 300,
+          retry: 300,
+          expire: 300,
+          minimum: 300,
+        },
+      },
+      { name: zone, type: 'NS', ttl: 300, data: host },
+    ],
+  }) as DecodedPacket;
 const address = (name: string, data = '203.0.113.10'): Answer => ({
   name,
   type: 'A',
@@ -117,31 +138,7 @@ describe('AuthoritativeResolver walk bounds', () => {
             ['ns1.example.net'],
             ['8.8.8.8'],
           );
-        return {
-          ...reply(domain, recordType),
-          authorities: [
-            {
-              name: 'example.com',
-              type: 'SOA',
-              ttl: 300,
-              data: {
-                mname: 'ns1.example.net',
-                rname: 'hostmaster.example.com',
-                serial: 1,
-                refresh: 300,
-                retry: 300,
-                expire: 300,
-                minimum: 300,
-              },
-            },
-            {
-              name: 'example.com',
-              type: 'NS',
-              ttl: 300,
-              data: 'ns1.example.net',
-            },
-          ],
-        } as DecodedPacket;
+        return nodata(domain, recordType, 'example.com', 'ns1.example.net');
       },
     );
     const resolver = new AuthoritativeResolver({
@@ -188,32 +185,8 @@ describe('AuthoritativeResolver walk bounds', () => {
               },
             },
           ]);
-        // The child apex answers its own DS with NODATA (SOA + NS).
-        return {
-          ...reply(domain, recordType),
-          authorities: [
-            {
-              name: 'sub.example.com',
-              type: 'SOA',
-              ttl: 300,
-              data: {
-                mname: 'ns1.example.org',
-                rname: 'hostmaster.sub.example.com',
-                serial: 1,
-                refresh: 300,
-                retry: 300,
-                expire: 300,
-                minimum: 300,
-              },
-            },
-            {
-              name: 'sub.example.com',
-              type: 'NS',
-              ttl: 300,
-              data: 'ns1.example.org',
-            },
-          ],
-        } as DecodedPacket;
+        // The child apex answers its own DS with NODATA.
+        return nodata(domain, recordType, 'sub.example.com', 'ns1.example.org');
       },
     );
     const resolver = new AuthoritativeResolver({

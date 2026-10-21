@@ -741,15 +741,9 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
-        ancestors: new Set([
-          ...ancestors,
-          requestKey({
-            domain,
-            recordType,
-            nameserver: lastResort.candidate,
-            dnssecOk: this.options.dnssecOk ?? false,
-          }),
-        ]),
+        // ponytail: lastResort always owns an answer, which returns before
+        // ancestors is read, so its own key never needs adding.
+        ancestors,
       });
     }
 
@@ -858,10 +852,9 @@ export class AuthoritativeResolver extends DnsResolver {
       };
     }
 
-    // DS lives in the parent, so a child apex's own negative answer to it
-    // skips this shortcut. If it carries the zone's NS, they fail as a
-    // same-zone referral below and a sibling parent is tried; without NS it
-    // still ends the walk at the final return.
+    // Authoritative NXDOMAIN/NODATA is final. A child apex's own reply to DS
+    // (which lives in the parent) skips this: NS it carries then fail as a
+    // same-zone referral below, so a sibling parent is tried.
     if (
       (packet as DecodedPacket).flag_aa &&
       (packet.rcode === 'NXDOMAIN' ||
