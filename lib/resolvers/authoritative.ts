@@ -178,7 +178,8 @@ type FetchRecordsParams = {
 
 export class AuthoritativeResolver extends DnsResolver {
   private static readonly MAX_RECURSION_DEPTH = 20;
-  // Caps candidate nameserver attempts for one walk, like BIND's
+  // Caps distinct requests (name, type, nameserver) for one walk -- reusing
+  // one is free and bounded by the walk's step budget instead -- like BIND's
   // max-recursion-queries: the depth cap alone still lets a crafted zone
   // answer every glueless delegation with 4 fresh NS names and fork
   // 4^depth sub-walks. One attempt costs up to 4 UDP tries plus a TCP
@@ -578,9 +579,10 @@ export class AuthoritativeResolver extends DnsResolver {
     // A blackholed network makes every candidate burn its full retry budget
     // (4 attempts x 3s); serializing that across 4 fallback servers would
     // take ~48s. The first candidate always gets its full budget -- a step
-    // reached with the deadline spent still makes progress -- and further
-    // ones only start while the deadline allows, so fast failures (REFUSED,
-    // quick rejects) still reach every server.
+    // reached with the deadline spent still makes progress -- unless it is
+    // skipped as a loop or an already-failed request, which counts as a
+    // failure. Further ones only start while the deadline allows, so fast
+    // failures (REFUSED, quick rejects) still reach every server.
     // ponytail: past the deadline the ceiling is depth x one retry budget;
     // the platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
@@ -683,11 +685,12 @@ export class AuthoritativeResolver extends DnsResolver {
     // No candidate produced a terminal answer or a followable referral.
     if (cached) {
       // The cached delegation was the only candidate set and may simply be
-      // stale (e.g. rate-limited or replaced mid-request); drop it and
-      // re-walk from the root once instead of failing the lookup. This takes
-      // priority over any non-authoritative lastResort answer -- adopting a
-      // deferred answer from the stale cached server would mask the healthy
-      // authoritative server the fresh root walk finds.
+      // stale (e.g. replaced mid-request); drop it and re-walk from the root
+      // once instead of failing the lookup. Requests that already failed in
+      // this walk are not re-sent, so only servers not yet tried can help.
+      // This takes priority over any non-authoritative lastResort answer --
+      // adopting a deferred answer from the stale cached server would mask
+      // the healthy authoritative server the fresh root walk finds.
       this.delegationCache.delete(cached.zone);
       return this.fetchRecordsRaw({
         domain,
@@ -843,10 +846,14 @@ export class AuthoritativeResolver extends DnsResolver {
       };
     }
 
+    // DS lives in the parent. A child apex's own DS NODATA skips this, so the
+    // NS it carries fails as a same-zone referral below and a DS-unaware
+    // parent's referral there falls over to a sibling parent.
     if (
       (packet as DecodedPacket).flag_aa &&
       (packet.rcode === 'NXDOMAIN' ||
-        packet.authorities?.some((answer) => answer.type === 'SOA'))
+        packet.authorities?.some((answer) => answer.type === 'SOA')) &&
+      !(recordType === 'DS' && canonicalDnsName(zone) === wantName)
     ) {
       return { answers: [], trace, rcode: packet.rcode, zone };
     }

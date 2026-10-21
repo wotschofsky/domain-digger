@@ -154,6 +154,80 @@ describe('AuthoritativeResolver walk bounds', () => {
     expect(udpTransport).toHaveBeenCalledTimes(2);
   });
 
+  it('asks a sibling parent for DS when another refers it to the child apex', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1')
+          return referral(
+            domain,
+            recordType,
+            'example.com',
+            ['p1.example.net', 'p2.example.net'],
+            ['8.8.8.8', '9.9.9.9'],
+          );
+        // A DS-unaware parent server refers the query to the child.
+        if (nameserver === '8.8.8.8')
+          return referral(
+            domain,
+            recordType,
+            'sub.example.com',
+            ['ns1.example.org'],
+            ['1.1.1.1'],
+          );
+        if (nameserver === '9.9.9.9')
+          return reply(domain, recordType, [
+            {
+              name: domain,
+              type: 'DS',
+              ttl: 300,
+              data: {
+                keyTag: 1,
+                algorithm: 13,
+                digestType: 2,
+                digest: Buffer.from('ab', 'hex'),
+              },
+            },
+          ]);
+        // The child apex answers its own DS with NODATA (SOA + NS).
+        return {
+          ...reply(domain, recordType),
+          authorities: [
+            {
+              name: 'sub.example.com',
+              type: 'SOA',
+              ttl: 300,
+              data: {
+                mname: 'ns1.example.org',
+                rname: 'hostmaster.sub.example.com',
+                serial: 1,
+                refresh: 300,
+                retry: 300,
+                expire: 300,
+                minimum: 300,
+              },
+            },
+            {
+              name: 'sub.example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns1.example.org',
+            },
+          ],
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await expect(
+      resolver.resolveAnswers('sub.example.com', 'DS'),
+    ).resolves.toMatchObject({
+      answers: [expect.objectContaining({ type: 'DS' })],
+      zone: 'example.com',
+    });
+  });
+
   it('bounds processing when a small shared request graph forks exponentially', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType }) => {
