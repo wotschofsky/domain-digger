@@ -170,6 +170,7 @@ type FetchRecordsParams = {
   depth?: number;
   deadlineAt?: number;
   budget?: WalkBudget;
+  ancestors?: ReadonlySet<string>;
 };
 
 const FALLBACK_LOOKUP_ERROR: UserFacingErrorPayload = {
@@ -533,9 +534,11 @@ export class AuthoritativeResolver extends DnsResolver {
         AuthoritativeResolver.MAX_CANDIDATES_PER_WALK *
         AuthoritativeResolver.MAX_RECURSION_DEPTH,
     },
+    ancestors = new Set<string>(),
   }: FetchRecordsParams): Promise<WalkResult> {
-    // Cached responses cost no packets, but a malicious graph can still fork
-    // exponentially through shared requests. Bound that processing separately.
+    // Cached responses cost no packets, but a crafted or misconfigured graph
+    // can still fork exponentially through shared requests. Bound that
+    // processing separately.
     if (budget.remainingSteps-- <= 0) {
       throw new Error(
         `DNS traversal budget exhausted while resolving ${domain}`,
@@ -581,10 +584,10 @@ export class AuthoritativeResolver extends DnsResolver {
     // A blackholed network makes every candidate burn its full retry budget
     // (4 attempts x 3s); serializing that across 4 fallback servers would
     // take ~48s. The first candidate always gets its full budget -- a step
-    // reached with the deadline spent still makes progress -- unless its
-    // request already failed in this walk, which counts as a failure.
-    // Further ones only start while the deadline allows, so fast failures
-    // (REFUSED, quick rejects) still reach every server.
+    // reached with the deadline spent still makes progress -- unless it is
+    // skipped as a loop or an already-failed request, which counts as a
+    // failure. Further ones only start while the deadline allows, so fast
+    // failures (REFUSED, quick rejects) still reach every server.
     // ponytail: past the deadline the ceiling is depth x one retry budget;
     // the platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
@@ -601,6 +604,13 @@ export class AuthoritativeResolver extends DnsResolver {
         dnssecOk: this.options.dnssecOk ?? false,
       };
       const key = JSON.stringify(loaderKey);
+      // Branch-local ancestry stops a circular glueless dependency, whose
+      // replies are cached after a round trip or two and then recurse in
+      // microtasks, before it spends the step budget a slower sibling needs.
+      if (ancestors.has(key)) {
+        failedNameservers.push(`${candidate}: DNS referral loop detected`);
+        continue;
+      }
       let pending = budget.requests.get(key);
       if (!pending) {
         if (budget.remaining <= 0) {
@@ -666,6 +676,7 @@ export class AuthoritativeResolver extends DnsResolver {
           depth,
           deadlineAt,
           budget,
+          ancestors: new Set([...ancestors, key]),
         });
       } catch (error) {
         failedNameservers.push(
@@ -696,6 +707,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
+        ancestors,
       });
     }
 
@@ -722,6 +734,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
+        ancestors,
       });
     }
 
@@ -773,6 +786,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
+    ancestors,
   }: {
     packet: Packet;
     protocol: DnsResponse['protocol'];
@@ -785,6 +799,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: WalkBudget;
+    ancestors: ReadonlySet<string>;
   }): Promise<WalkResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
@@ -904,6 +919,7 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
           deadlineAt,
           budget,
+          ancestors,
         });
       }
 
@@ -918,6 +934,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth,
         deadlineAt,
         budget,
+        ancestors,
       });
     }
 
@@ -937,6 +954,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth,
     deadlineAt,
     budget,
+    ancestors,
   }: {
     nsRedirects: StringAnswer[];
     domain: string;
@@ -947,6 +965,7 @@ export class AuthoritativeResolver extends DnsResolver {
     depth: number;
     deadlineAt: number;
     budget: WalkBudget;
+    ancestors: ReadonlySet<string>;
   }): Promise<WalkResult> {
     const zone = canonicalDnsName(nsRedirects[0].name);
     const subTrace: string[] = [];
@@ -968,6 +987,7 @@ export class AuthoritativeResolver extends DnsResolver {
           depth: depth + 1,
           deadlineAt,
           budget,
+          ancestors,
         });
         subTrace.push(...resolved.trace);
         // resolved.answers are all A records (filtered by type), so
@@ -1012,6 +1032,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
+        ancestors,
       });
     } catch (error) {
       // Sibling NS lookups are still usable failover: the race above only
@@ -1038,6 +1059,7 @@ export class AuthoritativeResolver extends DnsResolver {
         depth: depth + 1,
         deadlineAt,
         budget,
+        ancestors,
       });
     }
   }

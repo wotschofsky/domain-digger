@@ -127,6 +127,63 @@ describe('AuthoritativeResolver walk bounds', () => {
     expect(udpTransport).toHaveBeenCalledTimes(3);
   });
 
+  it('stops a circular glueless dependency before it starves a slower sibling', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        if (nameserver === '192.0.2.1') {
+          if (domain.endsWith('.c.test'))
+            return referral(
+              domain,
+              recordType,
+              'c.test',
+              ['ns.c.test'],
+              ['8.8.4.1'],
+            );
+          // a.test and b.test name each other's servers, without glue.
+          if (domain.endsWith('.b.test'))
+            return referral(domain, recordType, 'b.test', [
+              'ns1.a.test',
+              'ns2.a.test',
+            ]);
+          return referral(domain, recordType, 'a.test', [
+            'ns1.b.test',
+            'ns2.b.test',
+            'h.deep.c.test',
+          ]);
+        }
+        // The healthy NS needs more round trips than the cycle takes to warm.
+        if (nameserver === '8.8.4.1')
+          return referral(
+            domain,
+            recordType,
+            'deep.c.test',
+            ['ns.deep.c.test'],
+            ['8.8.4.2'],
+          );
+        if (nameserver === '8.8.4.2')
+          return reply(domain, recordType, [address(domain, '8.8.8.8')]);
+        if (nameserver === '9.9.9.9')
+          return reply(domain, recordType, [address(domain, '8.8.8.8')]);
+        return reply(domain, recordType, [
+          address(
+            domain,
+            domain.startsWith('www.') ? '203.0.113.10' : '9.9.9.9',
+          ),
+        ]);
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await expect(
+      resolver.resolveRecordType('www.a.test', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
   it('treats authoritative negative answers with SOA and NS as terminal', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
