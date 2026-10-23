@@ -1008,8 +1008,12 @@ export class AuthoritativeResolver extends DnsResolver {
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
       if (!late.length) throw error;
-      this.delegationCache.delete(zone);
-      this.cacheDelegation(nsRedirects[0].name, domain, late);
+      // Replace only the entry this referral wrote, never one learned from
+      // servers above.
+      if (this.delegationCache.get(zone) === tried) {
+        this.delegationCache.delete(zone);
+        this.cacheDelegation(nsRedirects[0].name, domain, late);
+      }
       return this.fetchRecordsRaw({
         domain,
         recordType,

@@ -1178,8 +1178,9 @@ describe('AuthoritativeResolver transport policy', () => {
   });
 
   it('keeps an ancestor delegation when a glue fallback resolves elsewhere', async () => {
-    // example.com's server refers back up to "com" with dead glue plus an
-    // unglued NS; its fallback must not replace the root-supplied "com" entry.
+    // example.com's server refers back up to "com" with dead glue plus two
+    // unglued NS: one dead, one slower but healthy. Neither the glue fallback
+    // nor its late-sibling retry may replace the root-supplied "com" entry.
     const ns = (zone: string, data: string) => ({
       name: zone,
       type: 'NS' as const,
@@ -1194,7 +1195,11 @@ describe('AuthoritativeResolver transport policy', () => {
     });
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
-        if (nameserver === '8.8.9.9') throw new Error('timeout');
+        if (nameserver === '8.8.9.9' || nameserver === '7.7.7.7')
+          throw new Error('timeout');
+        // The healthy NS name resolves one hop later, after the dead one.
+        if (nameserver === '6.6.6.6')
+          await new Promise((resolve) => setTimeout(resolve, 10));
         const answer = (data: string) =>
           ({
             ...response(domain, recordType, 'NOERROR', [a(domain, data)]),
@@ -1206,12 +1211,18 @@ describe('AuthoritativeResolver transport policy', () => {
             ...records,
           }) as DecodedPacket;
         if (nameserver === '192.0.2.1')
-          return domain.endsWith('.example.org')
-            ? answer('9.9.9.9')
-            : refer({
-                authorities: [ns('com', 'a.tld.test')],
-                additionals: [a('a.tld.test', '8.8.4.4')],
-              });
+          return domain.startsWith('dead.')
+            ? answer('7.7.7.7')
+            : domain.endsWith('.example.org')
+              ? refer({
+                  authorities: [ns('example.org', 'ns0.example.org')],
+                  additionals: [a('ns0.example.org', '6.6.6.6')],
+                })
+              : refer({
+                  authorities: [ns('com', 'a.tld.test')],
+                  additionals: [a('a.tld.test', '8.8.4.4')],
+                });
+        if (nameserver === '6.6.6.6') return answer('9.9.9.9');
         if (nameserver === '8.8.4.4')
           return domain.endsWith('.example.com')
             ? refer({
@@ -1223,6 +1234,7 @@ describe('AuthoritativeResolver transport policy', () => {
           return refer({
             authorities: [
               ns('com', 'x.glued.test'),
+              ns('com', 'dead.example.org'),
               ns('com', 'ns.example.org'),
             ],
             additionals: [a('x.glued.test', '8.8.9.9')],
