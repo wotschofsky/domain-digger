@@ -324,6 +324,28 @@ describe('AuthoritativeResolver walk bounds', () => {
     expect(udpTransport.mock.calls.length).toBeLessThan(50);
   });
 
+  it('counts a request once whatever the case of its name', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver !== '192.0.2.1')
+          return reply(domain, recordType, [address(domain)]);
+        if (/\.example\.net\.?$/i.test(domain))
+          return reply(domain, recordType, [address(domain, '8.8.8.8')]);
+        return referral(domain, recordType, 'example.com', [
+          'ns1.example.net',
+          'NS1.Example.Net.',
+        ]);
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await resolver.resolveRecordType('www.example.com', 'A');
+    // Root referral, one shared NS lookup, then the answer.
+    expect(udpTransport).toHaveBeenCalledTimes(3);
+  });
+
   it('counts shared glueless requests once without raising the 50-candidate budget', async () => {
     const hosts = (suffix: string) =>
       [1, 2, 3, 4].map((n) => `ns${n}.${suffix}`);

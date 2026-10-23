@@ -603,7 +603,8 @@ export class AuthoritativeResolver extends DnsResolver {
         nameserver: candidate,
         dnssecOk: this.options.dnssecOk ?? false,
       };
-      const key = JSON.stringify(loaderKey);
+      // Name case and a trailing dot don't make a request distinct.
+      const key = `${canonicalDnsName(domain)} ${recordType} ${candidate}`;
       // Branch-local ancestry stops a circular glueless dependency, whose
       // replies are cached after a round trip or two and then recurse in
       // microtasks, before it spends the step budget a slower sibling needs.
