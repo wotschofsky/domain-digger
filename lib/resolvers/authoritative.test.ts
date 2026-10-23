@@ -1178,15 +1178,15 @@ describe('AuthoritativeResolver transport policy', () => {
   });
 
   it('resolves an NS name whose glue the address cap cut short', async () => {
-    // One NS name with five glue addresses; the first four (the cap) are
-    // dead, so only resolving the name reaches the healthy fifth.
+    // One out-of-zone NS name with five glue addresses; the first four (the
+    // cap) are dead, so only resolving the name reaches the healthy fifth.
     const glue = ['8.8.8.1', '8.8.8.2', '8.8.8.3', '8.8.8.4', '9.9.9.9'];
     const records = (name: string, addresses: string[]) =>
       addresses.map((data) => ({ name, type: 'A' as const, ttl: 300, data }));
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
         if (glue.slice(0, 4).includes(nameserver)) throw new Error('timeout');
-        if (nameserver !== '192.0.2.1' || domain === 'ns.example.com')
+        if (nameserver !== '192.0.2.1' || domain === 'ns.example.net')
           return {
             ...response(
               domain,
@@ -1206,16 +1206,57 @@ describe('AuthoritativeResolver transport policy', () => {
               name: 'example.com',
               type: 'NS',
               ttl: 300,
-              data: 'ns.example.com',
+              data: 'ns.example.net',
             },
           ],
-          additionals: records('ns.example.com', glue),
+          additionals: records('ns.example.net', glue),
         } as DecodedPacket;
       },
     );
     const resolver = new AuthoritativeResolver({
       udpTransport,
       rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
+  it('skips unglued NS names inside the zone they serve', async () => {
+    // Resolving ns2.example.com needs example.com's own (dead) servers, so
+    // the fallback must not loop on it; the walk moves on to the sibling.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.8.8') throw new Error('timeout');
+        if (nameserver === '192.0.2.1')
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: ['ns.example.com', 'ns2.example.com'].map((data) => ({
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data,
+            })),
+            additionals: [
+              { name: 'ns.example.com', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        return domain === 'www.example.com'
+          ? ({
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket)
+          : response(domain, recordType, 'REFUSED');
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
     });
 
     await expect(

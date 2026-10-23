@@ -860,19 +860,25 @@ export class AuthoritativeResolver extends DnsResolver {
           // server). Drop the dead glue from the delegation cache if this
           // referral wrote it -- never an entry learned from servers above
           // -- and resolve every NS name with glue left untried (none at all,
-          // or some cut by the cap), skipping the glue addresses.
+          // or some cut by the cap), skipping the glue addresses. Names inside
+          // the zone itself need its (dead) servers to resolve, so skip them.
           // ponytail: this skips glue addresses the deadline or request cap
           // cut off before trying, too; once a walk stops re-sending its
           // failed requests (#123), pass only those or drop the filter.
-          // Group once: the referral is server-controlled and can be large.
-          const glueByName = Map.groupBy(aRedirects, (r) =>
-            canonicalDnsName(r.name),
+          const zoneCut = canonicalDnsName(nsRedirects[0].name);
+          // Decide once per name: the referral is server-controlled and can
+          // repeat thousands of records.
+          const spent = new Set(
+            [...Map.groupBy(aRedirects, (r) => canonicalDnsName(r.name))]
+              .filter(([, glue]) =>
+                glue.every((r) => addresses.includes(r.data)),
+              )
+              .map(([name]) => name),
           );
           const unglued = nsRedirects.filter((ns) => {
-            const glue = glueByName.get(canonicalDnsName(ns.data));
-            return !glue || glue.some((r) => !addresses.includes(r.data));
+            const name = canonicalDnsName(ns.data);
+            return !spent.has(name) && !isInBailiwick(name, zoneCut);
           });
-          const zoneCut = canonicalDnsName(nsRedirects[0].name);
           if (this.delegationCache.get(zoneCut) === addresses)
             this.delegationCache.delete(zoneCut);
           if (!unglued.length) throw error;
