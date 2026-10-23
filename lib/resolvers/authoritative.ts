@@ -841,19 +841,44 @@ export class AuthoritativeResolver extends DnsResolver {
           ...new Set(aRedirects.map((redirect) => redirect.data)),
         ].slice(0, 4);
         this.cacheDelegation(nsRedirects[0].name, domain, addresses);
-        return this.fetchRecordsRaw({
-          domain,
-          recordType,
-          nameservers: addresses,
-          zone: canonicalDnsName(nsRedirects[0].name),
-          trace: [
-            ...trace,
-            `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
-          ],
-          depth: depth + 1,
-          deadlineAt,
-          budget,
-        });
+        try {
+          return await this.fetchRecordsRaw({
+            domain,
+            recordType,
+            nameservers: addresses,
+            zone: canonicalDnsName(nsRedirects[0].name),
+            trace: [
+              ...trace,
+              `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+            ],
+            depth: depth + 1,
+            deadlineAt,
+            budget,
+          });
+        } catch (error) {
+          // Glue can cover only some NS names (whu.edu glues just one, dead,
+          // server); fall back to resolving the rest and let them replace
+          // the dead glue in the delegation cache.
+          const glued = new Set(
+            aRedirects.map((redirect) => canonicalDnsName(redirect.name)),
+          );
+          const unglued = nsRedirects.filter(
+            (ns) => !glued.has(canonicalDnsName(ns.data)),
+          );
+          if (!unglued.length) throw error;
+          this.delegationCache.delete(canonicalDnsName(nsRedirects[0].name));
+          return this.followReferralViaNsLookup({
+            nsRedirects: unglued,
+            domain,
+            recordType,
+            candidate,
+            protocol,
+            trace,
+            depth,
+            deadlineAt,
+            budget,
+          });
+        }
       }
 
       // No usable glue: resolve the delegated NS hostnames ourselves.

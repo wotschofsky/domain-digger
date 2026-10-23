@@ -1125,6 +1125,58 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(result.records[0]?.data).toBe('203.0.113.14');
   });
 
+  it('resolves the glueless NS names when the only glued server fails', async () => {
+    // whu.edu: .edu glues only fallbala.whu.edu, which is down, while the
+    // other two NS names live in foreign zones and answer fine.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.8.8') throw new Error('timeout');
+        if (nameserver === '192.0.2.1' && domain.endsWith('.example.net'))
+          return {
+            ...response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '9.9.9.9' },
+            ]),
+            flag_aa: true,
+          } as DecodedPacket;
+        if (nameserver === '192.0.2.1')
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: ['ns.example.com', 'ns1.example.net'].map((data) => ({
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data,
+            })),
+            additionals: [
+              { name: 'ns.example.com', type: 'A', ttl: 300, data: '8.8.8.8' },
+            ],
+          } as DecodedPacket;
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+    // The healthy servers replace the dead glue in the delegation cache.
+    udpTransport.mockClear();
+    await resolver.resolveRecordType('mail.example.com', 'A');
+    expect(udpTransport).not.toHaveBeenCalledWith(
+      expect.objectContaining({ nameserver: '8.8.8.8' }),
+    );
+  });
+
   it('follows matching public glue from a referral', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) =>
