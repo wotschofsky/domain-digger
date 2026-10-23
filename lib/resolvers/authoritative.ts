@@ -857,10 +857,13 @@ export class AuthoritativeResolver extends DnsResolver {
           });
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
-          // server); fall back to resolving the rest, skipping the addresses
-          // that just failed. They replace the dead glue in the delegation
-          // cache only if this referral wrote it -- never an entry learned
-          // from servers above.
+          // server); fall back to resolving the rest, skipping the glue
+          // addresses. They replace the dead glue in the delegation cache
+          // only if this referral wrote it -- never an entry learned from
+          // servers above.
+          // ponytail: this skips glue addresses the deadline or request cap
+          // cut off before trying, too; once a walk stops re-sending its
+          // failed requests (#123), pass only those or drop the filter.
           const glued = new Set(
             aRedirects.map((redirect) => canonicalDnsName(redirect.name)),
           );
@@ -956,7 +959,7 @@ export class AuthoritativeResolver extends DnsResolver {
         const ips = resolved.answers
           .map((a) => this.recordToString(a))
           .filter((ip) => isPublicIp(ip) && !failed.includes(ip));
-        if (!ips.length) throw new Error(`no public address (${ns.data})`);
+        if (!ips.length) throw new Error(`no usable address (${ns.data})`);
         resolvedSets.push(ips);
         return ips;
       } catch (error) {
