@@ -676,11 +676,12 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     // No candidate produced a terminal answer or a followable referral.
-    if (cached) {
+    if (cached && budget.remainingSteps > 0) {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. replaced mid-request); drop it and re-walk from the root
       // once instead of failing the lookup. Requests that already failed in
       // this walk are not re-sent: a server that failed here stays failed.
+      // A spent step budget skips this and fails as a user-facing error.
       // This takes priority over any non-authoritative lastResort answer --
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds.

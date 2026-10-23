@@ -201,6 +201,39 @@ describe('AuthoritativeResolver walk bounds', () => {
     });
   });
 
+  it('keeps a spent step budget user-facing after a cached delegation fails', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        const layer = Number(domain.match(/layer(\d+)/)?.[1] ?? 0);
+        if (nameserver === '192.0.2.1' && !layer)
+          return referral(
+            domain,
+            recordType,
+            'evil.test',
+            ['ns1.evil.test'],
+            ['8.8.8.8'],
+          );
+        if (nameserver === '8.8.8.8' && recordType === 'A')
+          return reply(domain, recordType, [address(domain)]);
+        // Every further hop forks into four glueless NS names.
+        return referral(
+          domain,
+          recordType,
+          domain,
+          [1, 2, 3, 4].map((n) => `ns${n}.layer${layer + 1}.test`),
+        );
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await resolver.resolveRecordType('www.evil.test', 'A');
+    await expect(
+      resolver.resolveRecordType('www.evil.test', 'TXT'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
   it('bounds processing when a small shared request graph forks exponentially', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType }) => {
