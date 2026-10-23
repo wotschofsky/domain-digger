@@ -267,11 +267,18 @@ describe('AuthoritativeResolver walk bounds', () => {
             domain,
             recordType,
             'evil.test',
-            ['ns1.evil.test'],
-            ['8.8.8.8'],
+            ['ns1.evil.test', 'ns2.evil.test'],
+            ['8.8.8.8', '9.9.9.9'],
           );
         if (nameserver === '8.8.8.8' && recordType === 'A')
           return reply(domain, recordType, [address(domain)]);
+        // A non-authoritative answer from the stale cached delegation must
+        // not win just because the step budget ran out.
+        if (nameserver === '9.9.9.9')
+          return {
+            ...reply(domain, recordType, [address(domain, '198.51.100.66')]),
+            flag_aa: false,
+          } as DecodedPacket;
         // Every further hop forks into four glueless NS names.
         return referral(
           domain,
