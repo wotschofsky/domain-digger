@@ -1307,11 +1307,11 @@ describe('AuthoritativeResolver transport policy', () => {
     ).toHaveLength(4);
   });
 
-  it('keeps an ancestor delegation when a referral points back up', async () => {
+  it('rejects a referral that points back up before using its glue', async () => {
     // example.com's server refers back up to "com" with dead glue plus an
     // unglued NS. The upward referral is rejected before any glue fallback,
-    // so the root-supplied "com" entry survives and the dead glue is never
-    // contacted.
+    // so the dead glue is never contacted and a later lookup under com
+    // still resolves.
     const ns = (zone: string, data: string) => ({
       name: zone,
       type: 'NS' as const,
@@ -1443,9 +1443,13 @@ describe('AuthoritativeResolver transport policy', () => {
       rootServers: async () => ['192.0.2.1'],
     });
 
-    await resolver
-      .resolveRecordType('www.x.y.example.com', 'A')
-      .catch(() => {});
+    await expect(
+      resolver.resolveRecordType('www.x.y.example.com', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+    // The dead glue was tried, so the fallback ran.
+    expect(udpTransport).toHaveBeenCalledWith(
+      expect.objectContaining({ nameserver: '9.9.9.9' }),
+    );
     await expect(
       resolver.resolveRecordType('victim.y.example.com', 'A'),
     ).resolves.toMatchObject({
