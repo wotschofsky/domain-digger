@@ -1264,6 +1264,9 @@ describe('AuthoritativeResolver transport policy', () => {
     ).resolves.toMatchObject({
       records: [expect.objectContaining({ data: '203.0.113.10' })],
     });
+    expect(udpTransport).not.toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'ns2.example.com' }),
+    );
   });
 
   it('drops a dead delegation whose NS names were all glued', async () => {
