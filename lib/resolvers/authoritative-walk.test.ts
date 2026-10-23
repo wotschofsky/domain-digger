@@ -208,6 +208,32 @@ describe('AuthoritativeResolver walk bounds', () => {
     expect(udpTransport).toHaveBeenCalledTimes(2);
   });
 
+  it('tries a sibling when a lame server answers from a zone above the cut', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1')
+          return referral(
+            domain,
+            recordType,
+            'sub.example.com',
+            ['c.example.net', 'd.example.net'],
+            ['8.8.8.8', '9.9.9.9'],
+          );
+        // Lame for sub.example.com, authoritative only for its parent.
+        if (nameserver === '8.8.8.8')
+          return nodata(domain, recordType, 'example.com', 'c.example.net');
+        return reply(domain, recordType, [address(domain)]);
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await expect(
+      resolver.resolveRecordType('www.sub.example.com', 'A'),
+    ).resolves.toMatchObject({ records: [{ data: '203.0.113.10' }] });
+  });
+
   it('asks a sibling parent for DS when another refers it to the child apex', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
@@ -244,6 +270,52 @@ describe('AuthoritativeResolver walk bounds', () => {
           ]);
         // The child apex answers its own DS with NODATA.
         return nodata(domain, recordType, 'sub.example.com', 'ns1.example.org');
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await expect(
+      resolver.resolveAnswers('sub.example.com', 'DS'),
+    ).resolves.toMatchObject({
+      answers: [expect.objectContaining({ type: 'DS' })],
+      zone: 'example.com',
+    });
+  });
+
+  it('asks a sibling parent for DS when another answers it from the child zone', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1')
+          return referral(
+            domain,
+            recordType,
+            'example.com',
+            ['p1.example.net', 'p2.example.net'],
+            ['8.8.8.8', '9.9.9.9'],
+          );
+        // A DS-unaware parent server also hosting the child answers from it.
+        if (nameserver === '8.8.8.8')
+          return nodata(
+            domain,
+            recordType,
+            'sub.example.com',
+            'p1.example.net',
+          );
+        return reply(domain, recordType, [
+          {
+            name: domain,
+            type: 'DS',
+            ttl: 300,
+            data: {
+              keyTag: 1,
+              algorithm: 13,
+              digestType: 2,
+              digest: Buffer.from('ab', 'hex'),
+            },
+          },
+        ]);
       },
     );
     const resolver = new AuthoritativeResolver({

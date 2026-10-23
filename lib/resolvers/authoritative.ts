@@ -153,7 +153,9 @@ type WalkResult = {
 
 // Shared by all glueless branches of one top-level query. Reusing a cached
 // request (including a rejection) consumes neither another slot nor packets.
-// A new top-level query gets a fresh budget and can retry transient failures.
+// A new top-level query gets a fresh budget and can retry requests that
+// rejected (transport failures); resolved responses, rcode failures
+// included, stay cached for the resolver instance.
 type WalkBudget = {
   remaining: number;
   requests: Map<string, Promise<DnsResponse>>;
@@ -608,6 +610,10 @@ export class AuthoritativeResolver extends DnsResolver {
       // Branch-local ancestry stops a circular glueless dependency, whose
       // replies are cached after a round trip or two and then recurse in
       // microtasks, before it spends the step budget a slower sibling needs.
+      // ponytail: keyed per server, so a cycle reachable through several
+      // servers (four roots, say) still forks through their orders and can
+      // starve a sibling a few round trips deeper; tracking the glueless NS
+      // names each branch is resolving would close that.
       if (ancestors.has(key)) {
         failedNameservers.push(`${candidate}: DNS referral loop detected`);
         continue;
@@ -844,14 +850,22 @@ export class AuthoritativeResolver extends DnsResolver {
       };
     }
 
-    // Authoritative NXDOMAIN/NODATA is final. A child apex's own reply to DS
-    // (which lives in the parent) skips this: NS it carries then fail as a
-    // same-zone referral below, so a sibling parent is tried.
+    // Authoritative NXDOMAIN/NODATA is final when its SOA shows it came from
+    // the zone at this cut or below. Two denials skip this: a lame server's
+    // from a zone above the cut, and a DS denial from the child zone itself
+    // (SOA owned by the queried name; DS lives in the parent), even from a
+    // parent server that also hosts the child. NS they carry are followed or
+    // rejected as a loop below, so a sibling is tried; without NS they end
+    // the walk empty below all the same.
+    const soa = packet.authorities?.find((answer) => answer.type === 'SOA');
+    const soaZone = soa && canonicalDnsName(soa.name);
+    const cut = canonicalDnsName(zone);
     if (
       (packet as DecodedPacket).flag_aa &&
-      (packet.rcode === 'NXDOMAIN' ||
-        packet.authorities?.some((answer) => answer.type === 'SOA')) &&
-      !(recordType === 'DS' && canonicalDnsName(zone) === wantName)
+      (soaZone === undefined
+        ? packet.rcode === 'NXDOMAIN'
+        : (!cut || isInBailiwick(soaZone, cut)) &&
+          !(recordType === 'DS' && soaZone === wantName))
     ) {
       return { answers: [], trace, rcode: packet.rcode, zone };
     }
