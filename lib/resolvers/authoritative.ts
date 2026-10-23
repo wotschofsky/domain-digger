@@ -959,9 +959,16 @@ export class AuthoritativeResolver extends DnsResolver {
               )
               .map(([name]) => name),
           );
+          // Only NS for the validated cut: an extra owner (an ancestor the
+          // referring server doesn't serve) would otherwise become the zone
+          // the fallback caches these servers under.
           const unglued = nsRedirects.filter((ns) => {
             const name = canonicalDnsName(ns.data);
-            return !spent.has(name) && !isInBailiwick(name, zoneCut);
+            return (
+              canonicalDnsName(ns.name) === zoneCut &&
+              !spent.has(name) &&
+              !isInBailiwick(name, zoneCut)
+            );
           });
           if (this.delegationCache.get(zoneCut) === addresses)
             this.delegationCache.delete(zoneCut);
