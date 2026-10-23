@@ -611,9 +611,10 @@ export class AuthoritativeResolver extends DnsResolver {
       // replies are cached after a round trip or two and then recurse in
       // microtasks, before it spends the step budget a slower sibling needs.
       // ponytail: keyed per server, so a cycle reachable through several
-      // servers (four roots, say) still forks through their orders and can
-      // starve a sibling a few round trips deeper; tracking the glueless NS
-      // names each branch is resolving would close that.
+      // servers (every walk starts at four roots) still forks through their
+      // orders and can starve a sibling only a few round trips slower;
+      // tracking the glueless NS names each branch is resolving would close
+      // that.
       if (ancestors.has(key)) {
         failedNameservers.push(`${candidate}: DNS referral loop detected`);
         continue;
@@ -851,12 +852,13 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     // Authoritative NXDOMAIN/NODATA is final when its SOA shows it came from
-    // the zone at this cut or below. Two denials skip this: a lame server's
-    // from a zone above the cut, and a DS denial from the child zone itself
-    // (SOA owned by the queried name; DS lives in the parent), even from a
-    // parent server that also hosts the child. NS they carry are followed or
-    // rejected as a loop below, so a sibling is tried; without NS they end
-    // the walk empty below all the same.
+    // the zone at this cut or below; an NXDOMAIN without SOA is final too.
+    // Other denials skip this: a lame server's from a zone outside the cut,
+    // and a DS denial from the child zone itself (SOA owned by the queried
+    // name; DS lives in the parent), even from a parent server that also
+    // hosts the child. Below, NS they carry are followed, or rejected as a
+    // loop so that a sibling is tried; without NS the walk ends empty all
+    // the same.
     const soa = packet.authorities?.find((answer) => answer.type === 'SOA');
     const soaZone = soa && canonicalDnsName(soa.name);
     const cut = canonicalDnsName(zone);
