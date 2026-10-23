@@ -1377,6 +1377,82 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
+  it('keeps a glue fallback inside the zone cut it was referred to', async () => {
+    // The x.y.example.com server lists its own dead glue first, then an NS
+    // for y.example.com, above its cut. The fallback must not cache that
+    // server for y.example.com, where it would answer for names it does
+    // not own.
+    const ns = (zone: string, data: string) => ({
+      name: zone,
+      type: 'NS' as const,
+      ttl: 300,
+      data,
+    });
+    const a = (name: string, data: string) => ({
+      name,
+      type: 'A' as const,
+      ttl: 300,
+      data,
+    });
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        const answer = (data: string) =>
+          ({
+            ...response(domain, recordType, 'NOERROR', [a(domain, data)]),
+            flag_aa: true,
+          }) as DecodedPacket;
+        const refer = (records: object) =>
+          ({
+            ...response(domain, recordType, 'NOERROR'),
+            ...records,
+          }) as DecodedPacket;
+        if (nameserver === '192.0.2.1')
+          return domain.endsWith('.attacker.net')
+            ? refer({
+                authorities: [ns('attacker.net', 'ns.attacker.net')],
+                additionals: [a('ns.attacker.net', '6.6.6.6')],
+              })
+            : refer({
+                authorities: [ns('example.com', 'ns.example.com')],
+                additionals: [a('ns.example.com', '8.8.8.8')],
+              });
+        if (nameserver === '8.8.8.8')
+          return domain.endsWith('.x.y.example.com')
+            ? refer({
+                authorities: [ns('x.y.example.com', 'ns.x.y.example.com')],
+                additionals: [a('ns.x.y.example.com', '7.7.7.7')],
+              })
+            : answer('203.0.113.10');
+        if (nameserver === '7.7.7.7')
+          return refer({
+            authorities: [
+              ns('www.x.y.example.com', 'dead.test'),
+              ns('y.example.com', 'ns.attacker.net'),
+            ],
+            additionals: [a('dead.test', '9.9.9.9')],
+          });
+        if (nameserver === '6.6.6.6')
+          return answer(
+            domain === 'ns.attacker.net' ? '6.6.6.6' : '198.51.100.66',
+          );
+        throw new Error('timeout');
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await resolver
+      .resolveRecordType('www.x.y.example.com', 'A')
+      .catch(() => {});
+    await expect(
+      resolver.resolveRecordType('victim.y.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
   it('does not resend to the dead glued server from the glueless fallback', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
