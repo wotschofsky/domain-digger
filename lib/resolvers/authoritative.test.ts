@@ -1177,6 +1177,130 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
+  it('keeps an ancestor delegation when a glue fallback resolves elsewhere', async () => {
+    // example.com's server refers back up to "com" with dead glue plus an
+    // unglued NS; its fallback must not replace the root-supplied "com" entry.
+    const ns = (zone: string, data: string) => ({
+      name: zone,
+      type: 'NS' as const,
+      ttl: 300,
+      data,
+    });
+    const a = (name: string, data: string) => ({
+      name,
+      type: 'A' as const,
+      ttl: 300,
+      data,
+    });
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.9.9') throw new Error('timeout');
+        const answer = (data: string) =>
+          ({
+            ...response(domain, recordType, 'NOERROR', [a(domain, data)]),
+            flag_aa: true,
+          }) as DecodedPacket;
+        const refer = (records: object) =>
+          ({
+            ...response(domain, recordType, 'NOERROR'),
+            ...records,
+          }) as DecodedPacket;
+        if (nameserver === '192.0.2.1')
+          return domain.endsWith('.example.org')
+            ? answer('9.9.9.9')
+            : refer({
+                authorities: [ns('com', 'a.tld.test')],
+                additionals: [a('a.tld.test', '8.8.4.4')],
+              });
+        if (nameserver === '8.8.4.4')
+          return domain.endsWith('.example.com')
+            ? refer({
+                authorities: [ns('example.com', 'ns.example.com')],
+                additionals: [a('ns.example.com', '8.8.1.1')],
+              })
+            : answer('203.0.113.20');
+        if (nameserver === '8.8.1.1')
+          return refer({
+            authorities: [
+              ns('com', 'x.glued.test'),
+              ns('com', 'ns.example.org'),
+            ],
+            additionals: [a('x.glued.test', '8.8.9.9')],
+          });
+        return answer('198.51.100.7');
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await resolver.resolveRecordType('www.example.com', 'A').catch(() => {});
+    await expect(
+      resolver.resolveRecordType('shop.other.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.20' })],
+    });
+  });
+
+  it('does not resend to the dead glued server from the glueless fallback', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.8.8') throw new Error('timeout');
+        if (nameserver !== '192.0.2.1' || /^(alias|healthy)\./.test(domain)) {
+          // The alias names the dead host; the healthy NS answers later.
+          if (domain.startsWith('healthy.'))
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          return {
+            ...response(domain, recordType, 'NOERROR', [
+              {
+                name: domain,
+                type: 'A',
+                ttl: 300,
+                data: domain.startsWith('alias.')
+                  ? '8.8.8.8'
+                  : domain.startsWith('healthy.')
+                    ? '9.9.9.9'
+                    : '203.0.113.10',
+              },
+            ]),
+            flag_aa: true,
+          } as DecodedPacket;
+        }
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            'ns.example.com',
+            'alias.example.net',
+            'healthy.example.org',
+          ].map((data) => ({
+            name: 'example.com',
+            type: 'NS',
+            ttl: 300,
+            data,
+          })),
+          additionals: [
+            { name: 'ns.example.com', type: 'A', ttl: 300, data: '8.8.8.8' },
+          ],
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+    // One load of the dead server: a first try plus three retries.
+    expect(
+      udpTransport.mock.calls.filter(([r]) => r.nameserver === '8.8.8.8'),
+    ).toHaveLength(4);
+  });
+
   it('follows matching public glue from a referral', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) =>

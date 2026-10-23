@@ -857,8 +857,10 @@ export class AuthoritativeResolver extends DnsResolver {
           });
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
-          // server); fall back to resolving the rest and let them replace
-          // the dead glue in the delegation cache.
+          // server); fall back to resolving the rest, skipping the addresses
+          // that just failed. They replace the dead glue in the delegation
+          // cache only if this referral wrote it -- never an entry learned
+          // from servers above.
           const glued = new Set(
             aRedirects.map((redirect) => canonicalDnsName(redirect.name)),
           );
@@ -866,9 +868,12 @@ export class AuthoritativeResolver extends DnsResolver {
             (ns) => !glued.has(canonicalDnsName(ns.data)),
           );
           if (!unglued.length) throw error;
-          this.delegationCache.delete(canonicalDnsName(nsRedirects[0].name));
+          const zoneCut = canonicalDnsName(nsRedirects[0].name);
+          if (this.delegationCache.get(zoneCut) === addresses)
+            this.delegationCache.delete(zoneCut);
           return this.followReferralViaNsLookup({
             nsRedirects: unglued,
+            failed: addresses,
             domain,
             recordType,
             candidate,
@@ -903,6 +908,7 @@ export class AuthoritativeResolver extends DnsResolver {
   // can fall through to the next sibling candidate.
   private async followReferralViaNsLookup({
     nsRedirects,
+    failed = [],
     domain,
     recordType,
     candidate,
@@ -913,6 +919,7 @@ export class AuthoritativeResolver extends DnsResolver {
     budget,
   }: {
     nsRedirects: StringAnswer[];
+    failed?: string[];
     domain: string;
     recordType: RecordType;
     candidate: string;
@@ -948,7 +955,7 @@ export class AuthoritativeResolver extends DnsResolver {
         // recordToString yields the bare IP string for each.
         const ips = resolved.answers
           .map((a) => this.recordToString(a))
-          .filter((ip) => isPublicIp(ip));
+          .filter((ip) => isPublicIp(ip) && !failed.includes(ip));
         if (!ips.length) throw new Error(`no public address (${ns.data})`);
         resolvedSets.push(ips);
         return ips;
