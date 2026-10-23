@@ -1126,8 +1126,8 @@ describe('AuthoritativeResolver transport policy', () => {
   });
 
   it('resolves the glueless NS names when the only glued server fails', async () => {
-    // whu.edu: .edu glues only fallbala.whu.edu, which is down, while the
-    // other two NS names live in foreign zones and answer fine.
+    // Like whu.edu: the referral glues only ns.example.com, which is down,
+    // while the unglued ns1.example.net answers fine.
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
         if (nameserver === '8.8.8.8') throw new Error('timeout');
@@ -1175,6 +1175,89 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(udpTransport).not.toHaveBeenCalledWith(
       expect.objectContaining({ nameserver: '8.8.8.8' }),
     );
+  });
+
+  it('resolves an NS name whose glue the address cap dropped', async () => {
+    const dead = ['8.8.8.1', '8.8.8.2', '8.8.8.3', '8.8.8.4'];
+    const hosts = [1, 2, 3, 4, 5].map((n) => `ns${n}.example.com`);
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (dead.includes(nameserver)) throw new Error('timeout');
+        const answer = (data: string) =>
+          ({
+            ...response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data },
+            ]),
+            flag_aa: true,
+          }) as DecodedPacket;
+        if (nameserver !== '192.0.2.1') return answer('203.0.113.10');
+        if (domain === 'ns5.example.com') return answer('9.9.9.9');
+        // Five glued NS names; the first four (the cap) are all dead.
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: hosts.map((data) => ({
+            name: 'example.com',
+            type: 'NS',
+            ttl: 300,
+            data,
+          })),
+          additionals: [...dead, '9.9.9.9'].map((data, i) => ({
+            name: hosts[i],
+            type: 'A',
+            ttl: 300,
+            data,
+          })),
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
+  it('drops a dead delegation whose NS names were all glued', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.8.8') throw new Error('timeout');
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns.example.com',
+            },
+          ],
+          additionals: [
+            { name: 'ns.example.com', type: 'A', ttl: 300, data: '8.8.8.8' },
+          ],
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).rejects.toThrow();
+    udpTransport.mockClear();
+    await expect(
+      resolver.resolveRecordType('mail.example.com', 'A'),
+    ).rejects.toThrow();
+    // A cached dead delegation would be tried, dropped, then tried again.
+    expect(
+      udpTransport.mock.calls.filter(([r]) => r.nameserver === '8.8.8.8'),
+    ).toHaveLength(4);
   });
 
   it('keeps an ancestor delegation when a glue fallback resolves elsewhere', async () => {
@@ -1247,7 +1330,11 @@ describe('AuthoritativeResolver transport policy', () => {
       rootServers: async () => ['192.0.2.1'],
     });
 
-    await resolver.resolveRecordType('www.example.com', 'A').catch(() => {});
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '198.51.100.7' })],
+    });
     await expect(
       resolver.resolveRecordType('shop.other.com', 'A'),
     ).resolves.toMatchObject({

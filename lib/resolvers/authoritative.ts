@@ -857,23 +857,25 @@ export class AuthoritativeResolver extends DnsResolver {
           });
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
-          // server); fall back to resolving the rest, skipping the glue
-          // addresses. They replace the dead glue in the delegation cache
-          // only if this referral wrote it -- never an entry learned from
-          // servers above.
+          // server). Drop the dead glue from the delegation cache if this
+          // referral wrote it -- never an entry learned from servers above
+          // -- and resolve the NS names whose glue went unused (none, or cut
+          // by the cap), skipping the glue addresses.
           // ponytail: this skips glue addresses the deadline or request cap
           // cut off before trying, too; once a walk stops re-sending its
           // failed requests (#123), pass only those or drop the filter.
           const glued = new Set(
-            aRedirects.map((redirect) => canonicalDnsName(redirect.name)),
+            aRedirects
+              .filter((redirect) => addresses.includes(redirect.data))
+              .map((redirect) => canonicalDnsName(redirect.name)),
           );
           const unglued = nsRedirects.filter(
             (ns) => !glued.has(canonicalDnsName(ns.data)),
           );
-          if (!unglued.length) throw error;
           const zoneCut = canonicalDnsName(nsRedirects[0].name);
           if (this.delegationCache.get(zoneCut) === addresses)
             this.delegationCache.delete(zoneCut);
+          if (!unglued.length) throw error;
           return this.followReferralViaNsLookup({
             nsRedirects: unglued,
             failed: addresses,
