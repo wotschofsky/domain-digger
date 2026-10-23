@@ -1177,36 +1177,39 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
-  it('resolves an NS name whose glue the address cap dropped', async () => {
-    const dead = ['8.8.8.1', '8.8.8.2', '8.8.8.3', '8.8.8.4'];
-    const hosts = [1, 2, 3, 4, 5].map((n) => `ns${n}.example.com`);
+  it('resolves an NS name whose glue the address cap cut short', async () => {
+    // One NS name with five glue addresses; the first four (the cap) are
+    // dead, so only resolving the name reaches the healthy fifth.
+    const glue = ['8.8.8.1', '8.8.8.2', '8.8.8.3', '8.8.8.4', '9.9.9.9'];
+    const records = (name: string, addresses: string[]) =>
+      addresses.map((data) => ({ name, type: 'A' as const, ttl: 300, data }));
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
-        if (dead.includes(nameserver)) throw new Error('timeout');
-        const answer = (data: string) =>
-          ({
-            ...response(domain, recordType, 'NOERROR', [
-              { name: domain, type: 'A', ttl: 300, data },
-            ]),
+        if (glue.slice(0, 4).includes(nameserver)) throw new Error('timeout');
+        if (nameserver !== '192.0.2.1' || domain === 'ns.example.com')
+          return {
+            ...response(
+              domain,
+              recordType,
+              'NOERROR',
+              records(
+                domain,
+                nameserver === '9.9.9.9' ? ['203.0.113.10'] : glue,
+              ),
+            ),
             flag_aa: true,
-          }) as DecodedPacket;
-        if (nameserver !== '192.0.2.1') return answer('203.0.113.10');
-        if (domain === 'ns5.example.com') return answer('9.9.9.9');
-        // Five glued NS names; the first four (the cap) are all dead.
+          } as DecodedPacket;
         return {
           ...response(domain, recordType, 'NOERROR'),
-          authorities: hosts.map((data) => ({
-            name: 'example.com',
-            type: 'NS',
-            ttl: 300,
-            data,
-          })),
-          additionals: [...dead, '9.9.9.9'].map((data, i) => ({
-            name: hosts[i],
-            type: 'A',
-            ttl: 300,
-            data,
-          })),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns.example.com',
+            },
+          ],
+          additionals: records('ns.example.com', glue),
         } as DecodedPacket;
       },
     );
