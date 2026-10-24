@@ -18,6 +18,7 @@
     "app/api/internal/resolve/pdx/route.ts": { "regions": ["pdx1"] },
     "app/api/internal/resolve/sfo/route.ts": { "regions": ["sfo1"] },
     "app/api/internal/resolve/sin/route.ts": { "regions": ["sin1"] },
-    "app/api/internal/resolve/syd/route.ts": { "regions": ["syd1"] }
+    "app/api/internal/resolve/syd/route.ts": { "regions": ["syd1"] },
+    "app/api/internal/resolve/yul/route.ts": { "regions": ["yul1"] }
   }
 }
