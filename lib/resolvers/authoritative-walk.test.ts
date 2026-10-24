@@ -184,6 +184,63 @@ describe('AuthoritativeResolver walk bounds', () => {
     });
   });
 
+  it('stops a circular glueless dependency reached through several roots', async () => {
+    const roots = ['192.0.2.1', '192.0.2.2', '192.0.2.3', '192.0.2.4'];
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        if (roots.includes(nameserver)) {
+          if (domain.endsWith('.c.test'))
+            return referral(
+              domain,
+              recordType,
+              'c.test',
+              ['ns.c.test'],
+              ['8.8.4.1'],
+            );
+          // a.test and b.test name each other's servers, without glue.
+          if (domain.endsWith('.b.test'))
+            return referral(domain, recordType, 'b.test', [
+              'ns1.a.test',
+              'ns2.a.test',
+            ]);
+          return referral(domain, recordType, 'a.test', [
+            'ns1.b.test',
+            'ns2.b.test',
+            'h.x3.x2.x1.c.test',
+          ]);
+        }
+        // The healthy NS sits four referrals below c.test.
+        const hop = Number(nameserver.split('.')[3]);
+        if (nameserver.startsWith('8.8.4.') && hop < 4) {
+          const zone = domain
+            .split('.')
+            .slice(-(2 + hop))
+            .join('.');
+          return referral(
+            domain,
+            recordType,
+            zone,
+            [`ns.${zone}`],
+            [`8.8.4.${hop + 1}`],
+          );
+        }
+        return reply(domain, recordType, [
+          address(domain, nameserver === '8.8.4.4' ? '9.9.9.9' : undefined),
+        ]);
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => roots,
+    });
+    await expect(
+      resolver.resolveRecordType('www.a.test', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
   it('treats authoritative negative answers with SOA and NS as terminal', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
@@ -232,6 +289,53 @@ describe('AuthoritativeResolver walk bounds', () => {
     await expect(
       resolver.resolveRecordType('www.sub.example.com', 'A'),
     ).resolves.toMatchObject({ records: [{ data: '203.0.113.10' }] });
+  });
+
+  it('follows a referral beside a denial from an unrelated zone', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1')
+          return referral(
+            domain,
+            recordType,
+            'example.com',
+            ['p1.example.net'],
+            ['8.8.8.8'],
+          );
+        // The SOA's zone does not hold the queried name; the NS do.
+        if (nameserver === '8.8.8.8') {
+          const denial = nodata(
+            domain,
+            recordType,
+            'other.example.com',
+            'p1.example.net',
+          );
+          return {
+            ...denial,
+            authorities: [
+              denial.authorities![0],
+              {
+                name: 'sub.example.com',
+                type: 'NS',
+                ttl: 300,
+                data: 'c.example.net',
+              },
+            ],
+            additionals: [address('c.example.net', '1.1.1.1')],
+          } as DecodedPacket;
+        }
+        return reply(domain, recordType, [address(domain)]);
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await expect(
+      resolver.resolveRecordType('www.sub.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
   });
 
   it('asks a sibling parent for DS when another refers it to the child apex', async () => {
