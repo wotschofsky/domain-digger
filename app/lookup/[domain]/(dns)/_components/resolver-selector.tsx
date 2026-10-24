@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { useAnalytics } from '@/lib/analytics';
 import { REGIONS } from '@/lib/data';
@@ -138,3 +139,20 @@ export const ResolverSelector: FC = () => {
     </div>
   );
 };
+
+// Search params are only known per request, so the static shell shows the
+// selectors' outline until the real ones stream in
+export const ResolverSelectorFallback: FC = () => (
+  <div className="flex flex-col gap-4 min-[450px]:flex-row">
+    {['Resolver', 'Location'].map((label) => (
+      <div key={label} className="w-full flex-1 min-[450px]:max-w-52">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+            {label}
+          </span>
+          <Skeleton className="h-10 w-full rounded-lg" />
+        </div>
+      </div>
+    ))}
+  </div>
+);

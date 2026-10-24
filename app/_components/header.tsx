@@ -1,7 +1,8 @@
 import { HeartIcon } from 'lucide-react';
-import type { FC } from 'react';
+import { type FC, Suspense } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { BookmarkletLink } from './bookmarklet-link';
 import { Logo } from './logo';
@@ -25,7 +26,11 @@ export const Header: FC<HeaderProps> = ({ showSearch }) => (
 
       {showSearch && (
         <div className="w-full max-w-lg">
-          <SearchForm autofocus={false} />
+          <Suspense
+            fallback={<Skeleton className="h-[38px] w-full rounded-lg" />}
+          >
+            <SearchForm autofocus={false} />
+          </Suspense>
         </div>
       )}
 

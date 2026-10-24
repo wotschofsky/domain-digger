@@ -2,16 +2,17 @@ import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { notFound } from 'next/navigation';
-import { type FC, type ReactNode } from 'react';
+import { type FC, type ReactNode, Suspense } from 'react';
 
 import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 import { ClientOnly } from '@/components/client-only';
 import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 
 import { Footer } from '../../_components/footer';
 import { Header } from '../../_components/header';
-import { CarbonAdRail } from './_components/carbon-ad';
+import { CarbonAdRail, CarbonAdRailFallback } from './_components/carbon-ad';
 import { DomainSummary } from './_components/domain-summary';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
@@ -44,70 +45,100 @@ export const generateMetadata = async ({
   };
 };
 
-const LookupLayout: FC<LookupLayoutProps> = async (props) => {
-  const params = await props.params;
+type LookupHeaderProps = {
+  params: LookupLayoutProps['params'];
+};
 
-  const { domain } = params;
+const LookupHeader: FC<LookupHeaderProps> = async ({ params }) => {
+  const { domain } = await params;
 
-  const { children } = props;
-
+  // Streamed responses have already sent a 200 by the time this runs, so an
+  // invalid domain gets the not-found UI with a 200 status (a soft 404). For a
+  // real 404, validate the domain in proxy.ts before rendering starts instead.
   if (!isValidDomain(domain)) {
     return notFound();
   }
 
   return (
     <>
-      <Header showSearch={true} />
-      <main className="flex w-full flex-1 flex-col">
-        <div className="container space-y-6 pt-12 pb-8">
-          <div className="flex w-full items-center gap-4">
-            {/* Bottom padding added to avoid clipping */}
-            <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
-              <span className="block text-zinc-500 dark:text-zinc-400">
-                Results for
-              </span>
-              {isWildcardDomain(domain) ? (
-                <span className="block text-4xl font-bold">{domain}</span>
-              ) : (
-                <a
-                  className="block text-4xl font-bold"
-                  href={`https://${domain}`}
-                  target="_blank"
-                  rel="noreferrer nofollow"
-                >
-                  {domain} <ExternalLinkIcon className="inline-block" />
-                </a>
-              )}
-            </h1>
+      <div className="container space-y-6 pt-12 pb-8">
+        <div className="flex w-full items-center gap-4">
+          {/* Bottom padding added to avoid clipping */}
+          <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
+            <span className="block text-zinc-500 dark:text-zinc-400">
+              Results for
+            </span>
+            {isWildcardDomain(domain) ? (
+              <span className="block text-4xl font-bold">{domain}</span>
+            ) : (
+              <a
+                className="block text-4xl font-bold"
+                href={`https://${domain}`}
+                target="_blank"
+                rel="noreferrer nofollow"
+              >
+                {domain} <ExternalLinkIcon className="inline-block" />
+              </a>
+            )}
+          </h1>
 
-            <ShareButton />
-          </div>
-
-          <RelatedDomains domain={domain} />
-          <DomainSummary domain={domain} />
+          <ShareButton />
         </div>
 
-        <div className="container">
-          <ResultsTabs domain={domain} />
-        </div>
+        <RelatedDomains domain={domain} />
+        <DomainSummary domain={domain} />
+      </div>
 
-        <div className="flex flex-1 flex-col p-3">
-          <Card className="flex-1 py-8">
-            <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
-              <div className="min-w-0 flex-1">{children}</div>
-
-              <CarbonAdRail />
-            </div>
-          </Card>
-        </div>
-      </main>
-      <Footer />
-
-      <ClientOnly>
-        <StarReminder />
-      </ClientOnly>
+      <div className="container">
+        <ResultsTabs domain={domain} />
+      </div>
     </>
   );
 };
+
+const LookupHeaderFallback: FC = () => (
+  <>
+    <div className="container space-y-6 pt-12 pb-8">
+      <div className="mb-2 pb-1">
+        <span className="block text-zinc-500 dark:text-zinc-400">
+          Results for
+        </span>
+        <Skeleton className="h-10 w-72 max-w-full" />
+      </div>
+    </div>
+
+    <div className="container">
+      <Skeleton className="h-11 w-full rounded-xl" />
+    </div>
+  </>
+);
+
+const LookupLayout: FC<LookupLayoutProps> = ({ children, params }) => (
+  <>
+    <Header showSearch={true} />
+    <main className="flex w-full flex-1 flex-col">
+      <Suspense fallback={<LookupHeaderFallback />}>
+        <LookupHeader params={params} />
+      </Suspense>
+
+      <div className="flex flex-1 flex-col p-3">
+        <Card className="flex-1 py-8">
+          <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
+            <div className="min-w-0 flex-1">{children}</div>
+
+            <Suspense fallback={<CarbonAdRailFallback />}>
+              <CarbonAdRail />
+            </Suspense>
+          </div>
+        </Card>
+      </div>
+    </main>
+    <Footer />
+
+    <ClientOnly>
+      <StarReminder />
+    </ClientOnly>
+  </>
+);
 
 export default LookupLayout;
