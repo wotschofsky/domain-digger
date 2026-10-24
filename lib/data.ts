@@ -22,6 +22,7 @@ export const REGIONS: Record<
   sfo: { lat: 37.618056, lng: -122.378611, name: '🇺🇸 San Francisco, USA' },
   sin: { lat: 1.356944, lng: 103.988611, name: '🇸🇬 Singapore' },
   syd: { lat: -33.946111, lng: 151.177222, name: '🇦🇺 Sydney, Australia' },
+  yul: { lat: 45.470556, lng: -73.740833, name: '🇨🇦 Montréal, Canada' },
 };
 
 export const EXAMPLE_DOMAINS = [
