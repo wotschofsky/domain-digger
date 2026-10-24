@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import vercelConfig from '../vercel.json';
-import { REGIONS } from './data';
+import { REGIONS } from '@/lib/data';
+import vercelConfig from '@/vercel.json';
 
 const functions: Record<string, { regions?: string[] }> =
   vercelConfig.functions;
