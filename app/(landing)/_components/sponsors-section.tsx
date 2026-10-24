@@ -1,3 +1,4 @@
+import { cacheLife } from 'next/cache';
 import Image from 'next/image';
 import { type FC, type HTMLAttributes } from 'react';
 
@@ -12,13 +13,21 @@ import {
 import { getAllSponsors } from '@/lib/sponsors';
 import { cn } from '@/lib/utils';
 
+// getAllSponsors also runs from next.config.ts, outside any request, where
+// cacheLife() would throw, so the cache boundary lives here instead.
+const getCachedSponsors = async () => {
+  'use cache';
+  cacheLife('days');
+  return getAllSponsors();
+};
+
 type SponsorsSectionProps = HTMLAttributes<HTMLElement>;
 
 export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   className,
   ...props
 }) => {
-  const allSponsors = await getAllSponsors();
+  const allSponsors = await getCachedSponsors();
 
   if (!allSponsors.length) {
     return null;
