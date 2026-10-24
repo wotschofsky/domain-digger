@@ -924,20 +924,69 @@ export class AuthoritativeResolver extends DnsResolver {
           ...new Set(aRedirects.map((redirect) => redirect.data)),
         ].slice(0, 4);
         this.cacheDelegation(nsRedirects[0].name, domain, addresses);
-        return this.fetchRecordsRaw({
-          domain,
-          recordType,
-          nameservers: addresses,
-          zone: canonicalDnsName(nsRedirects[0].name),
-          trace: [
-            ...trace,
-            `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
-          ],
-          depth: depth + 1,
-          deadlineAt,
-          budget,
-          ancestors,
-        });
+        try {
+          return await this.fetchRecordsRaw({
+            domain,
+            recordType,
+            nameservers: addresses,
+            zone: canonicalDnsName(nsRedirects[0].name),
+            trace: [
+              ...trace,
+              `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+            ],
+            depth: depth + 1,
+            deadlineAt,
+            budget,
+            ancestors,
+          });
+        } catch (error) {
+          // Glue can cover only some NS names (whu.edu glues just one, dead,
+          // server). Drop the dead glue from the delegation cache if this
+          // referral wrote it -- never an entry learned from servers above
+          // -- and resolve every NS name with glue left untried (none at all,
+          // or some cut by the cap), skipping the glue addresses. Names inside
+          // the zone itself need its (dead) servers to resolve, so skip them.
+          // ponytail: this skips glue addresses the deadline or request cap
+          // cut off before trying, too; once a walk stops re-sending its
+          // failed requests (#123), pass only those or drop the filter.
+          const zoneCut = canonicalDnsName(nsRedirects[0].name);
+          // Decide once per name: the referral is server-controlled and can
+          // repeat thousands of records.
+          const spent = new Set(
+            [...Map.groupBy(aRedirects, (r) => canonicalDnsName(r.name))]
+              .filter(([, glue]) =>
+                glue.every((r) => addresses.includes(r.data)),
+              )
+              .map(([name]) => name),
+          );
+          // Only NS for the validated cut: an extra owner (an ancestor the
+          // referring server doesn't serve) would otherwise become the zone
+          // the fallback caches these servers under.
+          const unglued = nsRedirects.filter((ns) => {
+            const name = canonicalDnsName(ns.data);
+            return (
+              canonicalDnsName(ns.name) === zoneCut &&
+              !spent.has(name) &&
+              !isInBailiwick(name, zoneCut)
+            );
+          });
+          if (this.delegationCache.get(zoneCut) === addresses)
+            this.delegationCache.delete(zoneCut);
+          if (!unglued.length) throw error;
+          return this.followReferralViaNsLookup({
+            nsRedirects: unglued,
+            failed: addresses,
+            domain,
+            recordType,
+            candidate,
+            protocol,
+            trace,
+            depth,
+            deadlineAt,
+            budget,
+            ancestors,
+          });
+        }
       }
 
       // No usable glue: resolve the delegated NS hostnames ourselves.
@@ -963,6 +1012,7 @@ export class AuthoritativeResolver extends DnsResolver {
   // can fall through to the next sibling candidate.
   private async followReferralViaNsLookup({
     nsRedirects,
+    failed = [],
     domain,
     recordType,
     candidate,
@@ -974,6 +1024,7 @@ export class AuthoritativeResolver extends DnsResolver {
     ancestors,
   }: {
     nsRedirects: StringAnswer[];
+    failed?: string[];
     domain: string;
     recordType: RecordType;
     candidate: string;
@@ -1011,8 +1062,8 @@ export class AuthoritativeResolver extends DnsResolver {
         // recordToString yields the bare IP string for each.
         const ips = resolved.answers
           .map((a) => this.recordToString(a))
-          .filter((ip) => isPublicIp(ip));
-        if (!ips.length) throw new Error(`no public address (${ns.data})`);
+          .filter((ip) => isPublicIp(ip) && !failed.includes(ip));
+        if (!ips.length) throw new Error(`no usable address (${ns.data})`);
         resolvedSets.push(ips);
         return ips;
       } catch (error) {
@@ -1062,8 +1113,12 @@ export class AuthoritativeResolver extends DnsResolver {
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
       if (!late.length) throw error;
-      this.delegationCache.delete(zone);
-      this.cacheDelegation(nsRedirects[0].name, domain, late);
+      // Replace only the entry this referral wrote, never one learned from
+      // servers above.
+      if (this.delegationCache.get(zone) === tried) {
+        this.delegationCache.delete(zone);
+        this.cacheDelegation(nsRedirects[0].name, domain, late);
+      }
       return this.fetchRecordsRaw({
         domain,
         recordType,
