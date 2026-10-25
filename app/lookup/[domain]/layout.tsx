@@ -13,7 +13,10 @@ import { isValidDomain, isWildcardDomain } from '@/lib/utils';
 import { Footer } from '../../_components/footer';
 import { Header } from '../../_components/header';
 import { CarbonAdRail, CarbonAdRailFallback } from './_components/carbon-ad';
-import { DomainSummary } from './_components/domain-summary';
+import {
+  DomainSummary,
+  DomainSummarySkeleton,
+} from './_components/domain-summary';
 import { RelatedDomains } from './_components/related-domains';
 import { ResultsTabs } from './_components/results-tabs';
 import { ShareButton } from './_components/share-button';
@@ -96,15 +99,21 @@ const LookupHeader: FC<LookupHeaderProps> = async ({ params }) => {
   );
 };
 
+// Matches LookupHeader's rows so the results don't shift when it streams in
 const LookupHeaderFallback: FC = () => (
   <>
     <div className="container space-y-6 pt-12 pb-8">
-      <div className="mb-2 pb-1">
-        <span className="block text-zinc-500 dark:text-zinc-400">
-          Results for
-        </span>
-        <Skeleton className="h-10 w-72 max-w-full" />
+      <div className="flex w-full items-center gap-4">
+        <div className="mb-2 flex-1 pb-1">
+          <span className="block text-zinc-500 dark:text-zinc-400">
+            Results for
+          </span>
+          <Skeleton className="h-10 w-72 max-w-full" />
+        </div>
       </div>
+
+      <Skeleton className="h-6 w-64 max-w-full" />
+      <DomainSummarySkeleton />
     </div>
 
     <div className="container">
