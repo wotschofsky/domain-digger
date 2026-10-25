@@ -47,7 +47,7 @@ describe('search form', () => {
   };
 
   // Navigating away hides the page with Activity instead of unmounting it, so
-  // pressing Back restores the form as it was when the search was submitted
+  // pressing Back shows the same form instance again rather than a fresh one
   it('can search again after navigating back to it', async () => {
     await render('visible');
     const input = container.querySelector<HTMLInputElement>('input')!;
