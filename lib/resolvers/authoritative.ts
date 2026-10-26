@@ -478,6 +478,10 @@ export class AuthoritativeResolver extends DnsResolver {
         }),
       ),
     {
+      // A batch settles as one Promise.all, so a slow request would hold
+      // back every request sent in the same tick: the NS lookup race and the
+      // parallel record types.
+      batch: false,
       cacheKeyFn: (key) => JSON.stringify(key),
     },
   );

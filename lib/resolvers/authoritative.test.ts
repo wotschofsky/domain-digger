@@ -871,6 +871,10 @@ describe('AuthoritativeResolver transport policy', () => {
     const result = await resolver.resolveRecordType('www.example.com', 'A');
 
     expect(result.records[0]?.data).toBe('203.0.113.14');
+    // The walk went ahead with the fast sibling alone.
+    expect(result.trace).toContainEqual(
+      expect.stringContaining('retrying with late sibling nameservers'),
+    );
   });
 
   it('bounds total queries against a zone that forks glueless delegations', async () => {
