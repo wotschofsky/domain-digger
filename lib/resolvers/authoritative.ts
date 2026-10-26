@@ -952,11 +952,12 @@ export class AuthoritativeResolver extends DnsResolver {
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
           // server). When the walk through the glue fails -- there or deeper
-          // -- resolve the NS names of this cut with glue this walk has not
-          // sent (none, or some cut by the cap, the deadline or the request
-          // cap), skipping the glue it sent so the fallback never caches it.
-          // Names inside the zone need its own servers, so skip them; NS of
-          // another owner would become the zone the fallback caches under.
+          // -- resolve the NS names of this cut, skipping the glue the walk
+          // sent so the fallback never caches it. Names with glue left unsent
+          // (none, or some cut by the cap, the deadline or the request cap)
+          // go first; the rest go last, in case their glue is stale. Names
+          // inside the zone need its own servers, so skip them; NS of another
+          // owner would become the zone the fallback caches under.
           // ponytail: this also runs after a deeper failure, re-asking this
           // cut's other servers; checking what the sent glue answered would
           // narrow it.
@@ -970,20 +971,21 @@ export class AuthoritativeResolver extends DnsResolver {
               .filter(([, glue]) => glue.every((r) => sent.includes(r.data)))
               .map(([name]) => name),
           );
-          const unglued = nsRedirects.filter((ns) => {
-            const name = canonicalDnsName(ns.data);
-            return (
-              canonicalDnsName(ns.name) === nextZone &&
-              !spent.has(name) &&
-              !isInBailiwick(name, nextZone)
-            );
-          });
+          const isSpent = (ns: StringAnswer) =>
+            spent.has(canonicalDnsName(ns.data));
+          const fallbackNs = nsRedirects
+            .filter(
+              (ns) =>
+                canonicalDnsName(ns.name) === nextZone &&
+                !isInBailiwick(canonicalDnsName(ns.data), nextZone),
+            )
+            .sort((a, b) => Number(isSpent(a)) - Number(isSpent(b)));
           // Drop this referral's own entry so the fallback can replace it.
           if (this.delegationCache.get(nextZone) === addresses)
             this.delegationCache.delete(nextZone);
-          if (!unglued.length) throw error;
+          if (!fallbackNs.length) throw error;
           return this.followReferralViaNsLookup({
-            nsRedirects: unglued,
+            nsRedirects: fallbackNs,
             failed: sent,
             domain,
             recordType,

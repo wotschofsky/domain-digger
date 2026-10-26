@@ -1280,6 +1280,105 @@ describe('AuthoritativeResolver transport policy', () => {
     });
   });
 
+  it('resolves an NS name whose glue is stale', async () => {
+    // The referral's only glue for ns.example.net is a dead old address;
+    // the name itself now resolves to a healthy one.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.8.8') throw new Error('timeout');
+        if (nameserver === '9.9.9.9' || domain === 'ns.example.net')
+          return {
+            ...response(domain, recordType, 'NOERROR', [
+              {
+                name: domain,
+                type: 'A',
+                ttl: 300,
+                data: nameserver === '9.9.9.9' ? '203.0.113.10' : '9.9.9.9',
+              },
+            ]),
+            flag_aa: true,
+          } as DecodedPacket;
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns.example.net',
+            },
+          ],
+          additionals: [
+            { name: 'ns.example.net', type: 'A', ttl: 300, data: '8.8.8.8' },
+          ],
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
+  it('resolves untried NS names before ones whose glue failed', async () => {
+    // Four glued names, all dead, come first; only the fifth, unglued name
+    // is healthy, and the fallback resolves at most four names.
+    const dead = [1, 2, 3, 4].map((i) => `ns${i}.dead.test`);
+    const ip = (name: string) =>
+      name.startsWith('healthy.') ? '9.9.9.9' : `8.8.8.${name[2]}`;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver.startsWith('8.8.8.')) throw new Error('timeout');
+        if (
+          nameserver === '9.9.9.9' ||
+          /\.(dead\.test|example\.org)$/.test(domain)
+        )
+          return {
+            ...response(domain, recordType, 'NOERROR', [
+              {
+                name: domain,
+                type: 'A',
+                ttl: 300,
+                data: nameserver === '9.9.9.9' ? '203.0.113.10' : ip(domain),
+              },
+            ]),
+            flag_aa: true,
+          } as DecodedPacket;
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [...dead, 'healthy.example.org'].map((data) => ({
+            name: 'example.com',
+            type: 'NS',
+            ttl: 300,
+            data,
+          })),
+          additionals: dead.map((name) => ({
+            name,
+            type: 'A',
+            ttl: 300,
+            data: ip(name),
+          })),
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
   it('skips unglued NS names inside the zone they serve', async () => {
     // Resolving ns2.example.com needs example.com's own (dead) servers, so
     // the fallback must not loop on it; the walk moves on to the sibling.
