@@ -959,8 +959,11 @@ export class AuthoritativeResolver extends DnsResolver {
           // inside the zone need its own servers, so skip them; NS of another
           // owner would become the zone the fallback caches under.
           // ponytail: this also runs after a deeper failure, re-asking this
-          // cut's other servers; checking what the sent glue answered would
-          // narrow it.
+          // cut's other servers, and re-resolves names whose glue all went
+          // out, so a provider whose own zone sits on the same dead hosts
+          // costs one more retry budget per zone before failing. Checking what
+          // the sent glue answered, and skipping servers that already timed
+          // out under another name, would narrow both.
           const sent = addresses.filter((ip) =>
             budget.requests.has(requestKey(domain, recordType, ip)),
           );
