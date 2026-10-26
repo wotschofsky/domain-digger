@@ -196,6 +196,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       setState(FormStates.Initial);
       setSuggestionsVisible(false);
       setSelectedSuggestion(null);
+      setIpDetailsOpen(false);
     },
     [],
   );

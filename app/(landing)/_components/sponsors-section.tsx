@@ -17,7 +17,9 @@ import { cn } from '@/lib/utils';
 // cacheLife() would throw, so the cache boundary lives here instead.
 const getCachedSponsors = async () => {
   'use cache';
-  cacheLife('days');
+  // Daily like the old route revalidate. Expire stays at the default (never),
+  // unlike the days profile's 1 week
+  cacheLife({ revalidate: 60 * 60 * 24 });
   return getAllSponsors();
 };
 
