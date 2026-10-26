@@ -594,8 +594,9 @@ export class AuthoritativeResolver extends DnsResolver {
     // skipped as a loop or an already-failed request, which counts as a
     // failure. Further ones only start while the deadline allows, so fast
     // failures (REFUSED, quick rejects) still reach every server.
-    // ponytail: past the deadline the ceiling is depth x one retry budget;
-    // the platform request timeout is the backstop for adversarial chains.
+    // ponytail: past the deadline every step still sends to its first
+    // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
+    // platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
       if (failedNameservers.length > 0 && Date.now() >= deadlineAt) {
         failedNameservers.push(
@@ -951,8 +952,10 @@ export class AuthoritativeResolver extends DnsResolver {
           // fallback never caches them. Names inside the zone need its own
           // servers, so skip them; NS of another owner would become the zone
           // the fallback caches under.
-          // ponytail: this skips glue the deadline or request cap cut off
-          // before trying, too; checking budget.requests would fix it.
+          // ponytail: this also runs after a deeper failure, re-asking this
+          // cut's other servers, and skips glue the deadline or request cap
+          // cut off before trying; checking budget.requests for what the glue
+          // answered would fix both.
           // Grouped once per name: the referral can repeat thousands of
           // glue records.
           const spent = new Set(

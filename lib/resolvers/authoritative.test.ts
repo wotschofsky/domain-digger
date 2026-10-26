@@ -1311,6 +1311,87 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(udpTransport.mock.calls[0]?.[0].nameserver).toBe('192.0.2.1');
   });
 
+  it('keeps a concurrent walk from dropping a delegation it did not cache', async () => {
+    // Both walks get the same referral; the A walk caches it first. Its
+    // server times out on TXT only, and that failure must not evict the
+    // entry the A walk wrote.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.8.8') {
+          if (recordType === 'TXT') throw new Error('timeout');
+          return {
+            ...response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+            ]),
+            flag_aa: true,
+          } as DecodedPacket;
+        }
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns.example.com',
+            },
+          ],
+          additionals: [
+            { name: 'ns.example.com', type: 'A', ttl: 300, data: '8.8.8.8' },
+          ],
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await resolver.resolveRecordTypes('www.example.com', ['A', 'TXT']);
+    udpTransport.mockClear();
+    await resolver.resolveRecordType('mail.example.com', 'A');
+    expect(udpTransport.mock.calls[0]?.[0].nameserver).toBe('8.8.8.8');
+  });
+
+  it('keeps a concurrent walk from replacing a delegation it did not cache', async () => {
+    // Glueless twin of the test above: the A walk caches the fast NS, and
+    // the TXT walk's late-sibling retry must not swap in the slow one.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        const answer = (data: string) =>
+          ({
+            ...response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data },
+            ]),
+            flag_aa: true,
+          }) as DecodedPacket;
+        if (domain === 'ns-fast.example.net') return answer('8.8.8.8');
+        if (domain === 'ns-slow.example.net') {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          return answer('9.9.9.9');
+        }
+        if (nameserver === '192.0.2.1')
+          return {
+            ...response(domain, recordType, 'NOERROR'),
+            authorities: ['ns-fast.example.net', 'ns-slow.example.net'].map(
+              (data) => ({ name: 'example.com', type: 'NS', ttl: 300, data }),
+            ),
+          } as DecodedPacket;
+        if (recordType === 'TXT') throw new Error('timeout');
+        return answer('203.0.113.10');
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await resolver.resolveRecordTypes('www.example.com', ['A', 'TXT']);
+    udpTransport.mockClear();
+    await resolver.resolveRecordType('mail.example.com', 'A');
+    expect(udpTransport.mock.calls[0]?.[0].nameserver).toBe('8.8.8.8');
+  });
+
   it('rejects a referral that points back up before using its glue', async () => {
     // example.com's server refers back up to "com" with dead glue plus an
     // unglued NS. The upward referral is rejected before any glue fallback,
