@@ -941,14 +941,16 @@ export class AuthoritativeResolver extends DnsResolver {
           });
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
-          // server): resolve the NS names of this cut whose glue was not all
-          // tried (none, or some cut by the cap). The walk keeps its failed
-          // requests, so a name resolving back to dead glue costs no packets.
-          // Names inside the zone need its dead servers, so skip them; NS of
-          // another owner would become the zone the fallback caches under.
-          // ponytail: a name counts as tried when its glue fit the cap, even
-          // if the deadline skipped it; checking budget.requests would fix it.
-          // Grouped once per name: the referral can repeat thousands of glue.
+          // server). When the walk through the glue fails -- there or deeper
+          // -- resolve the NS names of this cut whose glue was not all tried
+          // (none, or some cut by the cap), skipping the glue addresses so the
+          // fallback never caches them. Names inside the zone need its own
+          // servers, so skip them; NS of another owner would become the zone
+          // the fallback caches under.
+          // ponytail: this skips glue the deadline or request cap cut off
+          // before trying, too; checking budget.requests would fix it.
+          // Grouped once per name: the referral can repeat thousands of
+          // glue records.
           const spent = new Set(
             [...Map.groupBy(aRedirects, (r) => canonicalDnsName(r.name))]
               .filter(([, glue]) =>
@@ -964,12 +966,13 @@ export class AuthoritativeResolver extends DnsResolver {
               !isInBailiwick(name, nextZone)
             );
           });
-          // Drop the dead glue only if this referral cached it.
+          // Drop this referral's own entry so the fallback can replace it.
           if (this.delegationCache.get(nextZone) === addresses)
             this.delegationCache.delete(nextZone);
           if (!unglued.length) throw error;
           return this.followReferralViaNsLookup({
             nsRedirects: unglued,
+            failed: addresses,
             domain,
             recordType,
             candidate,
@@ -1006,6 +1009,7 @@ export class AuthoritativeResolver extends DnsResolver {
   // can fall through to the next sibling candidate.
   private async followReferralViaNsLookup({
     nsRedirects,
+    failed = [],
     domain,
     recordType,
     candidate,
@@ -1017,6 +1021,7 @@ export class AuthoritativeResolver extends DnsResolver {
     ancestors,
   }: {
     nsRedirects: StringAnswer[];
+    failed?: string[];
     domain: string;
     recordType: RecordType;
     candidate: string;
@@ -1054,8 +1059,8 @@ export class AuthoritativeResolver extends DnsResolver {
         // recordToString yields the bare IP string for each.
         const ips = resolved.answers
           .map((a) => this.recordToString(a))
-          .filter((ip) => isPublicIp(ip));
-        if (!ips.length) throw new Error(`no public address (${ns.data})`);
+          .filter((ip) => isPublicIp(ip) && !failed.includes(ip));
+        if (!ips.length) throw new Error(`no usable address (${ns.data})`);
         resolvedSets.push(ips);
         return ips;
       } catch (error) {
@@ -1099,13 +1104,12 @@ export class AuthoritativeResolver extends DnsResolver {
       // existed to avoid stalling while a usable address was in hand, and
       // that address just failed. Wait for the stragglers (each bounded by
       // the walk deadline), retry once with any addresses the first attempt
-      // didn't see, and let them replace the dead cache entry.
+      // didn't see, and let them replace the cache entry this referral wrote.
       await Promise.allSettled(lookups);
       const late = [...new Set(resolvedSets.flat())]
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
       if (!late.length) throw error;
-      // Replace only the entry this referral wrote.
       if (this.delegationCache.get(zone) === tried)
         this.delegationCache.set(zone, late);
       return this.fetchRecordsRaw({

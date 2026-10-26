@@ -1127,13 +1127,15 @@ describe('AuthoritativeResolver transport policy', () => {
 
   it('resolves the glueless NS names when the only glued server fails', async () => {
     // Like whu.edu: the referral glues only ns.example.com, which is down,
-    // while the unglued ns1.example.net answers fine.
+    // while the unglued ns1.example.net answers fine. It also lists the dead
+    // address, which must stay out of the cached delegation.
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
         if (nameserver === '8.8.8.8') throw new Error('timeout');
         if (nameserver === '192.0.2.1' && domain.endsWith('.example.net'))
           return {
             ...response(domain, recordType, 'NOERROR', [
+              { name: domain, type: 'A', ttl: 300, data: '8.8.8.8' },
               { name: domain, type: 'A', ttl: 300, data: '9.9.9.9' },
             ]),
             flag_aa: true,
@@ -1301,10 +1303,8 @@ describe('AuthoritativeResolver transport policy', () => {
     await expect(
       resolver.resolveRecordType('mail.example.com', 'A'),
     ).rejects.toThrow();
-    // A cached dead delegation would be tried, dropped, then tried again.
-    expect(
-      udpTransport.mock.calls.filter(([r]) => r.nameserver === '8.8.8.8'),
-    ).toHaveLength(4);
+    // A cached dead delegation would be tried before the root.
+    expect(udpTransport.mock.calls[0]?.[0].nameserver).toBe('192.0.2.1');
   });
 
   it('rejects a referral that points back up before using its glue', async () => {
