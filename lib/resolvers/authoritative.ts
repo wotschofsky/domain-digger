@@ -162,6 +162,13 @@ type WalkBudget = {
   remainingSteps: number;
 };
 
+// Name case and a trailing dot don't make a request distinct.
+const requestKey = (
+  domain: string,
+  recordType: RecordType,
+  nameserver: string,
+) => `${canonicalDnsName(domain)} ${recordType} ${nameserver}`;
+
 type FetchRecordsParams = {
   domain: string;
   recordType: RecordType;
@@ -478,6 +485,10 @@ export class AuthoritativeResolver extends DnsResolver {
         }),
       ),
     {
+      // A batch settles as one Promise.all, so a slow request would hold
+      // back every request sent in the same tick: the NS lookup race and the
+      // parallel record types.
+      batch: false,
       cacheKeyFn: (key) => JSON.stringify(key),
     },
   );
@@ -590,8 +601,9 @@ export class AuthoritativeResolver extends DnsResolver {
     // skipped as a loop or an already-failed request, which counts as a
     // failure. Further ones only start while the deadline allows, so fast
     // failures (REFUSED, quick rejects) still reach every server.
-    // ponytail: past the deadline the ceiling is depth x one retry budget;
-    // the platform request timeout is the backstop for adversarial chains.
+    // ponytail: past the deadline every step still sends to its first
+    // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
+    // platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
       if (failedNameservers.length > 0 && Date.now() >= deadlineAt) {
         failedNameservers.push(
@@ -605,8 +617,7 @@ export class AuthoritativeResolver extends DnsResolver {
         nameserver: candidate,
         dnssecOk: this.options.dnssecOk ?? false,
       };
-      // Name case and a trailing dot don't make a request distinct.
-      const key = `${canonicalDnsName(domain)} ${recordType} ${candidate}`;
+      const key = requestKey(domain, recordType, candidate);
       // Branch-local ancestry stops a circular glueless dependency, whose
       // replies are cached after a round trip or two and then recurse in
       // microtasks, before it spends the step budget a slower sibling needs.
@@ -923,20 +934,73 @@ export class AuthoritativeResolver extends DnsResolver {
           ...new Set(aRedirects.map((redirect) => redirect.data)),
         ].slice(0, 4);
         this.cacheDelegation(nsRedirects[0].name, domain, addresses);
-        return this.fetchRecordsRaw({
-          domain,
-          recordType,
-          nameservers: addresses,
-          zone: canonicalDnsName(nsRedirects[0].name),
-          trace: [
-            ...trace,
-            `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
-          ],
-          depth: depth + 1,
-          deadlineAt,
-          budget,
-          ancestors,
-        });
+        try {
+          return await this.fetchRecordsRaw({
+            domain,
+            recordType,
+            nameservers: addresses,
+            zone: nextZone,
+            trace: [
+              ...trace,
+              `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
+            ],
+            depth: depth + 1,
+            deadlineAt,
+            budget,
+            ancestors,
+          });
+        } catch (error) {
+          // Glue can cover only some NS names (whu.edu glues just one, dead,
+          // server). When the walk through the glue fails -- there or deeper
+          // -- resolve the NS names of this cut, skipping the glue the walk
+          // sent so the fallback never caches it. Names with glue left unsent
+          // (none, or some cut by the cap, the deadline or the request cap)
+          // go first; the rest go last, in case their glue is stale. Names
+          // inside the zone need its own servers, so skip them; NS of another
+          // owner would become the zone the fallback caches under.
+          // ponytail: this also runs after a deeper failure, re-asking this
+          // cut's other servers, and re-resolves names whose glue all went
+          // out, so a provider whose own zone sits on the same dead hosts
+          // costs one more retry budget per zone before failing. Checking what
+          // the sent glue answered, and skipping servers that already timed
+          // out under another name, would narrow both.
+          const sent = addresses.filter((ip) =>
+            budget.requests.has(requestKey(domain, recordType, ip)),
+          );
+          // Grouped once per name: the referral can repeat thousands of
+          // glue records.
+          const spent = new Set(
+            [...Map.groupBy(aRedirects, (r) => canonicalDnsName(r.name))]
+              .filter(([, glue]) => glue.every((r) => sent.includes(r.data)))
+              .map(([name]) => name),
+          );
+          const isSpent = (ns: StringAnswer) =>
+            spent.has(canonicalDnsName(ns.data));
+          const fallbackNs = nsRedirects
+            .filter(
+              (ns) =>
+                canonicalDnsName(ns.name) === nextZone &&
+                !isInBailiwick(canonicalDnsName(ns.data), nextZone),
+            )
+            .sort((a, b) => Number(isSpent(a)) - Number(isSpent(b)));
+          // Drop this referral's own entry so the fallback can replace it.
+          if (this.delegationCache.get(nextZone) === addresses)
+            this.delegationCache.delete(nextZone);
+          if (!fallbackNs.length) throw error;
+          return this.followReferralViaNsLookup({
+            nsRedirects: fallbackNs,
+            failed: sent,
+            domain,
+            recordType,
+            candidate,
+            protocol,
+            trace,
+            depth,
+            deadlineAt,
+            budget,
+            ancestors,
+          });
+        }
       }
 
       // No usable glue: resolve the delegated NS hostnames ourselves.
@@ -962,6 +1026,7 @@ export class AuthoritativeResolver extends DnsResolver {
   // can fall through to the next sibling candidate.
   private async followReferralViaNsLookup({
     nsRedirects,
+    failed = [],
     domain,
     recordType,
     candidate,
@@ -973,6 +1038,7 @@ export class AuthoritativeResolver extends DnsResolver {
     ancestors,
   }: {
     nsRedirects: StringAnswer[];
+    failed?: string[];
     domain: string;
     recordType: RecordType;
     candidate: string;
@@ -1016,8 +1082,8 @@ export class AuthoritativeResolver extends DnsResolver {
         // recordToString yields the bare IP string for each.
         const ips = resolved.answers
           .map((a) => this.recordToString(a))
-          .filter((ip) => isPublicIp(ip));
-        if (!ips.length) throw new Error(`no public address (${ns.data})`);
+          .filter((ip) => isPublicIp(ip) && !failed.includes(ip));
+        if (!ips.length) throw new Error(`no usable address (${ns.data})`);
         resolvedSets.push(ips);
         return ips;
       } catch (error) {
@@ -1060,15 +1126,16 @@ export class AuthoritativeResolver extends DnsResolver {
       // Sibling NS lookups are still usable failover: the race above only
       // existed to avoid stalling while a usable address was in hand, and
       // that address just failed. Wait for the stragglers (each bounded by
-      // the walk deadline), retry once with any addresses the first attempt
-      // didn't see, and let them replace the dead cache entry.
+      // the walk's request budget, not its deadline), retry once with any
+      // addresses the first attempt didn't see, and let them replace the
+      // cache entry this referral wrote.
       await Promise.allSettled(lookups);
       const late = [...new Set(resolvedSets.flat())]
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
       if (!late.length) throw error;
-      this.delegationCache.delete(zone);
-      this.cacheDelegation(nsRedirects[0].name, domain, late);
+      if (this.delegationCache.get(zone) === tried)
+        this.delegationCache.set(zone, late);
       return this.fetchRecordsRaw({
         domain,
         recordType,
