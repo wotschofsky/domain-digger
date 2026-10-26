@@ -162,6 +162,13 @@ type WalkBudget = {
   remainingSteps: number;
 };
 
+// Name case and a trailing dot don't make a request distinct.
+const requestKey = (
+  domain: string,
+  recordType: RecordType,
+  nameserver: string,
+) => `${canonicalDnsName(domain)} ${recordType} ${nameserver}`;
+
 type FetchRecordsParams = {
   domain: string;
   recordType: RecordType;
@@ -610,8 +617,7 @@ export class AuthoritativeResolver extends DnsResolver {
         nameserver: candidate,
         dnssecOk: this.options.dnssecOk ?? false,
       };
-      // Name case and a trailing dot don't make a request distinct.
-      const key = `${canonicalDnsName(domain)} ${recordType} ${candidate}`;
+      const key = requestKey(domain, recordType, candidate);
       // Branch-local ancestry stops a circular glueless dependency, whose
       // replies are cached after a round trip or two and then recurse in
       // microtasks, before it spends the step budget a slower sibling needs.
@@ -946,22 +952,22 @@ export class AuthoritativeResolver extends DnsResolver {
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
           // server). When the walk through the glue fails -- there or deeper
-          // -- resolve the NS names of this cut whose glue was not all tried
-          // (none, or some cut by the cap), skipping the glue addresses so the
-          // fallback never caches them. Names inside the zone need its own
-          // servers, so skip them; NS of another owner would become the zone
-          // the fallback caches under.
+          // -- resolve the NS names of this cut with glue this walk has not
+          // sent (none, or some cut by the cap, the deadline or the request
+          // cap), skipping the glue it sent so the fallback never caches it.
+          // Names inside the zone need its own servers, so skip them; NS of
+          // another owner would become the zone the fallback caches under.
           // ponytail: this also runs after a deeper failure, re-asking this
-          // cut's other servers, and skips glue the deadline or request cap
-          // cut off before trying; checking budget.requests for what the glue
-          // answered would fix both.
+          // cut's other servers; checking what the sent glue answered would
+          // narrow it.
+          const sent = addresses.filter((ip) =>
+            budget.requests.has(requestKey(domain, recordType, ip)),
+          );
           // Grouped once per name: the referral can repeat thousands of
           // glue records.
           const spent = new Set(
             [...Map.groupBy(aRedirects, (r) => canonicalDnsName(r.name))]
-              .filter(([, glue]) =>
-                glue.every((r) => addresses.includes(r.data)),
-              )
+              .filter(([, glue]) => glue.every((r) => sent.includes(r.data)))
               .map(([name]) => name),
           );
           const unglued = nsRedirects.filter((ns) => {
@@ -978,7 +984,7 @@ export class AuthoritativeResolver extends DnsResolver {
           if (!unglued.length) throw error;
           return this.followReferralViaNsLookup({
             nsRedirects: unglued,
-            failed: addresses,
+            failed: sent,
             domain,
             recordType,
             candidate,
@@ -1115,8 +1121,9 @@ export class AuthoritativeResolver extends DnsResolver {
       // Sibling NS lookups are still usable failover: the race above only
       // existed to avoid stalling while a usable address was in hand, and
       // that address just failed. Wait for the stragglers (each bounded by
-      // the walk deadline), retry once with any addresses the first attempt
-      // didn't see, and let them replace the cache entry this referral wrote.
+      // the walk's request budget, not its deadline), retry once with any
+      // addresses the first attempt didn't see, and let them replace the
+      // cache entry this referral wrote.
       await Promise.allSettled(lookups);
       const late = [...new Set(resolvedSets.flat())]
         .filter((ip) => !tried.includes(ip))

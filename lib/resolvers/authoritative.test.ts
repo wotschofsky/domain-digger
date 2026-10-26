@@ -1231,6 +1231,55 @@ describe('AuthoritativeResolver transport policy', () => {
     });
   });
 
+  it('resolves an NS name whose glue the deadline cut short', async () => {
+    // ns.example.net's first glue address is dead and the spent deadline
+    // skips the second, so the fallback must not count that one as tried.
+    const glue = ['8.8.8.1', '8.8.8.2'];
+    const records = (name: string, addresses: string[]) =>
+      addresses.map((data) => ({ name, type: 'A' as const, ttl: 300, data }));
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '8.8.8.1') throw new Error('timeout');
+        if (nameserver === '8.8.8.2' || domain === 'ns.example.net')
+          return {
+            ...response(
+              domain,
+              recordType,
+              'NOERROR',
+              records(
+                domain,
+                nameserver === '8.8.8.2' ? ['203.0.113.10'] : glue,
+              ),
+            ),
+            flag_aa: true,
+          } as DecodedPacket;
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns.example.net',
+            },
+          ],
+          additionals: records('ns.example.net', glue),
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+      fallbackDeadlineMs: 0,
+    });
+
+    await expect(
+      resolver.resolveRecordType('www.example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+  });
+
   it('skips unglued NS names inside the zone they serve', async () => {
     // Resolving ns2.example.com needs example.com's own (dead) servers, so
     // the fallback must not loop on it; the walk moves on to the sibling.
