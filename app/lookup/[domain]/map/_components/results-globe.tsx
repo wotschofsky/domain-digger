@@ -153,8 +153,10 @@ export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
     return createMarker(data.name, data.results, href, onClick);
   };
 
+  // The globe is as tall as the window, so its height is reserved up front or
+  // the footer jumps down once the globe has loaded
   return (
-    <div ref={wrapperRef} className={cn(styles.wrapper, 'w-full')}>
+    <div ref={wrapperRef} className={cn(styles.wrapper, 'min-h-screen w-full')}>
       <Globe
         ref={handleGlobeRef as unknown as RefObject<GlobeMethods | undefined>}
         atmosphereColor="#d4d4d8" // Zinc 300
