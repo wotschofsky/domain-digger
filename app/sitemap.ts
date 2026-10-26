@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { cacheLife } from 'next/cache';
 import { parse as parseTldts } from 'tldts';
 
 import { env } from '@/env';
@@ -29,7 +30,12 @@ const getProgrammaticPaths = async () => {
   return resultsPaths;
 };
 
+// Cached so the sitemap is still prerendered instead of querying BigQuery on
+// every request
 const sitemap = async (): Promise<MetadataRoute.Sitemap> => {
+  'use cache';
+  cacheLife('max');
+
   if (!env.SITE_URL) {
     return [];
   }

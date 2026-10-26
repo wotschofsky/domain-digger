@@ -1,1 +1,4 @@
 pnpm-lock.yaml
+
+# Vendored agent skills, managed by skills-lock.json
+.claude/skills/

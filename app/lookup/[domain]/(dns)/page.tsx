@@ -43,8 +43,6 @@ export const generateMetadata = async ({
   };
 };
 
-export const fetchCache = 'default-no-store';
-
 const DnsResultsPage: FC<DnsResultsPageProps> = async ({
   params,
   searchParams,

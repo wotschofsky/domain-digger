@@ -1,21 +1,17 @@
-import { ExternalLinkIcon } from 'lucide-react';
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { notFound } from 'next/navigation';
-import { type FC, type ReactNode } from 'react';
+import { type FC, type ReactNode, Suspense } from 'react';
 
 import { Card } from '@/components/ui/card';
 
 import { ClientOnly } from '@/components/client-only';
-import { isValidDomain, isWildcardDomain } from '@/lib/utils';
+import { isValidDomain } from '@/lib/utils';
 
 import { Footer } from '../../_components/footer';
 import { Header } from '../../_components/header';
 import { CarbonAdRail } from './_components/carbon-ad';
-import { DomainSummary } from './_components/domain-summary';
-import { RelatedDomains } from './_components/related-domains';
-import { ResultsTabs } from './_components/results-tabs';
-import { ShareButton } from './_components/share-button';
+import { LookupHeader } from './_components/lookup-header';
 
 const StarReminder = dynamic(() =>
   import('./_components/star-reminder').then((m) => ({
@@ -44,70 +40,53 @@ export const generateMetadata = async ({
   };
 };
 
-const LookupLayout: FC<LookupLayoutProps> = async (props) => {
-  const params = await props.params;
+type DomainCheckProps = {
+  params: LookupLayoutProps['params'];
+};
 
-  const { domain } = params;
-
-  const { children } = props;
+// Streamed responses have already sent a 200 by the time this runs, so an
+// invalid domain gets the not-found UI with a 200 status (a soft 404). For a
+// real 404, validate the domain in proxy.ts before rendering starts instead.
+const DomainCheck: FC<DomainCheckProps> = async ({ params }) => {
+  const { domain } = await params;
 
   if (!isValidDomain(domain)) {
     return notFound();
   }
 
-  return (
-    <>
-      <Header showSearch={true} />
-      <main className="flex w-full flex-1 flex-col">
-        <div className="container space-y-6 pt-12 pb-8">
-          <div className="flex w-full items-center gap-4">
-            {/* Bottom padding added to avoid clipping */}
-            <h1 className="mb-2 flex-1 overflow-hidden pb-1 break-words">
-              <span className="block text-zinc-500 dark:text-zinc-400">
-                Results for
-              </span>
-              {isWildcardDomain(domain) ? (
-                <span className="block text-4xl font-bold">{domain}</span>
-              ) : (
-                <a
-                  className="block text-4xl font-bold"
-                  href={`https://${domain}`}
-                  target="_blank"
-                  rel="noreferrer nofollow"
-                >
-                  {domain} <ExternalLinkIcon className="inline-block" />
-                </a>
-              )}
-            </h1>
-
-            <ShareButton />
-          </div>
-
-          <RelatedDomains domain={domain} />
-          <DomainSummary domain={domain} />
-        </div>
-
-        <div className="container">
-          <ResultsTabs domain={domain} />
-        </div>
-
-        <div className="flex flex-1 flex-col p-3">
-          <Card className="flex-1 py-8">
-            <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
-              <div className="min-w-0 flex-1">{children}</div>
-
-              <CarbonAdRail />
-            </div>
-          </Card>
-        </div>
-      </main>
-      <Footer />
-
-      <ClientOnly>
-        <StarReminder />
-      </ClientOnly>
-    </>
-  );
+  return null;
 };
+
+// The lookup header and tabs read the domain from the URL on the client, so a
+// client navigation renders them at once. A full page load renders them with
+// the request instead of prerendering skeletons for them.
+const LookupLayout: FC<LookupLayoutProps> = ({ children, params }) => (
+  <Suspense>
+    <Header showSearch={true} />
+    <main className="flex w-full flex-1 flex-col">
+      {/* Separate boundary so waiting for the server doesn't hold the page */}
+      <Suspense>
+        <DomainCheck params={params} />
+      </Suspense>
+
+      <LookupHeader />
+
+      <div className="flex flex-1 flex-col p-3">
+        <Card className="flex-1 py-8">
+          <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
+            <div className="min-w-0 flex-1">{children}</div>
+
+            <CarbonAdRail />
+          </div>
+        </Card>
+      </div>
+    </main>
+    <Footer />
+
+    <ClientOnly>
+      <StarReminder />
+    </ClientOnly>
+  </Suspense>
+);
 
 export default LookupLayout;

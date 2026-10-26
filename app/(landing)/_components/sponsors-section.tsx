@@ -1,3 +1,4 @@
+import { cacheLife } from 'next/cache';
 import Image from 'next/image';
 import { type FC, type HTMLAttributes } from 'react';
 
@@ -12,13 +13,23 @@ import {
 import { getAllSponsors } from '@/lib/sponsors';
 import { cn } from '@/lib/utils';
 
+// getAllSponsors also runs from next.config.ts, outside any request, where
+// cacheLife() would throw, so the cache boundary lives here instead.
+const getCachedSponsors = async () => {
+  'use cache';
+  // Daily like the old route revalidate. Expire stays at the default (never),
+  // unlike the days profile's 1 week
+  cacheLife({ revalidate: 60 * 60 * 24 });
+  return getAllSponsors();
+};
+
 type SponsorsSectionProps = HTMLAttributes<HTMLElement>;
 
 export const SponsorsSection: FC<SponsorsSectionProps> = async ({
   className,
   ...props
 }) => {
-  const allSponsors = await getAllSponsors();
+  const allSponsors = await getCachedSponsors();
 
   if (!allSponsors.length) {
     return null;

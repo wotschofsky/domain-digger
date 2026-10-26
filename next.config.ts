@@ -3,6 +3,8 @@ import type { NextConfig } from 'next';
 import { getSponsorImageRemotePatterns } from './lib/sponsors';
 
 const nextConfig = async (): Promise<NextConfig> => ({
+  cacheComponents: true,
+  partialPrefetching: false,
   reactStrictMode: false,
   turbopack: {
     rules: {
