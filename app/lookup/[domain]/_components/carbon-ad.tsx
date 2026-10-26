@@ -100,15 +100,6 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
 // These tabs need the full width of the results card
 const FULL_WIDTH_TABS = ['certs', 'map'];
 
-// Width is reserved in CSS so the results don't shift when the ad mounts.
-// Without JavaScript no ad can load, so the rail gives its width back.
-const railClassName = 'hidden w-60 shrink-0 xl:block xl:noscript:hidden';
-
-// Most tabs show the rail, so the static shell reserves its width too
-export const CarbonAdRailFallback: FC = () => (
-  <aside className={railClassName} />
-);
-
 export const CarbonAdRail: FC = () => {
   const tab = useSelectedLayoutSegment();
   // Gives the results their full width back when no ad shows up
@@ -120,8 +111,10 @@ export const CarbonAdRail: FC = () => {
 
   if (blocked || (tab && FULL_WIDTH_TABS.includes(tab))) return null;
 
+  // Width is reserved in CSS so the results don't shift when the ad mounts.
+  // Without JavaScript no ad can load, so the rail gives its width back.
   return (
-    <aside className={railClassName}>
+    <aside className="hidden w-60 shrink-0 xl:block xl:noscript:hidden">
       <ClientOnly>
         <CarbonAd className="sticky top-6 min-h-52" onBlocked={handleBlocked} />
       </ClientOnly>

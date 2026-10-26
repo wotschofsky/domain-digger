@@ -46,16 +46,6 @@ const DomainSummaryTile: FC<DomainSummaryTileProps> = ({
   </div>
 );
 
-// Also the lookup header's fallback, so the row keeps its height when the
-// header streams in
-export const DomainSummarySkeleton: FC = () => (
-  <div className="flex flex-wrap gap-8">
-    <DomainSummaryTile title="Registrar" loading />
-    <DomainSummaryTile title="Creation Date" loading />
-    <DomainSummaryTile title="DNSSEC" loading />
-  </div>
-);
-
 type SaleListingLinkProps = {
   href?: string;
   children: ReactNode;
@@ -139,7 +129,13 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   }
 
   if (isLoading || !data) {
-    return <DomainSummarySkeleton />;
+    return (
+      <div className="flex flex-wrap gap-8">
+        <DomainSummaryTile title="Registrar" loading />
+        <DomainSummaryTile title="Creation Date" loading />
+        <DomainSummaryTile title="DNSSEC" loading />
+      </div>
+    );
   }
 
   if (!data.whois.registered) {

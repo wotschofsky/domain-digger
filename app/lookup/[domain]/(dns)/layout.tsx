@@ -1,9 +1,6 @@
-import { type FC, type ReactNode, Suspense } from 'react';
+import type { FC, ReactNode } from 'react';
 
-import {
-  ResolverSelector,
-  ResolverSelectorFallback,
-} from './_components/resolver-selector';
+import { ResolverSelector } from './_components/resolver-selector';
 
 type DnsResultsLayoutProps = {
   children: ReactNode;
@@ -11,9 +8,7 @@ type DnsResultsLayoutProps = {
 
 const DnsResultsLayout: FC<DnsResultsLayoutProps> = async ({ children }) => (
   <>
-    <Suspense fallback={<ResolverSelectorFallback />}>
-      <ResolverSelector />
-    </Suspense>
+    <ResolverSelector />
     {children}
   </>
 );
