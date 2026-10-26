@@ -57,9 +57,9 @@ const DomainCheck: FC<DomainCheckProps> = async ({ params }) => {
   return null;
 };
 
-// Everything here reads the domain from the URL on the client, so a client
-// navigation renders it at once. A full page load renders it with the request
-// instead of prerendering skeletons for it.
+// Everything here that shows the domain reads it from the URL on the client,
+// so a client navigation renders it at once. A full page load renders it with
+// the request instead of prerendering skeletons for it.
 const LookupLayout: FC<LookupLayoutProps> = ({ children, params }) => (
   <Suspense>
     <Header showSearch={true} />

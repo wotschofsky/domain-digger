@@ -14,7 +14,11 @@ import { ShareButton } from './share-button';
 // Reads the domain from the URL, so a client navigation renders it right away
 // instead of waiting for the server
 export const LookupHeader: FC = () => {
-  const { domain } = useParams<{ domain: string }>();
+  const { domain } = useParams<{ domain?: string }>();
+
+  // A lookup page hidden by Activity re-renders with the URL it was left
+  // for, which may be a landing page without a domain
+  if (!domain) return null;
 
   return (
     <>
