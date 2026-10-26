@@ -16,8 +16,8 @@ import { ShareButton } from './share-button';
 export const LookupHeader: FC = () => {
   const { domain } = useParams<{ domain?: string }>();
 
-  // A lookup page hidden by Activity re-renders with the URL it was left
-  // for, which may be a landing page without a domain
+  // A lookup page hidden by Activity re-renders with the current URL's
+  // params, which have no domain while a landing page is shown
   if (!domain) return null;
 
   return (
