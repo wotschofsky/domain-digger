@@ -615,11 +615,8 @@ export class AuthoritativeResolver extends DnsResolver {
       // Branch-local ancestry stops a circular glueless dependency, whose
       // replies are cached after a round trip or two and then recurse in
       // microtasks, before it spends the step budget a slower sibling needs.
-      // ponytail: keyed per server, so a cycle reachable through several
-      // servers (four roots, or a cached delegation's addresses) still forks
-      // through their orders and can starve a sibling only a few round trips
-      // slower; tracking the glueless NS names each branch is resolving would
-      // close that.
+      // This catches a request repeating itself; followReferralViaNsLookup
+      // catches an NS name cycling back through other servers.
       if (ancestors.has(key)) {
         failedNameservers.push(`${candidate}: DNS referral loop detected`);
         continue;
@@ -857,9 +854,10 @@ export class AuthoritativeResolver extends DnsResolver {
     }
 
     // Authoritative NXDOMAIN/NODATA is final when its SOA shows it came from
-    // the zone at this cut or below; an NXDOMAIN without SOA is final too.
-    // Other denials skip this: a NODATA without SOA, a lame server's denial
-    // from a zone outside the cut, and a DS denial from the child zone itself
+    // a zone at this cut or below that holds the queried name; an NXDOMAIN
+    // without SOA is final too. Other denials skip this: a NODATA without
+    // SOA, a lame server's denial from a zone outside the cut or one not
+    // holding the queried name, and a DS denial from the child zone itself
     // (SOA owned by the queried name; DS lives in the parent), even from a
     // parent server that also hosts the child. Below, NS they carry are
     // followed, or rejected as a loop so that a sibling is tried; without NS
@@ -872,6 +870,7 @@ export class AuthoritativeResolver extends DnsResolver {
       (soaZone === undefined
         ? packet.rcode === 'NXDOMAIN'
         : (!cut || isInBailiwick(soaZone, cut)) &&
+          (!soaZone || isInBailiwick(wantName, soaZone)) &&
           !(recordType === 'DS' && soaZone === wantName))
     ) {
       return { answers: [], trace, rcode: packet.rcode, zone };
@@ -1052,14 +1051,20 @@ export class AuthoritativeResolver extends DnsResolver {
     // as the winner are already collected as fallbacks.
     const resolvedSets: string[][] = [];
     const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
+      // An NS name already being resolved further up this branch is a
+      // circular dependency whichever servers it goes through, so it is
+      // stopped once rather than once per server ordering.
+      const nsKey = `NS ${canonicalDnsName(ns.data)}`;
       try {
+        if (ancestors.has(nsKey))
+          throw new Error(`circular NS dependency (${ns.data})`);
         const resolved = await this.fetchRecordsRaw({
           domain: ns.data,
           recordType: 'A',
           depth: depth + 1,
           deadlineAt,
           budget,
-          ancestors,
+          ancestors: new Set([...ancestors, nsKey]),
         });
         subTrace.push(...resolved.trace);
         // resolved.answers are all A records (filtered by type), so
