@@ -21,25 +21,20 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { DomainSummaryResponse } from '@/app/api/domain-summary/route';
 import { formatSalePrice } from '@/lib/format-sale-price';
 import { canonicalDnsName } from '@/lib/resolvers/base';
-import { cn } from '@/lib/utils';
 
 type DomainSummaryTileProps = {
   title: string;
-  className?: string;
 } & (
   | { loading: true; value?: ReactNode }
   | { loading?: false; value: ReactNode }
 );
 
-// The minimum widths keep the tiles in place, and wrapping onto the same rows,
-// when the loaded values replace the placeholders
 const DomainSummaryTile: FC<DomainSummaryTileProps> = ({
   title,
-  className,
   loading,
   value,
 }) => (
-  <div className={cn('max-w-sm min-w-32 break-words', className)}>
+  <div className="max-w-sm break-words">
     <h3 className="text-xs/6 font-medium text-zinc-500 dark:text-zinc-400">
       {title}
     </h3>
@@ -136,7 +131,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   if (isLoading || !data) {
     return (
       <div className="flex flex-wrap gap-8">
-        <DomainSummaryTile title="Registrar" className="min-w-56" loading />
+        <DomainSummaryTile title="Registrar" loading />
         <DomainSummaryTile title="Creation Date" loading />
         <DomainSummaryTile title="DNSSEC" loading />
       </div>
@@ -163,7 +158,6 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     <div className="flex flex-wrap gap-8">
       <DomainSummaryTile
         title="Registrar"
-        className="min-w-56"
         value={whois.registrar || 'Unavailable'}
       />
       <DomainSummaryTile
