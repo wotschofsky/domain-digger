@@ -113,9 +113,9 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     return (
       <p
         role="alert"
-        className="flex flex-wrap items-baseline gap-x-3 text-sm text-zinc-500 dark:text-zinc-400"
+        className="flex flex-wrap items-baseline gap-x-1.5 text-sm text-zinc-500 dark:text-zinc-400"
       >
-        <span>Domain summary unavailable.</span>
+        <span>Domain summary unavailable</span>
         <button
           type="button"
           className="cursor-pointer font-medium text-zinc-950 underline decoration-dotted underline-offset-4 hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-50 dark:hover:text-zinc-300"
