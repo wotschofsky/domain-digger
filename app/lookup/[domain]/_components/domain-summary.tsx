@@ -1,6 +1,11 @@
 'use client';
 
-import { ExternalLinkIcon, MailIcon } from 'lucide-react';
+import {
+  ExternalLinkIcon,
+  MailIcon,
+  RotateCwIcon,
+  TriangleAlertIcon,
+} from 'lucide-react';
 import type { FC, ReactNode } from 'react';
 import useSWR from 'swr';
 
@@ -112,16 +117,35 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
 
   if (error && !data) {
     return (
-      <div className="flex items-center gap-4">
-        <p role="alert" className="text-sm text-zinc-500 dark:text-zinc-400">
-          Domain summary unavailable.
-        </p>
+      <div
+        role="alert"
+        className="flex w-fit max-w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border border-zinc-950/10 bg-zinc-50 py-3 pr-3 pl-4 shadow-xs dark:border-white/10 dark:bg-white/5"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:bg-amber-400/10 dark:text-amber-400">
+            <TriangleAlertIcon className="size-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+              Domain summary unavailable
+            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              Registration details couldn&rsquo;t be loaded.
+            </p>
+          </div>
+        </div>
         <Button
           variant="outline"
           size="sm"
+          className="shrink-0 bg-white dark:bg-zinc-900"
           disabled={isValidating}
+          aria-busy={isValidating}
           onClick={() => void mutate().catch(() => undefined)}
         >
+          <RotateCwIcon
+            className={`size-4 shrink-0 ${isValidating ? 'animate-spin' : ''}`}
+            aria-hidden="true"
+          />
           {isValidating ? 'Retrying…' : 'Retry'}
         </Button>
       </div>
