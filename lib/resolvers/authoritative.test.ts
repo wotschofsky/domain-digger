@@ -877,6 +877,68 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
+  it('names only the queried servers as failed before the late-sibling retry', async () => {
+    // ns-fast's first address is dead and the spent deadline skips its
+    // second, so only the first one failed.
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(async (request) => {
+      const { domain, recordType, nameserver } = request;
+      if (domain === 'ns-fast.example.net') {
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '8.8.8.1' },
+          { name: domain, type: 'A', ttl: 300, data: '8.8.8.3' },
+        ]);
+      }
+      if (domain === 'ns-slow.example.net') {
+        await new Promise((resolveSleep) => setTimeout(resolveSleep, 50));
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '9.9.9.9' },
+        ]);
+      }
+      if (nameserver === '192.0.2.1') {
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns-fast.example.net',
+            },
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns-slow.example.net',
+            },
+          ],
+        } as DecodedPacket;
+      }
+      if (nameserver === '8.8.8.1') throw new Error('timeout');
+      return {
+        ...response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '203.0.113.14' },
+        ]),
+        flag_aa: true,
+      } as DecodedPacket;
+    });
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+      fallbackDeadlineMs: 0,
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(udpTransport.mock.calls.map(([r]) => r.nameserver)).not.toContain(
+      '8.8.8.3',
+    );
+    expect(result.trace).toContainEqual(
+      expect.stringContaining(
+        'www.example.com -> nameservers 8.8.8.1 failed (',
+      ),
+    );
+  });
+
   it('bounds total queries against a zone that forks glueless delegations', async () => {
     // A crafted zone can answer every glueless delegation with four fresh NS
     // names; without a walk-wide query budget the tree grows 4^depth.
@@ -1129,6 +1191,66 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(result.records[0]?.data).toBe('203.0.113.14');
   });
 
+  it('keeps the NS lookup race order when a lookup was retried', async () => {
+    // Recording a retry must not delay the lookup it belongs to: one that
+    // answers on its second try still wins the race against a sibling that
+    // settles a few microtasks later, as it did before retries were traced.
+    let oneAttempts = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(async (request) => {
+      const { domain, recordType, nameserver } = request;
+      if (domain === 'ns-one.example.net') {
+        if (++oneAttempts === 1) throw new Error('timeout');
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '8.8.8.8' },
+        ]);
+      }
+      if (domain === 'ns-two.example.net') {
+        for (let tick = 0; tick < 3; tick++) await Promise.resolve();
+        return response(domain, recordType, 'NOERROR', [
+          { name: domain, type: 'A', ttl: 300, data: '9.9.9.9' },
+        ]);
+      }
+      if (nameserver === '192.0.2.1') {
+        return {
+          ...response(domain, recordType, 'NOERROR'),
+          authorities: [
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns-one.example.net',
+            },
+            {
+              name: 'example.com',
+              type: 'NS',
+              ttl: 300,
+              data: 'ns-two.example.net',
+            },
+          ],
+        } as DecodedPacket;
+      }
+      return {
+        ...response(domain, recordType, 'NOERROR', [
+          {
+            name: domain,
+            type: 'A',
+            ttl: 300,
+            data: nameserver === '8.8.8.8' ? '203.0.113.1' : '203.0.113.2',
+          },
+        ]),
+        flag_aa: true,
+      } as DecodedPacket;
+    });
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result.records[0]?.data).toBe('203.0.113.1');
+  });
+
   it('resolves the glueless NS names when the only glued server fails', async () => {
     // Like whu.edu: the referral glues only ns.example.com, which is down,
     // while the unglued ns1.example.net answers fine. It also lists the dead
@@ -1170,16 +1292,80 @@ describe('AuthoritativeResolver transport policy', () => {
       rootServers: async () => ['192.0.2.1'],
     });
 
-    await expect(
-      resolver.resolveRecordType('www.example.com', 'A'),
-    ).resolves.toMatchObject({
-      records: [expect.objectContaining({ data: '203.0.113.10' })],
-    });
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+    expect(result.records).toEqual([
+      expect.objectContaining({ data: '203.0.113.10' }),
+    ]);
+    expect(result.trace).toContainEqual(
+      expect.stringMatching(
+        /glue for example\.com \(8\.8\.8\.8\) failed .*8\.8\.8\.8: timeout \(4 attempts\).*resolving NS names instead/,
+      ),
+    );
     // The healthy servers replace the dead glue in the delegation cache.
     udpTransport.mockClear();
-    await resolver.resolveRecordType('mail.example.com', 'A');
+    const cachedResult = await resolver.resolveRecordType(
+      'mail.example.com',
+      'A',
+    );
+    expect(cachedResult.trace[0]).toMatch(
+      /starting at cached delegation example\.com: 9\.9\.9\.9/,
+    );
     expect(udpTransport).not.toHaveBeenCalledWith(
       expect.objectContaining({ nameserver: '8.8.8.8' }),
+    );
+  });
+
+  it('traces the failed attempts a nameserver was retried after', async () => {
+    let attempts = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) => {
+        if (++attempts < 3) throw new Error(`timeout ${attempts}`);
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.trace).toEqual([
+      'A example.com @ 192.0.2.1 -> retried after 2 failed attempts: timeout 1; timeout 2',
+      'A example.com @ 192.0.2.1 (udp) -> answer: 203.0.113.10',
+    ]);
+  });
+
+  it('traces the failed attempts behind a server that then fails', async () => {
+    let attempts = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          if (++attempts < 2) throw new Error('timeout');
+          return response(domain, recordType, 'SERVFAIL');
+        }
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.trace[0]).toBe(
+      'A example.com -> skipped failed nameservers: 192.0.2.1: DNS SERVFAIL after 1 failed attempts (timeout)',
     );
   });
 
@@ -1273,11 +1459,15 @@ describe('AuthoritativeResolver transport policy', () => {
       fallbackDeadlineMs: 0,
     });
 
-    await expect(
-      resolver.resolveRecordType('www.example.com', 'A'),
-    ).resolves.toMatchObject({
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+
+    expect(result).toMatchObject({
       records: [expect.objectContaining({ data: '203.0.113.10' })],
     });
+    // The skipped glue address answers later, so it is not named as failed.
+    expect(result.trace).toContainEqual(
+      expect.stringContaining('glue for example.com (8.8.8.1) failed'),
+    );
   });
 
   it('resolves an NS name whose glue is stale', async () => {
