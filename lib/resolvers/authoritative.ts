@@ -497,9 +497,10 @@ export class AuthoritativeResolver extends DnsResolver {
               3,
             );
             return { ...response, retries };
-          } catch (error) {
+          } catch {
+            // Identical timeouts collapse into one entry.
             return new Error(
-              `${describeError(error)} (${retries.length} attempts)`,
+              `${[...new Set(retries)].join('; ')} (${retries.length} attempts)`,
             );
           }
         }),
@@ -685,8 +686,11 @@ export class AuthoritativeResolver extends DnsResolver {
         continue;
       }
       const verdict = classifyCandidateResponse(result.packet, wantName);
+      const retried = result.retries.length
+        ? ` after ${result.retries.length} failed attempts (${result.retries.join('; ')})`
+        : '';
       if (verdict.kind === 'rcode-error') {
-        failedNameservers.push(`${candidate}: DNS ${verdict.rcode}`);
+        failedNameservers.push(`${candidate}: DNS ${verdict.rcode}${retried}`);
         if (verdict.rcode === 'REFUSED' || verdict.rcode === 'NOTIMP') {
           unsupportedRrsigCount++;
         }
@@ -695,13 +699,13 @@ export class AuthoritativeResolver extends DnsResolver {
       if (verdict.kind === 'deferred') {
         lastResort ??= { result, candidate };
         failedNameservers.push(
-          `${candidate}: non-authoritative answer, deferred`,
+          `${candidate}: non-authoritative answer, deferred${retried}`,
         );
         continue;
       }
       if (verdict.kind === 'lame') {
         failedNameservers.push(
-          `${candidate}: lame response (no relevant answer, not authoritative)`,
+          `${candidate}: lame response (no relevant answer, not authoritative)${retried}`,
         );
         continue;
       }

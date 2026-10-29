@@ -1219,6 +1219,34 @@ describe('AuthoritativeResolver transport policy', () => {
     ]);
   });
 
+  it('traces the failed attempts behind a server that then fails', async () => {
+    let attempts = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') {
+          if (++attempts < 2) throw new Error('timeout');
+          return response(domain, recordType, 'SERVFAIL');
+        }
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.trace[0]).toBe(
+      'A example.com -> skipped failed nameservers: 192.0.2.1: DNS SERVFAIL after 1 failed attempts (timeout)',
+    );
+  });
+
   it('resolves an NS name whose glue the address cap cut short', async () => {
     // One out-of-zone NS name with five glue addresses; the first four (the
     // cap) are dead, so only resolving the name reaches the healthy fifth.
