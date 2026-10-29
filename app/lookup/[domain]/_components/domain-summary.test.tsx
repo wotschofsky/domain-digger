@@ -256,7 +256,7 @@ describe('domain summary sale link', () => {
       mutate: fixtures.retry,
     });
     await render();
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+    expect(container.querySelector('[role="alert"] span')?.textContent).toBe(
       'Domain summary unavailable',
     );
     expect(container.textContent).not.toContain('Registrar');
