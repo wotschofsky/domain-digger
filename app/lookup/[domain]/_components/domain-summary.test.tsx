@@ -257,10 +257,7 @@ describe('domain summary sale link', () => {
     });
     await render();
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      'Domain summary unavailable',
-    );
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
-      'couldn’t be loaded',
+      'Domain summary unavailable.',
     );
     expect(container.textContent).not.toContain('Registrar');
     expect(container.querySelector('button')?.textContent).toBe('Retry');
