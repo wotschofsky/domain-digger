@@ -98,8 +98,8 @@ type DnsResponse = {
   retries: string[];
 };
 
-// A UserFacingError's message is its generic title; the cause says which
-// servers failed and why, which is what a trace needs.
+// A UserFacingError's message is its generic title; the cause carries the
+// specifics a trace needs, such as which servers failed and why.
 const describeError = (error: unknown): string => {
   if (!(error instanceof Error)) return 'request failed';
   return error.cause instanceof Error
@@ -489,16 +489,14 @@ export class AuthoritativeResolver extends DnsResolver {
           const retries: string[] = [];
           try {
             const response = await retry(
-              () =>
-                this.sendRequest(request).catch((error: unknown) => {
-                  retries.push(describeError(error));
-                  throw error;
-                }),
+              () => this.sendRequest(request),
               3,
+              (error: unknown) => retries.push(describeError(error)),
             );
             return { ...response, retries };
           } catch {
-            // Identical timeouts collapse into one entry.
+            // Identical errors, usually repeated timeouts, collapse into one
+            // entry.
             return new Error(
               `${[...new Set(retries)].join('; ')} (${retries.length} attempts)`,
             );
@@ -1033,7 +1031,7 @@ export class AuthoritativeResolver extends DnsResolver {
             protocol,
             trace: [
               ...trace,
-              `${recordType} ${domain} -> glue for ${nextZone} (${addresses.join(', ')}) failed (${describeError(error)}), resolving NS names instead`,
+              `${recordType} ${domain} -> glue for ${nextZone}${sent.length ? ` (${sent.join(', ')})` : ''} failed (${describeError(error)}), resolving NS names instead`,
             ],
             depth,
             deadlineAt,
@@ -1174,6 +1172,11 @@ export class AuthoritativeResolver extends DnsResolver {
       if (!late.length) throw error;
       if (this.delegationCache.get(zone) === tried)
         this.delegationCache.set(zone, late);
+      // The deadline or request cap can stop the walk before every address
+      // is queried; only the queried ones failed.
+      const queried = tried.filter((ip) =>
+        budget.requests.has(requestKey(domain, recordType, ip)),
+      );
       return this.fetchRecordsRaw({
         domain,
         recordType,
@@ -1182,7 +1185,7 @@ export class AuthoritativeResolver extends DnsResolver {
         trace: [
           ...redirectTrace,
           ...subTrace.slice(seenSubTrace),
-          `${recordType} ${domain} -> nameservers ${tried.join(', ')} failed (${describeError(error)}), retrying with late sibling nameservers: ${late.join(', ')}`,
+          `${recordType} ${domain} -> nameservers${queried.length ? ` ${queried.join(', ')}` : ''} failed (${describeError(error)}), retrying with late sibling nameservers: ${late.join(', ')}`,
         ],
         depth: depth + 1,
         deadlineAt,
