@@ -1170,17 +1170,53 @@ describe('AuthoritativeResolver transport policy', () => {
       rootServers: async () => ['192.0.2.1'],
     });
 
-    await expect(
-      resolver.resolveRecordType('www.example.com', 'A'),
-    ).resolves.toMatchObject({
-      records: [expect.objectContaining({ data: '203.0.113.10' })],
-    });
+    const result = await resolver.resolveRecordType('www.example.com', 'A');
+    expect(result.records).toEqual([
+      expect.objectContaining({ data: '203.0.113.10' }),
+    ]);
+    expect(result.trace).toContainEqual(
+      expect.stringMatching(
+        /glue for example\.com \(8\.8\.8\.8\) failed .*8\.8\.8\.8: timeout \(4 attempts\).*resolving NS names instead/,
+      ),
+    );
     // The healthy servers replace the dead glue in the delegation cache.
     udpTransport.mockClear();
-    await resolver.resolveRecordType('mail.example.com', 'A');
+    const cachedResult = await resolver.resolveRecordType(
+      'mail.example.com',
+      'A',
+    );
+    expect(cachedResult.trace[0]).toMatch(
+      /starting at cached delegation example\.com: 9\.9\.9\.9/,
+    );
     expect(udpTransport).not.toHaveBeenCalledWith(
       expect.objectContaining({ nameserver: '8.8.8.8' }),
     );
+  });
+
+  it('traces the failed attempts a nameserver was retried after', async () => {
+    let attempts = 0;
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) => {
+        if (++attempts < 3) throw new Error(`timeout ${attempts}`);
+        return {
+          ...response(domain, recordType, 'NOERROR', [
+            { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
+          ]),
+          flag_aa: true,
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const result = await resolver.resolveRecordType('example.com', 'A');
+
+    expect(result.trace).toEqual([
+      'A example.com @ 192.0.2.1 -> retried after 2 failed attempts: timeout 1; timeout 2',
+      'A example.com @ 192.0.2.1 (udp) -> answer: 203.0.113.10',
+    ]);
   });
 
   it('resolves an NS name whose glue the address cap cut short', async () => {

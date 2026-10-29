@@ -94,6 +94,17 @@ type DnsResponse = {
   packet: Packet;
   protocol: 'udp' | 'tcp';
   truncated: boolean;
+  // Errors of the attempts that failed before this response arrived.
+  retries: string[];
+};
+
+// A UserFacingError's message is its generic title; the cause says which
+// servers failed and why, which is what a trace needs.
+const describeError = (error: unknown): string => {
+  if (!(error instanceof Error)) return 'request failed';
+  return error.cause instanceof Error
+    ? `${error.message}: ${error.cause.message}`
+    : error.message;
 };
 
 export type AuthoritativeRequest = {
@@ -448,7 +459,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
   private async sendRequest(
     request: AuthoritativeRequest,
-  ): Promise<DnsResponse> {
+  ): Promise<Omit<DnsResponse, 'retries'>> {
     // DNS queries are first attempted over UDP per convention. UDP responses
     // are limited to 512 bytes (RFC 1035), or to the advertised EDNS payload
     // size when the query carries an OPT record (dnssecOk). When the answer
@@ -475,12 +486,21 @@ export class AuthoritativeResolver extends DnsResolver {
     async (keys) =>
       Promise.all(
         keys.map(async (request) => {
+          const retries: string[] = [];
           try {
-            return await retry(() => this.sendRequest(request), 3);
+            const response = await retry(
+              () =>
+                this.sendRequest(request).catch((error: unknown) => {
+                  retries.push(describeError(error));
+                  throw error;
+                }),
+              3,
+            );
+            return { ...response, retries };
           } catch (error) {
-            return error instanceof Error
-              ? error
-              : new Error('DNS request failed');
+            return new Error(
+              `${describeError(error)} (${retries.length} attempts)`,
+            );
           }
         }),
       ),
@@ -571,19 +591,34 @@ export class AuthoritativeResolver extends DnsResolver {
         ? nameservers
         : (cached?.ips ?? (await this.getRootServers()).slice(0, 4));
     const zone = (nameservers?.length ? delegatedZone : cached?.zone) || '.';
+    if (cached) {
+      trace = [
+        ...trace,
+        `${recordType} ${domain} -> starting at cached delegation ${cached.zone}: ${cached.ips.join(', ')}`,
+      ];
+    }
     const wantName = canonicalDnsName(domain);
     let lastResort: { result: DnsResponse; candidate: string } | null = null;
     const failedNameservers: string[] = [];
     let unsupportedRrsigCount = 0;
 
     // The trace prefix any accepted response shares: the failures skipped to
-    // reach it, plus a note when its UDP answer was truncated and retried over
-    // TCP. Both the in-loop accept and the post-loop lastResort adoption use it.
-    const buildAcceptedTrace = (candidate: string, truncated: boolean) => {
+    // reach it, the failed attempts retried at its server, plus a note when
+    // its UDP answer was truncated and retried over TCP. Both the in-loop
+    // accept and the post-loop lastResort adoption use it.
+    const buildAcceptedTrace = (
+      candidate: string,
+      { truncated, retries }: DnsResponse,
+    ) => {
       const accepted = [...trace];
       if (failedNameservers.length) {
         accepted.push(
           `${recordType} ${domain} -> skipped failed nameservers: ${failedNameservers.join('; ')}`,
+        );
+      }
+      if (retries.length) {
+        accepted.push(
+          `${recordType} ${domain} @ ${candidate} -> retried after ${retries.length} failed attempts: ${retries.join('; ')}`,
         );
       }
       if (truncated) {
@@ -646,9 +681,7 @@ export class AuthoritativeResolver extends DnsResolver {
         // DataLoader caches rejections; clear the key so a transient failure
         // doesn't poison every later walk. This walk keeps the rejection.
         this.requestLoader.clear(loaderKey);
-        failedNameservers.push(
-          `${candidate}: ${error instanceof Error ? error.message : 'request failed'}`,
-        );
+        failedNameservers.push(`${candidate}: ${describeError(error)}`);
         continue;
       }
       const verdict = classifyCandidateResponse(result.packet, wantName);
@@ -678,7 +711,7 @@ export class AuthoritativeResolver extends DnsResolver {
       // candidate may delegate differently, so record the failure and try the
       // next one rather than aborting (a broken referral must not mask a
       // healthy sibling).
-      const acceptedTrace = buildAcceptedTrace(candidate, result.truncated);
+      const acceptedTrace = buildAcceptedTrace(candidate, result);
       try {
         return await this.resolveAcceptedResponse({
           packet: result.packet,
@@ -696,7 +729,7 @@ export class AuthoritativeResolver extends DnsResolver {
         });
       } catch (error) {
         failedNameservers.push(
-          `${candidate}: referral failed (${error instanceof Error ? error.message : 'request failed'})`,
+          `${candidate}: referral failed (${describeError(error)})`,
         );
         continue;
       }
@@ -733,7 +766,7 @@ export class AuthoritativeResolver extends DnsResolver {
       // resolveAcceptedResponse returns it as a terminal answer.
       const lastResortTrace = buildAcceptedTrace(
         lastResort.candidate,
-        lastResort.result.truncated,
+        lastResort.result,
       );
       lastResortTrace.push(
         `${recordType} ${domain} @ ${lastResort.candidate} -> accepted non-authoritative answer, no better candidate`,
@@ -994,7 +1027,10 @@ export class AuthoritativeResolver extends DnsResolver {
             recordType,
             candidate,
             protocol,
-            trace,
+            trace: [
+              ...trace,
+              `${recordType} ${domain} -> glue for ${nextZone} (${addresses.join(', ')}) failed (${describeError(error)}), resolving NS names instead`,
+            ],
             depth,
             deadlineAt,
             budget,
@@ -1087,11 +1123,7 @@ export class AuthoritativeResolver extends DnsResolver {
         resolvedSets.push(ips);
         return ips;
       } catch (error) {
-        subTrace.push(
-          `A ${ns.data} -> failed: ${
-            error instanceof Error ? error.message : 'request failed'
-          }`,
-        );
+        subTrace.push(`A ${ns.data} -> failed: ${describeError(error)}`);
         throw error;
       }
     });
@@ -1099,8 +1131,9 @@ export class AuthoritativeResolver extends DnsResolver {
       // Proceed as soon as any lookup yields a usable address -- a dead
       // sibling must not stall the walk once one is available.
       await Promise.any(lookups);
-    } catch {
-      throw new Error(`Bad redirects for ${domain}`);
+    } catch (error) {
+      const reasons = (error as AggregateError).errors.map(describeError);
+      throw new Error(`Bad redirects for ${domain}: ${reasons.join('; ')}`);
     }
     const tried = [...new Set(resolvedSets.flat())].slice(0, 4);
 
@@ -1110,6 +1143,7 @@ export class AuthoritativeResolver extends DnsResolver {
       `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
       ...subTrace,
     ];
+    const seenSubTrace = subTrace.length;
     try {
       return await this.fetchRecordsRaw({
         domain,
@@ -1143,7 +1177,8 @@ export class AuthoritativeResolver extends DnsResolver {
         zone,
         trace: [
           ...redirectTrace,
-          `${recordType} ${domain} -> retrying with late sibling nameservers: ${late.join(', ')}`,
+          ...subTrace.slice(seenSubTrace),
+          `${recordType} ${domain} -> nameservers ${tried.join(', ')} failed (${describeError(error)}), retrying with late sibling nameservers: ${late.join(', ')}`,
         ],
         depth: depth + 1,
         deadlineAt,
