@@ -24,8 +24,7 @@ import { canonicalDnsName } from '@/lib/resolvers/base';
 type DomainSummaryTileProps = {
   title: string;
 } & (
-  | { loading: true; value?: ReactNode }
-  | { loading?: false; value: ReactNode }
+  { loading: true; value?: ReactNode } | { loading?: false; value: ReactNode }
 );
 
 const DomainSummaryTile: FC<DomainSummaryTileProps> = ({

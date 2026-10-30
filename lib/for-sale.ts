@@ -130,7 +130,7 @@ const decodeTxt = (data: string): string | null => {
 
   const bytes: number[] = [];
   for (const [, content] of strings) {
-    for (let i = 0; i < content.length; ) {
+    for (let i = 0; i < content.length;) {
       if (content[i] === '\\') {
         const decimal = content.slice(i + 1, i + 4);
         if (/^[0-9]{3}$/.test(decimal)) {
