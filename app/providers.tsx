@@ -3,7 +3,7 @@
 import { EvlogProvider } from 'evlog/next/client';
 import PlausibleProvider from 'next-plausible';
 import { ThemeProvider } from 'next-themes';
-import { type FC, type ReactNode } from 'react';
+import { type ComponentProps, type FC, type ReactNode } from 'react';
 import { SWRConfig } from 'swr';
 
 import { env } from '@/env';
@@ -21,10 +21,15 @@ const CustomizedPlausibleProvider: FC<CustomizedPlausibleProviderProps> = ({
 
   return (
     <PlausibleProvider
-      customDomain={env.NEXT_PUBLIC_PLAUSIBLE_HOST}
-      trackOutboundLinks
-      taggedEvents
-      domain={env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN}
+      // ponytail: legacy script keeps the existing env vars working; move to the
+      // site-specific pa-XXXXX.js URL from the Plausible dashboard to drop this.
+      src={`${env.NEXT_PUBLIC_PLAUSIBLE_HOST ?? 'https://plausible.io'}/js/script.outbound-links.tagged-events.js`}
+      scriptProps={
+        {
+          defer: true,
+          'data-domain': env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN,
+        } as ComponentProps<'script'>
+      }
     >
       {children}
     </PlausibleProvider>
