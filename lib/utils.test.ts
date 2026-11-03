@@ -73,7 +73,7 @@ describe('retry', () => {
     expect(warnSpy).toHaveBeenCalledTimes(2);
     expect(warnSpy).toHaveBeenCalledWith({
       message: 'retrying_after_error',
-      error: error.message,
+      error,
     });
   });
 

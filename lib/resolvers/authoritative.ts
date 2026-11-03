@@ -12,7 +12,7 @@ import dnsPacket, {
 } from 'dns-packet';
 import { log } from 'evlog';
 
-import { retry, serializeError } from '@/lib/utils';
+import { retry } from '@/lib/utils';
 
 import {
   UserFacingError,
@@ -1238,7 +1238,7 @@ export class AuthoritativeResolver extends DnsResolver {
         message: 'record_type_lookup_failed',
         domain,
         recordType: types[index],
-        error: serializeError(reason),
+        error: reason,
       });
       const error = expected ? reason.payload : FALLBACK_LOOKUP_ERROR;
       response[types[index]] = { records: [], trace: [], error };

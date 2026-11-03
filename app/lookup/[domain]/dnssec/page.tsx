@@ -13,7 +13,6 @@ import {
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
 import { recordLookupAfter } from '@/lib/search';
 import { UserFacingError } from '@/lib/user-facing-error';
-import { serializeError } from '@/lib/utils';
 
 type DnssecResultsPageProps = {
   params: Promise<{ domain: string }>;
@@ -90,11 +89,11 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
       notFound();
     }
 
-    // onRequestError logs the rethrown error too, but without its cause.
+    // Keep the DNSSEC-specific event for pending-query diagnostics.
     log[error instanceof UserFacingError ? 'warn' : 'error']({
       message: 'dnssec_lookup_failed',
       domain,
-      error: serializeError(error),
+      error,
     });
 
     throw error;
