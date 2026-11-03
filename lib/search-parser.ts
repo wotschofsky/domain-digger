@@ -21,7 +21,7 @@ export type SearchResult =
   | { type: 'empty' }
   | { type: 'ip'; value: string }
   | { type: 'domain'; value: string }
-  | { type: 'invalid' };
+  | { type: 'invalid'; reason?: 'scoped-ip' };
 
 export const parseSearchInput = (input: string): SearchResult => {
   const trimmedInput = input.trim();
@@ -33,6 +33,9 @@ export const parseSearchInput = (input: string): SearchResult => {
 
   // Whole input only: the shared IP regexes find IPs inside text, such as a URL's query.
   if (isIP(trimmedInput)) {
+    // An interface such as %lo0 refers to the browser's device, not this server.
+    if (trimmedInput.includes('%'))
+      return { type: 'invalid', reason: 'scoped-ip' };
     return {
       type: 'ip',
       value: trimmedInput,
@@ -40,6 +43,11 @@ export const parseSearchInput = (input: string): SearchResult => {
   }
 
   const normalizedDomain = normalizeDomain(trimmedInput);
+  const host = normalizedDomain.replace(/^\[|\]$/g, '');
+  if (isIP(host))
+    return host.includes('%')
+      ? { type: 'invalid', reason: 'scoped-ip' }
+      : { type: 'ip', value: host };
   if (isValidDomain(normalizedDomain)) {
     return {
       type: 'domain',

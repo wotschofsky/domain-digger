@@ -16,12 +16,14 @@ export const GET = withEvlog(async (request: Request) => {
   const { searchParams } = new URL(request.url);
   const ip = searchParams.get('ip');
 
-  if (!ip || !isIP(ip)) {
+  if (!ip || !isIP(ip) || ip.includes('%')) {
     log.set({ status: 400, reason: 'invalid_ip', hasIp: Boolean(ip) });
     return NextResponse.json(
       {
         error: true,
-        message: '"ip" param missing or invalid',
+        message: ip?.includes('%')
+          ? 'Interface-scoped IPv6 addresses cannot be looked up from this server.'
+          : '"ip" param missing or invalid',
       },
       {
         status: 400,

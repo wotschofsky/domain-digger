@@ -15,6 +15,7 @@ import {
   type KeyboardEventHandler,
   type MouseEventHandler,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -114,6 +115,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
+  const [selectedIp, setSelectedIp] = useState('');
+  const [invalidReason, setInvalidReason] = useState<string | null>(null);
+  const errorId = useId();
 
   const [measureRef, { width: inputWidth }] = useMeasure<HTMLFormElement>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -162,9 +166,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         ?.toString() || '';
 
     const parsed = parseSearchInput(domain);
+    setInvalidReason(null);
 
     switch (parsed.type) {
       case 'ip':
+        setSelectedIp(parsed.value);
         setState(FormStates.Initial);
         setIpDetailsOpen(true);
         return;
@@ -176,6 +182,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         });
         return;
       case 'invalid':
+        if (parsed.reason === 'scoped-ip')
+          setInvalidReason(
+            'Interface-scoped IPv6 addresses cannot be looked up from this server.',
+          );
         setState(FormStates.Invalid);
         return;
     }
@@ -213,6 +223,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       }
 
       setDomain(userIp);
+      setSelectedIp(userIp);
       setIpDetailsOpen(true);
       return;
     }
@@ -326,6 +337,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
               : 'Search'
           }
           aria-label="Domain"
+          aria-invalid={state === FormStates.Invalid || undefined}
+          aria-describedby={
+            state === FormStates.Invalid && invalidReason ? errorId : undefined
+          }
           enterKeyHint="go"
           value={(() => {
             if (selectedSuggestion !== null) {
@@ -410,8 +425,17 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         )}
       </form>
 
+      {state === FormStates.Invalid && invalidReason && (
+        <p
+          id={errorId}
+          role="alert"
+          className="mt-2 text-sm text-red-700 dark:text-red-400"
+        >
+          {invalidReason}
+        </p>
+      )}
       <IpDetailsModal
-        ip={domain.trim()}
+        ip={selectedIp}
         open={ipDetailsOpen}
         onOpenChange={handleIpDetailsOpenChange}
       />

@@ -21,7 +21,7 @@ type IpDetails = {
 };
 
 export const getIpDetails = async (ip: string) => {
-  if (!isIP(ip))
+  if (!isIP(ip) || ip.includes('%'))
     throw new UserFacingError({
       title: 'Invalid IP address',
       description: 'The provided IP address is not valid.',
@@ -104,7 +104,7 @@ export const ipToDnsName = (ip: string) =>
   ip.includes(':') ? ipv6ToDnsName(ip) : ipv4ToDnsName(ip);
 
 export const lookupReverse = async (ip: string): Promise<string[]> => {
-  if (!isIP(ip)) {
+  if (!isIP(ip) || ip.includes('%')) {
     throw new UserFacingError({
       title: 'Invalid IP address',
       description: 'The provided IP address is not valid.',

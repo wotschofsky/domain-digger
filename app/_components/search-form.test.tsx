@@ -16,7 +16,10 @@ vi.mock('swr/immutable', () => ({ default: () => ({ data: undefined }) }));
 vi.mock('@/lib/analytics', () => ({
   useAnalytics: () => ({ reportEvent: vi.fn() }),
 }));
-vi.mock('./ip-details-modal', () => ({ IpDetailsModal: () => null }));
+vi.mock('./ip-details-modal', () => ({
+  IpDetailsModal: ({ ip, open }: { ip: string; open: boolean }) =>
+    open ? <div data-testid="ip-modal">{ip}</div> : null,
+}));
 
 describe('search form', () => {
   let container: HTMLDivElement;
@@ -45,6 +48,43 @@ describe('search form', () => {
       ),
     );
   };
+
+  it.each(['user@8.8.8.8', 'https://8.8.8.8/path'])(
+    'passes the parsed address to the IP dialog for %s',
+    async (value) => {
+      await render('visible');
+      const input = container.querySelector<HTMLInputElement>('input')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          'value',
+        )!.set!.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      await act(async () => input.form!.requestSubmit());
+      expect(
+        container.querySelector('[data-testid="ip-modal"]')?.textContent,
+      ).toBe('8.8.8.8');
+      expect(router.push).not.toHaveBeenCalled();
+    },
+  );
+
+  it('explains why local interface-scoped addresses are unsupported', async () => {
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, 'fe80::1%lo0');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.form!.requestSubmit());
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'Interface-scoped',
+    );
+    expect(container.querySelector('[data-testid="ip-modal"]')).toBeNull();
+  });
 
   // Navigating away hides the page with Activity instead of unmounting it, so
   // pressing Back shows the same form instance again rather than a fresh one
