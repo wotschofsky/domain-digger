@@ -1,8 +1,12 @@
 import { log } from 'evlog';
 import { firstResult as getFirstResult, whoisDomain } from 'whoiser';
 
+import { getRdapSummary } from './rdap';
 import { UserFacingError } from './user-facing-error';
 import { getBaseDomain, isValidDomain, serializeError } from './utils';
+
+const WHOIS_FAILURE_PATTERN =
+  /rate[ -]?limit|limit exceeded|too many (?:requests|queries)|quota exceeded|try again later|temporarily unavailable|access denied/i;
 
 export const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -39,10 +43,21 @@ export const lookupWhois = async (domain: string) => {
     }
   }
 
-  const filteredResults = Object.entries(mappedResults).filter(
-    ([_key, value]) => Boolean(value),
+  const filteredResults = Object.entries(mappedResults).filter(([, value]) =>
+    Boolean(value),
   );
 
+  if (
+    !filteredResults.length ||
+    filteredResults.some(([, raw]) => WHOIS_FAILURE_PATTERN.test(raw))
+  ) {
+    throw new UserFacingError({
+      title: 'WHOIS lookup failed',
+      description:
+        'The WHOIS server returned no data or declined the lookup. Please try again shortly.',
+      retryable: true,
+    });
+  }
   return filteredResults;
 };
 
@@ -92,7 +107,14 @@ export const getWhoisSummary = async (
     };
   }
 
-  const baseDomain = getBaseDomain(domain);
+  const baseDomain = getBaseDomain(domain).toLowerCase();
+
+  try {
+    const rdap = await getRdapSummary(baseDomain);
+    if (rdap) return rdap;
+  } catch (error) {
+    log.warn({ message: 'rdap_summary_failed', domain: baseDomain, error });
+  }
 
   try {
     const results = await whoisDomain(baseDomain, {
@@ -114,6 +136,17 @@ export const getWhoisSummary = async (
         ? rawValue.join('\n')
         : rawValue
       : '';
+
+    if (
+      !rawString.trim() &&
+      !firstResult['Registrar'] &&
+      !firstResult['Created Date'] &&
+      !firstResult['DNSSEC']
+    ) {
+      throw new Error('WHOIS server returned no registration data');
+    }
+    if (WHOIS_FAILURE_PATTERN.test(rawString))
+      throw new Error('WHOIS server declined or rate limited the lookup');
 
     if (
       UNREGISTERED_INDICATORS.some((indicator) =>
