@@ -227,3 +227,52 @@ export const resolveDsChain = async (
     ...(breakAt ? { breakAt } : {}),
   };
 };
+
+// Rejects with a retryable error at deadlineMs, naming the queries still in flight.
+// ponytail: the abandoned walk runs on until the resolver's own budgets expire; thread an
+// AbortSignal through DsChainQuery if that background load shows up.
+export const resolveDsChainWithin = async (
+  domain: string,
+  query: DsChainQuery,
+  deadlineMs: number,
+): Promise<DsChain> => {
+  const pending = new Set<string>();
+  let timer: NodeJS.Timeout | undefined;
+
+  const trackedQuery: DsChainQuery = async (name, type) => {
+    const key = `${name} ${type}`;
+    pending.add(key);
+
+    try {
+      return await query(name, type);
+    } finally {
+      pending.delete(key);
+    }
+  };
+
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const cause = new Error(
+        `Still waiting after ${deadlineMs}ms for: ${[...pending].join(', ')}`,
+      );
+
+      reject(
+        new UserFacingError(
+          {
+            title: 'DNSSEC lookup timed out',
+            description:
+              'The nameservers along the DNSSEC chain took too long to answer. Please try again shortly.',
+            retryable: true,
+          },
+          { cause },
+        ),
+      );
+    }, deadlineMs);
+  });
+
+  try {
+    return await Promise.race([resolveDsChain(domain, trackedQuery), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+};

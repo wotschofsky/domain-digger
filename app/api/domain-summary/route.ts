@@ -35,6 +35,9 @@ export const GET = withEvlog(async (request: Request) => {
       }),
     ]);
 
+    // Tells a failed WHOIS apart from a registry without a DNSSEC field: both read "Unavailable".
+    log.set({ whois });
+
     return NextResponse.json({ whois, sale } satisfies DomainSummaryResponse, {
       headers: {
         // Retry a failed lookup soon instead of hiding a listing.

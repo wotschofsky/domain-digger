@@ -12,7 +12,7 @@ import dnsPacket, {
 } from 'dns-packet';
 import { log } from 'evlog';
 
-import { retry } from '@/lib/utils';
+import { retry, serializeError } from '@/lib/utils';
 
 import {
   UserFacingError,
@@ -1231,21 +1231,14 @@ export class AuthoritativeResolver extends DnsResolver {
       }
       const { reason } = result;
       const expected = reason instanceof UserFacingError;
-      const err = reason instanceof Error ? reason : new Error(String(reason));
-      // Not rethrown, so onRequestError never sees it. evlog JSON-stringifies
-      // events in production, which drops an Error's own fields: copy them.
-      // Expected failures (e.g. a refused PTR) only warn, so error alerts
-      // stay reserved for bugs.
+      // Not rethrown, so onRequestError never sees it. Expected failures
+      // (e.g. a refused PTR) only warn, so error alerts stay reserved for
+      // bugs.
       log[expected ? 'warn' : 'error']({
         message: 'record_type_lookup_failed',
         domain,
         recordType: types[index],
-        error: {
-          name: err.name,
-          message: err.message,
-          stack: err.stack,
-          cause: (err.cause as Error | undefined)?.message,
-        },
+        error: serializeError(reason),
       });
       const error = expected ? reason.payload : FALLBACK_LOOKUP_ERROR;
       response[types[index]] = { records: [], trace: [], error };
