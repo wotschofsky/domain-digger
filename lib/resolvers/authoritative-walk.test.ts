@@ -71,6 +71,51 @@ const referral = (
 });
 
 describe('AuthoritativeResolver walk bounds', () => {
+  it('reads an unsigned parent NS delegation without following its child servers', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        referral(
+          domain,
+          recordType,
+          'example.com',
+          ['ns.example.com'],
+          ['8.8.8.8'],
+        ),
+    );
+    const resolver = new AuthoritativeResolver({
+      parentDelegations: true,
+      rootServers: async () => ['192.0.2.1'],
+      udpTransport,
+    });
+    await expect(
+      resolver.resolveAnswers('example.com', 'NS'),
+    ).resolves.toMatchObject({
+      delegated: true,
+      answers: [expect.objectContaining({ type: 'NS', name: 'example.com' })],
+    });
+    expect(udpTransport).toHaveBeenCalledTimes(1);
+  });
+
+  it('tries a sibling immediately when per-server retries are disabled', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) => {
+        if (nameserver === '192.0.2.1') throw new Error('timeout');
+        return reply(domain, recordType, [address(domain)]);
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      requestRetries: 0,
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+      udpTransport,
+    });
+    await expect(
+      resolver.resolveAnswers('example.com', 'A'),
+    ).resolves.toMatchObject({
+      answers: [expect.objectContaining({ type: 'A' })],
+    });
+    expect(udpTransport).toHaveBeenCalledTimes(2);
+  });
+
   it('can retry a transient transport failure in a new top-level walk', async () => {
     let available = false;
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
