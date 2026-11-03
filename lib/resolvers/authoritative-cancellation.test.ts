@@ -1,4 +1,6 @@
 // @vitest-environment node
+import type * as Net from 'node:net';
+
 import type { DecodedPacket } from 'dns-packet';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,10 +11,10 @@ const { socket, tcpSocket } = vi.hoisted(() => ({
   socket: { on: vi.fn(), send: vi.fn(), close: vi.fn() },
 }));
 vi.mock('node:net', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:net')>();
+  const actual = await importOriginal<typeof Net>();
   return {
     ...actual,
-    default: { ...actual.default, createConnection: () => tcpSocket },
+    default: { ...actual, createConnection: () => tcpSocket },
   };
 });
 vi.mock('node:dgram', () => ({ default: { createSocket: () => socket } }));
