@@ -2,11 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GET } from './route';
 
-const { lookupSale, lookupWhois, logger } = vi.hoisted(() => ({
+const { lookupSale, lookupWhois, lookupDnssec, logger } = vi.hoisted(() => ({
   lookupSale: vi.fn(),
+  lookupDnssec: vi.fn(),
   lookupWhois: vi.fn(),
   logger: { set: vi.fn(), error: vi.fn() },
 }));
+vi.mock('@/lib/dnssec/summary', () => ({ getDnssecSummary: lookupDnssec }));
 vi.mock('@/lib/for-sale', () => ({ lookupForSale: lookupSale }));
 vi.mock('@/lib/whois', () => ({ getWhoisSummary: lookupWhois }));
 vi.mock('@/lib/evlog', () => ({
@@ -20,6 +22,7 @@ const whois = {
   createdAt: '2020-01-01',
   dnssec: 'signed',
 };
+const dnssec = { domain: 'example.com', status: 'ds-present' };
 const sale = {
   domain: 'example.com',
   listing: { prices: ['EUR 2500'], links: [], texts: [] },
@@ -33,6 +36,7 @@ describe('domain summary API', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     lookupWhois.mockResolvedValue(whois);
+    lookupDnssec.mockResolvedValue(dnssec);
     lookupSale.mockResolvedValue(sale);
   });
 
@@ -50,7 +54,7 @@ describe('domain summary API', () => {
   it('returns both summaries with the existing WHOIS cache policy', async () => {
     const response = await GET(request('www.example.com'));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ whois, sale });
+    expect(await response.json()).toEqual({ whois, sale, dnssec });
     expect(response.headers.get('Cache-Control')).toBe(
       'public, max-age=600, s-maxage=1800',
     );
@@ -62,7 +66,7 @@ describe('domain summary API', () => {
     const noListing = { domain: 'example.com', listing: null };
     lookupSale.mockResolvedValue(noListing);
     const response = await GET(request('example.com'));
-    expect(await response.json()).toEqual({ whois, sale: noListing });
+    expect(await response.json()).toEqual({ whois, sale: noListing, dnssec });
     expect(response.headers.get('Cache-Control')).toBe(
       'public, max-age=600, s-maxage=1800',
     );
@@ -74,6 +78,7 @@ describe('domain summary API', () => {
     expect(await response.json()).toEqual({
       whois: { registered: false },
       sale,
+      dnssec,
     });
     expect(response.headers.get('Cache-Control')).toBe(
       'public, max-age=600, s-maxage=1800',
@@ -99,7 +104,7 @@ describe('domain summary API', () => {
     lookupSale.mockRejectedValue(error);
     const response = await GET(request('example.com'));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ whois, sale: null });
+    expect(await response.json()).toEqual({ whois, sale: null, dnssec });
     expect(response.headers.get('Cache-Control')).toBe(
       'public, max-age=60, s-maxage=60',
     );
@@ -111,7 +116,19 @@ describe('domain summary API', () => {
     const unknown = { ...whois, unknown: true };
     lookupWhois.mockResolvedValue(unknown);
     const response = await GET(request('example.com'));
-    expect(await response.json()).toEqual({ whois: unknown, sale });
+    expect(await response.json()).toEqual({ whois: unknown, sale, dnssec });
+    expect(response.headers.get('Cache-Control')).toBe(
+      'public, max-age=60, s-maxage=60',
+    );
+  });
+
+  it('keeps registration data and shortens caching when DNSSEC is unavailable', async () => {
+    lookupDnssec.mockResolvedValue({
+      domain: 'example.com',
+      status: 'unavailable',
+    });
+    const response = await GET(request('example.com'));
+    expect((await response.json()).whois).toEqual(whois);
     expect(response.headers.get('Cache-Control')).toBe(
       'public, max-age=60, s-maxage=60',
     );
@@ -136,6 +153,10 @@ describe('domain summary API', () => {
     expect(lookupSale).toHaveBeenCalledOnce();
     resolveWhois(whois);
     resolveSale(sale);
-    expect(await (await responsePromise).json()).toEqual({ whois, sale });
+    expect(await (await responsePromise).json()).toEqual({
+      whois,
+      sale,
+      dnssec,
+    });
   });
 });
