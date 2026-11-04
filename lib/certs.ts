@@ -34,14 +34,17 @@ const certsSchema = z.array(
 export const lookupCerts = async (domain: string): Promise<CertsData> => {
   'use cache';
   cacheLife({ stale: 60, revalidate: 600, expire: 3600 });
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
+
   try {
     const response = await fetch(
       'https://crt.sh?' +
         new URLSearchParams({ Identity: domain, output: 'json' }),
       { signal: controller.signal },
     );
+
     if (!response.ok) {
       throw new UserFacingError(
         {
@@ -57,7 +60,9 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
         },
       );
     }
+
     const data = certsSchema.parse(await response.json());
+
     return data.filter((cert) =>
       cert.name_value
         .split(/\n/g)
@@ -65,6 +70,7 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
     );
   } catch (error) {
     if (error instanceof UserFacingError) throw error;
+
     throw new UserFacingError(
       {
         title: "Couldn't complete the crt.sh lookup",
@@ -91,12 +97,15 @@ export const lookupRelatedCerts = async (domain: string) => {
   }
 
   const responses = await Promise.allSettled(requests);
+
   const successes = responses.filter(
     (response) => response.status === 'fulfilled',
   );
+
   const failures = responses.filter(
     (response) => response.status === 'rejected',
   );
+
   for (const failure of failures) {
     log.warn({
       message: 'certificate_query_failed',
@@ -104,6 +113,7 @@ export const lookupRelatedCerts = async (domain: string) => {
       error: failure.reason,
     });
   }
+
   if (!successes.length) throw failures[0].reason;
 
   const certs = [
@@ -125,5 +135,6 @@ export const lookupRelatedCerts = async (domain: string) => {
     resultCount: certs.length,
     failedQueries: failures.length,
   });
+
   return { certs, incomplete: failures.length > 0 };
 };
