@@ -23,7 +23,8 @@ const certsSchema = z.array(
     common_name: z.string(),
     name_value: z.string(),
     id: z.number(),
-    entry_timestamp: z.string(),
+    // crt.sh's JSON no longer returns entry_timestamp; requiring it rejects every row.
+    entry_timestamp: z.string().default(''),
     not_before: z.string(),
     not_after: z.string(),
     serial_number: z.string(),
@@ -68,7 +69,7 @@ export const lookupCerts = async (domain: string): Promise<CertsData> => {
       {
         title: "Couldn't complete the crt.sh lookup",
         description:
-          'The certificate lookup timed out or returned an invalid response. Please try again shortly.',
+          "We couldn't reach crt.sh, the lookup timed out, or it returned an invalid response. Please try again shortly.",
         retryable: true,
       },
       { cause: error },

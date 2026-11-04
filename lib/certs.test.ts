@@ -8,7 +8,7 @@ const certificate = {
   issuer_ca_id: 1,
   issuer_name: 'CA',
   common_name: 'www.example.com',
-  name_value: 'www.example.com',
+  name_value: 'www.example.com\n*.example.com',
   entry_timestamp: '2026-01-01',
   not_before: '2026-01-01',
   not_after: '2026-04-01',
@@ -64,6 +64,12 @@ describe('certificate lookup resilience', () => {
     await vi.advanceTimersByTimeAsync(20_000);
     await pending;
     expect(signal.aborted).toBe(true);
+  });
+
+  it('accepts crt.sh rows without entry_timestamp, which its JSON no longer returns', async () => {
+    const row = { ...certificate, entry_timestamp: undefined, result_count: 1 };
+    fetchMock.mockResolvedValueOnce(Response.json([row]));
+    await expect(lookupCerts('example.com')).resolves.toHaveLength(1);
   });
 
   it('rejects malformed data and deduplicates successful related queries', async () => {
