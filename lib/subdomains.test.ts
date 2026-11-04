@@ -37,6 +37,33 @@ describe('subdomain lookup budgets', () => {
     });
   });
 
+  it('recovers live source progress when final JSON has not been flushed', async () => {
+    execa.mockRejectedValue(
+      Object.assign(new Error('timeout'), {
+        timedOut: true,
+        stdout: '',
+        stderr:
+          '[INF] Enumerating subdomains for example.com\n[crtsh] a.example.com\n[alienvault] a.example.com\n[crtsh] a.example.com\n[ERR] b.example.com\n[crtsh] unrelated.net\n[crtsh] invalid/path\n',
+      }),
+    );
+    const resolveAnswers = vi.fn().mockResolvedValue({ answers: [] });
+    const result = await findSubdomains('example.com', () => ({
+      resolveAnswers,
+    }));
+    expect(result.discoveryIncomplete).toBe(true);
+    expect(result.results).toEqual([
+      {
+        domain: 'a.example.com',
+        sources: ['alienvault', 'crtsh'],
+        stillExists: false,
+      },
+    ]);
+    expect(execa.mock.calls[0][1]).toEqual(
+      expect.arrayContaining(['-v', '-nc', '-duc']),
+    );
+    expect(execa.mock.calls[0][1]).not.toContain('-silent');
+  });
+
   it('cancels stalled checks, keeps discoveries, and limits concurrency', async () => {
     execa.mockResolvedValue({
       stdout: Array.from({ length: 30 }, (_, i) =>

@@ -49,7 +49,9 @@ const runSubfinder = async (domain: string) => {
         domain,
         '-json',
         '-cs', // collect-sources: emit one record per host with all sources
-        '-silent',
+        '-v', // Source-labelled discoveries arrive before the final JSON output.
+        '-nc',
+        '-duc',
         '-timeout',
         String(SUBFINDER_TIMEOUT_SECONDS),
       ],
@@ -71,7 +73,15 @@ const runSubfinder = async (domain: string) => {
       'stdout' in error &&
       typeof error.stdout === 'string'
     ) {
-      return { discoveries: parseDiscoveries(error.stdout), incomplete: true };
+      return {
+        discoveries: recoverDiscoveries(
+          error.stdout,
+          'stderr' in error && typeof error.stderr === 'string'
+            ? error.stderr
+            : '',
+        ),
+        incomplete: true,
+      };
     }
     throw new UserFacingError(
       {
@@ -90,6 +100,30 @@ const parseDiscoveries = (stdout: string) =>
     .split('\n')
     .map(readDiscovery)
     .filter((discovery): discovery is Discovery => discovery !== null);
+
+// subfinder v2.17.0 buffers its JSON source map until enumeration ends.
+// Its verbose `[source] host` records are emitted immediately; recover those
+// on timeout so SIGKILL does not discard discoveries still in its Go heap.
+// This format is pinned alongside scripts/install-subfinder.sh.
+const recoverDiscoveries = (stdout: string, stderr: string): Discovery[] => {
+  const discovered = new Map<string, Set<string>>();
+  const add = ({ host, sources }: Discovery) => {
+    const known = discovered.get(host) ?? new Set<string>();
+    sources.forEach((source) => known.add(source));
+    discovered.set(host, known);
+  };
+  parseDiscoveries(stdout).forEach(add);
+  for (const line of stderr.split('\n')) {
+    const match = /^\[([a-z][a-z0-9_-]*)\]\s+(\S+)\s*$/i.exec(line);
+    if (!match || /^(INF|DBG|WRN|ERR|FTL|VRB)$/i.test(match[1])) continue;
+    const host = denormalizeWildcard(match[2].toLowerCase().replace(/\.$/, ''));
+    if (isValidDomain(host)) add({ host, sources: [match[1].toLowerCase()] });
+  }
+  return [...discovered].map(([host, sources]) => ({
+    host,
+    sources: [...sources],
+  }));
+};
 
 type CreateResolver = (
   signal: AbortSignal,
