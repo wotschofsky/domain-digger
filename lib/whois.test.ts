@@ -2,7 +2,7 @@ import type * as Whoiser from 'whoiser';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getRdapSummary } from './rdap';
-import { formatDate, getWhoisSummary } from './whois';
+import { formatDate, getWhoisSummary, lookupWhois } from './whois';
 
 vi.mock('./rdap', () => ({ getRdapSummary: vi.fn().mockResolvedValue(null) }));
 
@@ -60,6 +60,27 @@ describe('getWhoisSummary', () => {
     });
   });
 
+  it('does not read a domain named like a rate-limit notice as declined', async () => {
+    whoisDomain.mockResolvedValue({
+      'whois.example': {
+        Registrar: 'Example registrar',
+        __raw: 'Domain Name: RATELIMIT.COM\nRegistrar: Example registrar',
+      },
+    });
+    expect(await getWhoisSummary('ratelimit.com')).toEqual({
+      registered: true,
+      registrar: 'Example registrar',
+      createdAt: null,
+      dnssec: null,
+    });
+    whoisDomain.mockResolvedValue({
+      'whois.example': { __raw: 'No match for "RATELIMIT.COM".' },
+    });
+    expect(await getWhoisSummary('ratelimit.com')).toEqual({
+      registered: false,
+    });
+  });
+
   it('marks registration as unknown when the lookup fails', async () => {
     whoisDomain.mockRejectedValue(new Error('timeout'));
     expect(await getWhoisSummary('example.com')).toEqual({
@@ -91,4 +112,28 @@ describe('getWhoisSummary', () => {
       dnssec: null,
     });
   });
+});
+
+describe('lookupWhois', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns a response whose domain name matches the decline pattern', async () => {
+    const raw = 'Domain Name: RATE-LIMIT.COM\nRegistrar: Example registrar';
+    whoisDomain.mockResolvedValue({ 'whois.example': { __raw: raw } });
+    expect(await lookupWhois('rate-limit.com')).toEqual([
+      ['whois.example', raw],
+    ]);
+  });
+
+  it.each(['\r\n ', 'Query limit exceeded; try again later'])(
+    'surfaces a retryable error for a blank or declined response: %j',
+    async (raw) => {
+      whoisDomain.mockResolvedValue({ 'whois.example': { __raw: raw } });
+      await expect(lookupWhois('example.com')).rejects.toMatchObject({
+        payload: { retryable: true },
+      });
+    },
+  );
 });

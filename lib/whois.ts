@@ -8,6 +8,12 @@ import { getBaseDomain, isValidDomain, serializeError } from './utils';
 const WHOIS_FAILURE_PATTERN =
   /rate[ -]?limit|limit exceeded|too many (?:requests|queries)|quota exceeded|try again later|temporarily unavailable|access denied/i;
 
+// The queried name is removed first: ratelimit.com's own record would otherwise read as a decline.
+const isDeclinedWhois = (raw: string, domain: string) =>
+  WHOIS_FAILURE_PATTERN.test(
+    raw.toLowerCase().replaceAll(domain.toLowerCase(), ''),
+  );
+
 export const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
 const parseDateSafe = (date: string): Date | null => {
@@ -43,14 +49,11 @@ export const lookupWhois = async (domain: string) => {
     }
   }
 
-  const filteredResults = Object.entries(mappedResults).filter(([, value]) =>
-    Boolean(value),
+  const filteredResults = Object.entries(mappedResults).filter(
+    ([, raw]) => raw.trim() !== '' && !isDeclinedWhois(raw, domain),
   );
 
-  if (
-    !filteredResults.length ||
-    filteredResults.some(([, raw]) => WHOIS_FAILURE_PATTERN.test(raw))
-  ) {
+  if (!filteredResults.length) {
     throw new UserFacingError({
       title: 'WHOIS lookup failed',
       description:
@@ -145,7 +148,7 @@ export const getWhoisSummary = async (
     ) {
       throw new Error('WHOIS server returned no registration data');
     }
-    if (WHOIS_FAILURE_PATTERN.test(rawString))
+    if (isDeclinedWhois(rawString, baseDomain))
       throw new Error('WHOIS server declined or rate limited the lookup');
 
     if (
