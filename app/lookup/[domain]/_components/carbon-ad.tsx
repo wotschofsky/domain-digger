@@ -18,7 +18,7 @@ declare global {
 let script: HTMLScriptElement | undefined;
 // Once no ad could be shown, later lookups in this document skip the wait
 let adBlocked = false;
-// Show is reported for the first ad in the document only
+// Reported once per document, like a block
 let adShown = false;
 
 type CarbonAdProps = {
@@ -122,9 +122,12 @@ export const CarbonAdRail: FC = () => {
   const { reportEvent } = useAnalytics();
   const handleBlocked = useCallback(
     (reason: 'script' | 'no-ad') => {
+      // The script can still fail after the timer gave up, and every rail
+      // has to collapse, but the block is reported once per document
+      const first = !adBlocked;
       adBlocked = true;
       setBlocked(true);
-      reportEvent('Carbon Ad: Blocked', { reason });
+      if (first) reportEvent('Carbon Ad: Blocked', { reason });
     },
     [reportEvent],
   );
