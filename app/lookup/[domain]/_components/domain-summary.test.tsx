@@ -100,6 +100,7 @@ describe('domain summary sale link', () => {
       },
       isLoading: false,
     });
+
     await render();
     expect(container.textContent).toContain('DS present');
     expect(container.textContent).not.toContain('signed');

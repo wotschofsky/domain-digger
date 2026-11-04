@@ -8,6 +8,7 @@ const { lookupSale, lookupWhois, lookupDnssec, logger } = vi.hoisted(() => ({
   lookupWhois: vi.fn(),
   logger: { set: vi.fn(), error: vi.fn() },
 }));
+
 vi.mock('@/lib/dnssec/summary', () => ({ getDnssecSummary: lookupDnssec }));
 vi.mock('@/lib/for-sale', () => ({ lookupForSale: lookupSale }));
 vi.mock('@/lib/whois', () => ({ getWhoisSummary: lookupWhois }));
@@ -127,6 +128,7 @@ describe('domain summary API', () => {
       domain: 'example.com',
       status: 'unavailable',
     });
+
     const response = await GET(request('example.com'));
     expect((await response.json()).whois).toEqual(whois);
     expect(response.headers.get('Cache-Control')).toBe(
@@ -153,6 +155,7 @@ describe('domain summary API', () => {
     expect(lookupSale).toHaveBeenCalledOnce();
     resolveWhois(whois);
     resolveSale(sale);
+
     expect(await (await responsePromise).json()).toEqual({
       whois,
       sale,

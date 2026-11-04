@@ -8,19 +8,20 @@ export type DnssecSummary = {
   status: 'ds-present' | 'no-ds' | 'unavailable';
 };
 
-// Matches the registrar/date tiles' registrable-domain scope, including when
-// the searched name is a host. A recursive DS query retrieves the parent's DS
-// RRset; this is a delegation indicator, not full DNSSEC validation.
+// Registrable domain, like the registrar and date tiles, even when a host is searched.
+// A recursive DS query reads the parent's DS RRset: a delegation hint, not DNSSEC validation.
 export const getDnssecSummary = async (
   domain: string,
 ): Promise<DnssecSummary> => {
   const baseDomain = getBaseDomain(domain).toLowerCase();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3_000);
+
   try {
     const response = await new CloudflareDoHResolver({
       signal: controller.signal,
     }).resolveAnswers(baseDomain, 'DS');
+
     return {
       domain: baseDomain,
       status: response.answers.some(
