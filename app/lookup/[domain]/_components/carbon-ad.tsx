@@ -18,7 +18,7 @@ declare global {
 let script: HTMLScriptElement | undefined;
 // Once no ad could be shown, later lookups in this document skip the wait
 let adBlocked = false;
-// Reported once per document, like a block
+// Show is reported for the first ad in the document only
 let adShown = false;
 
 type CarbonAdProps = {
@@ -43,19 +43,24 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked, onShown }) => {
     // Carbon inserts an ad for every response it gets and cancels nothing.
     // Moving the tag into a new slot refreshes even if an earlier request is
     // still pending, so two ads can land. Carbon's policy allows one.
-    let adSeen = Boolean(
-      container.querySelector<HTMLElement>('#carbonads')?.offsetHeight,
-    );
-    const observer = new MutationObserver(() => {
-      const ads = container.querySelectorAll<HTMLElement>('#carbonads');
-      if (ads[0]?.offsetHeight) {
-        adSeen = true;
-        if (!adShown) {
-          adShown = true;
-          onShown();
-        }
+    let adSeen = false;
+    // An ad can already be in place when the slot returns from a hidden route
+    const checkVisible = () => {
+      if (!container.querySelector<HTMLElement>('#carbonads')?.offsetHeight) {
+        return;
       }
-      ads.forEach((ad, index) => index > 0 && ad.remove());
+      adSeen = true;
+      if (!adShown) {
+        adShown = true;
+        onShown();
+      }
+    };
+    checkVisible();
+    const observer = new MutationObserver(() => {
+      checkVisible();
+      container
+        .querySelectorAll('#carbonads')
+        .forEach((ad, index) => index > 0 && ad.remove());
     });
     observer.observe(container, { childList: true });
 
@@ -78,8 +83,8 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked, onShown }) => {
     // gives Carbon time to load, fetch and insert the ad. An ad that was
     // visible at any point counts: a refresh empties the slot for a moment.
     const timer = window.setTimeout(() => {
-      const ad = container.querySelector<HTMLElement>('#carbonads');
-      if (!adSeen && !ad?.offsetHeight) onBlocked('no-ad');
+      checkVisible();
+      if (!adSeen) onBlocked('no-ad');
     }, 5000);
 
     return () => {
