@@ -13,7 +13,7 @@ export type DnssecSummary = {
 export const getDnssecSummary = async (
   domain: string,
 ): Promise<DnssecSummary> => {
-  const baseDomain = getBaseDomain(domain).toLowerCase();
+  const baseDomain = getBaseDomain(domain);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3_000);
 

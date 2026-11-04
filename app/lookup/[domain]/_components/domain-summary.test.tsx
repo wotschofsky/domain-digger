@@ -162,6 +162,26 @@ describe('domain summary sale link', () => {
     expect(container.textContent).not.toContain('For sale');
   });
 
+  it('shows a field the registry left out as not listed, not as a failed lookup', async () => {
+    fixtures.summary.mockReturnValue({
+      data: {
+        whois: {
+          registered: true,
+          registrar: null,
+          createdAt: null,
+        },
+        sale: { domain: 'example.com', listing: null },
+        dnssec: { domain: 'example.com', status: 'ds-present' },
+      },
+      isLoading: false,
+    });
+
+    await render();
+
+    expect(container.textContent).toContain('Not listed');
+    expect(container.textContent).not.toContain('Unavailable');
+  });
+
   it('hides sale information for an unregistered domain', async () => {
     fixtures.summary.mockReturnValue({
       data: {
