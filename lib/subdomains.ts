@@ -83,6 +83,7 @@ const runSubfinder = async (domain: string) => {
         incomplete: true,
       };
     }
+
     throw new UserFacingError(
       {
         title: 'Subdomain discovery failed',
@@ -101,10 +102,9 @@ const parseDiscoveries = (stdout: string) =>
     .map(readDiscovery)
     .filter((discovery): discovery is Discovery => discovery !== null);
 
-// subfinder v2.17.0 buffers its JSON source map until enumeration ends.
-// Its verbose `[source] host` records are emitted immediately; recover those
-// on timeout so SIGKILL does not discard discoveries still in its Go heap.
-// This format is pinned alongside scripts/install-subfinder.sh.
+// subfinder v2.17.0 buffers JSON until enumeration ends but streams `[source] host` to stderr;
+// without these lines a timeout SIGKILL discards every unflushed discovery.
+// Format pinned with the version in scripts/install-subfinder.sh.
 const recoverDiscoveries = (stdout: string, stderr: string): Discovery[] => {
   const discovered = new Map<string, Set<string>>();
   const add = ({ host, sources }: Discovery) => {
@@ -112,13 +112,16 @@ const recoverDiscoveries = (stdout: string, stderr: string): Discovery[] => {
     sources.forEach((source) => known.add(source));
     discovered.set(host, known);
   };
+
   parseDiscoveries(stdout).forEach(add);
+
   for (const line of stderr.split('\n')) {
     const match = /^\[([a-z][a-z0-9_-]*)\]\s+(\S+)\s*$/i.exec(line);
     if (!match || /^(INF|DBG|WRN|ERR|FTL|VRB)$/i.test(match[1])) continue;
     const host = denormalizeWildcard(match[2].toLowerCase().replace(/\.$/, ''));
     if (isValidDomain(host)) add({ host, sources: [match[1].toLowerCase()] });
   }
+
   return [...discovered].map(([host, sources]) => ({
     host,
     sources: [...sources],
@@ -150,6 +153,7 @@ export const findSubdomains = async (
   const timer = setTimeout(() => controller.abort(), DETAILS_DEADLINE_MS);
   const resolver = createResolver(controller.signal);
   let nextIndex = 0;
+
   try {
     await Promise.all(
       Array.from(
@@ -160,11 +164,13 @@ export const findSubdomains = async (
             nextIndex < Math.min(results.length, DETAILED_RESULTS_LIMIT)
           ) {
             const result = results[nextIndex++];
+
             try {
               const response = await resolver.resolveAnswers(
                 result.domain,
                 'A',
               );
+
               if (!controller.signal.aborted)
                 result.stillExists = response.answers.some(
                   (answer) => answer.type === 1,
@@ -180,9 +186,11 @@ export const findSubdomains = async (
     clearTimeout(timer);
     controller.abort();
   }
+
   const uncheckedCount = results.filter(
     (result) => result.stillExists === null,
   ).length;
+
   log.info({
     message: 'subdomains_lookup_completed',
     domain,
@@ -192,6 +200,7 @@ export const findSubdomains = async (
     uncheckedCount,
     incomplete: discovery.incomplete,
   });
+
   return {
     results,
     discoveryIncomplete: discovery.incomplete,
