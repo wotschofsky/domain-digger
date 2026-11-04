@@ -102,6 +102,14 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
   );
 };
 
+const describeDnssecStatus = (
+  status?: DomainSummaryResponse['dnssec']['status'],
+): string => {
+  if (status === 'ds-present') return 'DS present';
+  if (status === 'no-ds') return 'No DS record';
+  return 'Unavailable';
+};
+
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   const { data, error, isLoading, isValidating, mutate } =
     useSWR<DomainSummaryResponse>(
@@ -170,11 +178,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
           <span
             title={`Parent DS records for ${data.dnssec?.domain ?? domain}; this does not validate the full DNSSEC chain.`}
           >
-            {data.dnssec?.status === 'ds-present'
-              ? 'DS present'
-              : data.dnssec?.status === 'no-ds'
-                ? 'No DS record'
-                : 'Unavailable'}
+            {describeDnssecStatus(data.dnssec?.status)}
           </span>
         }
       />
