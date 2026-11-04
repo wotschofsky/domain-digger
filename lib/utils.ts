@@ -98,8 +98,9 @@ export const getBaseDomain = (domain: string) => {
   // Remove wildcard prefix to avoid base domain not being extracted correctly
   // Remove trailing dot
   const cleanedDomain = domain.replace(/^\*\./, '').replace(/\.$/, '');
-  const baseDomain = getDomain(cleanedDomain) || cleanedDomain;
-  return baseDomain;
+  // tldts lowercases its result, but the fallback for names it cannot split
+  // (such as a bare TLD) would keep the input's casing
+  return (getDomain(cleanedDomain) || cleanedDomain).toLowerCase();
 };
 
 export const isWildcardDomain = (domain: string) =>
