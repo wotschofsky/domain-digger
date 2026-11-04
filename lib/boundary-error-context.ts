@@ -1,5 +1,11 @@
+const REACT_ERROR_CATEGORIES: Partial<Record<string, string>> = {
+  '412': 'connection_closed',
+  '441': 'server_render',
+};
+
 export const getBoundaryErrorContext = (error: Error & { digest?: string }) => {
   const reactErrorCode = /Minified React error #(\d+)/.exec(error.message)?.[1];
+
   return {
     message: 'boundary_error',
     name: error.name,
@@ -11,10 +17,7 @@ export const getBoundaryErrorContext = (error: Error & { digest?: string }) => {
     browserDeploymentId: process.env.NEXT_PUBLIC_DEPLOYMENT_ID,
     reactErrorCode,
     category:
-      reactErrorCode === '412'
-        ? 'connection_closed'
-        : reactErrorCode === '441'
-          ? 'server_render'
-          : 'application',
+      (reactErrorCode && REACT_ERROR_CATEGORIES[reactErrorCode]) ??
+      'application',
   };
 };

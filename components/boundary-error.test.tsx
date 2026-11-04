@@ -14,6 +14,7 @@ describe('browser boundary error correlation', () => {
     vi.stubEnv('NEXT_PUBLIC_DEPLOYMENT_ID', 'browser-deployment');
     window.history.replaceState({}, '', '/lookup/example.com/dnssec?q=private');
   });
+
   afterEach(() => {
     window.history.replaceState({}, '', '/');
     vi.unstubAllEnvs();
@@ -30,17 +31,20 @@ describe('browser boundary error correlation', () => {
     ['Minified React error #441; visit the decoder', 'server_render', '441'],
     ['Unexpected application failure', 'application', undefined],
   ])(
-    'reports route and browser build context for %s',
+    'reports the route without its query string and the browser build for %s',
     async (message, category, reactErrorCode) => {
       const container = document.createElement('div');
       const root = createRoot(container);
+
       const error = Object.assign(new Error(message), {
         digest: 'server-digest',
       });
+
       try {
         await act(async () =>
           root.render(<BoundaryError error={error} retry={() => {}} />),
         );
+
         expect(report).toHaveBeenCalledWith(
           expect.objectContaining({
             message: 'boundary_error',
@@ -52,6 +56,7 @@ describe('browser boundary error correlation', () => {
             reactErrorCode,
           }),
         );
+
         expect(JSON.stringify(report.mock.calls[0][0])).not.toContain(
           'q=private',
         );

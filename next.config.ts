@@ -5,8 +5,7 @@ import { getSponsorImageRemotePatterns } from './lib/sponsors';
 const nextConfig = async (): Promise<NextConfig> => ({
   cacheComponents: true,
   env: {
-    // Public build identifiers let stale browser bundles be matched to their
-    // originating deployment instead of the current log-ingest deployment.
+    // A stale browser bundle reports its own deployment, not the one ingesting the log.
     NEXT_PUBLIC_DEPLOYMENT_COMMIT: process.env.VERCEL_GIT_COMMIT_SHA ?? 'local',
     NEXT_PUBLIC_DEPLOYMENT_ID: process.env.VERCEL_DEPLOYMENT_ID ?? 'local',
   },
