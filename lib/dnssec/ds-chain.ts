@@ -61,6 +61,9 @@ export type DsChain = {
 // the queried name itself. zone is the zone cut whose servers answered (the
 // deepest delegation followed, '.' for the root). coveringRrsigs are the
 // RRSIGs over the answered RRset, so the query must set the DNSSEC OK bit.
+// delegated marks an NS answer as proof of a zone cut at name (a parent's
+// referral or the zone's own NS RRset); a stopAtBreak walk ends there as
+// unsigned when the parent has no DS.
 export type DsChainQuery = (
   name: string,
   type: Extract<RecordType, 'SOA' | 'DNSKEY' | 'DS' | 'NS'>,

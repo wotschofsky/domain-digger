@@ -43,6 +43,24 @@ describe('authoritative transport cancellation', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  it('starts no TCP fallback when a truncated reply arrives after cancellation', async () => {
+    const controller = new AbortController();
+    const tcpTransport = vi.fn(async () => ({}) as DecodedPacket);
+    const resolver = new AuthoritativeResolver({
+      signal: controller.signal,
+      requestRetries: 0,
+      rootServers: async () => ['192.0.2.1'],
+      // A custom transport that ignores the signal and answers late.
+      udpTransport: async () => {
+        controller.abort();
+        return { flag_tc: true } as DecodedPacket;
+      },
+      tcpTransport,
+    });
+    await resolver.resolveAnswers('example.com', 'DNSKEY').catch(() => {});
+    expect(tcpTransport).not.toHaveBeenCalled();
+  });
+
   it('closes an in-flight UDP socket and clears its timeout when cancelled', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();

@@ -438,6 +438,8 @@ export class AuthoritativeResolver extends DnsResolver {
       ? await this.options.udpTransport(request)
       : await this.sendUdpRequest(request);
     if (udpResponse.flag_tc) {
+      // A custom UDP transport may answer after cancellation.
+      this.options.signal?.throwIfAborted();
       const packet = this.options.tcpTransport
         ? await this.options.tcpTransport(request)
         : await this.sendTcpRequest(request);
