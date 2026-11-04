@@ -19,7 +19,8 @@ export type DsChainVerdict =
 
 export type DsChainZone = {
   name: string;
-  keys: Array<{
+  // Unset when the zone's own nameservers did not answer the DNSKEY query.
+  keys?: Array<{
     keyTag: number;
     algorithm: number;
     algorithmName: string;
@@ -46,11 +47,13 @@ export type DsChainZone = {
 
 export type DsChain = {
   // The queried name, lowercased and without a trailing dot. When it is not
-  // a zone apex itself (a host, a wildcard, ...), the last zone is the one
-  // it lives in.
+  // a zone apex itself (a host, a wildcard, ...) and there is no breakAt,
+  // the last zone is the one it lives in.
   name: string;
   zones: DsChainZone[];
   verdict: DsChainVerdict;
+  // The last zone: the walk stops at the break, so zones below it are never
+  // queried, nor is whether the queried name exists.
   breakAt?: string;
 };
 
@@ -59,9 +62,12 @@ export type DsChain = {
 // the queried name itself. zone is the zone cut whose servers answered (the
 // deepest delegation followed, '.' for the root). coveringRrsigs are the
 // RRSIGs over the answered RRset, so the query must set the DNSSEC OK bit.
+// onZoneCut gets each zone cut the lookup is referred into, before its
+// servers are asked: the referral proves the cut even if they never answer.
 export type DsChainQuery = (
   name: string,
   type: Extract<RecordType, 'SOA' | 'DNSKEY' | 'DS'>,
+  onZoneCut?: (zone: string) => void,
 ) => Promise<{
   answers: Answer[];
   rcode?: string;
@@ -100,6 +106,29 @@ const dnskeysOf = ({ answers }: { answers: Answer[] }): DnskeyData[] =>
 const dsOf = ({ answers }: { answers: Answer[] }): DsData[] =>
   answers.flatMap((answer) => (answer.type === 'DS' ? [answer.data] : []));
 
+// The verdict at an unsigned delegation never waits on this; only its keys do.
+// One resolver UDP attempt: servers that miss it are retrying after a timeout.
+const UNSIGNED_KEYS_GRACE_MS = 3000;
+
+// Undefined once the promise rejects or ms pass.
+const settleWithin = async <T>(
+  promise: Promise<T>,
+  ms: number,
+): Promise<T | undefined> => {
+  let timer: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise.catch(() => undefined),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const suffixesFor = (name: string): string[] => {
   const clean = name.replace(/^\*\./, '');
   const labels = clean && clean !== '.' ? clean.split('.') : [];
@@ -128,11 +157,39 @@ export const resolveDsChain = async (
 
   for (const [index, name] of names.entries()) {
     const isRoot = index === 0;
-    const [soaResponse, keyResponse, dsResponse] = await Promise.all([
-      isRoot ? null : query(name, 'SOA'),
-      query(name, 'DNSKEY'),
-      isRoot ? null : query(name, 'DS'),
-    ]);
+    let isDelegated = false;
+    const delegation = Promise.withResolvers<void>();
+
+    const onZoneCut = (zone: string) => {
+      if (zone !== name) return;
+      isDelegated = true;
+      delegation.resolve();
+    };
+
+    const soaQuery = isRoot ? null : query(name, 'SOA', onZoneCut);
+    const keyQuery = query(name, 'DNSKEY', onZoneCut);
+    const dsQuery = isRoot ? null : query(name, 'DS');
+    const childResponses = Promise.all([soaQuery, keyQuery]);
+    // Handled up front: an unsigned delegation is settled without them.
+    childResponses.catch(() => {});
+    const dsResponse = await dsQuery;
+    const dsRecords = isRoot ? ROOT_ANCHORS : dsOf(dsResponse!);
+
+    // A delegation without DS is unsigned whatever its own servers answer, so
+    // unreachable ones must not sink the verdict; their keys are display only.
+    // Without the referral, an empty DS proves nothing (a host, an empty
+    // non-terminal), so the walk waits for the SOA and DNSKEY as ever.
+    if (dsRecords.length === 0) {
+      await Promise.race([childResponses.catch(() => {}), delegation.promise]);
+    }
+
+    let soaResponse, keyResponse;
+    if (dsRecords.length === 0 && isDelegated) {
+      keyResponse = await settleWithin(keyQuery, UNSIGNED_KEYS_GRACE_MS);
+    } else {
+      [soaResponse, keyResponse] = await childResponses;
+    }
+
     if (
       index === names.length - 1 &&
       [soaResponse, keyResponse, dsResponse].some(
@@ -142,7 +199,7 @@ export const resolveDsChain = async (
       throw new DsChainNameNotFoundError(name);
     }
 
-    const keys = dnskeysOf(keyResponse);
+    const keys = keyResponse ? dnskeysOf(keyResponse) : [];
     if (isRoot && keys.length === 0) {
       throw new UserFacingError({
         title: 'Root DNSKEY records unavailable',
@@ -151,7 +208,6 @@ export const resolveDsChain = async (
         retryable: true,
       });
     }
-    const dsRecords = isRoot ? ROOT_ANCHORS : dsOf(dsResponse!);
     // Only zone apexes link the chain. A name is one when a parent delegates
     // it (the lookup was referred to its servers) or it has its own SOA or a
     // parent DS; a DNSKEY RRset alone does not make a zone cut. The SOA
@@ -161,6 +217,7 @@ export const resolveDsChain = async (
     // above.
     const isApex =
       isRoot ||
+      isDelegated ||
       dsRecords.length > 0 ||
       [soaResponse, keyResponse, dsResponse].some(
         (response) => response?.zone === name,
@@ -172,15 +229,13 @@ export const resolveDsChain = async (
     let ownStatus: DsChainVerdict =
       link.status === 'linked' ? 'intact' : link.status;
     let keySignature: DsChainZone['keySignature'];
-    if (link.status === 'linked' && verdict === 'intact') {
+    if (link.status === 'linked') {
       // Only DS-linked keys may vouch for the key set: a zone must not
       // authenticate its DNSKEY RRset with a key nothing above it links.
-      // Below a break nothing vouches for the DS itself, so there is no
-      // trusted key to check against.
       const { outcome, rrsig } = checkRrsetSignatures({
         type: 'DNSKEY',
         rdatas: keys.map((key) => dnskeyRdata(key)),
-        rrsigs: keyResponse.coveringRrsigs ?? [],
+        rrsigs: keyResponse?.coveringRrsigs ?? [],
         ownerName: name,
         signerName: name,
         keys: link.linkedKeys,
@@ -195,19 +250,21 @@ export const resolveDsChain = async (
       };
       ownStatus = outcome === 'valid' ? 'intact' : 'bad-signature';
     }
-    if (verdict === 'intact' && ownStatus !== 'intact') {
+    if (ownStatus !== 'intact') {
       verdict = ownStatus;
       breakAt = name;
     }
 
     zones.push({
       name,
-      keys: keys.map((key) => ({
-        keyTag: dnskeyKeyTag(key),
-        algorithm: key.algorithm,
-        algorithmName: algorithmName(key.algorithm),
-        isSep: isSepKey(key),
-      })),
+      keys:
+        keyResponse &&
+        keys.map((key) => ({
+          keyTag: dnskeyKeyTag(key),
+          algorithm: key.algorithm,
+          algorithmName: algorithmName(key.algorithm),
+          isSep: isSepKey(key),
+        })),
       dsRecords: dsRecords.map((ds, i) => ({
         keyTag: ds.keyTag,
         digestType: ds.digestType,
@@ -218,6 +275,8 @@ export const resolveDsChain = async (
       ...(keySignature && { keySignature }),
       status: verdict,
     });
+    // Nothing below a break can be secure, and its servers may never answer.
+    if (breakAt) break;
   }
 
   return {
@@ -229,8 +288,9 @@ export const resolveDsChain = async (
 };
 
 // Rejects with a retryable error at deadlineMs, naming the queries still in flight.
-// ponytail: the abandoned walk runs on until the resolver's own budgets expire; thread an
-// AbortSignal through DsChainQuery if that background load shows up.
+// ponytail: the abandoned walk starts no new query, but the ones in flight (one level's)
+// run on until the resolver's own budgets expire; thread an AbortSignal through
+// DsChainQuery if that background load shows up.
 export const resolveDsChainWithin = async (
   domain: string,
   query: DsChainQuery,
@@ -238,13 +298,16 @@ export const resolveDsChainWithin = async (
 ): Promise<DsChain> => {
   const pending = new Set<string>();
   let timer: NodeJS.Timeout | undefined;
+  let expired = false;
 
-  const trackedQuery: DsChainQuery = async (name, type) => {
+  const trackedQuery: DsChainQuery = async (name, type, onZoneCut) => {
+    if (expired) throw new Error('DNSSEC lookup deadline passed');
+
     const key = `${name} ${type}`;
     pending.add(key);
 
     try {
-      return await query(name, type);
+      return await query(name, type, onZoneCut);
     } finally {
       pending.delete(key);
     }
@@ -252,6 +315,7 @@ export const resolveDsChainWithin = async (
 
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
+      expired = true;
       const cause = new Error(
         `Still waiting after ${deadlineMs}ms for: ${[...pending].join(', ')}`,
       );

@@ -80,7 +80,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   try {
     chain = await resolveDsChainWithin(
       domain,
-      (name, type) => resolver.resolveAnswers(name, type),
+      (name, type, onZoneCut) => resolver.resolveAnswers(name, type, onZoneCut),
       DEADLINE_MS,
     );
   } catch (error) {
@@ -111,12 +111,20 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
           {VERDICT_LABELS[chain.verdict]}
           {chain.breakAt ? ` at ${chain.breakAt}` : ''}
         </h2>
-        {coveringZone !== chain.name && (
-          <p className="text-sm">
-            {chain.name} is not a zone of its own; it is covered by{' '}
-            <span className="font-medium">{coveringZone}</span>.
-          </p>
-        )}
+        {chain.breakAt
+          ? chain.breakAt !== chain.name && (
+              <p className="text-sm">
+                Zones below <span className="font-medium">{chain.breakAt}</span>{' '}
+                were not checked: nothing under an unsigned or broken zone can
+                be validated.
+              </p>
+            )
+          : coveringZone !== chain.name && (
+              <p className="text-sm">
+                {chain.name} is not a zone of its own; it is covered by{' '}
+                <span className="font-medium">{coveringZone}</span>.
+              </p>
+            )}
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           This view checks DS digest links and DNSKEY signatures.
         </p>
@@ -142,7 +150,11 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
             <div className="grid gap-6 md:grid-cols-2">
               <div>
                 <h4 className="mb-2 text-sm font-semibold">DNSKEYs</h4>
-                {zone.keys.length ? (
+                {!zone.keys ? (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    Nameservers did not answer
+                  </p>
+                ) : zone.keys.length ? (
                   <ul className="space-y-2 text-sm">
                     {zone.keys.map((key, index) => (
                       <li

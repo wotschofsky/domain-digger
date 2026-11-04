@@ -434,6 +434,59 @@ describe('AuthoritativeResolver walk bounds', () => {
     });
   });
 
+  it('reports the zone cut it was referred into even when its servers refuse', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? referral(
+              domain,
+              recordType,
+              'example.com',
+              ['ns1.example.com'],
+              ['8.8.8.8'],
+            )
+          : ({
+              ...reply(domain, recordType),
+              rcode: 'REFUSED',
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    const onZoneCut = vi.fn();
+
+    await expect(
+      resolver.resolveAnswers('example.com', 'DNSKEY', onZoneCut),
+    ).rejects.toBeInstanceOf(UserFacingError);
+    expect(onZoneCut.mock.calls).toEqual([['example.com']]);
+  });
+
+  it('reports the zone cut a lookup starts at from the delegation cache', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? referral(
+              domain,
+              recordType,
+              'example.com',
+              ['ns1.example.com'],
+              ['8.8.8.8'],
+            )
+          : reply(domain, recordType, [address(domain)]),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+    await resolver.resolveAnswers('example.com', 'A');
+    const onZoneCut = vi.fn();
+
+    await resolver.resolveAnswers('www.example.com', 'A', onZoneCut);
+    expect(onZoneCut.mock.calls).toEqual([['example.com']]);
+    expect(udpTransport).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps a spent step budget user-facing after a cached delegation fails', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
