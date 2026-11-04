@@ -445,23 +445,29 @@ describe('resolveDsChain', () => {
 
   it('stops at a parent delegation without contacting an unsigned child', async () => {
     const tree = dnsTree([root(), signedZone('com'), ns('example.com')].flat());
+
     const query = vi.fn<DsChainQuery>(async (name, type) => {
       if (name === 'example.com' && (type === 'SOA' || type === 'DNSKEY'))
         throw new Error('child is unreachable');
+
       return tree(name, type);
     });
+
     const chain = await resolveDsChain('www.example.com', query, NOW, {
       stopAtBreak: true,
     });
+
     expect(chain).toMatchObject({
       verdict: 'unsigned',
       breakAt: 'example.com',
       inspectionStopped: true,
     });
+
     expect(chain.zones.at(-1)).toMatchObject({
       name: 'example.com',
       keysInspected: false,
     });
+
     expect(query).not.toHaveBeenCalledWith('example.com', 'DNSKEY');
     expect(query).not.toHaveBeenCalledWith('www.example.com', 'DS');
   });
@@ -480,6 +486,7 @@ describe('resolveDsChain', () => {
       NOW,
       { stopAtBreak: true },
     );
+
     expect(chain.verdict).toBe('intact');
     expect(chain.inspectionStopped).toBeUndefined();
     expect(chain.zones.at(-1)?.name).toBe('example.com');
@@ -487,18 +494,23 @@ describe('resolveDsChain', () => {
 
   it('cancels transports and starts no more queries after the deadline', async () => {
     vi.useFakeTimers();
+
     try {
       let signal!: AbortSignal;
       let release!: (response: Awaited<ReturnType<DsChainQuery>>) => void;
+
       const query = vi.fn<DsChainQuery>((_name, _type, value) => {
         signal = value!;
+
         return new Promise((resolve) => {
           release = resolve;
         });
       });
+
       const settled = resolveDsChainWithin('com', query, 1000).catch(
         (error: unknown) => error,
       );
+
       await vi.advanceTimersByTimeAsync(1000);
       expect(await settled).toBeInstanceOf(UserFacingError);
       expect(signal.aborted).toBe(true);

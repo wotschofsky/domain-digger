@@ -82,17 +82,20 @@ describe('AuthoritativeResolver walk bounds', () => {
           ['8.8.8.8'],
         ),
     );
+
     const resolver = new AuthoritativeResolver({
       parentDelegations: true,
       rootServers: async () => ['192.0.2.1'],
       udpTransport,
     });
+
     await expect(
       resolver.resolveAnswers('example.com', 'NS'),
     ).resolves.toMatchObject({
       delegated: true,
       answers: [expect.objectContaining({ type: 'NS', name: 'example.com' })],
     });
+
     expect(udpTransport).toHaveBeenCalledTimes(1);
   });
 
@@ -103,16 +106,19 @@ describe('AuthoritativeResolver walk bounds', () => {
         return reply(domain, recordType, [address(domain)]);
       },
     );
+
     const resolver = new AuthoritativeResolver({
       requestRetries: 0,
       rootServers: async () => ['192.0.2.1', '192.0.2.2'],
       udpTransport,
     });
+
     await expect(
       resolver.resolveAnswers('example.com', 'A'),
     ).resolves.toMatchObject({
       answers: [expect.objectContaining({ type: 'A' })],
     });
+
     expect(udpTransport).toHaveBeenCalledTimes(2);
   });
 

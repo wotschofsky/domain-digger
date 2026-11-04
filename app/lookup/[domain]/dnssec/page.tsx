@@ -64,6 +64,9 @@ const describeKeySignature = ({
   }
 };
 
+const describeMissingKeys = (zone: DsChainZone): string =>
+  zone.keysInspected === false ? 'DNSKEY lookup skipped' : 'No DNSKEYs';
+
 const isBroken = (status: DsChainVerdict): boolean =>
   status === 'mismatch' || status === 'bad-signature';
 
@@ -90,6 +93,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
           fallbackDeadlineMs: 10_000,
           parentDelegations: true,
         });
+
         return resolver.resolveAnswers(name, type);
       },
       DEADLINE_MS,
@@ -177,9 +181,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
                   </ul>
                 ) : (
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {zone.keysInspected === false
-                      ? 'DNSKEY lookup skipped'
-                      : 'No DNSKEYs'}
+                    {describeMissingKeys(zone)}
                   </p>
                 )}
                 {zone.keySignature && (

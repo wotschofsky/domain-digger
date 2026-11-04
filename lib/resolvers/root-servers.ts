@@ -1,7 +1,6 @@
-// IPv4 root hints from https://www.internic.net/domain/named.root
-// Verified 2026-11-04 against root-zone version 2026110301. Keep this list
-// current with dependency maintenance; DNS resolution must not need an HTTP
-// fetch before it can contact a root server. The transport currently uses IPv4.
+// IPv4 root hints (the transport is IPv4-only) from https://www.internic.net/domain/named.root.
+// Bundled so resolution needs no HTTP fetch before it reaches a root; verified 2026-11-04
+// against root zone 2026110301, refresh with dependency maintenance.
 export const ROOT_SERVER_IPS = [
   '198.41.0.4',
   '170.247.170.2',

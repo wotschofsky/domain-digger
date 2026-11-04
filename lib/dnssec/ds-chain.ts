@@ -61,9 +61,8 @@ export type DsChain = {
 // the queried name itself. zone is the zone cut whose servers answered (the
 // deepest delegation followed, '.' for the root). coveringRrsigs are the
 // RRSIGs over the answered RRset, so the query must set the DNSSEC OK bit.
-// delegated marks an NS answer as proof of a zone cut at name (a parent's
-// referral or the zone's own NS RRset); a stopAtBreak walk ends there as
-// unsigned when the parent has no DS.
+// delegated: an NS answer proves a zone cut at name (a parent's referral or the
+// zone's own NS RRset), so a stopAtBreak walk without a parent DS ends there as unsigned.
 export type DsChainQuery = (
   name: string,
   type: Extract<RecordType, 'SOA' | 'DNSKEY' | 'DS' | 'NS'>,
@@ -136,10 +135,13 @@ export const resolveDsChain = async (
 
   for (const [index, name] of names.entries()) {
     const isRoot = index === 0;
+
     const parentDs =
       !isRoot && options.stopAtBreak ? await query(name, 'DS') : null;
+
     if (parentDs && !dsOf(parentDs).length) {
       const delegation = await query(name, 'NS');
+
       if (delegation.delegated) {
         zones.push({
           name,
@@ -148,6 +150,7 @@ export const resolveDsChain = async (
           dsRecords: [],
           status: 'unsigned',
         });
+
         return {
           name: queried,
           zones,
@@ -157,6 +160,7 @@ export const resolveDsChain = async (
         };
       }
     }
+
     const [soaResponse, keyResponse, dsResponse] = await Promise.all([
       isRoot ? null : query(name, 'SOA'),
       query(name, 'DNSKEY'),
@@ -247,6 +251,7 @@ export const resolveDsChain = async (
       ...(keySignature && { keySignature }),
       status: verdict,
     });
+
     if (options.stopAtBreak && verdict !== 'intact') {
       return {
         name: queried,
@@ -267,8 +272,8 @@ export const resolveDsChain = async (
 };
 
 // Rejects with a retryable error at deadlineMs, naming the queries still in flight.
-// Cancellation reaches the transport, and the wrapper refuses to start further
-// queries after the deadline even if a custom transport ignores the signal.
+// The deadline aborts the transport, and no query starts after it even if a transport
+// ignores the signal.
 export const resolveDsChainWithin = async (
   domain: string,
   query: DsChainQuery,
@@ -281,6 +286,7 @@ export const resolveDsChainWithin = async (
 
   const trackedQuery: DsChainQuery = async (name, type) => {
     controller.signal.throwIfAborted();
+
     const key = `${name} ${type}`;
     pending.add(key);
 
@@ -310,6 +316,7 @@ export const resolveDsChainWithin = async (
           { cause },
         ),
       );
+
       controller.abort();
     }, deadlineMs);
   });

@@ -322,11 +322,14 @@ export class AuthoritativeResolver extends DnsResolver {
           ),
         );
       }, this.options.requestTimeoutMs ?? 3000);
+
       const onAbort = () => {
         cleanup();
         reject(this.options.signal?.reason ?? new Error('DNS lookup aborted'));
       };
+
       this.options.signal?.addEventListener('abort', onAbort, { once: true });
+
       if (this.options.signal?.aborted) {
         onAbort();
         return;
@@ -389,11 +392,14 @@ export class AuthoritativeResolver extends DnsResolver {
           ),
         );
       }, this.options.requestTimeoutMs ?? 3000);
+
       const onAbort = () => {
         cleanup();
         reject(this.options.signal?.reason ?? new Error('DNS lookup aborted'));
       };
+
       this.options.signal?.addEventListener('abort', onAbort, { once: true });
+
       if (this.options.signal?.aborted) {
         onAbort();
         return;
@@ -542,6 +548,7 @@ export class AuthoritativeResolver extends DnsResolver {
     ancestors = new Set<string>(),
   }: FetchRecordsParams): Promise<WalkResult> {
     this.options.signal?.throwIfAborted();
+
     // Cached responses cost no packets, but a crafted or misconfigured graph
     // can still fork exponentially through shared requests. Bound that
     // processing separately.
@@ -873,14 +880,14 @@ export class AuthoritativeResolver extends DnsResolver {
       };
     }
 
-    // An exact-name NS referral is evidence of a zone cut, even when its
-    // child servers are unreachable. This mode is used only by DNSSEC's
-    // parent-delegation probe; normal NS browsing still follows the referral.
+    // An exact-name NS referral proves a zone cut even when the child servers are unreachable.
+    // Opt-in for the DNSSEC delegation probe; normal NS browsing still follows the referral.
     if (recordType === 'NS' && this.options.parentDelegations) {
       const delegation = (packet.authorities ?? []).filter(
         (answer) =>
           answer.type === 'NS' && canonicalDnsName(answer.name) === wantName,
       ) as RawAnswer[];
+
       if (delegation.length)
         return {
           answers: delegation,
