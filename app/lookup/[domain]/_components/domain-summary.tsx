@@ -164,7 +164,16 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
         title="Creation Date"
         value={whois.createdAt || 'Unavailable'}
       />
-      <DomainSummaryTile title="DNSSEC" value={whois.dnssec || 'Unavailable'} />
+      <DomainSummaryTile
+        title="DNSSEC"
+        value={
+          data.dnssec === null
+            ? 'Unavailable'
+            : data.dnssec
+              ? 'Signed'
+              : 'Unsigned'
+        }
+      />
       {sale && listing && (
         <DomainSummaryTile
           // Advertised prices are not binding and are labelled as such, as

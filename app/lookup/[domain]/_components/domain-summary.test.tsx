@@ -100,6 +100,26 @@ describe('domain summary sale link', () => {
     expect(container.textContent).toContain('€2,500');
   });
 
+  it.each([
+    { dnssec: true, label: 'Signed' },
+    { dnssec: false, label: 'Unsigned' },
+    { dnssec: null, label: 'Unavailable' },
+  ])('shows DNSSEC from DNS: $label', async ({ dnssec, label }) => {
+    fixtures.summary.mockReturnValue({
+      data: {
+        whois: { registered: true, registrar: 'Example registrar' },
+        dnssec,
+        sale: null,
+      },
+      isLoading: false,
+    });
+    await render();
+    const tile = [...container.querySelectorAll('h3')].find(
+      (title) => title.textContent === 'DNSSEC',
+    )!.parentElement!;
+    expect(tile.querySelector('p')?.textContent).toBe(label);
+  });
+
   it('shows placeholders while the combined summary is loading', async () => {
     fixtures.summary.mockReturnValue({ data: undefined, isLoading: true });
     await render();

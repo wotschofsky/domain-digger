@@ -76,7 +76,6 @@ type WhoisSummary =
       unknown?: true;
       registrar: string | null;
       createdAt: string | null;
-      dnssec: string | null;
     };
 
 export const getWhoisSummary = async (
@@ -88,7 +87,6 @@ export const getWhoisSummary = async (
       registered: true,
       registrar: null,
       createdAt: null,
-      dnssec: null,
     };
   }
 
@@ -133,7 +131,6 @@ export const getWhoisSummary = async (
       registered: true,
       registrar: firstResult['Registrar']?.toString() || null,
       createdAt: createdAt && formatDate(createdAt),
-      dnssec: firstResult['DNSSEC']?.toString() || null,
     };
   } catch (error) {
     // Swallowed into "Unavailable" tiles, so nothing else logs it.
@@ -148,7 +145,6 @@ export const getWhoisSummary = async (
       unknown: true,
       registrar: null,
       createdAt: null,
-      dnssec: null,
     };
   }
 };
