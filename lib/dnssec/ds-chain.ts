@@ -170,20 +170,23 @@ export const resolveDsChain = async (
     const keyQuery = query(name, 'DNSKEY', onZoneCut);
     const dsQuery = isRoot ? null : query(name, 'DS');
     const childResponses = Promise.all([soaQuery, keyQuery]);
-    // Handled up front: an unsigned delegation is settled without them.
+
+    // Marked handled: an unsigned delegation settles without awaiting them.
     childResponses.catch(() => {});
+
     const dsResponse = await dsQuery;
     const dsRecords = isRoot ? ROOT_ANCHORS : dsOf(dsResponse!);
 
     // A delegation without DS is unsigned whatever its own servers answer, so
     // unreachable ones must not sink the verdict; their keys are display only.
     // Without the referral, an empty DS proves nothing (a host, an empty
-    // non-terminal), so the walk waits for the SOA and DNSKEY as ever.
+    // non-terminal), so the walk waits for the SOA and DNSKEY.
     if (dsRecords.length === 0) {
       await Promise.race([childResponses.catch(() => {}), delegation.promise]);
     }
 
     let soaResponse, keyResponse;
+
     if (dsRecords.length === 0 && isDelegated) {
       keyResponse = await settleWithin(keyQuery, UNSIGNED_KEYS_GRACE_MS);
     } else {
@@ -275,6 +278,7 @@ export const resolveDsChain = async (
       ...(keySignature && { keySignature }),
       status: verdict,
     });
+
     // Nothing below a break can be secure, and its servers may never answer.
     if (breakAt) break;
   }
@@ -288,9 +292,8 @@ export const resolveDsChain = async (
 };
 
 // Rejects with a retryable error at deadlineMs, naming the queries still in flight.
-// ponytail: the abandoned walk starts no new query, but the ones in flight (one level's)
-// run on until the resolver's own budgets expire; thread an AbortSignal through
-// DsChainQuery if that background load shows up.
+// ponytail: no new query starts after the deadline, but one level's in-flight queries run on to
+// the resolver's own budgets; thread an AbortSignal through DsChainQuery if that load shows up.
 export const resolveDsChainWithin = async (
   domain: string,
   query: DsChainQuery,
@@ -316,6 +319,7 @@ export const resolveDsChainWithin = async (
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       expired = true;
+
       const cause = new Error(
         `Still waiting after ${deadlineMs}ms for: ${[...pending].join(', ')}`,
       );

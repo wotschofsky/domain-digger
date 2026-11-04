@@ -21,6 +21,7 @@ const DS_DEADLINE_MS = 5000;
 
 const isDelegationSigned = async (domain: string): Promise<boolean> => {
   let timer: NodeJS.Timeout | undefined;
+
   try {
     const { answers } = await Promise.race([
       new AuthoritativeResolver().resolveAnswers(getBaseDomain(domain), 'DS'),
@@ -38,6 +39,7 @@ const isDelegationSigned = async (domain: string): Promise<boolean> => {
         );
       }),
     ]);
+
     return answers.length > 0;
   } finally {
     clearTimeout(timer);
@@ -71,6 +73,7 @@ export const GET = withEvlog(async (request: Request) => {
             error instanceof Error ? error : new Error(String(error)),
           );
         }
+
         return null;
       }),
       lookupForSale(domain).catch((error) => {

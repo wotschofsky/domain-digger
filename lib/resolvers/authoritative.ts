@@ -597,6 +597,7 @@ export class AuthoritativeResolver extends DnsResolver {
     if (cached) {
       // Only referrals write the cache, so a cached zone is a proven cut.
       onZoneCut?.(cached.zone);
+
       trace = [
         ...trace,
         `${recordType} ${domain} -> starting at cached delegation ${cached.zone}: ${cached.ips.join(', ')}`,
@@ -952,7 +953,9 @@ export class AuthoritativeResolver extends DnsResolver {
       if (currentZone && !nextZone.endsWith(`.${currentZone}`)) {
         throw new Error(`DNS referral loop detected: ${zone} -> ${nextZone}`);
       }
+
       onZoneCut?.(nextZone);
+
       // Trust a glue A record only if it names one of this referral's
       // delegated NS hostnames and points at a publicly routable IP.
       // We deliberately accept out-of-bailiwick glue (an NS host not under
@@ -1218,9 +1221,8 @@ export class AuthoritativeResolver extends DnsResolver {
   // stays distinct from NODATA) and the zone cut whose servers answered. For
   // callers that need structured rdata (DNSSEC) rather than presentation
   // strings. With the dnssecOk option, the RRSIGs covering the answer come
-  // back too. onZoneCut gets each zone cut the walk is referred into (or
-  // starts at from cache) before its servers are asked, so it fires even when
-  // they never answer.
+  // back too. onZoneCut fires for each cut the walk enters (by referral or from cache) before
+  // its servers are asked, so even when they never answer.
   public resolveAnswers(
     domain: string,
     recordType: RecordType,

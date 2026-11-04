@@ -450,15 +450,18 @@ describe('AuthoritativeResolver walk bounds', () => {
               rcode: 'REFUSED',
             } as DecodedPacket),
     );
+
     const resolver = new AuthoritativeResolver({
       udpTransport,
       rootServers: async () => ['192.0.2.1'],
     });
+
     const onZoneCut = vi.fn();
 
     await expect(
       resolver.resolveAnswers('example.com', 'DNSKEY', onZoneCut),
     ).rejects.toBeInstanceOf(UserFacingError);
+
     expect(onZoneCut.mock.calls).toEqual([['example.com']]);
   });
 
@@ -475,10 +478,12 @@ describe('AuthoritativeResolver walk bounds', () => {
             )
           : reply(domain, recordType, [address(domain)]),
     );
+
     const resolver = new AuthoritativeResolver({
       udpTransport,
       rootServers: async () => ['192.0.2.1'],
     });
+
     await resolver.resolveAnswers('example.com', 'A');
     const onZoneCut = vi.fn();
 

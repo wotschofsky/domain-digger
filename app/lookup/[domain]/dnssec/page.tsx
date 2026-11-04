@@ -150,11 +150,12 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
             <div className="grid gap-6 md:grid-cols-2">
               <div>
                 <h4 className="mb-2 text-sm font-semibold">DNSKEYs</h4>
-                {!zone.keys ? (
+                {!zone.keys && (
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     Nameservers did not answer
                   </p>
-                ) : zone.keys.length ? (
+                )}
+                {zone.keys && zone.keys.length > 0 && (
                   <ul className="space-y-2 text-sm">
                     {zone.keys.map((key, index) => (
                       <li
@@ -168,7 +169,8 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
                       </li>
                     ))}
                   </ul>
-                ) : (
+                )}
+                {zone.keys?.length === 0 && (
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     No DNSKEYs
                   </p>

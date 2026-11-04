@@ -110,9 +110,8 @@ const com = (...ds: Answer[]): Answer[] =>
 // a query returns the records its name owns, a name that owns nothing but
 // has descendants is an empty non-terminal (NODATA), and anything else is
 // NXDOMAIN. The zone is the deepest delegation (NS owner) at or above the
-// name; DS is answered from the parent side of a cut. Each cut is reported
-// to onZoneCut before its servers are asked, so a zone in `down` still shows
-// up as a cut while its servers hang or refuse.
+// name; DS is answered from the parent side of a cut. Cuts reach onZoneCut before their servers
+// are asked, so a `down` zone still counts as a cut while its servers hang or refuse.
 const dnsTree =
   (
     records: Answer[],
@@ -120,12 +119,14 @@ const dnsTree =
   ): DsChainQuery =>
   async (name, type, onZoneCut) => {
     const labels = name === '.' ? [] : name.split('.');
+
     const cuts = labels
       .map((_, i) => labels.slice(i).join('.'))
       .slice(type === 'DS' ? 1 : 0)
       .filter((cut) =>
         records.some((record) => record.name === cut && record.type === 'NS'),
       );
+
     const zone = cuts[0] ?? '.';
     cuts.toReversed().forEach((cut) => onZoneCut?.(cut));
 
@@ -466,6 +467,7 @@ describe('resolveDsChain', () => {
       ),
       NOW,
     );
+
     expect(chain.verdict).toBe('unsigned');
     expect(chain.breakAt).toBe('protection.example.com');
     expect(chain.zones.map((zone) => zone.name)).toEqual([
@@ -484,8 +486,10 @@ describe('resolveDsChain', () => {
       }),
       NOW,
     );
+
     expect(chain.verdict).toBe('unsigned');
     expect(chain.breakAt).toBe('example.com');
+
     expect(chain.zones.at(-1)).toMatchObject({
       name: 'example.com',
       status: 'unsigned',
@@ -504,6 +508,7 @@ describe('resolveDsChain', () => {
         }),
         NOW,
       );
+
       await vi.advanceTimersByTimeAsync(5000);
       const chain = await settled;
 
@@ -515,9 +520,7 @@ describe('resolveDsChain', () => {
     }
   });
 
-  it('waits out a slow non-delegated name without DS, so the signed zone below still counts', async () => {
-    // b.example.com is an empty non-terminal inside signed example.com: its
-    // empty DS proves nothing, however long its SOA and DNSKEY take.
+  it('waits out a slow empty non-terminal without DS, so the signed zone below still counts', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
 
     try {
@@ -529,16 +532,19 @@ describe('resolveDsChain', () => {
           signedZone('a.b.example.com'),
         ].flat(),
       );
+
       const settled = resolveDsChain(
         'a.b.example.com',
         async (name, type, onZoneCut) => {
           if (name === 'b.example.com' && type !== 'DS') {
             await new Promise((resolve) => setTimeout(resolve, 30_000));
           }
+
           return tree(name, type, onZoneCut);
         },
         NOW,
       );
+
       await vi.advanceTimersByTimeAsync(30_000);
       const chain = await settled;
 
@@ -560,17 +566,21 @@ describe('resolveDsChain', () => {
     try {
       const tree = dnsTree([root(), signedZone('com')].flat());
       const asked: string[] = [];
+
       const settled = resolveDsChainWithin(
         'com',
         async (name, type) => {
           asked.push(`${name} ${type}`);
+
           if (name === '.') {
             await new Promise((resolve) => setTimeout(resolve, 2000));
           }
+
           return tree(name, type);
         },
         1000,
       ).catch((error: unknown) => error);
+
       await vi.advanceTimersByTimeAsync(2000);
 
       expect(await settled).toBeInstanceOf(UserFacingError);

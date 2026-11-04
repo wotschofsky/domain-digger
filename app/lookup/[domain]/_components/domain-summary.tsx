@@ -21,6 +21,11 @@ import type { DomainSummaryResponse } from '@/app/api/domain-summary/route';
 import { formatSalePrice } from '@/lib/format-sale-price';
 import { canonicalDnsName } from '@/lib/resolvers/base';
 
+const describeDnssec = (dnssec: DomainSummaryResponse['dnssec']): string => {
+  if (dnssec === null) return 'Unavailable';
+  return dnssec ? 'Signed' : 'Unsigned';
+};
+
 type DomainSummaryTileProps = {
   title: string;
 } & (
@@ -164,16 +169,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
         title="Creation Date"
         value={whois.createdAt || 'Unavailable'}
       />
-      <DomainSummaryTile
-        title="DNSSEC"
-        value={
-          data.dnssec === null
-            ? 'Unavailable'
-            : data.dnssec
-              ? 'Signed'
-              : 'Unsigned'
-        }
-      />
+      <DomainSummaryTile title="DNSSEC" value={describeDnssec(data.dnssec)} />
       {sale && listing && (
         <DomainSummaryTile
           // Advertised prices are not binding and are labelled as such, as

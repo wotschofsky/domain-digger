@@ -29,6 +29,7 @@ const address = (name: string, data = '203.0.113.10'): Answer => ({
   ttl: 300,
   data,
 });
+
 const loggedFailures = (spy: { mock: { calls: unknown[][] } }) =>
   spy.mock.calls
     .map(([event]) => event as { message?: string })

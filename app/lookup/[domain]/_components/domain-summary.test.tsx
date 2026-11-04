@@ -113,10 +113,13 @@ describe('domain summary sale link', () => {
       },
       isLoading: false,
     });
+
     await render();
+
     const tile = [...container.querySelectorAll('h3')].find(
       (title) => title.textContent === 'DNSSEC',
     )!.parentElement!;
+
     expect(tile.querySelector('p')?.textContent).toBe(label);
   });
 
