@@ -11,46 +11,58 @@ export const summarizeRuntimeLogs = (rows) => {
   const durations = Object.create(null);
   let from;
   let until;
+
   for (const row of rows) {
     if (!row.id) throw new Error('Expected Vercel request logs with an id');
     if (seen.has(row.id)) continue;
     seen.add(row.id);
+
     if (typeof row.timestamp === 'number') {
       from = Math.min(from ?? row.timestamp, row.timestamp);
       until = Math.max(until ?? row.timestamp, row.timestamp);
     }
+
     const messages = [
       row.message,
       ...(row.logs ?? []).map((entry) => entry.message),
     ].filter((message) => typeof message === 'string');
+
     if (
       messages.some((message) =>
         message.startsWith('Vercel Runtime Timeout Error:'),
       )
     ) {
       const segment = row.requestPath?.split('/').at(-1);
+
       const feature = ['subdomains', 'certs', 'dnssec'].includes(segment)
         ? segment
         : 'other';
+
       platformTimeoutsByFeature[feature] =
         (platformTimeoutsByFeature[feature] ?? 0) + 1;
     }
+
     const eventKeys = new Set();
     const names = new Set();
+
     for (const message of messages) {
       let event;
+
       try {
         event = JSON.parse(message);
       } catch {
         continue;
       }
+
       if (!event || typeof event !== 'object') continue;
       const name = event.message ?? event.event;
       if (typeof name === 'string') names.add(name);
+
       // A request's top-level message may repeat an entry from logs[].
       const key = JSON.stringify(event);
       if (eventKeys.has(key)) continue;
       eventKeys.add(key);
+
       if (
         typeof event.operation === 'string' &&
         typeof event.durationMs === 'number'
@@ -58,9 +70,11 @@ export const summarizeRuntimeLogs = (rows) => {
         (durations[event.operation] ??= []).push(event.durationMs);
       }
     }
+
     for (const name of names)
       requestsWithEvent[name] = (requestsWithEvent[name] ?? 0) + 1;
   }
+
   return {
     uniqueRequests: seen.size,
     observedFrom: from === undefined ? null : new Date(from).toISOString(),
@@ -70,6 +84,7 @@ export const summarizeRuntimeLogs = (rows) => {
     stageDurations: Object.fromEntries(
       Object.entries(durations).map(([operation, values]) => {
         values.sort((a, b) => a - b);
+
         return [
           operation,
           {
@@ -93,6 +108,7 @@ if (
     .split('\n')
     .filter((line) => line.trim())
     .map((line) => JSON.parse(line));
+
   process.stdout.write(
     JSON.stringify(summarizeRuntimeLogs(rows), null, 2) + '\n',
   );

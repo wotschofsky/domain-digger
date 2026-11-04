@@ -12,6 +12,7 @@ describe('runtime log aggregation', () => {
       operation: 'dnssec_summary',
       durationMs: 100,
     });
+
     const row = {
       id: 'request-1',
       timestamp: 1,
@@ -22,6 +23,7 @@ describe('runtime log aggregation', () => {
         { message: JSON.stringify({ message: 'whois_summary_failed' }) },
       ],
     };
+
     const timeout = {
       id: 'request-2',
       timestamp: 2,
@@ -34,13 +36,17 @@ describe('runtime log aggregation', () => {
         },
       ],
     };
+
     const result = summarizeRuntimeLogs([row, row, timeout]);
     expect(result.uniqueRequests).toBe(2);
+
     expect(result.requestsWithEvent).toMatchObject({
       lookup_stage_completed: 1,
       whois_summary_failed: 1,
     });
+
     expect(result.platformTimeoutsByFeature).toEqual({ subdomains: 1 });
+
     expect(result.stageDurations.dnssec_summary).toEqual({
       samples: 1,
       p50Ms: 100,
@@ -58,6 +64,7 @@ describe('runtime log aggregation', () => {
         encoding: 'utf8',
       },
     );
+
     expect(JSON.parse(output)).toMatchObject({
       uniqueRequests: 1,
       coverage: expect.stringContaining('Counts only'),

@@ -15,8 +15,8 @@ export const { register } = createInstrumentation({
   env: { environment: env.NODE_ENV },
 });
 
-// The adapter's default hook logs message/stack only. Pass the original error
-// so evlog can preserve nested causes, plus the digest used by browser reports.
+// The adapter's hook logs message and stack only; the original error keeps nested causes,
+// and the digest ties it to browser reports.
 export const onRequestError = (
   error: unknown,
   request: Parameters<Instrumentation.onRequestError>[1],
@@ -35,7 +35,9 @@ export const onRequestError = (
     typeof error.digest === 'string'
       ? error.digest
       : undefined;
+
   const expected = parseUserFacingDigest(digest) !== null;
+
   log[expected ? 'warn' : 'error']({
     message: 'server_request_failed',
     error: error instanceof Error ? error : new Error(String(error)),

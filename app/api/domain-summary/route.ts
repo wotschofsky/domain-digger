@@ -43,7 +43,7 @@ export const GET = withEvlog(async (request: Request) => {
       measureLookup('dnssec_summary', domain, () => getDnssecSummary(domain)),
     ]);
 
-    // Record returned states separately: transport success can still mean unknown registration or unavailable DNS data.
+    // Log returned states too: a resolved stage can still be unknown WHOIS or unavailable DNSSEC.
     log.set({ whois, dnssec });
 
     return NextResponse.json(
