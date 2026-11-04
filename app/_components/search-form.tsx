@@ -186,6 +186,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           setInvalidReason(
             'Interface-scoped IPv6 addresses cannot be looked up from this server.',
           );
+
         setState(FormStates.Invalid);
         return;
     }

@@ -129,13 +129,16 @@ describe('getIpDetails', () => {
   it('rejects interface scopes for both geolocation and reverse DNS', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
+
     try {
       await expect(getIpDetails('fe80::1%lo0')).rejects.toThrow(
         'Invalid IP address',
       );
+
       await expect(lookupReverse('fe80::1%lo0')).rejects.toThrow(
         'Invalid IP address',
       );
+
       expect(fetchMock).not.toHaveBeenCalled();
     } finally {
       vi.unstubAllGlobals();

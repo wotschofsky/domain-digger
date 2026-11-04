@@ -50,10 +50,11 @@ describe('search form', () => {
   };
 
   it.each(['user@8.8.8.8', 'https://8.8.8.8/path'])(
-    'passes the parsed address to the IP dialog for %s',
+    'opens the IP dialog with the parsed address instead of navigating for %s',
     async (value) => {
       await render('visible');
       const input = container.querySelector<HTMLInputElement>('input')!;
+
       await act(async () => {
         Object.getOwnPropertyDescriptor(
           HTMLInputElement.prototype,
@@ -61,10 +62,13 @@ describe('search form', () => {
         )!.set!.call(input, value);
         input.dispatchEvent(new Event('input', { bubbles: true }));
       });
+
       await act(async () => input.form!.requestSubmit());
+
       expect(
         container.querySelector('[data-testid="ip-modal"]')?.textContent,
       ).toBe('8.8.8.8');
+
       expect(router.push).not.toHaveBeenCalled();
     },
   );
@@ -72,6 +76,7 @@ describe('search form', () => {
   it('explains why local interface-scoped addresses are unsupported', async () => {
     await render('visible');
     const input = container.querySelector<HTMLInputElement>('input')!;
+
     await act(async () => {
       Object.getOwnPropertyDescriptor(
         HTMLInputElement.prototype,
@@ -79,10 +84,13 @@ describe('search form', () => {
       )!.set!.call(input, 'fe80::1%lo0');
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
+
     await act(async () => input.form!.requestSubmit());
+
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'Interface-scoped',
     );
+
     expect(container.querySelector('[data-testid="ip-modal"]')).toBeNull();
   });
 

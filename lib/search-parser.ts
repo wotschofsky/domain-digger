@@ -36,6 +36,7 @@ export const parseSearchInput = (input: string): SearchResult => {
     // An interface such as %lo0 refers to the browser's device, not this server.
     if (trimmedInput.includes('%'))
       return { type: 'invalid', reason: 'scoped-ip' };
+
     return {
       type: 'ip',
       value: trimmedInput,
@@ -44,10 +45,12 @@ export const parseSearchInput = (input: string): SearchResult => {
 
   const normalizedDomain = normalizeDomain(trimmedInput);
   const host = normalizedDomain.replace(/^\[|\]$/g, '');
+
   if (isIP(host))
     return host.includes('%')
       ? { type: 'invalid', reason: 'scoped-ip' }
       : { type: 'ip', value: host };
+
   if (isValidDomain(normalizedDomain)) {
     return {
       type: 'domain',
