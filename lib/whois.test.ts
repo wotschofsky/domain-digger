@@ -27,21 +27,25 @@ describe('getWhoisSummary', () => {
 
   it('uses RDAP before WHOIS and preserves authoritative not-found results', async () => {
     vi.mocked(getRdapSummary).mockResolvedValue({ registered: false });
+
     expect(await getWhoisSummary('www.example.com')).toEqual({
       registered: false,
     });
+
     expect(getRdapSummary).toHaveBeenCalledWith('example.com');
     expect(whoisDomain).not.toHaveBeenCalled();
   });
 
   it('falls back to WHOIS when RDAP is unavailable', async () => {
     vi.mocked(getRdapSummary).mockRejectedValue(new Error('RDAP HTTP 503'));
+
     whoisDomain.mockResolvedValue({
       'whois.example': {
         Registrar: 'Fallback registrar',
         __raw: 'Domain Name: EXAMPLE.COM',
       },
     });
+
     expect(await getWhoisSummary('example.com')).toMatchObject({
       registered: true,
       registrar: 'Fallback registrar',
@@ -54,6 +58,7 @@ describe('getWhoisSummary', () => {
     'Too many requests; try again later',
   ])('keeps a declined or empty WHOIS response unknown: %s', async (raw) => {
     whoisDomain.mockResolvedValue({ 'whois.example': { __raw: raw } });
+
     expect(await getWhoisSummary('example.com')).toMatchObject({
       registered: true,
       unknown: true,
@@ -67,15 +72,18 @@ describe('getWhoisSummary', () => {
         __raw: 'Domain Name: RATELIMIT.COM\nRegistrar: Example registrar',
       },
     });
+
     expect(await getWhoisSummary('ratelimit.com')).toEqual({
       registered: true,
       registrar: 'Example registrar',
       createdAt: null,
       dnssec: null,
     });
+
     whoisDomain.mockResolvedValue({
       'whois.example': { __raw: 'No match for "RATELIMIT.COM".' },
     });
+
     expect(await getWhoisSummary('ratelimit.com')).toEqual({
       registered: false,
     });
@@ -119,9 +127,10 @@ describe('lookupWhois', () => {
     vi.clearAllMocks();
   });
 
-  it('returns a response whose domain name matches the decline pattern', async () => {
+  it('keeps a record whose own domain name matches the decline pattern', async () => {
     const raw = 'Domain Name: RATE-LIMIT.COM\nRegistrar: Example registrar';
     whoisDomain.mockResolvedValue({ 'whois.example': { __raw: raw } });
+
     expect(await lookupWhois('rate-limit.com')).toEqual([
       ['whois.example', raw],
     ]);
@@ -131,6 +140,7 @@ describe('lookupWhois', () => {
     'surfaces a retryable error for a blank or declined response: %j',
     async (raw) => {
       whoisDomain.mockResolvedValue({ 'whois.example': { __raw: raw } });
+
       await expect(lookupWhois('example.com')).rejects.toMatchObject({
         payload: { retryable: true },
       });

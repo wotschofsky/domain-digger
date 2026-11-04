@@ -61,6 +61,7 @@ export const lookupWhois = async (domain: string) => {
       retryable: true,
     });
   }
+
   return filteredResults;
 };
 
@@ -148,6 +149,7 @@ export const getWhoisSummary = async (
     ) {
       throw new Error('WHOIS server returned no registration data');
     }
+
     if (isDeclinedWhois(rawString, baseDomain))
       throw new Error('WHOIS server declined or rate limited the lookup');
 

@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getRdapSummary } from './rdap';
 
 const fetchMock = vi.fn<typeof fetch>();
-const bootstrap = () =>
+
+const createBootstrapResponse = () =>
   Response.json({ services: [[['com'], ['https://rdap.example/com/v1/']]] });
+
 const domain = {
   objectClassName: 'domain',
   ldhName: 'EXAMPLE.COM',
@@ -22,57 +24,71 @@ describe('RDAP registration summary', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchMock);
   });
+
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.resetAllMocks();
   });
-  it('discovers the service and extracts registry registration data', async () => {
+
+  it('queries the IANA-listed service without redirects and extracts its registration data', async () => {
     fetchMock
-      .mockResolvedValueOnce(bootstrap())
+      .mockResolvedValueOnce(createBootstrapResponse())
       .mockResolvedValueOnce(Response.json(domain));
+
     await expect(getRdapSummary('example.com')).resolves.toEqual({
       registered: true,
       registrar: 'Example registrar',
       createdAt: '2000-01-02',
       dnssec: 'signed',
     });
+
     expect(fetchMock.mock.calls[1][0].toString()).toBe(
       'https://rdap.example/com/v1/domain/example.com',
     );
+
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ redirect: 'error' });
   });
+
   it('only treats a proper RDAP 404 as an unregistered domain', async () => {
     fetchMock
-      .mockResolvedValueOnce(bootstrap())
+      .mockResolvedValueOnce(createBootstrapResponse())
       .mockResolvedValueOnce(
         Response.json({ errorCode: 404 }, { status: 404 }),
       );
+
     await expect(getRdapSummary('example.com')).resolves.toEqual({
       registered: false,
     });
+
     fetchMock
-      .mockResolvedValueOnce(bootstrap())
+      .mockResolvedValueOnce(createBootstrapResponse())
       .mockResolvedValueOnce(
         new Response('not a registry response', { status: 404 }),
       );
+
     await expect(getRdapSummary('example.com')).rejects.toThrow();
   });
+
   it('returns no service for an unsupported suffix and rejects mismatched domains', async () => {
-    fetchMock.mockResolvedValueOnce(bootstrap());
+    fetchMock.mockResolvedValueOnce(createBootstrapResponse());
     await expect(getRdapSummary('example.test')).resolves.toBeNull();
+
     fetchMock
-      .mockResolvedValueOnce(bootstrap())
+      .mockResolvedValueOnce(createBootstrapResponse())
       .mockResolvedValueOnce(
         Response.json({ ...domain, ldhName: 'other.com' }),
       );
+
     await expect(getRdapSummary('example.com')).rejects.toThrow(
       'different domain',
     );
   });
+
   it('cancels a stalled body under the shared bootstrap/registry budget', async () => {
     vi.useFakeTimers();
     let signal!: AbortSignal;
+
     fetchMock.mockImplementation(async (_url, options) => {
       signal = options!.signal as AbortSignal;
       return {
@@ -85,6 +101,7 @@ describe('RDAP registration summary', () => {
           ),
       } as Response;
     });
+
     const pending = expect(getRdapSummary('example.com')).rejects.toThrow();
     await vi.advanceTimersByTimeAsync(4_000);
     await pending;
