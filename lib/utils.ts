@@ -15,18 +15,6 @@ export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
 export const deduplicate = <T>(array: T[]): T[] => Array.from(new Set(array));
 
-// evlog JSON-stringifies events in production, which drops an Error's own fields, cause included.
-export const serializeError = (error: unknown) => {
-  const err = error instanceof Error ? error : new Error(String(error));
-
-  return {
-    name: err.name,
-    message: err.message,
-    stack: err.stack,
-    cause: (err.cause as Error | undefined)?.message,
-  };
-};
-
 // From https://stackoverflow.com/a/30471209/12475254
 // onError sees every failed attempt, the last one included. It runs inside the
 // existing catch, so observing attempts doesn't delay when the result settles.

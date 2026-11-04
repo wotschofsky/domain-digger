@@ -2,7 +2,7 @@ import { log } from 'evlog';
 import { firstResult as getFirstResult, whoisDomain } from 'whoiser';
 
 import { UserFacingError } from './user-facing-error';
-import { getBaseDomain, isValidDomain, serializeError } from './utils';
+import { getBaseDomain, isValidDomain } from './utils';
 
 export const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -140,7 +140,7 @@ export const getWhoisSummary = async (
     log.warn({
       message: 'whois_summary_failed',
       domain: baseDomain,
-      error: serializeError(error),
+      error,
     });
 
     return {
