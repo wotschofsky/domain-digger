@@ -110,7 +110,7 @@ export const getWhoisSummary = async (
     };
   }
 
-  const baseDomain = getBaseDomain(domain).toLowerCase();
+  const baseDomain = getBaseDomain(domain);
 
   try {
     const rdap = await getRdapSummary(baseDomain);
