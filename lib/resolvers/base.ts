@@ -39,8 +39,9 @@ const FALLBACK_LOOKUP_ERROR: UserFacingErrorPayload = {
 };
 
 export abstract class DnsResolver {
-  // Throws when the lookup fails, so an empty result always means a
-  // confirmed empty RRset.
+  // Throws when the lookup fails, so an empty result means a confirmed empty
+  // RRset. The exception is RRSIG: resolvers return it empty when servers
+  // refuse (authoritative) or fail (DoH) direct RRSIG queries.
   public abstract resolveRecordType(
     domain: string,
     type: RecordType,

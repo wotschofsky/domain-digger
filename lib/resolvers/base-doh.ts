@@ -124,11 +124,18 @@ export abstract class BaseDoHResolver extends DnsResolver {
     return response;
   }
 
+  // Throws on a DNS-level failure, except for RRSIG: Cloudflare and Google
+  // SERVFAIL direct RRSIG queries for healthy zones (e.g. Cloudflare-hosted
+  // ones), so a failed RRSIG lookup reads as empty (noted in the trace), like
+  // a refused one on the authoritative path. HTTP failures still throw.
   public async resolveRecordType(
     domain: string,
     type: RecordType,
   ): Promise<ResolverResponse> {
-    const { answers, trace } = await this.resolveAnswers(domain, type);
+    const { answers, trace } =
+      type === 'RRSIG'
+        ? await this.query(domain, type)
+        : await this.resolveAnswers(domain, type);
 
     const records = answers
       .filter((answer) => recordTypes[answer.type] === type)

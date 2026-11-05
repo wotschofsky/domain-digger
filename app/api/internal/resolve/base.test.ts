@@ -53,6 +53,22 @@ describe('internal resolve route', () => {
     });
   });
 
+  it('passes an RRSIG lookup the resolver could not answer through as empty', async () => {
+    upstream.A = {
+      Status: 0,
+      Answer: [{ name: 'example.com', type: 1, TTL: 300, data: '192.0.2.1' }],
+    };
+    upstream.RRSIG = { Status: 2 };
+
+    const results = await new InternalDoHResolver(
+      'fra',
+      'cloudflare',
+    ).resolveRecordTypes('example.com', ['A', 'RRSIG']);
+
+    expect(results.RRSIG.records).toEqual([]);
+    expect(results.RRSIG.error).toBeUndefined();
+  });
+
   it('answers a lookup where every type failed with its error, which the caller rethrows', async () => {
     upstream.A = { Status: 2 };
     upstream.AAAA = { Status: 2 };
