@@ -1,14 +1,18 @@
 import path from 'node:path';
 
+import { log } from 'evlog';
 import { execa } from 'execa';
 import { z } from 'zod';
 
-import type { DnsResolver } from './resolvers/base';
+import { CloudflareDoHResolver } from './resolvers/cloudflare';
 import { UserFacingError } from './user-facing-error';
 import { isValidDomain } from './utils';
 
 const DETAILED_RESULTS_LIMIT = 500;
 const SUBFINDER_TIMEOUT_SECONDS = 8;
+const DISCOVERY_DEADLINE_MS = 35_000;
+const DETAILS_DEADLINE_MS = 5_000;
+const DETAILS_CONCURRENCY = 10;
 
 const SUBFINDER_BIN = path.join(process.cwd(), 'bin', 'subfinder');
 
@@ -45,7 +49,9 @@ const runSubfinder = async (domain: string) => {
         domain,
         '-json',
         '-cs', // collect-sources: emit one record per host with all sources
-        '-silent',
+        '-v', // Source-labelled discoveries arrive before the final JSON output.
+        '-nc',
+        '-duc',
         '-timeout',
         String(SUBFINDER_TIMEOUT_SECONDS),
       ],
@@ -53,14 +59,31 @@ const runSubfinder = async (domain: string) => {
         // Vercel's serverless filesystem is read-only except for /tmp; point
         // subfinder's config dir there so first-run bootstrap can write.
         env: { HOME: '/tmp' },
+        timeout: DISCOVERY_DEADLINE_MS,
+        killSignal: 'SIGKILL',
       },
     );
 
-    return stdout
-      .split('\n')
-      .map(readDiscovery)
-      .filter((discovery): discovery is Discovery => discovery !== null);
+    return { discoveries: parseDiscoveries(stdout), incomplete: false };
   } catch (error) {
+    if (
+      error instanceof Error &&
+      'timedOut' in error &&
+      error.timedOut &&
+      'stdout' in error &&
+      typeof error.stdout === 'string'
+    ) {
+      return {
+        discoveries: recoverDiscoveries(
+          error.stdout,
+          'stderr' in error && typeof error.stderr === 'string'
+            ? error.stderr
+            : '',
+        ),
+        incomplete: true,
+      };
+    }
+
     throw new UserFacingError(
       {
         title: 'Subdomain discovery failed',
@@ -73,33 +96,115 @@ const runSubfinder = async (domain: string) => {
   }
 };
 
-export const findSubdomains = async (domain: string, resolver: DnsResolver) => {
-  const discoveries = (await runSubfinder(domain))
+const parseDiscoveries = (stdout: string) =>
+  stdout
+    .split('\n')
+    .map(readDiscovery)
+    .filter((discovery): discovery is Discovery => discovery !== null);
+
+// subfinder v2.17.0 buffers JSON until enumeration ends but streams `[source] host` to stderr;
+// without these lines a timeout SIGKILL discards every unflushed discovery.
+// Format pinned with the version in scripts/install-subfinder.sh.
+const recoverDiscoveries = (stdout: string, stderr: string): Discovery[] => {
+  const discovered = new Map<string, Set<string>>();
+  const add = ({ host, sources }: Discovery) => {
+    const known = discovered.get(host) ?? new Set<string>();
+    sources.forEach((source) => known.add(source));
+    discovered.set(host, known);
+  };
+
+  parseDiscoveries(stdout).forEach(add);
+
+  for (const line of stderr.split('\n')) {
+    const match = /^\[([a-z][a-z0-9_-]*)\]\s+(\S+)\s*$/i.exec(line);
+    if (!match || /^(INF|DBG|WRN|ERR|FTL|VRB)$/i.test(match[1])) continue;
+    const host = denormalizeWildcard(match[2].toLowerCase().replace(/\.$/, ''));
+    if (isValidDomain(host)) add({ host, sources: [match[1].toLowerCase()] });
+  }
+
+  return [...discovered].map(([host, sources]) => ({
+    host,
+    sources: [...sources],
+  }));
+};
+
+type CreateResolver = (
+  signal: AbortSignal,
+) => Pick<CloudflareDoHResolver, 'resolveAnswers'>;
+
+export const findSubdomains = async (
+  domain: string,
+  createResolver: CreateResolver = (signal) =>
+    new CloudflareDoHResolver({ signal }),
+) => {
+  const startedAt = Date.now();
+  const discovery = await runSubfinder(domain);
+  const discoveryMs = Date.now() - startedAt;
+  const results = discovery.discoveries
     .filter(({ host }) => isValidDomain(host) && host.endsWith(`.${domain}`))
     .map(({ host, sources }) => ({
       domain: host,
       sources: sources.toSorted(),
+      stillExists: null as boolean | null,
     }))
     .toSorted((a, b) => a.domain.localeCompare(b.domain));
 
-  const results = await Promise.all(
-    discoveries.map(async (discovery, index) => {
-      // Limited to avoid subrequest limits in serverless functions.
-      if (index >= DETAILED_RESULTS_LIMIT) {
-        return { ...discovery, stillExists: null };
-      }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DETAILS_DEADLINE_MS);
+  const resolver = createResolver(controller.signal);
+  let nextIndex = 0;
 
-      const records = await resolver.resolveRecordType(discovery.domain, 'A');
-      return {
-        ...discovery,
-        stillExists: records.records.length > 0,
-      };
-    }),
-  );
+  try {
+    await Promise.all(
+      Array.from(
+        { length: Math.min(DETAILS_CONCURRENCY, results.length) },
+        async () => {
+          while (
+            !controller.signal.aborted &&
+            nextIndex < Math.min(results.length, DETAILED_RESULTS_LIMIT)
+          ) {
+            const result = results[nextIndex++];
+
+            try {
+              const response = await resolver.resolveAnswers(
+                result.domain,
+                'A',
+              );
+
+              if (!controller.signal.aborted)
+                result.stillExists = response.answers.some(
+                  (answer) => answer.type === 1,
+                );
+            } catch {
+              // A failed DNS check says nothing about whether the discovered name exists.
+            }
+          }
+        },
+      ),
+    );
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
+  }
+
+  const uncheckedCount = results.filter(
+    (result) => result.stillExists === null,
+  ).length;
+
+  log.info({
+    message: 'subdomains_lookup_completed',
+    domain,
+    discoveryMs,
+    durationMs: Date.now() - startedAt,
+    resultCount: results.length,
+    uncheckedCount,
+    incomplete: discovery.incomplete,
+  });
 
   return {
     results,
-    detailsReduced: discoveries.length > DETAILED_RESULTS_LIMIT,
+    discoveryIncomplete: discovery.incomplete,
+    detailsReduced: uncheckedCount > 0,
     detailedResultsLimit: DETAILED_RESULTS_LIMIT,
   };
 };

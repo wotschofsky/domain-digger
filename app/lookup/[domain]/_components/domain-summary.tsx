@@ -159,15 +159,18 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     listing?.links.find((link) => /^https?:\/\//i.test(link)) ??
     listing?.links.find((link) => link.startsWith('mailto:'));
 
+  // Registries may omit fields (DENIC: no registrar or date); only a failed lookup is unavailable.
+  const missingLabel = whois.unknown ? 'Unavailable' : 'Not listed';
+
   return (
     <div className="flex flex-wrap gap-8">
       <DomainSummaryTile
         title="Registrar"
-        value={whois.registrar || 'Unavailable'}
+        value={whois.registrar || missingLabel}
       />
       <DomainSummaryTile
         title="Creation Date"
-        value={whois.createdAt || 'Unavailable'}
+        value={whois.createdAt || missingLabel}
       />
       <DomainSummaryTile title="DNSSEC" value={describeDnssec(data.dnssec)} />
       {sale && listing && (

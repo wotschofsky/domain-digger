@@ -5,6 +5,7 @@ import { usePathname, useSelectedLayoutSegment } from 'next/navigation';
 import { type FC, useCallback, useEffect, useRef, useState } from 'react';
 
 import { ClientOnly } from '@/components/client-only';
+import { useAnalytics } from '@/lib/analytics';
 
 declare global {
   interface Window {
@@ -17,13 +18,16 @@ declare global {
 let script: HTMLScriptElement | undefined;
 // Once no ad could be shown, later lookups in this document skip the wait
 let adBlocked = false;
+// Reported once per document, like a block
+let adShown = false;
 
 type CarbonAdProps = {
   className?: string;
-  onBlocked: () => void;
+  onBlocked: (reason: 'script' | 'no-ad') => void;
+  onShown: () => void;
 };
 
-const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
+const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked, onShown }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   // Desktop only, matching the `xl` breakpoint the slot is shown at. The script
@@ -39,13 +43,24 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     // Carbon inserts an ad for every response it gets and cancels nothing.
     // Moving the tag into a new slot refreshes even if an earlier request is
     // still pending, so two ads can land. Carbon's policy allows one.
-    let adSeen = Boolean(
-      container.querySelector<HTMLElement>('#carbonads')?.offsetHeight,
-    );
+    let adSeen = false;
+    // An ad can already be in place when the slot returns from a hidden route
+    const checkVisible = () => {
+      if (!container.querySelector<HTMLElement>('#carbonads')?.offsetHeight) {
+        return;
+      }
+      adSeen = true;
+      if (!adShown) {
+        adShown = true;
+        onShown();
+      }
+    };
+    checkVisible();
     const observer = new MutationObserver(() => {
-      const ads = container.querySelectorAll<HTMLElement>('#carbonads');
-      if (ads[0]?.offsetHeight) adSeen = true;
-      ads.forEach((ad, index) => index > 0 && ad.remove());
+      checkVisible();
+      container
+        .querySelectorAll('#carbonads')
+        .forEach((ad, index) => index > 0 && ad.remove());
     });
     observer.observe(container, { childList: true });
 
@@ -57,7 +72,7 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
         '//cdn.carbonads.com/carbon.js?serve=CWBI62QJ&placement=diggertools&format=cover';
       script.id = '_carbonads_js';
     }
-    script.onerror = onBlocked;
+    script.onerror = () => onBlocked('script');
     if (script.parentNode !== container) {
       container.appendChild(script);
       // Moving the tag doesn't run it again, so ask Carbon for an ad directly
@@ -68,15 +83,15 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked }) => {
     // gives Carbon time to load, fetch and insert the ad. An ad that was
     // visible at any point counts: a refresh empties the slot for a moment.
     const timer = window.setTimeout(() => {
-      const ad = container.querySelector<HTMLElement>('#carbonads');
-      if (!adSeen && !ad?.offsetHeight) onBlocked();
+      checkVisible();
+      if (!adSeen) onBlocked('no-ad');
     }, 5000);
 
     return () => {
       window.clearTimeout(timer);
       observer.disconnect();
     };
-  }, [isDesktop, onBlocked]);
+  }, [isDesktop, onBlocked, onShown]);
 
   // Serves a fresh ad on client-side navigations, which Carbon's placement
   // policy permits, through Carbon's own refresh rather than a second script.
@@ -104,10 +119,22 @@ export const CarbonAdRail: FC = () => {
   const tab = useSelectedLayoutSegment();
   // Gives the results their full width back when no ad shows up
   const [blocked, setBlocked] = useState(adBlocked);
-  const handleBlocked = useCallback(() => {
-    adBlocked = true;
-    setBlocked(true);
-  }, []);
+  const { reportEvent } = useAnalytics();
+  const handleBlocked = useCallback(
+    (reason: 'script' | 'no-ad') => {
+      // The script can still fail after the timer gave up, and every rail
+      // has to collapse, but the block is reported once per document
+      const first = !adBlocked;
+      adBlocked = true;
+      setBlocked(true);
+      if (first) reportEvent('Carbon Ad: Blocked', { reason });
+    },
+    [reportEvent],
+  );
+  const handleShown = useCallback(
+    () => reportEvent('Carbon Ad: Show', {}),
+    [reportEvent],
+  );
 
   if (blocked || (tab && FULL_WIDTH_TABS.includes(tab))) return null;
 
@@ -116,7 +143,11 @@ export const CarbonAdRail: FC = () => {
   return (
     <aside className="hidden w-60 shrink-0 xl:block xl:noscript:hidden">
       <ClientOnly>
-        <CarbonAd className="sticky top-6 min-h-52" onBlocked={handleBlocked} />
+        <CarbonAd
+          className="sticky top-6 min-h-52"
+          onBlocked={handleBlocked}
+          onShown={handleShown}
+        />
       </ClientOnly>
     </aside>
   );
