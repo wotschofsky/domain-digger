@@ -5,7 +5,6 @@ import type { FC } from 'react';
 import { Button } from '@/components/ui/button';
 
 import { generateCsv } from '@/lib/csv';
-import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
 import { getSourceLabel } from '@/lib/subfinder-sources';
@@ -35,13 +34,15 @@ export const generateMetadata = async ({
   };
 };
 
+export const maxDuration = 60;
+
 const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   params,
 }) => {
   const { domain } = await params;
 
-  const { results, detailsReduced, detailedResultsLimit } =
-    await findSubdomains(domain, new CloudflareDoHResolver());
+  const { results, discoveryIncomplete, detailsReduced, detailedResultsLimit } =
+    await findSubdomains(domain);
 
   await recordLookupAfter(domain, 'subdomains', results.length > 0);
 
@@ -66,7 +67,9 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   if (!results.length) {
     return (
       <p className="mt-8 text-center text-zinc-500 dark:text-zinc-400">
-        Could not find any subdomains for this domain.
+        {discoveryIncomplete
+          ? 'Subdomain discovery timed out before finding any results. Please try again.'
+          : 'Could not find any subdomains for this domain.'}
       </p>
     );
   }
@@ -100,8 +103,10 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
 
       <p className="mt-8 text-center text-zinc-500 dark:text-zinc-400">
         Found {results.length} subdomains.
+        {discoveryIncomplete &&
+          ' Discovery timed out; these results are incomplete.'}
         {detailsReduced &&
-          ` Detailed results limited to ${detailedResultsLimit} subdomains. Some entries may lack information.`}
+          ' Some DNS checks could not be completed; their status is unknown.'}
       </p>
     </>
   );
