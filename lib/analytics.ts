@@ -5,6 +5,7 @@ import { useCallback } from 'react';
 type EmptyEvent = Record<string, never>;
 
 type Events = {
+  'BotID: Check': { result: 'human' | 'bot' | 'error' };
   'Carbon Ad: Blocked': { reason: 'script' | 'no-ad' };
   'Carbon Ad: Show': EmptyEvent;
   'Copy Button: Click': { value: string };

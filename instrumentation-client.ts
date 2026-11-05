@@ -2,9 +2,8 @@ import { initBotId } from 'botid/client/core';
 
 initBotId({ protect: [{ path: '/api/is-human', method: 'POST' }] });
 
-// Analytics only load once that check passes (app/providers.tsx). Until then,
-// queue Plausible events: its script replays them once loaded, and for bots it
-// never loads, so theirs are dropped.
+// Queue Plausible events reported before its script loads (such as the BotID
+// check in app/providers.tsx); the script replays them once loaded.
 const queue: unknown[][] = [];
 (window as { plausible?: unknown }).plausible ??= Object.assign(
   (...args: unknown[]) => queue.push(args),

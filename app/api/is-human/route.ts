@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 import { useLogger, withEvlog } from '@/lib/evlog';
 
-// Decides whether a visitor's analytics load (app/providers.tsx). Firewall
+// BotID's verdict for a visitor (app/providers.tsx). Firewall
 // bypass rules and local dev skip BotID but still report a human, so they
 // don't count.
 export const POST = withEvlog(async () => {
