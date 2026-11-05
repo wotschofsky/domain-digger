@@ -3,6 +3,7 @@ import { notFound, redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
 import { ALL_RECORD_TYPES } from '@/lib/data';
+import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
 import { getRecordContextEntries } from '@/lib/record-context';
 import { getResolverFromName } from '@/lib/resolvers/utils';
 import { recordLookupAfter } from '@/lib/search';
@@ -19,6 +20,8 @@ type DnsResultsPageProps = {
   }>;
 };
 
+const feature = getLookupFeature('dns');
+
 export const generateMetadata = async ({
   params,
   searchParams,
@@ -31,16 +34,7 @@ export const generateMetadata = async ({
   if (location) normalizedParams.set('location', location);
   const suffix = normalizedParams.size ? `?${normalizedParams.toString()}` : '';
 
-  return {
-    title: `DNS Lookup for ${domain}`,
-    openGraph: {
-      title: `DNS Lookup for ${domain}`,
-      url: `/lookup/${domain}${suffix}`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}${suffix}`,
-    },
-  };
+  return getResultsMetadata(feature, domain, suffix);
 };
 
 const DnsResultsPage: FC<DnsResultsPageProps> = async ({
@@ -67,7 +61,7 @@ const DnsResultsPage: FC<DnsResultsPageProps> = async ({
       0,
     ) > 0;
 
-  await recordLookupAfter(domain, 'dns', hasResults);
+  await recordLookupAfter(feature, domain, hasResults);
 
   if (!hasResults) {
     notFound();

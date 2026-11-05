@@ -5,6 +5,7 @@ import type { FC } from 'react';
 import { Button } from '@/components/ui/button';
 
 import { generateCsv } from '@/lib/csv';
+import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
 import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
 import { getSourceLabel } from '@/lib/subfinder-sources';
@@ -17,21 +18,14 @@ type SubdomainsResultsPageProps = {
   }>;
 };
 
+const feature = getLookupFeature('subdomains');
+
 export const generateMetadata = async ({
   params,
 }: SubdomainsResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return {
-    title: `Subdomain Search for ${domain}`,
-    openGraph: {
-      title: `Subdomain Search for ${domain}`,
-      url: `/lookup/${domain}/subdomains`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/subdomains`,
-    },
-  };
+  return getResultsMetadata(feature, domain);
 };
 
 export const maxDuration = 60;
@@ -44,7 +38,7 @@ const SubdomainsResultsPage: FC<SubdomainsResultsPageProps> = async ({
   const { results, discoveryIncomplete, detailsReduced, detailedResultsLimit } =
     await findSubdomains(domain);
 
-  await recordLookupAfter(domain, 'subdomains', results.length > 0);
+  await recordLookupAfter(feature, domain, results.length > 0);
 
   const exportFileName = `Domain Digger Subdomains Export ${domain.replaceAll(
     '.',

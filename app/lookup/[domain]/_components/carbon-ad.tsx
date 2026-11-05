@@ -6,6 +6,7 @@ import { type FC, useCallback, useEffect, useRef, useState } from 'react';
 
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
+import { findLookupFeatureBySegment } from '@/lib/lookup-features';
 
 declare global {
   interface Window {
@@ -112,9 +113,6 @@ const CarbonAd: FC<CarbonAdProps> = ({ className, onBlocked, onShown }) => {
   return <div ref={containerRef} className={className} />;
 };
 
-// These tabs need the full width of the results card
-const FULL_WIDTH_TABS = ['certs', 'map'];
-
 export const CarbonAdRail: FC = () => {
   const tab = useSelectedLayoutSegment();
   // Gives the results their full width back when no ad shows up
@@ -136,7 +134,7 @@ export const CarbonAdRail: FC = () => {
     [reportEvent],
   );
 
-  if (blocked || (tab && FULL_WIDTH_TABS.includes(tab))) return null;
+  if (blocked || findLookupFeatureBySegment(tab)?.fullWidth) return null;
 
   // Width is reserved in CSS so the results don't shift when the ad mounts.
   // Without JavaScript no ad can load, so the rail gives its width back.

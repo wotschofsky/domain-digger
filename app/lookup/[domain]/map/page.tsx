@@ -5,8 +5,10 @@ import { headers } from 'next/headers';
 import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
+import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
 import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
+import { recordLookupAfter } from '@/lib/search';
 
 import { IconAlert } from '../_components/icon-alert';
 import { ResultsGlobe } from './_components/results-globe';
@@ -17,21 +19,14 @@ type MapResultsPageProps = {
   }>;
 };
 
+const feature = getLookupFeature('map');
+
 export const generateMetadata = async ({
   params,
 }: MapResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return {
-    title: `DNS Propagation for ${domain}`,
-    openGraph: {
-      title: `DNS Propagation for ${domain}`,
-      url: `/lookup/${domain}/map`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/map`,
-    },
-  };
+  return getResultsMetadata(feature, domain);
 };
 
 const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
@@ -40,7 +35,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
   const headersList = await headers();
   const { isBot, userAgent } = isUserBot(headersList);
 
-  if (isBot) {
+  if (feature.blocksBots && isBot) {
     log.info({ message: 'bot_blocked', userAgent, domain });
     return (
       <IconAlert
@@ -61,6 +56,14 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
     (code) => new InternalDoHResolver(code, 'cloudflare'),
   );
   const hasDifferences = getHasDifferences(lookupResults.map((m) => m.results));
+
+  await recordLookupAfter(
+    feature,
+    domain,
+    lookupResults.some(({ results }) =>
+      Object.values(results).some((records) => records.length > 0),
+    ),
+  );
 
   return (
     <>

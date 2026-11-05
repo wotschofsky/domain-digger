@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import { lookupRelatedCerts } from '@/lib/certs';
+import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
 import { recordLookupAfter } from '@/lib/search';
 
 import { CertsTable } from './_components/table';
@@ -12,21 +13,14 @@ type CertsResultsPageProps = {
   }>;
 };
 
+const feature = getLookupFeature('certs');
+
 export const generateMetadata = async ({
   params,
 }: CertsResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return {
-    title: `Certificate Logs for ${domain}`,
-    openGraph: {
-      title: `Certificate Logs for ${domain}`,
-      url: `/lookup/${domain}/certs`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/certs`,
-    },
-  };
+  return getResultsMetadata(feature, domain);
 };
 
 const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
@@ -36,7 +30,7 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
 
   const certs = await lookupRelatedCerts(domain);
 
-  await recordLookupAfter(domain, 'certs', certs.length > 0);
+  await recordLookupAfter(feature, domain, certs.length > 0);
 
   if (!certs.length) {
     return (

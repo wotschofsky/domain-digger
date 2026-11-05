@@ -8,7 +8,7 @@ import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { ClientOnly } from '@/components/client-only';
-import { LOOKUP_FEATURES } from '@/lib/lookup-features';
+import { getResultsHref, LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 type SingleTabProps = {
@@ -54,7 +54,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
       const shortcutNumber = Number(hotkeysEvent.keys?.[0]);
       const tab = LOOKUP_FEATURES[shortcutNumber - 1];
 
-      if (tab) router.push(`/lookup/${domain}${tab.path}`);
+      if (tab) router.push(getResultsHref(tab, domain));
     },
     [router, domain],
   );
@@ -66,7 +66,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           <SingleTab
             key={tab.segment}
             label={tab.label}
-            href={`/lookup/${domain}${tab.path}`}
+            href={getResultsHref(tab, domain)}
             selected={selectedSegment === tab.segment}
           />
         ))}
