@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BaseDoHResolver, type DoHAnswer, type DoHResponse } from './base-doh';
+import {
+  BaseDoHResolver,
+  type DoHAnswer,
+  type DoHResponse,
+  INCOMPLETE_LOOKUP_ERROR,
+} from './base-doh';
 
 describe('BaseDoHResolver', () => {
   const fetchMock = vi.fn();
@@ -186,9 +191,12 @@ describe('BaseDoHResolver', () => {
     await expect(
       resolver.resolveAnswers('example.com', 'TXT'),
     ).rejects.toThrow();
+    await expect(
+      resolver.resolveRecordType('example.com', 'TXT'),
+    ).rejects.toThrow();
   });
 
-  it('keeps the other record types when the resolver cannot answer one', async () => {
+  it('marks a type the resolver cannot answer as failed, not empty', async () => {
     fetchMock.mockImplementation(async (url: URL) => ({
       ok: true,
       json: async () =>
@@ -205,9 +213,8 @@ describe('BaseDoHResolver', () => {
     expect(results.A.records).toHaveLength(1);
     expect(results.RRSIG).toEqual({
       records: [],
-      trace: [
-        'HTTPS GET https://dns.google/resolve?name=example.com&type=RRSIG -> DNS status 2',
-      ],
+      trace: [],
+      error: INCOMPLETE_LOOKUP_ERROR,
     });
   });
 
