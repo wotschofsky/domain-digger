@@ -192,7 +192,7 @@ export const lookupForSale = async (
 ): Promise<ForSaleSummary> => {
   if (!isValidDomain(domain)) throw new Error('Invalid domain');
 
-  const baseDomain = getBaseDomain(domain).toLowerCase();
+  const baseDomain = getBaseDomain(domain);
   if (baseDomain === 'arpa' || baseDomain.endsWith('.arpa'))
     return { domain: baseDomain, listing: null };
 
