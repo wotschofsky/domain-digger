@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
+import { INCOMPLETE_LOOKUP_ERROR } from './resolvers/base-doh';
 import { CloudflareDoHResolver } from './resolvers/cloudflare';
 import { UserFacingError } from './user-facing-error';
 
@@ -118,7 +119,12 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
     );
     return records.map((record) => record.data.replace(/\.$/, ''));
   } catch (error) {
-    if (error instanceof UserFacingError) throw error;
+    if (error instanceof UserFacingError) {
+      // A reverse zone that fails to resolve (often a lame delegation) has
+      // no hostnames to show; the IP's other details are still worth it.
+      if (error.payload === INCOMPLETE_LOOKUP_ERROR) return [];
+      throw error;
+    }
     throw new UserFacingError(
       {
         title: "Couldn't reach Cloudflare DNS",

@@ -10,20 +10,15 @@ import dnsPacket, {
   type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
-import { log } from 'evlog';
 
-import { retry, serializeError } from '@/lib/utils';
+import { retry } from '@/lib/utils';
 
-import {
-  UserFacingError,
-  type UserFacingErrorPayload,
-} from '../user-facing-error';
+import { UserFacingError } from '../user-facing-error';
 import {
   canonicalDnsName,
   DnsResolver,
   type RawRecord,
   type RecordType,
-  type ResolverMultiResponse,
   type ResolverResponse,
 } from './base';
 import { isPublicIp } from './ip-filter';
@@ -175,13 +170,6 @@ type FetchRecordsParams = {
   zone?: string;
   trace?: string[];
   walk: Walk;
-};
-
-const FALLBACK_LOOKUP_ERROR: UserFacingErrorPayload = {
-  title: 'DNS lookup failed',
-  description:
-    'This record type could not be retrieved. Please try again shortly.',
-  retryable: true,
 };
 
 export class AuthoritativeResolver extends DnsResolver {
@@ -1135,45 +1123,6 @@ export class AuthoritativeResolver extends DnsResolver {
       (walk) => this.fetchRecordsRaw({ domain, recordType, walk }),
       this.options.fallbackDeadlineMs,
     );
-  }
-
-  public override async resolveRecordTypes(
-    domain: string,
-    types: readonly RecordType[],
-  ): Promise<ResolverMultiResponse> {
-    const results = await Promise.allSettled(
-      types.map((type) => this.resolveRecordType(domain, type)),
-    );
-    const firstFailure = results.find((result) => result.status === 'rejected');
-    const hasRecords = results.some(
-      (result) =>
-        result.status === 'fulfilled' && result.value.records.length > 0,
-    );
-    // Empty successful types must not turn an entirely unusable lookup into
-    // a misleading "no records" page (e.g. a broken Route 53 delegation).
-    if (firstFailure && !hasRecords) throw firstFailure.reason;
-
-    const response: ResolverMultiResponse = {};
-    for (const [index, result] of results.entries()) {
-      if (result.status === 'fulfilled') {
-        response[types[index]] = result.value;
-        continue;
-      }
-      const { reason } = result;
-      const expected = reason instanceof UserFacingError;
-      // Not rethrown, so onRequestError never sees it. Expected failures
-      // (e.g. a refused PTR) only warn, so error alerts stay reserved for
-      // bugs.
-      log[expected ? 'warn' : 'error']({
-        message: 'record_type_lookup_failed',
-        domain,
-        recordType: types[index],
-        error: serializeError(reason),
-      });
-      const error = expected ? reason.payload : FALLBACK_LOOKUP_ERROR;
-      response[types[index]] = { records: [], trace: [], error };
-    }
-    return response;
   }
 
   public async resolveRecordType(

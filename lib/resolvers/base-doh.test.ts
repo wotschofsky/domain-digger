@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { BaseDoHResolver, type DoHAnswer, type DoHResponse } from './base-doh';
+import {
+  BaseDoHResolver,
+  type DoHAnswer,
+  type DoHResponse,
+  INCOMPLETE_LOOKUP_ERROR,
+} from './base-doh';
 
 describe('BaseDoHResolver', () => {
   const fetchMock = vi.fn();
@@ -186,13 +191,16 @@ describe('BaseDoHResolver', () => {
     await expect(
       resolver.resolveAnswers('example.com', 'TXT'),
     ).rejects.toThrow();
+    await expect(
+      resolver.resolveRecordType('example.com', 'TXT'),
+    ).rejects.toThrow();
   });
 
-  it('keeps the other record types when the resolver cannot answer one', async () => {
+  it('marks a type the resolver cannot answer as failed, not empty', async () => {
     fetchMock.mockImplementation(async (url: URL) => ({
       ok: true,
       json: async () =>
-        url.searchParams.get('type') === 'RRSIG'
+        url.searchParams.get('type') === 'TXT'
           ? { Status: 2 }
           : mockDoHResponse([{ type: 1 }]),
       url: url.href,
@@ -200,15 +208,57 @@ describe('BaseDoHResolver', () => {
     const resolver = new TestDoHResolver();
     const results = await resolver.resolveRecordTypes('example.com', [
       'A',
-      'RRSIG',
+      'TXT',
     ]);
     expect(results.A.records).toHaveLength(1);
-    expect(results.RRSIG).toEqual({
+    expect(results.TXT).toEqual({
       records: [],
-      trace: [
-        'HTTPS GET https://dns.google/resolve?name=example.com&type=RRSIG -> DNS status 2',
-      ],
+      trace: [],
+      error: INCOMPLETE_LOOKUP_ERROR,
     });
+  });
+
+  it.each([{ Status: 2 }, { Status: 0, TC: true }])(
+    'reads an RRSIG lookup the resolver cannot answer as empty: %j',
+    async (body) => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => body,
+        url: 'https://dns.google/resolve?name=example.com&type=RRSIG',
+      });
+      const resolver = new TestDoHResolver();
+      const result = await resolver.resolveRecordType('example.com', 'RRSIG');
+      expect(result.records).toEqual([]);
+      expect(result.error).toBeUndefined();
+      expect(result.trace).toEqual([
+        expect.stringMatching(/type=RRSIG -> (DNS status 2|Truncated)/),
+      ]);
+    },
+  );
+
+  it('still fails an RRSIG lookup the resolver could not be reached for', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+      url: 'https://dns.google/resolve',
+    });
+    const resolver = new TestDoHResolver();
+    await expect(
+      resolver.resolveRecordType('example.com', 'RRSIG'),
+    ).rejects.toThrow();
+  });
+
+  it('still fails a lookup where only RRSIG came back, and empty', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ Status: 2 }),
+      url: 'https://dns.google/resolve',
+    });
+    const resolver = new TestDoHResolver();
+    await expect(
+      resolver.resolveRecordTypes('example.com', ['A', 'RRSIG']),
+    ).rejects.toMatchObject({ payload: INCOMPLETE_LOOKUP_ERROR });
   });
 
   it.each([
