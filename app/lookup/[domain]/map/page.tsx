@@ -61,7 +61,8 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
     feature,
     domain,
     lookupResults.some(({ results }) =>
-      Object.values(results).some((records) => records.length > 0),
+      // Optional: a failed lookup's records may be null (unknown, not empty).
+      Object.values(results).some((records) => Boolean(records?.length)),
     ),
   );
 
