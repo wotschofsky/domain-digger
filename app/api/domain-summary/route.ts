@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getDnssecSummary } from '@/lib/dnssec/summary';
 import { useLogger, withEvlog } from '@/lib/evlog';
 import { type ForSaleSummary, lookupForSale } from '@/lib/for-sale';
+import { measureLookup } from '@/lib/lookup-observability';
 import { isValidDomain } from '@/lib/utils';
 import { getWhoisSummary } from '@/lib/whois';
 
@@ -29,16 +30,20 @@ export const GET = withEvlog(async (request: Request) => {
 
   try {
     const [whois, sale, dnssec] = await Promise.all([
-      getWhoisSummary(domain),
-      lookupForSale(domain).catch((error) => {
-        log.set({ event: 'sale_lookup_failed' });
-        log.error(error instanceof Error ? error : new Error(String(error)));
-        return null;
-      }),
-      getDnssecSummary(domain),
+      measureLookup('registration_summary', domain, () =>
+        getWhoisSummary(domain),
+      ),
+      measureLookup('sale_summary', domain, () => lookupForSale(domain)).catch(
+        (error) => {
+          log.set({ event: 'sale_lookup_failed' });
+          log.error(error instanceof Error ? error : new Error(String(error)));
+          return null;
+        },
+      ),
+      measureLookup('dnssec_summary', domain, () => getDnssecSummary(domain)),
     ]);
 
-    // Tells a failed WHOIS apart from a registry without a DNSSEC field: both read "Unavailable".
+    // Log returned states too: a resolved stage can still be unknown WHOIS or unavailable DNSSEC.
     log.set({ whois, dnssec });
 
     return NextResponse.json(
