@@ -27,9 +27,14 @@ export const useAnalytics = () => {
 
   // Stable so it can sit in effect dependencies
   const reportEvent = useCallback(
-    <T extends keyof Events>(event: T, props: Events[T]) => {
+    <T extends keyof Events>(
+      event: T,
+      props: Events[T],
+      // interactive: false keeps an event from counting against bounce rate
+      options?: { interactive?: boolean },
+    ) => {
       log.info({ message: 'analytics_event', event, props });
-      plausible(event, { props });
+      plausible(event, { props, ...options });
     },
     [plausible],
   );

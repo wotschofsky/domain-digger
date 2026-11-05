@@ -12,17 +12,27 @@ import { useAnalytics } from '@/lib/analytics';
 // Trial: reports BotID's verdict for every visitor as a Plausible event, so the
 // share of visitors it would drop from analytics can be measured before
 // analytics are gated on it.
+export const reportBotIdVerdict = (
+  reportEvent: ReturnType<typeof useAnalytics>['reportEvent'],
+) =>
+  fetch('/api/is-human', { method: 'POST' })
+    .then((response) => {
+      // A failed check is an error, never a bot verdict
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    })
+    .then((body): 'human' | 'bot' => (body.isHuman === true ? 'human' : 'bot'))
+    .catch(() => 'error' as const)
+    .then((result) =>
+      // Non-interactive, so single-page visits still count as bounces
+      reportEvent('BotID: Check', { result }, { interactive: false }),
+    );
+
 const useBotIdTrial = () => {
   const { reportEvent } = useAnalytics();
 
   useEffect(() => {
-    fetch('/api/is-human', { method: 'POST' })
-      .then((response) => response.json())
-      .then((body): 'human' | 'bot' =>
-        body.isHuman === true ? 'human' : 'bot',
-      )
-      .catch(() => 'error' as const)
-      .then((result) => reportEvent('BotID: Check', { result }));
+    reportBotIdVerdict(reportEvent);
   }, [reportEvent]);
 };
 
