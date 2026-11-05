@@ -13,7 +13,6 @@ import {
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
 import { recordLookupAfter } from '@/lib/search';
 import { UserFacingError } from '@/lib/user-facing-error';
-import { serializeError } from '@/lib/utils';
 
 type DnssecResultsPageProps = {
   params: Promise<{ domain: string }>;
@@ -81,7 +80,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   try {
     chain = await resolveDsChainWithin(
       domain,
-      (name, type) => resolver.resolveAnswers(name, type),
+      (name, type, onZoneCut) => resolver.resolveAnswers(name, type, onZoneCut),
       DEADLINE_MS,
     );
   } catch (error) {
@@ -94,7 +93,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
     log[error instanceof UserFacingError ? 'warn' : 'error']({
       message: 'dnssec_lookup_failed',
       domain,
-      error: serializeError(error),
+      error,
     });
 
     throw error;
@@ -112,12 +111,20 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
           {VERDICT_LABELS[chain.verdict]}
           {chain.breakAt ? ` at ${chain.breakAt}` : ''}
         </h2>
-        {coveringZone !== chain.name && (
-          <p className="text-sm">
-            {chain.name} is not a zone of its own; it is covered by{' '}
-            <span className="font-medium">{coveringZone}</span>.
-          </p>
-        )}
+        {chain.breakAt
+          ? chain.breakAt !== chain.name && (
+              <p className="text-sm">
+                Zones below <span className="font-medium">{chain.breakAt}</span>{' '}
+                were not checked: nothing under an unsigned or broken zone can
+                be validated.
+              </p>
+            )
+          : coveringZone !== chain.name && (
+              <p className="text-sm">
+                {chain.name} is not a zone of its own; it is covered by{' '}
+                <span className="font-medium">{coveringZone}</span>.
+              </p>
+            )}
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           This view checks DS digest links and DNSKEY signatures.
         </p>
@@ -143,7 +150,12 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
             <div className="grid gap-6 md:grid-cols-2">
               <div>
                 <h4 className="mb-2 text-sm font-semibold">DNSKEYs</h4>
-                {zone.keys.length ? (
+                {!zone.keys && (
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    Nameservers did not answer
+                  </p>
+                )}
+                {zone.keys && zone.keys.length > 0 && (
                   <ul className="space-y-2 text-sm">
                     {zone.keys.map((key, index) => (
                       <li
@@ -157,7 +169,8 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
                       </li>
                     ))}
                   </ul>
-                ) : (
+                )}
+                {zone.keys?.length === 0 && (
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
                     No DNSKEYs
                   </p>

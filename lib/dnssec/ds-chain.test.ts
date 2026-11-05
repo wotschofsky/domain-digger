@@ -110,18 +110,31 @@ const com = (...ds: Answer[]): Answer[] =>
 // a query returns the records its name owns, a name that owns nothing but
 // has descendants is an empty non-terminal (NODATA), and anything else is
 // NXDOMAIN. The zone is the deepest delegation (NS owner) at or above the
-// name; DS is answered from the parent side of a cut.
+// name; DS is answered from the parent side of a cut. Cuts reach onZoneCut before their servers
+// are asked, so a `down` zone still counts as a cut while its servers hang or refuse.
 const dnsTree =
-  (records: Answer[]): DsChainQuery =>
-  async (name, type) => {
+  (
+    records: Answer[],
+    down: Record<string, 'hang' | 'refuse'> = {},
+  ): DsChainQuery =>
+  async (name, type, onZoneCut) => {
     const labels = name === '.' ? [] : name.split('.');
-    const zone =
-      labels
-        .map((_, i) => labels.slice(i).join('.'))
-        .slice(type === 'DS' ? 1 : 0)
-        .find((cut) =>
-          records.some((record) => record.name === cut && record.type === 'NS'),
-        ) ?? '.';
+
+    const cuts = labels
+      .map((_, i) => labels.slice(i).join('.'))
+      .slice(type === 'DS' ? 1 : 0)
+      .filter((cut) =>
+        records.some((record) => record.name === cut && record.type === 'NS'),
+      );
+
+    const zone = cuts[0] ?? '.';
+    cuts.toReversed().forEach((cut) => onZoneCut?.(cut));
+
+    if (down[zone] === 'hang') return new Promise(() => {});
+    if (down[zone] === 'refuse') {
+      throw new Error(`All nameservers failed for ${name} ${type}: REFUSED`);
+    }
+
     return {
       answers: records.filter(
         (record) => record.name === name && record.type === type,
@@ -265,17 +278,14 @@ describe('resolveDsChain', () => {
     expect(chain.zones.at(-1)?.name).toBe('example.com');
   });
 
-  it('marks an unsigned TLD and its descendants unsigned', async () => {
+  it('stops at an unsigned TLD: nothing below it can be secure', async () => {
     const chain = await walk('example.com', [com(), signedZone('example.com')]);
     expect(chain.verdict).toBe('unsigned');
     expect(chain.breakAt).toBe('com');
     expect(chain.zones.map((zone) => zone.status)).toEqual([
       'intact',
       'unsigned',
-      'unsigned',
     ]);
-    // Nothing above vouches for example.com's DS, so its keys are not checked.
-    expect(chain.zones[2].keySignature).toBeUndefined();
   });
 
   it('reports a published DS with no matching DNSKEY as a mismatch', async () => {
@@ -362,7 +372,7 @@ describe('resolveDsChain', () => {
     expect(chain.zones.at(-1)?.name).toBe('example.com');
   });
 
-  it('breaks on an expired DNSKEY signature and propagates it down', async () => {
+  it('breaks on an expired DNSKEY signature and stops there', async () => {
     const expired = { inception: NOW - 2 * DAY, expiration: NOW - DAY };
     const chain = await walk('www.example.com', [
       root(),
@@ -380,8 +390,7 @@ describe('resolveDsChain', () => {
       outcome: 'expired',
       ...expired,
     });
-    expect(chain.zones[3].status).toBe('bad-signature');
-    expect(chain.zones[3].keySignature).toBeUndefined();
+    expect(chain.zones).toHaveLength(3);
   });
 
   it('judges each signature when it is checked, not when the walk started', async () => {
@@ -438,6 +447,147 @@ describe('resolveDsChain', () => {
     ]);
     expect(chain.verdict).toBe('bad-signature');
     expect(chain.zones[1].keySignature?.outcome).toBe('invalid');
+  });
+
+  it('stops at an unsigned break instead of waiting on a hanging zone below it', async () => {
+    // Like *.mail.protection.outlook.com, whose servers FORMERR every DNSSEC query.
+    const chain = await resolveDsChain(
+      'host.mail.protection.example.com',
+      dnsTree(
+        [
+          root(),
+          signedZone('com'),
+          signedZone('example.com'),
+          ns('protection.example.com'),
+          soa('protection.example.com'),
+          ns('mail.protection.example.com'),
+          host('host.mail.protection.example.com'),
+        ].flat(),
+        { 'mail.protection.example.com': 'hang' },
+      ),
+      NOW,
+    );
+
+    expect(chain.verdict).toBe('unsigned');
+    expect(chain.breakAt).toBe('protection.example.com');
+    expect(chain.zones.map((zone) => zone.name)).toEqual([
+      '.',
+      'com',
+      'example.com',
+      'protection.example.com',
+    ]);
+  });
+
+  it('calls a lame delegation without DS unsigned and its keys unreachable', async () => {
+    const chain = await resolveDsChain(
+      'example.com',
+      dnsTree([root(), signedZone('com'), ns('example.com')].flat(), {
+        'example.com': 'refuse',
+      }),
+      NOW,
+    );
+
+    expect(chain.verdict).toBe('unsigned');
+    expect(chain.breakAt).toBe('example.com');
+
+    expect(chain.zones.at(-1)).toMatchObject({
+      name: 'example.com',
+      status: 'unsigned',
+      keys: undefined,
+    });
+  });
+
+  it('gives up on the keys of a hanging delegation without DS, not on its verdict', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    try {
+      const settled = resolveDsChain(
+        'www.example.com',
+        dnsTree([root(), signedZone('com'), ns('example.com')].flat(), {
+          'example.com': 'hang',
+        }),
+        NOW,
+      );
+
+      await vi.advanceTimersByTimeAsync(5000);
+      const chain = await settled;
+
+      expect(chain.verdict).toBe('unsigned');
+      expect(chain.breakAt).toBe('example.com');
+      expect(chain.zones.at(-1)?.keys).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits out a slow empty non-terminal without DS, so the signed zone below still counts', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    try {
+      const tree = dnsTree(
+        [
+          root(),
+          signedZone('com'),
+          signedZone('example.com'),
+          signedZone('a.b.example.com'),
+        ].flat(),
+      );
+
+      const settled = resolveDsChain(
+        'a.b.example.com',
+        async (name, type, onZoneCut) => {
+          if (name === 'b.example.com' && type !== 'DS') {
+            await new Promise((resolve) => setTimeout(resolve, 30_000));
+          }
+
+          return tree(name, type, onZoneCut);
+        },
+        NOW,
+      );
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      const chain = await settled;
+
+      expect(chain.verdict).toBe('intact');
+      expect(chain.zones.map((zone) => zone.name)).toEqual([
+        '.',
+        'com',
+        'example.com',
+        'a.b.example.com',
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('starts no further level once the deadline has passed', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    try {
+      const tree = dnsTree([root(), signedZone('com')].flat());
+      const asked: string[] = [];
+
+      const settled = resolveDsChainWithin(
+        'com',
+        async (name, type) => {
+          asked.push(`${name} ${type}`);
+
+          if (name === '.') {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+
+          return tree(name, type);
+        },
+        1000,
+      ).catch((error: unknown) => error);
+
+      await vi.advanceTimersByTimeAsync(2000);
+
+      expect(await settled).toBeInstanceOf(UserFacingError);
+      expect(asked).toEqual(['. DNSKEY']);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('names the queries still in flight when the deadline passes', async () => {

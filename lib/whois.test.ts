@@ -24,7 +24,6 @@ describe('getWhoisSummary', () => {
       unknown: true,
       registrar: null,
       createdAt: null,
-      dnssec: null,
     });
   });
 
@@ -45,7 +44,6 @@ describe('getWhoisSummary', () => {
       registered: true,
       registrar: 'Example registrar',
       createdAt: null,
-      dnssec: null,
     });
   });
 });

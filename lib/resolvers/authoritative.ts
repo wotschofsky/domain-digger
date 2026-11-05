@@ -12,7 +12,7 @@ import dnsPacket, {
 } from 'dns-packet';
 import { log } from 'evlog';
 
-import { retry, serializeError } from '@/lib/utils';
+import { retry } from '@/lib/utils';
 
 import {
   UserFacingError,
@@ -191,6 +191,9 @@ type FetchRecordsParams = {
   deadlineAt?: number;
   budget?: WalkBudget;
   ancestors?: ReadonlySet<string>;
+  // See resolveAnswers. Not passed to a referral's NS-name lookups: their cuts
+  // belong to other names.
+  onZoneCut?: (zone: string) => void;
 };
 
 const FALLBACK_LOOKUP_ERROR: UserFacingErrorPayload = {
@@ -567,6 +570,7 @@ export class AuthoritativeResolver extends DnsResolver {
         AuthoritativeResolver.MAX_RECURSION_DEPTH,
     },
     ancestors = new Set<string>(),
+    onZoneCut,
   }: FetchRecordsParams): Promise<WalkResult> {
     // Cached responses cost no packets, but a crafted or misconfigured graph
     // can still fork exponentially through shared requests. Bound that
@@ -591,6 +595,9 @@ export class AuthoritativeResolver extends DnsResolver {
         : (cached?.ips ?? (await this.getRootServers()).slice(0, 4));
     const zone = (nameservers?.length ? delegatedZone : cached?.zone) || '.';
     if (cached) {
+      // Only referrals write the cache, so a cached zone is a proven cut.
+      onZoneCut?.(cached.zone);
+
       trace = [
         ...trace,
         `${recordType} ${domain} -> starting at cached delegation ${cached.zone}: ${cached.ips.join(', ')}`,
@@ -728,6 +735,7 @@ export class AuthoritativeResolver extends DnsResolver {
           deadlineAt,
           budget,
           ancestors: new Set([...ancestors, key]),
+          onZoneCut,
         });
       } catch (error) {
         failedNameservers.push(
@@ -761,6 +769,7 @@ export class AuthoritativeResolver extends DnsResolver {
           deadlineAt,
           budget,
           ancestors,
+          onZoneCut,
         });
     } else if (lastResort) {
       // No candidate answered authoritatively; the deferred answer is better
@@ -786,6 +795,7 @@ export class AuthoritativeResolver extends DnsResolver {
         deadlineAt,
         budget,
         ancestors,
+        onZoneCut,
       });
     }
 
@@ -838,6 +848,7 @@ export class AuthoritativeResolver extends DnsResolver {
     deadlineAt,
     budget,
     ancestors,
+    onZoneCut,
   }: {
     packet: Packet;
     protocol: DnsResponse['protocol'];
@@ -851,6 +862,7 @@ export class AuthoritativeResolver extends DnsResolver {
     deadlineAt: number;
     budget: WalkBudget;
     ancestors: ReadonlySet<string>;
+    onZoneCut?: (zone: string) => void;
   }): Promise<WalkResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
@@ -941,6 +953,9 @@ export class AuthoritativeResolver extends DnsResolver {
       if (currentZone && !nextZone.endsWith(`.${currentZone}`)) {
         throw new Error(`DNS referral loop detected: ${zone} -> ${nextZone}`);
       }
+
+      onZoneCut?.(nextZone);
+
       // Trust a glue A record only if it names one of this referral's
       // delegated NS hostnames and points at a publicly routable IP.
       // We deliberately accept out-of-bailiwick glue (an NS host not under
@@ -983,6 +998,7 @@ export class AuthoritativeResolver extends DnsResolver {
             deadlineAt,
             budget,
             ancestors,
+            onZoneCut,
           });
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
@@ -1037,6 +1053,7 @@ export class AuthoritativeResolver extends DnsResolver {
             deadlineAt,
             budget,
             ancestors,
+            onZoneCut,
           });
         }
       }
@@ -1053,6 +1070,7 @@ export class AuthoritativeResolver extends DnsResolver {
         deadlineAt,
         budget,
         ancestors,
+        onZoneCut,
       });
     }
 
@@ -1074,6 +1092,7 @@ export class AuthoritativeResolver extends DnsResolver {
     deadlineAt,
     budget,
     ancestors,
+    onZoneCut,
   }: {
     nsRedirects: StringAnswer[];
     failed?: string[];
@@ -1086,6 +1105,7 @@ export class AuthoritativeResolver extends DnsResolver {
     deadlineAt: number;
     budget: WalkBudget;
     ancestors: ReadonlySet<string>;
+    onZoneCut?: (zone: string) => void;
   }): Promise<WalkResult> {
     const zone = canonicalDnsName(nsRedirects[0].name);
     const subTrace: string[] = [];
@@ -1157,6 +1177,7 @@ export class AuthoritativeResolver extends DnsResolver {
         deadlineAt,
         budget,
         ancestors,
+        onZoneCut,
       });
     } catch (error) {
       // Sibling NS lookups are still usable failover: the race above only
@@ -1191,6 +1212,7 @@ export class AuthoritativeResolver extends DnsResolver {
         deadlineAt,
         budget,
         ancestors,
+        onZoneCut,
       });
     }
   }
@@ -1199,12 +1221,14 @@ export class AuthoritativeResolver extends DnsResolver {
   // stays distinct from NODATA) and the zone cut whose servers answered. For
   // callers that need structured rdata (DNSSEC) rather than presentation
   // strings. With the dnssecOk option, the RRSIGs covering the answer come
-  // back too.
+  // back too. onZoneCut fires for each cut the walk enters (by referral or from cache) before
+  // its servers are asked, so even when they never answer.
   public resolveAnswers(
     domain: string,
     recordType: RecordType,
+    onZoneCut?: (zone: string) => void,
   ): Promise<WalkResult> {
-    return this.fetchRecordsRaw({ domain, recordType });
+    return this.fetchRecordsRaw({ domain, recordType, onZoneCut });
   }
 
   public override async resolveRecordTypes(
@@ -1238,7 +1262,7 @@ export class AuthoritativeResolver extends DnsResolver {
         message: 'record_type_lookup_failed',
         domain,
         recordType: types[index],
-        error: serializeError(reason),
+        error: reason,
       });
       const error = expected ? reason.payload : FALLBACK_LOOKUP_ERROR;
       response[types[index]] = { records: [], trace: [], error };
