@@ -728,6 +728,46 @@ describe('AuthoritativeResolver transport policy', () => {
     ).toContain('192.0.2.2');
   });
 
+  it('answers NS from the parent delegation when the zone itself is lame', async () => {
+    // The parent delegates to servers that refuse the zone (e.g. NS left at
+    // a provider that dropped it): NS still has the parent's answer, other
+    // types still fail.
+    const resolver = new AuthoritativeResolver({
+      udpTransport: async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                {
+                  name: 'example.eu',
+                  type: 'NS',
+                  ttl: 86400,
+                  data: 'ns1.example.net',
+                },
+              ],
+              additionals: [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : response(domain, recordType, 'REFUSED'),
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const ns = await resolver.resolveRecordType('example.eu', 'NS');
+    expect(ns.records.map((record) => record.data)).toEqual([
+      'ns1.example.net',
+    ]);
+    expect(ns.trace.at(-1)).toContain('using parent delegation');
+    await expect(
+      resolver.resolveRecordType('example.eu', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
   it('falls back to a deferred answer when a later referral fails', async () => {
     // First root: a non-authoritative answer (deferred). Second root: an
     // in-bailiwick referral that then fails. The deferred answer must win

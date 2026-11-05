@@ -598,6 +598,10 @@ export class AuthoritativeResolver extends DnsResolver {
     }
     const wantName = canonicalDnsName(domain);
     let lastResort: { result: DnsResponse; candidate: string } | null = null;
+    let parentDelegation: {
+      delegation: RawAnswer[];
+      candidate: string;
+    } | null = null;
     const failedNameservers: string[] = [];
     let unsupportedRrsigCount = 0;
 
@@ -733,6 +737,19 @@ export class AuthoritativeResolver extends DnsResolver {
         failedNameservers.push(
           `${candidate}: referral failed (${describeError(error)})`,
         );
+        // An NS query whose own zone's servers all fail (a lame delegation,
+        // e.g. NS at a provider that dropped the zone) still has an answer:
+        // the delegation this parent handed out.
+        const cut = canonicalDnsName(zone);
+        if (recordType === 'NS' && (!cut || wantName.endsWith(`.${cut}`))) {
+          const delegation = result.packet.authorities?.filter(
+            (answer): answer is RawAnswer =>
+              answer.type === 'NS' &&
+              canonicalDnsName(answer.name) === wantName,
+          );
+          if (delegation?.length)
+            parentDelegation ??= { delegation, candidate };
+        }
         continue;
       }
     }
@@ -787,6 +804,17 @@ export class AuthoritativeResolver extends DnsResolver {
         budget,
         ancestors,
       });
+    } else if (parentDelegation) {
+      const { delegation, candidate } = parentDelegation;
+      return {
+        answers: delegation,
+        zone,
+        trace: [
+          ...trace,
+          `${recordType} ${domain} -> delegated nameservers failed (${failedNameservers.join('; ')})`,
+          `${recordType} ${domain} @ ${candidate} -> using parent delegation: ${delegation.map(this.recordToString).join(', ')}`,
+        ],
+      };
     }
 
     // Some authoritatives decline direct RRSIG browsing with REFUSED or
