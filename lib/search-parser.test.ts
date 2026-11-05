@@ -89,9 +89,17 @@ describe('parseSearchInput', () => {
         value: '::',
       });
       expect(parseSearchInput('fe80::1%lo0')).toEqual({
-        type: 'ip',
-        value: 'fe80::1%lo0',
+        type: 'invalid',
+        reason: 'scoped-ip',
       });
+    });
+
+    it.each([
+      ['https://1.2.3.4/path?ip=8.8.8.8', '1.2.3.4'],
+      ['https://[2001:4860:4860::8888]/', '2001:4860:4860::8888'],
+      ['user@8.8.8.8', '8.8.8.8'],
+    ])('extracts only the IP host from %s', (input, value) => {
+      expect(parseSearchInput(input)).toEqual({ type: 'ip', value });
     });
 
     it('handles IP addresses with whitespace', () => {
