@@ -1,9 +1,12 @@
 import { log } from 'evlog/next/client';
 import { usePlausible } from 'next-plausible';
+import { useCallback } from 'react';
 
 type EmptyEvent = Record<string, never>;
 
 type Events = {
+  'Carbon Ad: Blocked': { reason: 'script' | 'no-ad' };
+  'Carbon Ad: Show': EmptyEvent;
   'Copy Button: Click': { value: string };
   'IP Details: Open': { ip: string };
   'Location Selector: Change': { location: string };
@@ -21,10 +24,14 @@ type Events = {
 export const useAnalytics = () => {
   const plausible = usePlausible();
 
-  const reportEvent = <T extends keyof Events>(event: T, props: Events[T]) => {
-    log.info({ message: 'analytics_event', event, props });
-    plausible(event, { props });
-  };
+  // Stable so it can sit in effect dependencies
+  const reportEvent = useCallback(
+    <T extends keyof Events>(event: T, props: Events[T]) => {
+      log.info({ message: 'analytics_event', event, props });
+      plausible(event, { props });
+    },
+    [plausible],
+  );
 
   return {
     reportEvent,
