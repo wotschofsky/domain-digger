@@ -26,11 +26,7 @@ describe('RFC 10023 records', () => {
     'v=FORSALE1;fcod=NLFS-abc',
     'v=FORSALE1;fval=invalid',
   ])('recognizes a marker even without usable details: %s', (record) => {
-    expect(parseForSaleRecords([record])).toEqual({
-      prices: [],
-      links: [],
-      texts: [],
-    });
+    expect(parseForSaleRecords([record])).toEqual({ prices: [], links: [] });
   });
 
   it('combines and deduplicates details from separate records', () => {
@@ -51,7 +47,6 @@ describe('RFC 10023 records', () => {
         'mailto:hello@seller.example',
         'tel:+4930123456',
       ],
-      texts: ['Call for information.'],
     });
   });
 
@@ -71,8 +66,6 @@ describe('RFC 10023 records', () => {
       'v=FORSALE1;furi=http://seller.example/plain',
       'v=FORSALE1;furi=https://seller.example/b',
       'v=FORSALE1;furi=https://seller.example/a',
-      'v=FORSALE1;ftxt=Second',
-      'v=FORSALE1;ftxt=First',
     ];
     const sorted = {
       prices: [
@@ -93,7 +86,6 @@ describe('RFC 10023 records', () => {
         'mailto:hello@seller.example',
         'tel:+4930123456',
       ],
-      texts: ['First', 'Second'],
     };
     expect(parseForSaleRecords(records)).toEqual(sorted);
     expect(parseForSaleRecords(records.toReversed())).toEqual(sorted);
@@ -120,11 +112,7 @@ describe('RFC 10023 records', () => {
   it('treats a semicolon in content as part of the value, not another tag', () => {
     expect(
       parseForSaleRecords(['v=FORSALE1;ftxt=Contact me;fval=EUR500']),
-    ).toEqual({
-      prices: [],
-      links: [],
-      texts: ['Contact me;fval=EUR500'],
-    });
+    ).toEqual({ prices: [], links: [] });
   });
 
   it.each([
@@ -154,12 +142,6 @@ describe('RFC 10023 records', () => {
     },
   );
 
-  it('sanitizes control and bidi characters in human-readable text', () => {
-    expect(
-      parseForSaleRecords(['v=FORSALE1;ftxt=Hello\nworld\u202e!'])?.texts,
-    ).toEqual(['Hello world !']);
-  });
-
   it.each([
     '\u061c',
     '\u200e',
@@ -173,10 +155,7 @@ describe('RFC 10023 records', () => {
     '\u2067',
     '\u2068',
     '\u2069',
-  ])('sanitizes each Unicode bidi control: %j', (control) => {
-    expect(
-      parseForSaleRecords([`v=FORSALE1;ftxt=Hello${control}world`])?.texts,
-    ).toEqual(['Hello world']);
+  ])('does not expose links with a Unicode bidi control: %j', (control) => {
     expect(
       parseForSaleRecords([
         `v=FORSALE1;furi=https://seller.example/${control}test`,
@@ -185,17 +164,18 @@ describe('RFC 10023 records', () => {
   });
 
   it('keeps the sale signal of an oversized record but not its content', () => {
-    expect(parseForSaleRecords([`v=FORSALE1;ftxt=${'€'.repeat(100)}`])).toEqual(
-      { prices: [], links: [], texts: [] },
-    );
+    expect(
+      parseForSaleRecords([
+        `v=FORSALE1;furi=https://seller.example/${'€'.repeat(80)}`,
+      ]),
+    ).toEqual({ prices: [], links: [] });
   });
 
   it('enforces the 255-octet boundary using UTF-8 byte length', () => {
-    const text = `${'€'.repeat(79)}xx`;
-    const record = `v=FORSALE1;ftxt=${text}`;
+    const record = `v=FORSALE1;furi=https://seller.example/${'€'.repeat(72)}`;
     expect(new TextEncoder().encode(record).length).toBe(255);
-    expect(parseForSaleRecords([record])?.texts).toEqual([text]);
-    expect(parseForSaleRecords([record + 'x'])?.texts).toEqual([]);
+    expect(parseForSaleRecords([record])?.links).toHaveLength(1);
+    expect(parseForSaleRecords([record + 'x'])?.links).toEqual([]);
   });
 
   it('keeps valid records when another answer is oversized', () => {
@@ -245,7 +225,7 @@ describe('for-sale lookup', () => {
     respond({ Status: 0, Answer: [answer('"v=FORSALE1;fval=EUR2500"')] });
     expect(await lookupForSale('Example.com.')).toEqual({
       domain: 'example.com',
-      listing: { prices: ['EUR 2500'], links: [], texts: [] },
+      listing: { prices: ['EUR 2500'], links: [] },
     });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, options] = fetchMock.mock.calls[0];
@@ -267,7 +247,7 @@ describe('for-sale lookup', () => {
     });
     expect(await lookupForSale('*.Dynamic.Example.com.')).toEqual({
       domain: 'dynamic.example.com',
-      listing: { prices: ['EUR 3000'], links: [], texts: [] },
+      listing: { prices: ['EUR 3000'], links: [] },
     });
     expect(queriedNames().toSorted()).toEqual([
       '_for-sale.dynamic.example.com',
@@ -281,7 +261,7 @@ describe('for-sale lookup', () => {
       respondByName({ [`_for-sale.${domain}`]: eur });
       expect(await lookupForSale(domain)).toEqual({
         domain,
-        listing: { prices: ['EUR 3000'], links: [], texts: [] },
+        listing: { prices: ['EUR 3000'], links: [] },
       });
     },
   );
@@ -290,7 +270,7 @@ describe('for-sale lookup', () => {
     respondByName({ '_for-sale.example.com': usd });
     expect(await lookupForSale('www.example.com')).toEqual({
       domain: 'example.com',
-      listing: { prices: ['USD 1000000'], links: [], texts: [] },
+      listing: { prices: ['USD 1000000'], links: [] },
     });
   });
 
@@ -334,12 +314,12 @@ describe('for-sale lookup', () => {
       Status: 0,
       Answer: [
         answer(
-          String.raw`"v=FORSALE1;ftxt=Gr\195\188\195\159e \"friend\" \\ end"`,
+          String.raw`"v=FORSALE1;furi=https://seller.example/?q=Gr\195\188\195\159e\"friend\"\\end"`,
         ),
       ],
     });
-    expect((await lookupForSale('example.com')).listing?.texts).toEqual([
-      'Grüße "friend" \\ end',
+    expect((await lookupForSale('example.com')).listing?.links).toEqual([
+      'https://seller.example/?q=Gr%C3%BC%C3%9Fe%22friend%22\\end',
     ]);
   });
 
@@ -357,7 +337,6 @@ describe('for-sale lookup', () => {
     expect((await lookupForSale('example.com')).listing).toEqual({
       prices: ['USD 71256'],
       links: ['https://www.atom.com/name/recruitable?utm_source=forsale-dns'],
-      texts: ['This domain is for sale on atom.com'],
     });
   });
 
@@ -384,7 +363,6 @@ describe('for-sale lookup', () => {
       listing: {
         prices: ['USD 195000'],
         links: ['mailto:sales@sun.com.py'],
-        texts: [],
       },
     });
     expect(fetchMock.mock.calls[0][0].searchParams.get('name')).toBe(
@@ -404,21 +382,22 @@ describe('for-sale lookup', () => {
   });
 
   it.each([
-    ['"v=FORSALE1;" "fval=USD10"', { prices: ['USD 10'], texts: [] }],
-    ['"v=FOR" "SALE1;"', { prices: [], texts: [] }],
-    ['"v=FORSALE1;ftxt=foo" " bar"', { prices: [], texts: ['foo bar'] }],
+    ['"v=FORSALE1;" "fval=USD10"', { prices: ['USD 10'] }],
+    ['"v=FOR" "SALE1;"', {}],
+    ['"v=FORSALE1;fval=USD" "10"', { prices: ['USD 10'] }],
     // A UTF-8 sequence may be split across character-strings.
     [
-      String.raw`"v=FORSALE1;ftxt=\240" "\159\142\133"`,
-      { prices: [], texts: ['🎅'] },
+      String.raw`"v=FORSALE1;furi=https://seller.example/\240" "\159\142\133"`,
+      { links: ['https://seller.example/%F0%9F%8E%85'] },
     ],
     // An escaped digit must not merge with digits of the next string.
-    [String.raw`"v=FORSALE1;ftxt=\1" "23"`, { prices: [], texts: ['123'] }],
+    [String.raw`"v=FORSALE1;fval=USD\1" "23"`, { prices: ['USD 123'] }],
   ])(
     'joins multiple character-strings before reading the record: %s',
     async (data, expected) => {
       respond({ Status: 0, Answer: [answer(data)] });
       expect((await lookupForSale('example.com')).listing).toEqual({
+        prices: [],
         links: [],
         ...expected,
       });
@@ -432,7 +411,6 @@ describe('for-sale lookup', () => {
       expect((await lookupForSale('example.com')).listing).toEqual({
         prices: [],
         links: [],
-        texts: [],
       });
     },
   );
@@ -462,15 +440,16 @@ describe('for-sale lookup', () => {
       expect((await lookupForSale('example.com')).listing).toEqual({
         prices: [],
         links: [],
-        texts: [],
       });
     },
   );
 
   it('accepts a quoted record at the 255-octet boundary', async () => {
-    const text = 'x'.repeat(239);
-    respond({ Status: 0, Answer: [answer(`"v=FORSALE1;ftxt=${text}"`)] });
-    expect((await lookupForSale('example.com')).listing?.texts).toEqual([text]);
+    const amount = '1'.repeat(236);
+    respond({ Status: 0, Answer: [answer(`"v=FORSALE1;fval=USD${amount}"`)] });
+    expect((await lookupForSale('example.com')).listing?.prices).toEqual([
+      `USD ${amount}`,
+    ]);
   });
 
   it.each([
@@ -495,7 +474,6 @@ describe('for-sale lookup', () => {
     expect((await lookupForSale('example.com')).listing).toEqual({
       prices: [],
       links: [],
-      texts: [],
     });
   });
 
@@ -520,7 +498,6 @@ describe('for-sale lookup', () => {
     expect((await lookupForSale('example.com')).listing).toEqual({
       prices: [],
       links: [],
-      texts: [],
     });
   });
 

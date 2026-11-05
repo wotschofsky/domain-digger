@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
 
+import { getDomainSummary } from '@/lib/domain-summary';
 import { useLogger, withEvlog } from '@/lib/evlog';
-import { type ForSaleSummary, lookupForSale } from '@/lib/for-sale';
 import { isValidDomain } from '@/lib/utils';
-import { getWhoisSummary } from '@/lib/whois';
-
-export type DomainSummaryResponse = {
-  whois: Awaited<ReturnType<typeof getWhoisSummary>>;
-  // null when the sale lookup failed; WHOIS is still returned.
-  sale: ForSaleSummary | null;
-};
 
 export const GET = withEvlog(async (request: Request) => {
   const log = useLogger();
@@ -25,35 +18,21 @@ export const GET = withEvlog(async (request: Request) => {
 
   log.set({ domain });
 
-  try {
-    const [whois, sale] = await Promise.all([
-      getWhoisSummary(domain),
-      lookupForSale(domain).catch((error) => {
-        log.set({ event: 'sale_lookup_failed' });
-        log.error(error instanceof Error ? error : new Error(String(error)));
-        return null;
-      }),
-    ]);
+  const { tiles, complete, saleError } = await getDomainSummary(domain);
 
-    // Tells a failed WHOIS apart from a registry without a DNSSEC field: both read "Unavailable".
-    log.set({ whois });
-
-    return NextResponse.json({ whois, sale } satisfies DomainSummaryResponse, {
-      headers: {
-        // Retry a failed lookup soon instead of hiding a listing.
-        'Cache-Control':
-          sale && !(whois.registered && whois.unknown)
-            ? 'public, max-age=600, s-maxage=1800'
-            : 'public, max-age=60, s-maxage=60',
-      },
-    });
-  } catch (error) {
-    log.set({ event: 'domain_summary_failed' });
-    log.error(error instanceof Error ? error : new Error(String(error)));
-
-    return NextResponse.json(
-      { error: true, message: 'Error fetching domain summary' },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } },
-    );
+  if (saleError) {
+    log.set({ event: 'sale_lookup_failed' });
+    log.error(saleError);
   }
+  // The status tells a failed WHOIS lookup ("Unavailable") apart from a
+  // registry that leaves fields out ("Not listed").
+  log.set({ tiles });
+
+  return NextResponse.json(tiles, {
+    headers: {
+      'Cache-Control': complete
+        ? 'public, max-age=600, s-maxage=1800'
+        : 'public, max-age=60, s-maxage=60',
+    },
+  });
 });

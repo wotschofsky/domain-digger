@@ -17,9 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import type { DomainSummaryResponse } from '@/app/api/domain-summary/route';
-import { formatSalePrice } from '@/lib/format-sale-price';
-import { canonicalDnsName } from '@/lib/resolvers/base';
+import type { DomainSummaryTiles } from '@/lib/domain-summary';
 
 type DomainSummaryTileProps = {
   title: string;
@@ -45,7 +43,7 @@ const DomainSummaryTile: FC<DomainSummaryTileProps> = ({
 );
 
 type SaleListingLinkProps = {
-  href?: string;
+  href: string | null;
   children: ReactNode;
 };
 
@@ -104,7 +102,7 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
 
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   const { data, error, isLoading, isValidating, mutate } =
-    useSWR<DomainSummaryResponse>(
+    useSWR<DomainSummaryTiles>(
       `/api/domain-summary?domain=${encodeURIComponent(domain)}`,
     );
 
@@ -138,7 +136,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     );
   }
 
-  if (!data.whois.registered) {
+  if (data.status === 'unregistered') {
     return (
       <div className="flex flex-wrap gap-8">
         <DomainSummaryTile title="Status" value="Not registered" />
@@ -146,37 +144,22 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     );
   }
 
-  const { whois } = data;
-  // No sale tile when the WHOIS lookup failed and registration is only assumed.
-  const sale = whois.unknown ? null : data.sale;
-  const listing = sale?.listing;
-  const saleUrl =
-    listing?.links.find((link) => /^https?:\/\//i.test(link)) ??
-    listing?.links.find((link) => link.startsWith('mailto:'));
-
-  // Registries may omit fields (DENIC: no registrar or date); only a failed lookup is unavailable.
-  const missingLabel = whois.unknown ? 'Unavailable' : 'Not listed';
+  const { sale } = data;
 
   return (
     <div className="flex flex-wrap gap-8">
-      <DomainSummaryTile
-        title="Registrar"
-        value={whois.registrar || missingLabel}
-      />
-      <DomainSummaryTile
-        title="Creation Date"
-        value={whois.createdAt || missingLabel}
-      />
-      <DomainSummaryTile title="DNSSEC" value={whois.dnssec || missingLabel} />
-      {sale && listing && (
+      <DomainSummaryTile title="Registrar" value={data.registrar} />
+      <DomainSummaryTile title="Creation Date" value={data.createdAt} />
+      <DomainSummaryTile title="DNSSEC" value={data.dnssec} />
+      {sale && (
         <DomainSummaryTile
           // Advertised prices are not binding and are labelled as such, as
           // RFC 10023 (§4) asks of anyone displaying them.
-          title={`For sale${sale.domain !== canonicalDnsName(domain) ? ` (${sale.domain})` : ''}${listing.prices.length ? ' · indicative price' : ''}`}
+          title={`For sale${sale.fallbackDomain ? ` (${sale.fallbackDomain})` : ''}${sale.prices.length ? ' · indicative price' : ''}`}
           value={
-            <SaleListingLink href={saleUrl}>
-              {listing.prices.length
-                ? listing.prices.map(formatSalePrice).join(' / ')
+            <SaleListingLink href={sale.link}>
+              {sale.prices.length
+                ? sale.prices.join(' / ')
                 : 'Advertised for sale'}
             </SaleListingLink>
           }
