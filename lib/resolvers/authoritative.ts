@@ -171,6 +171,10 @@ type WalkBudget = {
   remaining: number;
   requests: Map<string, Promise<DnsResponse>>;
   remainingSteps: number;
+  // An NS query's fallback when every delegated server fails: the first
+  // parent delegation for the queried name seen anywhere in the walk. Adopted
+  // only if the whole walk fails, so a sibling path that answers still wins.
+  parentDelegation?: WalkResult;
 };
 
 // Name case and a trailing dot don't make a request distinct.
@@ -215,6 +219,16 @@ export class AuthoritativeResolver extends DnsResolver {
   // a single blackholed first server has to leave room to reach a healthy
   // fallback, while all-blackholed candidates stay bounded (~2 budgets).
   private static readonly FALLBACK_DEADLINE_MS = 15_000;
+
+  private static newWalkBudget(): WalkBudget {
+    return {
+      remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK,
+      requests: new Map(),
+      remainingSteps:
+        AuthoritativeResolver.MAX_CANDIDATES_PER_WALK *
+        AuthoritativeResolver.MAX_RECURSION_DEPTH,
+    };
+  }
 
   public constructor(
     private readonly options: AuthoritativeResolverOptions = {},
@@ -559,13 +573,7 @@ export class AuthoritativeResolver extends DnsResolver {
     deadlineAt = Date.now() +
       (this.options.fallbackDeadlineMs ??
         AuthoritativeResolver.FALLBACK_DEADLINE_MS),
-    budget = {
-      remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK,
-      requests: new Map(),
-      remainingSteps:
-        AuthoritativeResolver.MAX_CANDIDATES_PER_WALK *
-        AuthoritativeResolver.MAX_RECURSION_DEPTH,
-    },
+    budget = AuthoritativeResolver.newWalkBudget(),
     ancestors = new Set<string>(),
   }: FetchRecordsParams): Promise<WalkResult> {
     // Cached responses cost no packets, but a crafted or misconfigured graph
@@ -603,8 +611,9 @@ export class AuthoritativeResolver extends DnsResolver {
 
     // The trace prefix any accepted response shares: the failures skipped to
     // reach it, the failed attempts retried at its server, plus a note when
-    // its UDP answer was truncated and retried over TCP. Both the in-loop
-    // accept and the post-loop lastResort adoption use it.
+    // its UDP answer was truncated and retried over TCP. The in-loop accept,
+    // the post-loop lastResort adoption and the parent-delegation fallback
+    // use it.
     const buildAcceptedTrace = (
       candidate: string,
       { truncated, retries }: DnsResponse,
@@ -733,6 +742,31 @@ export class AuthoritativeResolver extends DnsResolver {
         failedNameservers.push(
           `${candidate}: referral failed (${describeError(error)})`,
         );
+        // An NS query whose own zone's servers all fail (a lame delegation,
+        // e.g. NS at a provider that dropped the zone) still has an answer:
+        // the delegation this parent handed out. resolveAnswers adopts it
+        // only if the whole walk fails.
+        const cut = canonicalDnsName(zone);
+        if (
+          recordType === 'NS' &&
+          !budget.parentDelegation &&
+          (!cut || wantName.endsWith(`.${cut}`))
+        ) {
+          const delegation = result.packet.authorities?.filter(
+            (answer): answer is RawAnswer =>
+              answer.type === 'NS' &&
+              canonicalDnsName(answer.name) === wantName,
+          );
+          if (delegation?.length)
+            budget.parentDelegation = {
+              answers: delegation,
+              zone,
+              trace: [
+                ...acceptedTrace,
+                `${recordType} ${domain} @ ${candidate} -> referral failed (${describeError(error)}), using parent delegation: ${delegation.map(this.recordToString).join(', ')}`,
+              ],
+            };
+        }
         continue;
       }
     }
@@ -1200,11 +1234,17 @@ export class AuthoritativeResolver extends DnsResolver {
   // callers that need structured rdata (DNSSEC) rather than presentation
   // strings. With the dnssecOk option, the RRSIGs covering the answer come
   // back too.
-  public resolveAnswers(
+  public async resolveAnswers(
     domain: string,
     recordType: RecordType,
   ): Promise<WalkResult> {
-    return this.fetchRecordsRaw({ domain, recordType });
+    const budget = AuthoritativeResolver.newWalkBudget();
+    try {
+      return await this.fetchRecordsRaw({ domain, recordType, budget });
+    } catch (error) {
+      if (budget.parentDelegation) return budget.parentDelegation;
+      throw error;
+    }
   }
 
   public override async resolveRecordTypes(
