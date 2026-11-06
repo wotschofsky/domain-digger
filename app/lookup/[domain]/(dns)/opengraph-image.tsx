@@ -161,7 +161,7 @@ export const handler = async ({ params: paramsPromise }: OGImageProps) => {
 
       {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
       <img
-        src={`data:image/png;base64,${Buffer.from(globeImage).toString('base64')}`}
+        src={`data:image/png;base64,${globeImage.toString('base64')}`}
         width={1000}
         style={{
           position: 'absolute',

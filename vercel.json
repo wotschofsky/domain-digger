@@ -1,0 +1,23 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "app/api/internal/resolve/arn/route.ts": { "regions": ["arn1"] },
+    "app/api/internal/resolve/bom/route.ts": { "regions": ["bom1"] },
+    "app/api/internal/resolve/cdg/route.ts": { "regions": ["cdg1"] },
+    "app/api/internal/resolve/cle/route.ts": { "regions": ["cle1"] },
+    "app/api/internal/resolve/cpt/route.ts": { "regions": ["cpt1"] },
+    "app/api/internal/resolve/dub/route.ts": { "regions": ["dub1"] },
+    "app/api/internal/resolve/fra/route.ts": { "regions": ["fra1"] },
+    "app/api/internal/resolve/gru/route.ts": { "regions": ["gru1"] },
+    "app/api/internal/resolve/hkg/route.ts": { "regions": ["hkg1"] },
+    "app/api/internal/resolve/hnd/route.ts": { "regions": ["hnd1"] },
+    "app/api/internal/resolve/iad/route.ts": { "regions": ["iad1"] },
+    "app/api/internal/resolve/icn/route.ts": { "regions": ["icn1"] },
+    "app/api/internal/resolve/kix/route.ts": { "regions": ["kix1"] },
+    "app/api/internal/resolve/lhr/route.ts": { "regions": ["lhr1"] },
+    "app/api/internal/resolve/pdx/route.ts": { "regions": ["pdx1"] },
+    "app/api/internal/resolve/sfo/route.ts": { "regions": ["sfo1"] },
+    "app/api/internal/resolve/sin/route.ts": { "regions": ["sin1"] },
+    "app/api/internal/resolve/syd/route.ts": { "regions": ["syd1"] }
+  }
+}

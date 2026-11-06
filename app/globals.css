@@ -147,6 +147,13 @@
   }
 }
 
+/* Carbon's ad card ships light colors only */
+.dark #carbon-responsive {
+  --carbon-bg-primary: var(--color-zinc-900);
+  --carbon-bg-secondary: var(--color-zinc-800);
+  --carbon-text-color: var(--color-zinc-200);
+}
+
 /*
   View transitions for the lookup results (see app/lookup/[domain]/layout.tsx).
   Only the results card animates; the rest of the page swaps instantly.

@@ -240,19 +240,17 @@ describe('checkRrsetSignatures over DNSKEY RRsets (golden vectors)', () => {
       key: sameTagKey(base.key, n),
     }));
     expect(new Set(keys.map((key) => dnskeyKeyTag(key))).size).toBe(1);
-    const rrsigs = keys.map(
-      (_, n): RrsigData => ({
-        typeCovered: 'DNSKEY',
-        algorithm: 13,
-        labels: 1,
-        originalTTL: 3600,
-        expiration: 2000,
-        inception: 1000,
-        keyTag: dnskeyKeyTag(base),
-        signersName: 'example',
-        signature: Buffer.alloc(64, n),
-      }),
-    );
+    const rrsigs = keys.map((_, n): RrsigData => ({
+      typeCovered: 'DNSKEY',
+      algorithm: 13,
+      labels: 1,
+      originalTTL: 3600,
+      expiration: 2000,
+      inception: 1000,
+      keyTag: dnskeyKeyTag(base),
+      signersName: 'example',
+      signature: Buffer.alloc(64, n),
+    }));
     vi.mocked(verifyWithDnskey).mockClear();
 
     const { outcome } = checkRrsetSignatures({
@@ -279,14 +277,11 @@ describe('checkRrsetSignatures over DNSKEY RRsets (golden vectors)', () => {
       expiration: 3000,
     });
     // Enough shorter-lived forgeries to spend the whole budget.
-    const forged = Array.from(
-      { length: 8 },
-      (_, n): RrsigData => ({
-        ...genuine,
-        expiration: 2000 + n,
-        signature: Buffer.alloc(64, n + 1),
-      }),
-    );
+    const forged = Array.from({ length: 8 }, (_, n): RrsigData => ({
+      ...genuine,
+      expiration: 2000 + n,
+      signature: Buffer.alloc(64, n + 1),
+    }));
     const outcome = (rrsigs: RrsigData[]) =>
       checkRrsetSignatures({
         type: 'DNSKEY',
