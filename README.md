@@ -14,6 +14,7 @@ Discover in-depth details of any domain with just a few clicks.
 
 - **🌍 Comprehensive DNS Lookup:** Access detailed DNS information.
 - **📍 IP Details & Geolocation:** Get precise IP information, including location data.
+- **🌐 Your IPv4 & IPv6:** Detect both public addresses on demand through [ident.me](https://api.ident.me/), with copy and details actions.
 - **💡 Smart Suggestions:** Intelligent recommendations for efficient searches.
 - **🔗 Global DNS Lookup:** Perform DNS lookups across different global servers.
 - **🔄 Multiple DNS Resolvers:** Utilize various DNS resolvers for diverse insights.

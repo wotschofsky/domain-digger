@@ -12,6 +12,11 @@ type Events = {
   'IP Details: Open': { ip: string };
   'Location Selector: Change': { location: string };
   'My IP: Open': EmptyEvent;
+  'My IP: Detection': {
+    version: 4 | 6;
+    result: 'detected' | 'timeout' | 'error';
+  };
+  'My IP: Details': { version: 4 | 6 };
   'Outbound Link: Click': { url: string };
   'Resolver Selector: Change': { resolver: string };
   'Search Form: Click Suggestion': { domain: string; isExample: boolean };
