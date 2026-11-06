@@ -11,6 +11,7 @@ type Events = {
   'Copy Button: Click': { value: string };
   'IP Details: Open': { ip: string };
   'Location Selector: Change': { location: string };
+  'My IP: Open': EmptyEvent;
   'Outbound Link: Click': { url: string };
   'Resolver Selector: Change': { resolver: string };
   'Search Form: Click Suggestion': { domain: string; isExample: boolean };

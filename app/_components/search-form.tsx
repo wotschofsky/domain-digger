@@ -214,6 +214,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
       setDomain(userIp);
       setIpDetailsOpen(true);
+      reportEvent('My IP: Open', {});
       return;
     }
 
