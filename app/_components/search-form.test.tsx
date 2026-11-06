@@ -14,11 +14,12 @@ vi.mock('next/navigation', () => ({
   useSelectedLayoutSegment: () => null,
 }));
 vi.mock('swr/immutable', () => ({ default: () => ({ data: undefined }) }));
-vi.mock('@/app/api/user-ip/hook', () => ({
-  useUserIp: () => '192.0.2.1',
-}));
 vi.mock('@/lib/analytics', () => ({
   useAnalytics: () => ({ reportEvent }),
+}));
+vi.mock('./my-ip-modal', () => ({
+  MyIpModal: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog" /> : null,
 }));
 vi.mock('./ip-details-modal', () => ({
   IpDetailsModal: ({ open }: { open: boolean }) =>

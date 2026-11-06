@@ -58,18 +58,11 @@ const renderField = ({
     value || <span className="italic">unknown</span>
   );
 
-export const IpDetailsModal: FC<IpDetailsModalProps> = ({
-  ip,
-  open,
-  onOpenChange,
-}) => {
-  const { width: windowWidth } = useWindowSize();
-
+export const IpDetailsContent: FC<{ ip: string }> = ({ ip }) => {
   const { data, error } = useSWRImmutable<IpLookupResponse>(
-    open ? `/api/ip-details?ip=${encodeURIComponent(ip)}` : null,
+    `/api/ip-details?ip=${encodeURIComponent(ip)}`,
   );
 
-  const title = `IP Details for ${ip}`;
   const content = (() => {
     if (error) {
       return <p className="my-12 text-center">An error occurred!</p>;
@@ -179,6 +172,18 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       </>
     );
   })();
+
+  return content;
+};
+
+export const IpDetailsModal: FC<IpDetailsModalProps> = ({
+  ip,
+  open,
+  onOpenChange,
+}) => {
+  const { width: windowWidth } = useWindowSize();
+  const title = `IP Details for ${ip}`;
+  const content = open ? <IpDetailsContent ip={ip} /> : null;
 
   if (windowWidth && windowWidth < 640) {
     return (

@@ -1,0 +1,107 @@
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { type Cache, SWRConfig } from 'swr';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { MyIpModal } from './my-ip-modal';
+
+const reportEvent = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/analytics', () => ({ useAnalytics: () => ({ reportEvent }) }));
+vi.mock('./ip-details-modal', () => ({
+  IpDetailsContent: ({ ip }: { ip: string }) => <div>Details for {ip}</div>,
+}));
+
+describe('My IP addresses', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let cache: Cache;
+  let fetch: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    reportEvent.mockReset();
+    fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    cache = new Map();
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.unstubAllGlobals();
+  });
+
+  const render = async (open: boolean) => {
+    await act(async () => {
+      root.render(
+        <SWRConfig value={{ provider: () => cache }}>
+          <MyIpModal open={open} onOpenChange={() => {}} />
+        </SWRConfig>,
+      );
+    });
+  };
+
+  it('waits for opening, displays both families, and reuses cached results', async () => {
+    fetch.mockImplementation(
+      async (url: string) =>
+        new Response(url.includes('4.ident') ? '192.0.2.1' : '2001:db8::1'),
+    );
+    await render(false);
+    expect(fetch).not.toHaveBeenCalled();
+    await render(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).toContain('192.0.2.1');
+    expect(document.body.textContent).toContain('2001:db8::1');
+    await render(false);
+    await render(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps IPv4 usable while IPv6 fails and allows an explicit retry', async () => {
+    fetch.mockImplementation(async (url: string) => {
+      if (url.includes('6.ident')) throw new TypeError('Failed to fetch');
+      return new Response('192.0.2.1');
+    });
+    await render(true);
+    expect(document.body.textContent).toContain('192.0.2.1');
+    expect(document.body.textContent).toContain('Not detected');
+    expect(reportEvent).toHaveBeenCalledWith('My IP: Detection', {
+      version: 6,
+      result: 'error',
+    });
+
+    const details = document.querySelector<HTMLButtonElement>(
+      '[aria-label="IPv4 details"]',
+    )!;
+    await act(async () => details.click());
+    expect(document.body.textContent).toContain('Details for 192.0.2.1');
+
+    fetch.mockResolvedValue(new Response('2001:db8::2'));
+    const retry = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Retry IPv6"]',
+    )!;
+    await act(async () => retry.click());
+    expect(document.body.textContent).toContain('2001:db8::2');
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('shows IPv4 while the IPv6 request is still pending', async () => {
+    let resolveV6!: (response: Response) => void;
+    const ipv6 = new Promise<Response>((resolve) => {
+      resolveV6 = resolve;
+    });
+    fetch.mockImplementation((url: string) =>
+      url.includes('4.ident')
+        ? Promise.resolve(new Response('192.0.2.1'))
+        : ipv6,
+    );
+    await render(true);
+    expect(document.body.textContent).toContain('192.0.2.1');
+    expect(document.body.textContent).toContain('Detecting IPv6');
+    await act(async () => resolveV6(new Response('2001:db8::1')));
+    expect(document.body.textContent).toContain('2001:db8::1');
+  });
+});
