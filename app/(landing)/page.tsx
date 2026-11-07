@@ -1,19 +1,14 @@
 import type { FC } from 'react';
 
+import { getLandingMetadata, getLookupFeature } from '@/lib/lookup-features';
+
 import { SearchForm } from '../_components/search-form';
 import { AuthorSection } from './_components/author-section';
 import { FeaturesSection } from './_components/features-section';
 import { SponsorsSection } from './_components/sponsors-section';
 import { TrustSection } from './_components/trust-section';
 
-export const metadata = {
-  openGraph: {
-    url: '/',
-  },
-  alternates: {
-    canonical: '/',
-  },
-};
+export const metadata = getLandingMetadata(getLookupFeature('dns'));
 
 const MainLandingPage: FC = () => (
   <div className="container space-y-16">

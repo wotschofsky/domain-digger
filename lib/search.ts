@@ -5,7 +5,7 @@ import { after } from 'next/server';
 import { env } from '@/env';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
-import type { LookupType } from '@/lib/lookup-features';
+import type { LookupFeature, LookupType } from '@/lib/lookup-features';
 import { getBaseDomain } from '@/lib/utils';
 
 type LookupLogPayload = {
@@ -53,8 +53,8 @@ export const recordLookup = async (payload: LookupLogPayload) => {
 };
 
 export const recordLookupAfter = async (
+  feature: LookupFeature,
   domain: string,
-  lookupType: LookupType,
   hasResults: boolean,
 ) => {
   // Resolve headers up-front; the request scope may be torn down inside after().
@@ -64,7 +64,7 @@ export const recordLookupAfter = async (
   after(async () => {
     await recordLookup({
       domain,
-      lookupType,
+      lookupType: feature.lookupType,
       hasResults,
       ip,
       userAgent,

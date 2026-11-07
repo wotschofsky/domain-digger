@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { type FC, Fragment } from 'react';
 
+import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
 import { recordLookupAfter } from '@/lib/search';
-import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 
@@ -16,6 +17,8 @@ type WhoisResultsPageProps = {
   }>;
 };
 
+const feature = getLookupFeature('whois');
+
 export const generateMetadata = async ({
   params,
   searchParams,
@@ -25,16 +28,7 @@ export const generateMetadata = async ({
 
   const search = force !== undefined ? '?force' : '';
 
-  return {
-    title: `WHOIS Lookup for ${domain}`,
-    openGraph: {
-      title: `WHOIS Lookup for ${domain}`,
-      url: `/lookup/${domain}/whois${search}`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/whois${search}`,
-    },
-  };
+  return getResultsMetadata(feature, domain, search);
 };
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
@@ -49,13 +43,10 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   const lookupTarget = forceOriginal ? domain : baseDomain;
   const results = await lookupWhois(lookupTarget);
 
-  await recordLookupAfter(domain, 'whois', results.length > 0);
+  await recordLookupAfter(feature, domain, results.length > 0);
 
   if (results.length === 0) {
-    throw new UserFacingError({
-      title: 'No WHOIS results',
-      description: `No WHOIS data is available for ${lookupTarget}. The domain may be unregistered or the WHOIS server may not return data for this TLD.`,
-    });
+    notFound();
   }
 
   return (

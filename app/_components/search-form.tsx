@@ -29,6 +29,11 @@ import { useUserIp } from '@/app/api/user-ip/hook';
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
+import {
+  findLookupFeatureBySegment,
+  getLookupFeature,
+  getResultsHref,
+} from '@/lib/lookup-features';
 import { normalizeDomain, parseSearchInput } from '@/lib/search-parser';
 import { cn, isAppleDevice } from '@/lib/utils';
 
@@ -130,18 +135,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const redirectUser = (domain: string) => {
     setState(FormStates.Submitting);
 
-    // Keep the current tab when searching from a results page. Route groups
-    // (e.g. the DNS tab's "(dns)") map to no path segment.
-    const subpage =
-      props.subpage ??
-      (selectedSegment && !selectedSegment.startsWith('(')
-        ? selectedSegment
-        : undefined);
-
-    let target = `/lookup/${domain}`;
-    if (subpage) {
-      target += `/${subpage}`;
-    }
+    // Keep the current tab when searching from a results page
+    const feature =
+      findLookupFeatureBySegment(props.subpage ?? selectedSegment) ??
+      getLookupFeature('dns');
+    const target = getResultsHref(feature, domain);
 
     if (pathname === target) {
       router.refresh();
