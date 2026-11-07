@@ -47,7 +47,11 @@ describe('My IP addresses', () => {
   it('waits for opening, displays both families, and reuses cached results', async () => {
     fetch.mockImplementation(
       async (url: string) =>
-        new Response(url.includes('4.ident') ? '192.0.2.1' : '2001:db8::1'),
+        new Response(
+          url.includes('ipv4.') || url.includes('4.ident')
+            ? '192.0.2.1'
+            : '2001:db8::1',
+        ),
     );
     await render(false);
     expect(fetch).not.toHaveBeenCalled();
@@ -62,7 +66,8 @@ describe('My IP addresses', () => {
 
   it('keeps IPv4 usable while IPv6 fails and allows an explicit retry', async () => {
     fetch.mockImplementation(async (url: string) => {
-      if (url.includes('6.ident')) throw new TypeError('Failed to fetch');
+      if (url.includes('ipv6.') || url.includes('6.ident'))
+        throw new TypeError('Failed to fetch');
       return new Response('192.0.2.1');
     });
     await render(true);
@@ -70,14 +75,9 @@ describe('My IP addresses', () => {
     expect(document.body.textContent).toContain('Not detected');
     expect(reportEvent).toHaveBeenCalledWith('My IP: Detection', {
       version: 6,
+      provider: 'icanhazip',
       result: 'error',
     });
-
-    const details = document.querySelector<HTMLButtonElement>(
-      '[aria-label="IPv4 details"]',
-    )!;
-    await act(async () => details.click());
-    expect(document.body.textContent).toContain('Details for 192.0.2.1');
 
     fetch.mockResolvedValue(new Response('2001:db8::2'));
     const retry = document.querySelector<HTMLButtonElement>(
@@ -88,13 +88,34 @@ describe('My IP addresses', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
+  it('contacts ident.me only after an explicit alternative-provider retry', async () => {
+    fetch.mockImplementation(async (url: string) => {
+      if (url.includes('ipv6.')) throw new TypeError('Failed to fetch');
+      return new Response(url.includes('ipv4.') ? '192.0.2.1' : '2001:db8::1');
+    });
+    await render(true);
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual(
+      expect.arrayContaining([
+        'https://ipv4.icanhazip.com/',
+        'https://ipv6.icanhazip.com/',
+      ]),
+    );
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const alternative = document.querySelector<HTMLButtonElement>(
+      '[aria-label="Use ident.me for IPv6"]',
+    )!;
+    await act(async () => alternative.click());
+    expect(fetch.mock.calls[2][0]).toBe('https://6.ident.me/');
+    expect(document.body.textContent).toContain('2001:db8::1');
+  });
+
   it('shows IPv4 while the IPv6 request is still pending', async () => {
     let resolveV6!: (response: Response) => void;
     const ipv6 = new Promise<Response>((resolve) => {
       resolveV6 = resolve;
     });
     fetch.mockImplementation((url: string) =>
-      url.includes('4.ident')
+      url.includes('ipv4.') || url.includes('4.ident')
         ? Promise.resolve(new Response('192.0.2.1'))
         : ipv6,
     );

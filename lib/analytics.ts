@@ -14,6 +14,7 @@ type Events = {
   'My IP: Open': EmptyEvent;
   'My IP: Detection': {
     version: 4 | 6;
+    provider: 'icanhazip' | 'ident.me';
     result: 'detected' | 'timeout' | 'error';
   };
   'My IP: Details': { version: 4 | 6 };

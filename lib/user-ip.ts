@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import useSWRImmutable from 'swr/immutable';
 import isIP from 'validator/lib/isIP';
 
@@ -5,7 +6,17 @@ import { useAnalytics } from './analytics';
 
 export type IpVersion = 4 | 6;
 
-export const fetchUserIp = async (version: IpVersion): Promise<string> => {
+export type IpProvider = 'icanhazip' | 'ident.me';
+
+export const ipEndpoint = (version: IpVersion, provider: IpProvider) =>
+  provider === 'icanhazip'
+    ? `https://ipv${version}.icanhazip.com/`
+    : `https://${version}.ident.me/`;
+
+export const fetchUserIp = async (
+  version: IpVersion,
+  provider: IpProvider = 'icanhazip',
+): Promise<string> => {
   const controller = new AbortController();
   const timeout = setTimeout(
     () =>
@@ -17,7 +28,7 @@ export const fetchUserIp = async (version: IpVersion): Promise<string> => {
 
   try {
     // This must run in the visitor's browser, never through a server proxy.
-    const response = await fetch(`https://${version}.ident.me/`, {
+    const response = await fetch(ipEndpoint(version, provider), {
       signal: controller.signal,
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
@@ -37,19 +48,26 @@ export const fetchUserIp = async (version: IpVersion): Promise<string> => {
 
 export const useUserIp = (version: IpVersion, enabled: boolean) => {
   const { reportEvent } = useAnalytics();
+  const [provider, setProvider] = useState<IpProvider>('icanhazip');
 
-  return useSWRImmutable<string, Error>(
-    enabled ? `https://${version}.ident.me/` : null,
-    () => fetchUserIp(version),
+  const result = useSWRImmutable<string, Error>(
+    enabled ? ipEndpoint(version, provider) : null,
+    () => fetchUserIp(version, provider),
     {
       shouldRetryOnError: false,
       onSuccess: () =>
-        reportEvent('My IP: Detection', { version, result: 'detected' }),
+        reportEvent('My IP: Detection', {
+          version,
+          provider,
+          result: 'detected',
+        }),
       onError: (error) =>
         reportEvent('My IP: Detection', {
           version,
+          provider,
           result: error.name === 'TimeoutError' ? 'timeout' : 'error',
         }),
     },
   );
+  return { ...result, provider, tryAlternative: () => setProvider('ident.me') };
 };

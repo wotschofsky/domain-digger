@@ -18,12 +18,15 @@ describe('public IP detection', () => {
       vi.stubGlobal('fetch', fetch);
 
       await expect(fetchUserIp(version)).resolves.toBe(ip);
-      expect(fetch).toHaveBeenCalledWith(`https://${version}.ident.me/`, {
-        signal: expect.any(AbortSignal),
-        credentials: 'omit',
-        referrerPolicy: 'no-referrer',
-        cache: 'no-store',
-      });
+      expect(fetch).toHaveBeenCalledWith(
+        `https://ipv${version}.icanhazip.com/`,
+        {
+          signal: expect.any(AbortSignal),
+          credentials: 'omit',
+          referrerPolicy: 'no-referrer',
+          cache: 'no-store',
+        },
+      );
     },
   );
 
@@ -34,6 +37,13 @@ describe('public IP detection', () => {
       await expect(fetchUserIp(4)).rejects.toThrow('Invalid IP response');
     },
   );
+
+  it('uses ident.me only when explicitly requested', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('2001:db8::1'));
+    vi.stubGlobal('fetch', fetch);
+    await expect(fetchUserIp(6, 'ident.me')).resolves.toBe('2001:db8::1');
+    expect(fetch.mock.calls[0][0]).toBe('https://6.ident.me/');
+  });
 
   it('rejects HTTP failures', async () => {
     vi.stubGlobal(
