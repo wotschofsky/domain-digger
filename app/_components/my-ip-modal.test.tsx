@@ -88,6 +88,34 @@ describe('My IP addresses', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
+  it.each([4, 6])(
+    'automatically shows IPv%s details and keeps that selection when the other address arrives',
+    async (firstVersion) => {
+      let resolveLater!: (response: Response) => void;
+      const later = new Promise<Response>((resolve) => {
+        resolveLater = resolve;
+      });
+      const firstIp = firstVersion === 4 ? '192.0.2.1' : '2001:db8::1';
+      const laterIp = firstVersion === 4 ? '2001:db8::1' : '192.0.2.1';
+      fetch.mockImplementation((url: string) =>
+        url.includes(`ipv${firstVersion}.`)
+          ? Promise.resolve(new Response(firstIp))
+          : later,
+      );
+      await render(true);
+      expect(document.body.textContent).toContain(`Details for ${firstIp}`);
+      await act(async () => resolveLater(new Response(laterIp)));
+      expect(document.body.textContent).toContain(`Details for ${firstIp}`);
+      expect(document.body.textContent).not.toContain(`Details for ${laterIp}`);
+      const other = document.querySelector<HTMLButtonElement>(
+        `[aria-label="Show IPv${firstVersion === 4 ? 6 : 4} details"]`,
+      )!;
+      await act(async () => other.click());
+      expect(document.body.textContent).toContain(`Details for ${laterIp}`);
+      expect(other.getAttribute('aria-pressed')).toBe('true');
+    },
+  );
+
   it('contacts ident.me only after an explicit alternative-provider retry', async () => {
     fetch.mockImplementation(async (url: string) => {
       if (url.includes('ipv6.')) throw new TypeError('Failed to fetch');
