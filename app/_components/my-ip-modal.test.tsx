@@ -9,6 +9,7 @@ const reportEvent = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/analytics', () => ({ useAnalytics: () => ({ reportEvent }) }));
 vi.mock('./ip-details-modal', () => ({
   IpDetailsContent: ({ ip }: { ip: string }) => <div>Details for {ip}</div>,
+  LocationMap: () => null,
 }));
 
 describe('My IP addresses', () => {
