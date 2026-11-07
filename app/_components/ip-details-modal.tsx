@@ -26,7 +26,7 @@ import type { IpLookupResponse } from '@/app/api/ip-details/route';
 import { CopyButton } from './copy-button';
 import { DomainLink } from './domain-link';
 
-const LocationMap = dynamic(
+export const LocationMap = dynamic(
   () =>
     import('./location-map').then((m) => ({
       default: m.LocationMap,
@@ -58,7 +58,10 @@ const renderField = ({
     value || <span className="italic">unknown</span>
   );
 
-export const IpDetailsContent: FC<{ ip: string }> = ({ ip }) => {
+export const IpDetailsContent: FC<{ ip: string; showAddress?: boolean }> = ({
+  ip,
+  showAddress = true,
+}) => {
   const { data, error } = useSWRImmutable<IpLookupResponse>(
     `/api/ip-details?ip=${encodeURIComponent(ip)}`,
   );
@@ -149,14 +152,16 @@ export const IpDetailsContent: FC<{ ip: string }> = ({ ip }) => {
       <>
         <Table>
           <TableBody>
-            {entries.map((el) => (
-              <TableRow key={el.label} className="hover:bg-transparent">
-                <TableCell className="pl-0">{el.label}</TableCell>
-                <TableCell className="pr-0 wrap-anywhere whitespace-normal">
-                  {el.component}
-                </TableCell>
-              </TableRow>
-            ))}
+            {entries
+              .filter((el) => showAddress || el.label !== 'IP')
+              .map((el) => (
+                <TableRow key={el.label} className="hover:bg-transparent">
+                  <TableCell className="pl-0">{el.label}</TableCell>
+                  <TableCell className="pr-0 wrap-anywhere whitespace-normal">
+                    {el.component}
+                  </TableCell>
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
 
