@@ -2,15 +2,7 @@ import { log } from 'evlog';
 import { type firstResult, whoisDomain } from 'whoiser';
 
 import { UserFacingError } from './user-facing-error';
-import { getBaseDomain, isValidDomain, serializeError } from './utils';
-
-export const formatDate = (date: Date) => date.toISOString().split('T')[0];
-
-const parseDateSafe = (date: string): Date | null => {
-  const parsed = new Date(date);
-  if (!isNaN(parsed.getTime())) return parsed;
-  return null;
-};
+import { getBaseDomain, serializeError } from './utils';
 
 type WhoisResponse = {
   server: string;
@@ -98,9 +90,6 @@ export type WhoisOutcome =
 export const getWhoisOutcome = async (
   domain: string,
 ): Promise<WhoisOutcome> => {
-  // TODO Allow resolving for TLDs
-  if (!isValidDomain(domain)) return { status: 'unknown' };
-
   const baseDomain = getBaseDomain(domain);
 
   let response: WhoisResponse;
@@ -125,14 +114,13 @@ export const getWhoisOutcome = async (
     return { status: 'unregistered' };
   }
 
-  const createdAt =
-    'Created Date' in data
-      ? parseDateSafe(data['Created Date'].toString())
-      : null;
+  const createdAt = new Date(String(data['Created Date']));
   return {
     status: 'registered',
     registrar: data['Registrar']?.toString() || null,
-    createdAt: createdAt && formatDate(createdAt),
+    createdAt: isNaN(createdAt.getTime())
+      ? null
+      : createdAt.toISOString().slice(0, 10),
     dnssec: data['DNSSEC']?.toString() || null,
   };
 };

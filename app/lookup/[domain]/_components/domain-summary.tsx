@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import type { DomainSummaryTiles } from '@/lib/domain-summary';
+import type { DomainSummaryTiles } from '@/app/api/domain-summary/route';
 
 type DomainSummaryTileProps = {
   title: string;
