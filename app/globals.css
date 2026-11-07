@@ -157,11 +157,14 @@
 /*
   View transitions for the lookup results (see app/lookup/[domain]/layout.tsx).
   Only the results card animates; the rest of the page swaps instantly.
+  Keeping the root out of the transition leaves the page live, and letting
+  clicks through the overlay keeps it clickable (e.g. the next tab) mid-animation.
 */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
+:root {
+  view-transition-name: none;
+}
+::view-transition {
+  pointer-events: none;
 }
 
 ::view-transition-group(.results-forward),
