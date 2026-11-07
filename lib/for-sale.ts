@@ -5,7 +5,6 @@ import { getBaseDomain, isValidDomain } from './utils';
 const VERSION = 'v=FORSALE1;';
 const MAX_ANSWERS = 256;
 const MAX_ANSWER_BYTES = 4096;
-const UNSAFE_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\p{Bidi_Control}]/gu;
 // The schemes RFC 10023 recommends (§2.2.3), most preferred first (§4).
 const LINK_SCHEMES = ['https:', 'http:', 'mailto:', 'tel:'];
 // A dotted DNS name as the URL parser serializes it: no IP address, no
@@ -16,7 +15,6 @@ const HOSTNAME =
 export type ForSaleListing = {
   prices: string[];
   links: string[];
-  texts: string[];
 };
 
 export type ForSaleSummary = {
@@ -87,7 +85,6 @@ export const parseForSaleRecords = (
 
   const prices = new Set<string>();
   const links = new Set<string>();
-  const texts = new Set<string>();
 
   for (const record of saleRecords) {
     // A valid record fits one character-string of 255 octets (§2.4), so a
@@ -106,16 +103,13 @@ export const parseForSaleRecords = (
     } else if (tag === 'furi') {
       const link = safeLink(value);
       if (link) links.add(link);
-    } else if (tag === 'ftxt') {
-      const text = value.replace(UNSAFE_CHARACTERS, ' ').trim();
-      if (text) texts.add(text);
     }
-    // fcod is a cooperating party's opaque code, not a URL we can decode.
+    // ftxt is free text nothing displays; fcod is a cooperating party's
+    // opaque code, not a URL we can decode.
   }
   return {
     prices: [...prices].sort(comparePrices),
     links: [...links].sort(compareLinks),
-    texts: [...texts].sort(compare),
   };
 };
 
@@ -187,6 +181,11 @@ const lookupListing = async (
   return parseForSaleRecords(records);
 };
 
+// The name a listing is looked up on first: the searched name, without a
+// wildcard label.
+export const forSaleName = (domain: string) =>
+  canonicalDnsName(domain).replace(/^\*\./, '');
+
 export const lookupForSale = async (
   domain: string,
 ): Promise<ForSaleSummary> => {
@@ -200,7 +199,7 @@ export const lookupForSale = async (
   // searched name comes first. The registrable domain is the only fallback:
   // www.example.com still shows that example.com is for sale, but no name
   // in between is queried.
-  const name = canonicalDnsName(domain).replace(/^\*\./, '');
+  const name = forSaleName(domain);
   const names = [...new Set([name, baseDomain])].filter(
     (candidate) => `_for-sale.${candidate}`.length <= 253,
   );
