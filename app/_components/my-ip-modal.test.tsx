@@ -88,6 +88,23 @@ describe('My IP addresses', () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
+  it('shows both detail sections without selecting either address', async () => {
+    fetch.mockImplementation(
+      async (url: string) =>
+        new Response(url.includes('ipv4.') ? '192.0.2.1' : '2001:db8::1'),
+    );
+    await render(true);
+    expect(document.body.textContent).toContain('Details for 192.0.2.1');
+    expect(document.body.textContent).toContain('Details for 2001:db8::1');
+    expect(
+      document.querySelector('[aria-label="IPv4 details"]'),
+    ).not.toBeNull();
+    expect(
+      document.querySelector('[aria-label="IPv6 details"]'),
+    ).not.toBeNull();
+    expect(document.querySelector('[aria-pressed]')).toBeNull();
+  });
+
   it('contacts ident.me only after an explicit alternative-provider retry', async () => {
     fetch.mockImplementation(async (url: string) => {
       if (url.includes('ipv6.')) throw new TypeError('Failed to fetch');
