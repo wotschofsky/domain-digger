@@ -97,7 +97,7 @@ describe('domain summary sale link', () => {
   it('requests WHOIS and sale information from one endpoint', async () => {
     await render();
     expect(fixtures.summary).toHaveBeenCalledWith(
-      '/api/domain-summary-tiles?domain=example.com',
+      '/api/domain-summary?domain=example.com',
     );
     expect(container.textContent).toContain('Example registrar');
     expect(container.textContent).toContain('€2,500');

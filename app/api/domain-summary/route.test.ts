@@ -21,7 +21,7 @@ const tiles = {
 };
 const request = (domain?: string) =>
   new Request(
-    `https://digger.tools/api/domain-summary-tiles${domain === undefined ? '' : `?domain=${encodeURIComponent(domain)}`}`,
+    `https://digger.tools/api/domain-summary${domain === undefined ? '' : `?domain=${encodeURIComponent(domain)}`}`,
   );
 
 describe('domain summary API', () => {

@@ -101,13 +101,9 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
 };
 
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
-  // The tiles have their own path, not a new shape on /api/domain-summary:
-  // a tab left open across a deploy refetches the old path on focus and
-  // would crash reading the new shape, and new code would read old cached
-  // responses.
   const { data, error, isLoading, isValidating, mutate } =
     useSWR<DomainSummaryTiles>(
-      `/api/domain-summary-tiles?domain=${encodeURIComponent(domain)}`,
+      `/api/domain-summary?domain=${encodeURIComponent(domain)}`,
     );
 
   if (error && !data) {
