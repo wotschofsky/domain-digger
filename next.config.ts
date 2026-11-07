@@ -56,7 +56,7 @@ const nextConfig = async (): Promise<NextConfig> => ({
   experimental: {
     // Native Rust port of the React Compiler instead of the Babel transform
     turbopackRustReactCompiler: true,
-    // Dev only: drop stale compilation work from memory and the disk cache
+    // Dev and build: drop stale compilation work from memory and the disk cache
     turbopackGc: true,
     // Dev only: compile client-side import() targets on first request
     turbopackLazyDynamicImports: true,
