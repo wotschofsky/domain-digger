@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import dynamic from 'next/dynamic';
 import { notFound } from 'next/navigation';
-import { type FC, type ReactNode, Suspense, ViewTransition } from 'react';
+import { type FC, type ReactNode, Suspense } from 'react';
 
 import { Card } from '@/components/ui/card';
 
@@ -74,16 +74,7 @@ const LookupLayout: FC<LookupLayoutProps> = ({ children, params }) => (
       <div className="flex flex-1 flex-col p-3">
         <Card className="flex-1 py-8">
           <div className="container flex gap-8 px-5 min-[1400px]:max-w-[calc(1400px-2*.75rem)]">
-            <ViewTransition
-              default="none"
-              update={{
-                'tab-forward': 'results-forward',
-                'tab-back': 'results-back',
-                default: 'results-fade',
-              }}
-            >
-              <div className="min-w-0 flex-1">{children}</div>
-            </ViewTransition>
+            <div className="min-w-0 flex-1">{children}</div>
 
             <CarbonAdRail />
           </div>

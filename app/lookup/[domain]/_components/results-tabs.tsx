@@ -11,28 +11,16 @@ import { ClientOnly } from '@/components/client-only';
 import { LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn, isAppleDevice } from '@/lib/utils';
 
-// Read by the <ViewTransition> around the results to slide them in the
-// direction of the newly selected tab
-const getTransitionTypes = (index: number, selectedIndex: number) =>
-  index > selectedIndex ? ['tab-forward'] : ['tab-back'];
-
 type SingleTabProps = {
   label: string;
   href: string;
   selected: boolean;
-  transitionTypes: string[];
 };
 
-const SingleTab: FC<SingleTabProps> = ({
-  label,
-  href,
-  selected,
-  transitionTypes,
-}) => (
+const SingleTab: FC<SingleTabProps> = ({ label, href, selected }) => (
   <li>
     <Link
       href={href}
-      transitionTypes={transitionTypes}
       className={cn(
         'relative inline-block w-max rounded-t-lg px-5 py-3 transition-colors',
         selected
@@ -59,9 +47,6 @@ type ResultsTabsProps = {
 export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
   const router = useRouter();
   const selectedSegment = useSelectedLayoutSegment();
-  const selectedIndex = LOOKUP_FEATURES.findIndex(
-    (tab) => tab.segment === selectedSegment,
-  );
 
   useHotkeys(
     LOOKUP_FEATURES.map((_, index) => `alt+${index + 1}`).join(','),
@@ -69,27 +54,20 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
       const shortcutNumber = Number(hotkeysEvent.keys?.[0]);
       const tab = LOOKUP_FEATURES[shortcutNumber - 1];
 
-      if (tab)
-        router.push(`/lookup/${domain}${tab.path}`, {
-          transitionTypes: getTransitionTypes(
-            shortcutNumber - 1,
-            selectedIndex,
-          ),
-        });
+      if (tab) router.push(`/lookup/${domain}${tab.path}`);
     },
-    [router, domain, selectedIndex],
+    [router, domain],
   );
 
   return (
     <div className="group relative overflow-x-auto overflow-y-hidden rounded-xl text-center text-sm font-medium shadow-[0px_0px_0px_1px_rgba(9,9,11,0.07),0px_2px_2px_0px_rgba(9,9,11,0.05)] dark:shadow-[0px_0px_0px_1px_rgba(255,255,255,0.1)]">
       <ul className="-mb-px flex">
-        {LOOKUP_FEATURES.map((tab, index) => (
+        {LOOKUP_FEATURES.map((tab) => (
           <SingleTab
             key={tab.segment}
             label={tab.label}
             href={`/lookup/${domain}${tab.path}`}
-            selected={index === selectedIndex}
-            transitionTypes={getTransitionTypes(index, selectedIndex)}
+            selected={selectedSegment === tab.segment}
           />
         ))}
       </ul>
