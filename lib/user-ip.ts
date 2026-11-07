@@ -71,3 +71,21 @@ export const useUserIp = (version: IpVersion, enabled: boolean) => {
   );
   return { ...result, provider, tryAlternative: () => setProvider('ident.me') };
 };
+
+// Subscribe to cached detections without starting a request, even when a global
+// SWR fetcher is configured. The search suggestion is a preview, not a probe.
+export const useCachedUserIp = (version: IpVersion) => {
+  const options = {
+    revalidateOnMount: false,
+    isPaused: () => true,
+  };
+  const primary = useSWRImmutable<string>(
+    ipEndpoint(version, 'icanhazip'),
+    options,
+  );
+  const alternative = useSWRImmutable<string>(
+    ipEndpoint(version, 'ident.me'),
+    options,
+  );
+  return primary.data ?? alternative.data;
+};

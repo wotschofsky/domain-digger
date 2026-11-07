@@ -28,7 +28,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
+import { shortenIp } from '@/lib/ip-display';
 import { normalizeDomain, parseSearchInput } from '@/lib/search-parser';
+import { useCachedUserIp } from '@/lib/user-ip';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 import { useSearchSuggestions } from '../api/search-suggestions/hook';
@@ -98,6 +100,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
   const [myIpOpen, setMyIpOpen] = useState(false);
+  const cachedIpv4 = useCachedUserIp(4);
+  const cachedIpv6 = useCachedUserIp(6);
+  const cachedAddresses = [cachedIpv4, cachedIpv6].filter((ip): ip is string =>
+    Boolean(ip),
+  );
 
   const [measureRef, { width: inputWidth }] = useMeasure<HTMLFormElement>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -348,7 +355,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         )}
 
         {suggestionsVisible && suggestions && suggestions.length > 0 && (
-          <Card className="absolute top-full left-0 z-10 h-min p-1">
+          <Card className="absolute top-full left-0 z-10 h-min max-w-full p-1">
             <ul>
               {suggestions.map((value, index) => (
                 <li
@@ -365,8 +372,15 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                 >
                   {value === SUGGESTION_OWN_IP ? (
                     <>
-                      <NetworkIcon className="mr-2 inline-block size-4 text-zinc-500 dark:text-zinc-400" />
-                      <span>Your IP addresses</span>
+                      <NetworkIcon className="mr-2 inline-block size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
+                      <span
+                        className="min-w-0 truncate"
+                        title={cachedAddresses.join(', ')}
+                      >
+                        Your IP addresses
+                        {cachedAddresses.length > 0 &&
+                          ` (${cachedAddresses.map(shortenIp).join(', ')})`}
+                      </span>
                     </>
                   ) : (
                     <>

@@ -3,57 +3,80 @@
 import { useState } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useAnalytics } from '@/lib/analytics';
+import { shortenIp } from '@/lib/ip-display';
 import { type IpVersion, useUserIp } from '@/lib/user-ip';
 
 import { IpDetailsContent } from './ip-details-modal';
 import {
-  IpAddressRow,
   type IpDetection,
   IpProviderNote,
+  IpRetryNotice,
   MyIpDialog,
   type MyIpModalProps,
 } from './my-ip-shared';
 
-const SelectedResults = ({
-  ipv4,
-  ipv6,
-}: {
-  ipv4: IpDetection;
-  ipv6: IpDetection;
-}) => {
+type Results = { ipv4: IpDetection; ipv6: IpDetection };
+
+const AddressTabs = ({ ipv4, ipv6 }: Results) => (
+  <TabsList
+    aria-label="IP address details"
+    className="grid h-auto w-full grid-cols-2 gap-4 rounded-none border-b border-zinc-200 bg-transparent p-0 dark:border-zinc-700"
+  >
+    {([4, 6] as const).map((version) => {
+      const result = version === 4 ? ipv4 : ipv6;
+      const status = result.data
+        ? shortenIp(result.data)
+        : result.error && !result.isValidating
+          ? 'Not detected'
+          : 'Checking…';
+      return (
+        <TabsTrigger
+          key={version}
+          value={String(version)}
+          disabled={!result.data}
+          title={result.data}
+          aria-label={`IPv${version} (${result.data ?? status})`}
+          className="min-w-0 gap-1 rounded-none border-b-2 border-transparent px-1 py-3 data-[state=active]:border-zinc-950 data-[state=active]:bg-transparent data-[state=active]:text-zinc-950 data-[state=active]:shadow-none dark:data-[state=active]:border-white dark:data-[state=active]:text-white"
+        >
+          <span className="shrink-0">IPv{version}</span>
+          <span className="truncate font-normal">({status})</span>
+        </TabsTrigger>
+      );
+    })}
+  </TabsList>
+);
+
+const SelectedResults = ({ ipv4, ipv6 }: Results) => {
   // Mount once the first address arrives. Late results never change the selection.
   const [version, setVersion] = useState<IpVersion>(() => (ipv4.data ? 4 : 6));
   const { reportEvent } = useAnalytics();
-  const ip = version === 4 ? ipv4.data : ipv6.data;
   return (
-    <>
-      <div
-        className="grid min-w-0 gap-2 sm:grid-cols-2"
-        aria-label="Choose address details"
-      >
-        {([4, 6] as const).map((family) => (
-          <IpAddressRow
+    <Tabs
+      value={String(version)}
+      onValueChange={(value) => {
+        const next = value === '4' ? 4 : 6;
+        setVersion(next);
+        reportEvent('My IP: Details', { version: next });
+      }}
+      className="min-w-0"
+    >
+      <AddressTabs ipv4={ipv4} ipv6={ipv6} />
+      {([4, 6] as const).map((family) => {
+        const ip = family === 4 ? ipv4.data : ipv6.data;
+        return (
+          <TabsContent
             key={family}
-            version={family}
-            result={family === 4 ? ipv4 : ipv6}
-            selected={version === family}
-            onSelect={() => {
-              setVersion(family);
-              reportEvent('My IP: Details', { version: family });
-            }}
-          />
-        ))}
-      </div>
-      <section
-        aria-label={`IPv${version} details`}
-        className="min-w-0 border-t border-zinc-200 pt-4 dark:border-zinc-700"
-      >
-        <h3 className="mb-2 text-sm font-medium">IPv{version} details</h3>
-        {ip && <IpDetailsContent key={ip} ip={ip} showAddress={false} />}
-      </section>
-    </>
+            value={String(family)}
+            className="mt-4 min-w-0"
+          >
+            {ip && <IpDetailsContent key={ip} ip={ip} />}
+          </TabsContent>
+        );
+      })}
+    </Tabs>
   );
 };
 
@@ -65,16 +88,15 @@ const MyIpBody = () => {
       {ipv4.data || ipv6.data ? (
         <SelectedResults ipv4={ipv4} ipv6={ipv6} />
       ) : (
-        <>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <IpAddressRow version={4} result={ipv4} />
-            <IpAddressRow version={6} result={ipv6} />
-          </div>
+        <Tabs value="">
+          <AddressTabs ipv4={ipv4} ipv6={ipv6} />
           {(ipv4.isValidating || ipv6.isValidating) && (
-            <Skeleton className="h-48 w-full" />
+            <Skeleton className="mt-4 h-48 w-full" />
           )}
-        </>
+        </Tabs>
       )}
+      <IpRetryNotice version={4} result={ipv4} />
+      <IpRetryNotice version={6} result={ipv6} />
       <IpProviderNote />
     </>
   );

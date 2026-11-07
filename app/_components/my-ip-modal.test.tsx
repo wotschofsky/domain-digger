@@ -108,13 +108,47 @@ describe('My IP addresses', () => {
       expect(document.body.textContent).toContain(`Details for ${firstIp}`);
       expect(document.body.textContent).not.toContain(`Details for ${laterIp}`);
       const other = document.querySelector<HTMLButtonElement>(
-        `[aria-label="Show IPv${firstVersion === 4 ? 6 : 4} details"]`,
+        `[role="tab"][aria-label^="IPv${firstVersion === 4 ? 6 : 4}"]`,
       )!;
-      await act(async () => other.click());
+      await act(async () => {
+        other.dispatchEvent(
+          new MouseEvent('mousedown', {
+            bubbles: true,
+            button: 0,
+            ctrlKey: false,
+          }),
+        );
+        other.click();
+      });
       expect(document.body.textContent).toContain(`Details for ${laterIp}`);
-      expect(other.getAttribute('aria-pressed')).toBe('true');
+      expect(other.getAttribute('aria-selected')).toBe('true');
     },
   );
+
+  it('switches details using the keyboard tabs', async () => {
+    fetch.mockImplementation(
+      async (url: string) =>
+        new Response(url.includes('ipv4.') ? '192.0.2.1' : '2001:db8::1'),
+    );
+    await render(true);
+    const tabs = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    );
+    await act(async () => tabs[0].focus());
+    await act(async () => {
+      tabs[0].dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'ArrowRight',
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(tabs[1].getAttribute('aria-selected')).toBe('true');
+    expect(document.body.textContent).toContain('Details for 2001:db8::1');
+    expect(document.querySelectorAll('[role="tablist"]')).toHaveLength(1);
+  });
 
   it('contacts ident.me only after an explicit alternative-provider retry', async () => {
     fetch.mockImplementation(async (url: string) => {
@@ -149,7 +183,11 @@ describe('My IP addresses', () => {
     );
     await render(true);
     expect(document.body.textContent).toContain('192.0.2.1');
-    expect(document.body.textContent).toContain('Detecting IPv6');
+    expect(
+      document.querySelector<HTMLButtonElement>(
+        '[role="tab"][aria-label^="IPv6"]',
+      )?.disabled,
+    ).toBe(true);
     await act(async () => resolveV6(new Response('2001:db8::1')));
     expect(document.body.textContent).toContain('2001:db8::1');
   });

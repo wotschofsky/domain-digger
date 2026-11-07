@@ -18,12 +18,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
-import { Skeleton } from '@/components/ui/skeleton';
 
 import type { IpVersion, useUserIp } from '@/lib/user-ip';
-import { cn } from '@/lib/utils';
-
-import { CopyButton } from './copy-button';
 
 export type IpDetection = ReturnType<typeof useUserIp>;
 export type MyIpModalProps = {
@@ -31,95 +27,41 @@ export type MyIpModalProps = {
   onOpenChange: (open: boolean) => void;
 };
 
-export const IpAddressRow = ({
+export const IpRetryNotice = ({
   version,
   result,
-  selected,
-  onSelect,
 }: {
   version: IpVersion;
   result: IpDetection;
-  selected?: boolean;
-  onSelect?: () => void;
 }) => {
-  const { data, error, isValidating, mutate, provider, tryAlternative } =
-    result;
-  const address = (
-    <>
-      <span className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-        IPv{version}
-      </span>
-      <span className="block min-w-0 font-mono text-sm break-all">{data}</span>
-    </>
-  );
+  if (result.data || !result.error || result.isValidating) return null;
   return (
     <div
-      className={cn(
-        'flex min-w-0 items-center gap-3 rounded-lg py-3',
-        onSelect && 'px-3',
-        selected && 'bg-zinc-100 dark:bg-zinc-800',
-      )}
-      aria-live="polite"
+      className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
+      role="status"
     >
-      {data ? (
-        <>
-          {onSelect ? (
-            <button
-              type="button"
-              onClick={onSelect}
-              aria-pressed={selected}
-              aria-label={`Show IPv${version} details`}
-              className="min-w-0 flex-1 cursor-pointer rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-500"
-            >
-              {address}
-            </button>
-          ) : (
-            <div className="min-w-0 flex-1">{address}</div>
-          )}
-          <CopyButton value={data} />
-        </>
-      ) : (
-        <div className="min-w-0 flex-1 space-y-2">
-          <span className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            IPv{version}
-          </span>
-          {isValidating || !error ? (
-            <>
-              <Skeleton className="h-5 w-full max-w-48" />
-              <span className="sr-only">Detecting IPv{version}</span>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                Not detected
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  aria-label={`Retry IPv${version}`}
-                  onClick={() => {
-                    void mutate().catch(() => {});
-                  }}
-                >
-                  Retry
-                </Button>
-                {provider === 'icanhazip' && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`Use ident.me for IPv${version}`}
-                    onClick={tryAlternative}
-                  >
-                    Try ident.me
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+      <span>IPv{version} not detected.</span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-label={`Retry IPv${version}`}
+        onClick={() => {
+          void result.mutate().catch(() => {});
+        }}
+      >
+        Retry
+      </Button>
+      {result.provider === 'icanhazip' && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={`Use ident.me for IPv${version}`}
+          onClick={result.tryAlternative}
+        >
+          Try ident.me
+        </Button>
       )}
     </div>
   );
