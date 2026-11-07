@@ -91,6 +91,21 @@ describe('domain summary sale link', () => {
     expect(document.querySelector('[role="alertdialog"]')).toBeNull();
   });
 
+  it('shows DNS delegation data when WHOIS is unavailable', async () => {
+    fixtures.summary.mockReturnValue({
+      data: {
+        whois: { registered: true, unknown: true, registrar: null },
+        dnssec: { domain: 'example.com', status: 'ds-present' },
+        sale: null,
+      },
+      isLoading: false,
+    });
+
+    await render();
+    expect(container.textContent).toContain('DS present');
+    expect(container.textContent).not.toContain('signed');
+  });
+
   it('requests WHOIS and sale information from one endpoint', async () => {
     await render();
     expect(fixtures.summary).toHaveBeenCalledWith(
@@ -154,9 +169,9 @@ describe('domain summary sale link', () => {
           registered: true,
           registrar: null,
           createdAt: null,
-          dnssec: null,
         },
         sale: { domain: 'example.com', listing: null },
+        dnssec: { domain: 'example.com', status: 'ds-present' },
       },
       isLoading: false,
     });

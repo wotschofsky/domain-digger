@@ -102,6 +102,14 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
   );
 };
 
+const describeDnssecStatus = (
+  status?: DomainSummaryResponse['dnssec']['status'],
+): string => {
+  if (status === 'ds-present') return 'DS present';
+  if (status === 'no-ds') return 'No DS record';
+  return 'Unavailable';
+};
+
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   const { data, error, isLoading, isValidating, mutate } =
     useSWR<DomainSummaryResponse>(
@@ -133,7 +141,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
       <div className="flex flex-wrap gap-8">
         <DomainSummaryTile title="Registrar" loading />
         <DomainSummaryTile title="Creation Date" loading />
-        <DomainSummaryTile title="DNSSEC" loading />
+        <DomainSummaryTile title="DNSSEC delegation" loading />
       </div>
     );
   }
@@ -167,7 +175,16 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
         title="Creation Date"
         value={whois.createdAt || missingLabel}
       />
-      <DomainSummaryTile title="DNSSEC" value={whois.dnssec || missingLabel} />
+      <DomainSummaryTile
+        title="DNSSEC delegation"
+        value={
+          <span
+            title={`Parent DS records for ${data.dnssec?.domain ?? domain}; this does not validate the full DNSSEC chain.`}
+          >
+            {describeDnssecStatus(data.dnssec?.status)}
+          </span>
+        }
+      />
       {sale && listing && (
         <DomainSummaryTile
           // Advertised prices are not binding and are labelled as such, as
