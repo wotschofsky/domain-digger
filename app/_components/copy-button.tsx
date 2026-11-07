@@ -39,11 +39,14 @@ export const CopyButton: FC<CopyButton> = ({ value }) => {
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <ClipboardIcon
-            role="button"
-            className="mx-1 inline-block size-4 -translate-y-0.5 cursor-pointer"
+          <button
+            type="button"
+            aria-label="Copy value"
             onClick={copy}
-          />
+            className="mx-1 inline-flex -translate-y-0.5 cursor-pointer rounded-sm align-middle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          >
+            <ClipboardIcon className="size-4" />
+          </button>
         </TooltipTrigger>
         <TooltipContent>
           <p>Copy Value</p>

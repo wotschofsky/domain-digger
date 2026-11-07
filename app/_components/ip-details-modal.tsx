@@ -26,7 +26,7 @@ import type { IpLookupResponse } from '@/app/api/ip-details/route';
 import { CopyButton } from './copy-button';
 import { DomainLink } from './domain-link';
 
-const LocationMap = dynamic(
+export const LocationMap = dynamic(
   () =>
     import('./location-map').then((m) => ({
       default: m.LocationMap,
@@ -58,18 +58,14 @@ const renderField = ({
     value || <span className="italic">unknown</span>
   );
 
-export const IpDetailsModal: FC<IpDetailsModalProps> = ({
+export const IpDetailsContent: FC<{ ip: string; showAddress?: boolean }> = ({
   ip,
-  open,
-  onOpenChange,
+  showAddress = true,
 }) => {
-  const { width: windowWidth } = useWindowSize();
-
   const { data, error } = useSWRImmutable<IpLookupResponse>(
-    open ? `/api/ip-details?ip=${encodeURIComponent(ip)}` : null,
+    `/api/ip-details?ip=${encodeURIComponent(ip)}`,
   );
 
-  const title = `IP Details for ${ip}`;
   const content = (() => {
     if (error) {
       return <p className="my-12 text-center">An error occurred!</p>;
@@ -156,14 +152,16 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       <>
         <Table>
           <TableBody>
-            {entries.map((el) => (
-              <TableRow key={el.label} className="hover:bg-transparent">
-                <TableCell className="pl-0">{el.label}</TableCell>
-                <TableCell className="pr-0 wrap-anywhere whitespace-normal">
-                  {el.component}
-                </TableCell>
-              </TableRow>
-            ))}
+            {entries
+              .filter((el) => showAddress || el.label !== 'IP')
+              .map((el) => (
+                <TableRow key={el.label} className="hover:bg-transparent">
+                  <TableCell className="pl-0">{el.label}</TableCell>
+                  <TableCell className="pr-0 wrap-anywhere whitespace-normal">
+                    {el.component}
+                  </TableCell>
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
 
@@ -179,6 +177,18 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
       </>
     );
   })();
+
+  return content;
+};
+
+export const IpDetailsModal: FC<IpDetailsModalProps> = ({
+  ip,
+  open,
+  onOpenChange,
+}) => {
+  const { width: windowWidth } = useWindowSize();
+  const title = `IP Details for ${ip}`;
+  const content = open ? <IpDetailsContent ip={ip} /> : null;
 
   if (windowWidth && windowWidth < 640) {
     return (
