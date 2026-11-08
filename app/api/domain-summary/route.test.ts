@@ -44,9 +44,6 @@ const verisign = (fields: Record<string, string>) =>
     'whois.verisign-grs.com': { ...fields, __raw: 'Domain Name: EXAMPLE.COM' },
   });
 
-const LONG = 'public, max-age=600, s-maxage=1800';
-const BRIEF = 'public, max-age=60, s-maxage=60';
-
 const summary = async (domain?: string) => {
   const response = await GET(
     new Request(
@@ -89,7 +86,7 @@ describe('domain summary API', () => {
     });
     expect(await summary('www.example.com')).toEqual({
       status: 200,
-      cache: LONG,
+      cache: 'public, max-age=600, s-maxage=1800',
       tiles: {
         status: 'registered',
         registrar: 'Example Registrar, Inc.',
@@ -110,7 +107,7 @@ describe('domain summary API', () => {
       },
     });
     expect(await summary('example.de')).toMatchObject({
-      cache: LONG,
+      cache: 'public, max-age=600, s-maxage=1800',
       tiles: {
         status: 'registered',
         registrar: 'Not listed',
@@ -136,7 +133,7 @@ describe('domain summary API', () => {
       listings({ 'example.com': ['v=FORSALE1;fval=EUR2500'] });
       expect(await summary('example.com')).toEqual({
         status: 200,
-        cache: BRIEF,
+        cache: 'public, max-age=60, s-maxage=60',
         tiles: {
           status: 'unknown',
           registrar: 'Unavailable',
@@ -155,7 +152,7 @@ describe('domain summary API', () => {
     listings({ 'example.com': ['v=FORSALE1;fval=EUR2500'] });
     expect(await summary('example.com')).toEqual({
       status: 200,
-      cache: LONG,
+      cache: 'public, max-age=600, s-maxage=1800',
       tiles: { status: 'unregistered' },
     });
   });
@@ -163,7 +160,7 @@ describe('domain summary API', () => {
   it('keeps WHOIS, caches briefly and logs when the sale lookup fails', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ Status: 2 })));
     expect(await summary('example.com')).toMatchObject({
-      cache: BRIEF,
+      cache: 'public, max-age=60, s-maxage=60',
       tiles: { registrar: 'Example Registrar, Inc.', sale: null },
     });
     expect(logger.set).toHaveBeenCalledWith({ event: 'sale_lookup_failed' });
