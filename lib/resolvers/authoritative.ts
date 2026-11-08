@@ -10,23 +10,19 @@ import dnsPacket, {
   type RrsigData,
   type StringAnswer,
 } from 'dns-packet';
-import { log } from 'evlog';
 
-import { retry, serializeError } from '@/lib/utils';
+import { retry } from '@/lib/utils';
 
-import {
-  UserFacingError,
-  type UserFacingErrorPayload,
-} from '../user-facing-error';
+import { UserFacingError } from '../user-facing-error';
 import {
   canonicalDnsName,
   DnsResolver,
   type RawRecord,
   type RecordType,
-  type ResolverMultiResponse,
   type ResolverResponse,
 } from './base';
 import { isPublicIp } from './ip-filter';
+import { WalkContext } from './walk-context';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
@@ -127,7 +123,7 @@ export type AuthoritativeResolverOptions = {
   tcpTransport?: AuthoritativeTcpTransport;
   rootServers?: () => Promise<string[]>;
   // Time budget for trying fallback nameservers, shared across the whole
-  // walk (see fetchRecordsRaw). Injectable for tests.
+  // walk (see WalkContext). Injectable for tests.
   fallbackDeadlineMs?: number;
   // Set the EDNS DNSSEC OK (DO) bit on every query of this instance, so
   // authoritative servers include RRSIGs.
@@ -162,27 +158,9 @@ type WalkResult = {
   coveringRrsigs?: RrsigData[];
 };
 
-// Shared by all glueless branches of one top-level query. Reusing a cached
-// request (including a rejection) consumes neither another slot nor packets.
-// A new top-level query gets a fresh budget and can retry requests that
-// rejected (transport failures); resolved responses, rcode failures
-// included, stay cached for the resolver instance.
-type WalkBudget = {
-  remaining: number;
-  requests: Map<string, Promise<DnsResponse>>;
-  remainingSteps: number;
-  // An NS query's fallback when every delegated server fails: the first
-  // parent delegation for the queried name seen anywhere in the walk. Adopted
-  // only if the whole walk fails, so a sibling path that answers still wins.
-  parentDelegation?: WalkResult;
-};
-
-// Name case and a trailing dot don't make a request distinct.
-const requestKey = (
-  domain: string,
-  recordType: RecordType,
-  nameserver: string,
-) => `${canonicalDnsName(domain)} ${recordType} ${nameserver}`;
+// Its fallback result is an NS query's parent delegation, offered when every
+// delegated server fails.
+type Walk = WalkContext<DnsResponse, WalkResult>;
 
 type FetchRecordsParams = {
   domain: string;
@@ -191,45 +169,10 @@ type FetchRecordsParams = {
   // The zone cut `nameservers` were delegated for.
   zone?: string;
   trace?: string[];
-  depth?: number;
-  deadlineAt?: number;
-  budget?: WalkBudget;
-  ancestors?: ReadonlySet<string>;
-};
-
-const FALLBACK_LOOKUP_ERROR: UserFacingErrorPayload = {
-  title: 'DNS lookup failed',
-  description:
-    'This record type could not be retrieved. Please try again shortly.',
-  retryable: true,
+  walk: Walk;
 };
 
 export class AuthoritativeResolver extends DnsResolver {
-  private static readonly MAX_RECURSION_DEPTH = 20;
-  // Caps distinct requests (name, type, nameserver) for one walk -- reusing
-  // one is free and bounded by the walk's step budget instead -- like BIND's
-  // max-recursion-queries: the depth cap alone still lets a crafted zone
-  // answer every glueless delegation with 4 fresh NS names and fork
-  // 4^depth sub-walks. One attempt costs up to 4 UDP tries plus a TCP
-  // fallback each (see requestLoader/sendRequest), so this also caps the
-  // walk's packet ceiling at ~8x this value. Far above any honest
-  // lookup's needs (a deep all-glueless walk stays under ~30).
-  private static readonly MAX_CANDIDATES_PER_WALK = 50;
-  // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
-  // a single blackholed first server has to leave room to reach a healthy
-  // fallback, while all-blackholed candidates stay bounded (~2 budgets).
-  private static readonly FALLBACK_DEADLINE_MS = 15_000;
-
-  private static newWalkBudget(): WalkBudget {
-    return {
-      remaining: AuthoritativeResolver.MAX_CANDIDATES_PER_WALK,
-      requests: new Map(),
-      remainingSteps:
-        AuthoritativeResolver.MAX_CANDIDATES_PER_WALK *
-        AuthoritativeResolver.MAX_RECURSION_DEPTH,
-    };
-  }
-
   public constructor(
     private readonly options: AuthoritativeResolverOptions = {},
   ) {
@@ -532,21 +475,38 @@ export class AuthoritativeResolver extends DnsResolver {
   // dedupe those shared hops because its key includes the final query name.
   // First writer wins and only suffixes of the queried name are cached, so a
   // deeper (less-trusted) server can't overwrite entries learned from the
-  // servers above it.
+  // servers above it. Only the two methods below write it.
   private delegationCache = new Map<string, string[]>();
 
+  // Caches a referral's servers and returns the referral's hold on the entry:
+  // release and replace act only while the entry is still the one this
+  // referral wrote, so it never drops or overwrites another walk's.
   private cacheDelegation(zoneCut: string, domain: string, ips: string[]) {
     const zone = canonicalDnsName(zoneCut);
     const name = canonicalDnsName(domain);
-    if (this.delegationCache.has(zone)) return;
-    if (name !== zone && !name.endsWith(`.${zone}`)) return;
-    this.delegationCache.set(zone, ips);
+    if (
+      !this.delegationCache.has(zone) &&
+      (name === zone || name.endsWith(`.${zone}`))
+    ) {
+      this.delegationCache.set(zone, ips);
+    }
+    const owned = () => this.delegationCache.get(zone) === ips;
+    return {
+      release: () => {
+        if (owned()) this.delegationCache.delete(zone);
+      },
+      replace: (next: string[]) => {
+        if (owned()) this.delegationCache.set(zone, next);
+      },
+    };
   }
 
+  // The deepest cached cut above `domain`. evict drops it whoever wrote it:
+  // its servers all failed, so it may simply be stale.
   private getCachedDelegation(
     domain: string,
     recordType: RecordType,
-  ): { zone: string; ips: string[] } | undefined {
+  ): { zone: string; ips: string[]; evict: () => void } | undefined {
     const labels = canonicalDnsName(domain).split('.').filter(Boolean);
     // DS records live in the parent zone: a child's own servers answer a DS
     // query for their apex with NODATA, which would falsely read as "no DS".
@@ -555,7 +515,8 @@ export class AuthoritativeResolver extends DnsResolver {
     for (let i = start; i < labels.length; i++) {
       const zone = labels.slice(i).join('.');
       const ips = this.delegationCache.get(zone);
-      if (ips) return { zone, ips };
+      if (ips)
+        return { zone, ips, evict: () => this.delegationCache.delete(zone) };
     }
     return undefined;
   }
@@ -566,29 +527,9 @@ export class AuthoritativeResolver extends DnsResolver {
     nameservers,
     zone: delegatedZone,
     trace = [],
-    depth = 0,
-    // The deadline and query budget span the whole walk -- referrals and
-    // glueless sub-lookups inherit both -- so each delegation level can't
-    // stack a fresh allowance.
-    deadlineAt = Date.now() +
-      (this.options.fallbackDeadlineMs ??
-        AuthoritativeResolver.FALLBACK_DEADLINE_MS),
-    budget = AuthoritativeResolver.newWalkBudget(),
-    ancestors = new Set<string>(),
+    walk,
   }: FetchRecordsParams): Promise<WalkResult> {
-    // Cached responses cost no packets, but a crafted or misconfigured graph
-    // can still fork exponentially through shared requests. Bound that
-    // processing separately.
-    if (budget.remainingSteps-- <= 0) {
-      throw new Error(
-        `DNS traversal budget exhausted while resolving ${domain}`,
-      );
-    }
-    if (depth > AuthoritativeResolver.MAX_RECURSION_DEPTH) {
-      throw new Error(
-        `Max recursion depth exceeded while resolving ${domain} (type ${recordType})`,
-      );
-    }
+    walk.enter(domain, recordType);
 
     const cached = nameservers?.length
       ? undefined
@@ -648,7 +589,7 @@ export class AuthoritativeResolver extends DnsResolver {
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // platform request timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
-      if (failedNameservers.length > 0 && Date.now() >= deadlineAt) {
+      if (failedNameservers.length > 0 && walk.pastDeadline) {
         failedNameservers.push(
           `${candidate}: skipped, fallback deadline exceeded`,
         );
@@ -660,27 +601,18 @@ export class AuthoritativeResolver extends DnsResolver {
         nameserver: candidate,
         dnssecOk: this.options.dnssecOk ?? false,
       };
-      const key = requestKey(domain, recordType, candidate);
-      // Branch-local ancestry stops a circular glueless dependency, whose
-      // replies are cached after a round trip or two and then recurse in
-      // microtasks, before it spends the step budget a slower sibling needs.
-      // This catches a request repeating itself; followReferralViaNsLookup
-      // catches an NS name cycling back through other servers.
-      if (ancestors.has(key)) {
+      const pending = walk.send(domain, recordType, candidate, () =>
+        this.requestLoader.load(loaderKey),
+      );
+      if (pending === 'loop') {
         failedNameservers.push(`${candidate}: DNS referral loop detected`);
         continue;
       }
-      let pending = budget.requests.get(key);
-      if (!pending) {
-        if (budget.remaining <= 0) {
-          failedNameservers.push(
-            `${candidate}: skipped, candidate budget exhausted`,
-          );
-          break;
-        }
-        budget.remaining--;
-        pending = this.requestLoader.load(loaderKey);
-        budget.requests.set(key, pending);
+      if (pending === 'exhausted') {
+        failedNameservers.push(
+          `${candidate}: skipped, candidate budget exhausted`,
+        );
+        break;
       }
       let result: DnsResponse;
       try {
@@ -733,10 +665,7 @@ export class AuthoritativeResolver extends DnsResolver {
           wantName,
           zone,
           trace: acceptedTrace,
-          depth,
-          deadlineAt,
-          budget,
-          ancestors: new Set([...ancestors, key]),
+          walk: walk.via(domain, recordType, candidate),
         });
       } catch (error) {
         failedNameservers.push(
@@ -744,28 +673,24 @@ export class AuthoritativeResolver extends DnsResolver {
         );
         // An NS query whose own zone's servers all fail (a lame delegation,
         // e.g. NS at a provider that dropped the zone) still has an answer:
-        // the delegation this parent handed out. resolveAnswers adopts it
-        // only if the whole walk fails.
+        // the delegation this parent handed out, adopted only if the whole
+        // walk fails.
         const cut = canonicalDnsName(zone);
-        if (
-          recordType === 'NS' &&
-          !budget.parentDelegation &&
-          (!cut || wantName.endsWith(`.${cut}`))
-        ) {
+        if (recordType === 'NS' && (!cut || wantName.endsWith(`.${cut}`))) {
           const delegation = result.packet.authorities?.filter(
             (answer): answer is RawAnswer =>
               answer.type === 'NS' &&
               canonicalDnsName(answer.name) === wantName,
           );
           if (delegation?.length)
-            budget.parentDelegation = {
+            walk.offerFallback({
               answers: delegation,
               zone,
               trace: [
                 ...acceptedTrace,
                 `${recordType} ${domain} @ ${candidate} -> referral failed (${describeError(error)}), using parent delegation: ${delegation.map(this.recordToString).join(', ')}`,
               ],
-            };
+            });
         }
         continue;
       }
@@ -782,8 +707,8 @@ export class AuthoritativeResolver extends DnsResolver {
       // the healthy authoritative server the fresh root walk finds. With the
       // step budget spent there is no re-walk; the walk ends below, still
       // without adopting lastResort.
-      this.delegationCache.delete(cached.zone);
-      if (budget.remainingSteps > 0)
+      cached.evict();
+      if (walk.hasStepsLeft)
         return this.fetchRecordsRaw({
           domain,
           recordType,
@@ -791,10 +716,7 @@ export class AuthoritativeResolver extends DnsResolver {
             ...trace,
             `${recordType} ${domain} -> cached delegation ${cached.zone} failed (${failedNameservers.join('; ')}), re-walking from root`,
           ],
-          depth: depth + 1,
-          deadlineAt,
-          budget,
-          ancestors,
+          walk: walk.deeper(),
         });
     } else if (lastResort) {
       // No candidate answered authoritatively; the deferred answer is better
@@ -816,10 +738,7 @@ export class AuthoritativeResolver extends DnsResolver {
         wantName,
         zone,
         trace: lastResortTrace,
-        depth,
-        deadlineAt,
-        budget,
-        ancestors,
+        walk,
       });
     }
 
@@ -868,10 +787,7 @@ export class AuthoritativeResolver extends DnsResolver {
     wantName,
     zone,
     trace,
-    depth,
-    deadlineAt,
-    budget,
-    ancestors,
+    walk,
   }: {
     packet: Packet;
     protocol: DnsResponse['protocol'];
@@ -881,10 +797,7 @@ export class AuthoritativeResolver extends DnsResolver {
     wantName: string;
     zone: string;
     trace: string[];
-    depth: number;
-    deadlineAt: number;
-    budget: WalkBudget;
-    ancestors: ReadonlySet<string>;
+    walk: Walk;
   }): Promise<WalkResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
@@ -1002,7 +915,11 @@ export class AuthoritativeResolver extends DnsResolver {
         const addresses = [
           ...new Set(aRedirects.map((redirect) => redirect.data)),
         ].slice(0, 4);
-        this.cacheDelegation(nsRedirects[0].name, domain, addresses);
+        const delegation = this.cacheDelegation(
+          nsRedirects[0].name,
+          domain,
+          addresses,
+        );
         try {
           return await this.fetchRecordsRaw({
             domain,
@@ -1013,10 +930,7 @@ export class AuthoritativeResolver extends DnsResolver {
               ...trace,
               `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
             ],
-            depth: depth + 1,
-            deadlineAt,
-            budget,
-            ancestors,
+            walk: walk.deeper(),
           });
         } catch (error) {
           // Glue can cover only some NS names (whu.edu glues just one, dead,
@@ -1033,9 +947,7 @@ export class AuthoritativeResolver extends DnsResolver {
           // costs one more retry budget per zone before failing. Checking what
           // the sent glue answered, and skipping servers that already timed
           // out under another name, would narrow both.
-          const sent = addresses.filter((ip) =>
-            budget.requests.has(requestKey(domain, recordType, ip)),
-          );
+          const sent = walk.queried(domain, recordType, addresses);
           // Grouped once per name: the referral can repeat thousands of
           // glue records.
           const spent = new Set(
@@ -1053,8 +965,7 @@ export class AuthoritativeResolver extends DnsResolver {
             )
             .sort((a, b) => Number(isSpent(a)) - Number(isSpent(b)));
           // Drop this referral's own entry so the fallback can replace it.
-          if (this.delegationCache.get(nextZone) === addresses)
-            this.delegationCache.delete(nextZone);
+          delegation.release();
           if (!fallbackNs.length) throw error;
           return this.followReferralViaNsLookup({
             nsRedirects: fallbackNs,
@@ -1067,10 +978,7 @@ export class AuthoritativeResolver extends DnsResolver {
               ...trace,
               `${recordType} ${domain} -> glue for ${nextZone}${sent.length ? ` (${sent.join(', ')})` : ''} failed (${describeError(error)}), resolving NS names instead`,
             ],
-            depth,
-            deadlineAt,
-            budget,
-            ancestors,
+            walk,
           });
         }
       }
@@ -1083,10 +991,7 @@ export class AuthoritativeResolver extends DnsResolver {
         candidate,
         protocol,
         trace,
-        depth,
-        deadlineAt,
-        budget,
-        ancestors,
+        walk,
       });
     }
 
@@ -1104,10 +1009,7 @@ export class AuthoritativeResolver extends DnsResolver {
     candidate,
     protocol,
     trace,
-    depth,
-    deadlineAt,
-    budget,
-    ancestors,
+    walk,
   }: {
     nsRedirects: StringAnswer[];
     failed?: string[];
@@ -1116,10 +1018,7 @@ export class AuthoritativeResolver extends DnsResolver {
     candidate: string;
     protocol: DnsResponse['protocol'];
     trace: string[];
-    depth: number;
-    deadlineAt: number;
-    budget: WalkBudget;
-    ancestors: ReadonlySet<string>;
+    walk: Walk;
   }): Promise<WalkResult> {
     const zone = canonicalDnsName(nsRedirects[0].name);
     const subTrace: string[] = [];
@@ -1134,20 +1033,11 @@ export class AuthoritativeResolver extends DnsResolver {
     // as the winner are already collected as fallbacks.
     const resolvedSets: string[][] = [];
     const lookups = nsRedirects.slice(0, 4).map(async (ns) => {
-      // An NS name already being resolved further up this branch is a
-      // circular dependency whichever servers it goes through, so it is
-      // stopped once rather than once per server ordering.
-      const nsKey = `NS ${canonicalDnsName(ns.data)}`;
       try {
-        if (ancestors.has(nsKey))
-          throw new Error(`circular NS dependency (${ns.data})`);
         const resolved = await this.fetchRecordsRaw({
           domain: ns.data,
           recordType: 'A',
-          depth: depth + 1,
-          deadlineAt,
-          budget,
-          ancestors: new Set([...ancestors, nsKey]),
+          walk: walk.resolvingNs(ns.data),
         });
         subTrace.push(...resolved.trace);
         // resolved.answers are all A records (filtered by type), so
@@ -1173,7 +1063,7 @@ export class AuthoritativeResolver extends DnsResolver {
     }
     const tried = [...new Set(resolvedSets.flat())].slice(0, 4);
 
-    this.cacheDelegation(nsRedirects[0].name, domain, tried);
+    const delegation = this.cacheDelegation(nsRedirects[0].name, domain, tried);
     const redirectTrace = [
       ...trace,
       `${recordType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${nsRedirects.map((r) => r.data).join(', ')}`,
@@ -1187,10 +1077,7 @@ export class AuthoritativeResolver extends DnsResolver {
         nameservers: tried,
         zone,
         trace: redirectTrace,
-        depth: depth + 1,
-        deadlineAt,
-        budget,
-        ancestors,
+        walk: walk.deeper(),
       });
     } catch (error) {
       // Sibling NS lookups are still usable failover: the race above only
@@ -1204,13 +1091,10 @@ export class AuthoritativeResolver extends DnsResolver {
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
       if (!late.length) throw error;
-      if (this.delegationCache.get(zone) === tried)
-        this.delegationCache.set(zone, late);
+      delegation.replace(late);
       // The deadline or request cap can stop the walk before every address
       // is queried; only the queried ones failed.
-      const queried = tried.filter((ip) =>
-        budget.requests.has(requestKey(domain, recordType, ip)),
-      );
+      const queried = walk.queried(domain, recordType, tried);
       return this.fetchRecordsRaw({
         domain,
         recordType,
@@ -1221,10 +1105,7 @@ export class AuthoritativeResolver extends DnsResolver {
           ...subTrace.slice(seenSubTrace),
           `${recordType} ${domain} -> nameservers${queried.length ? ` ${queried.join(', ')}` : ''} failed (${describeError(error)}), retrying with late sibling nameservers: ${late.join(', ')}`,
         ],
-        depth: depth + 1,
-        deadlineAt,
-        budget,
-        ancestors,
+        walk: walk.deeper(),
       });
     }
   }
@@ -1238,52 +1119,10 @@ export class AuthoritativeResolver extends DnsResolver {
     domain: string,
     recordType: RecordType,
   ): Promise<WalkResult> {
-    const budget = AuthoritativeResolver.newWalkBudget();
-    try {
-      return await this.fetchRecordsRaw({ domain, recordType, budget });
-    } catch (error) {
-      if (budget.parentDelegation) return budget.parentDelegation;
-      throw error;
-    }
-  }
-
-  public override async resolveRecordTypes(
-    domain: string,
-    types: readonly RecordType[],
-  ): Promise<ResolverMultiResponse> {
-    const results = await Promise.allSettled(
-      types.map((type) => this.resolveRecordType(domain, type)),
+    return WalkContext.run<DnsResponse, WalkResult>(
+      (walk) => this.fetchRecordsRaw({ domain, recordType, walk }),
+      this.options.fallbackDeadlineMs,
     );
-    const firstFailure = results.find((result) => result.status === 'rejected');
-    const hasRecords = results.some(
-      (result) =>
-        result.status === 'fulfilled' && result.value.records.length > 0,
-    );
-    // Empty successful types must not turn an entirely unusable lookup into
-    // a misleading "no records" page (e.g. a broken Route 53 delegation).
-    if (firstFailure && !hasRecords) throw firstFailure.reason;
-
-    const response: ResolverMultiResponse = {};
-    for (const [index, result] of results.entries()) {
-      if (result.status === 'fulfilled') {
-        response[types[index]] = result.value;
-        continue;
-      }
-      const { reason } = result;
-      const expected = reason instanceof UserFacingError;
-      // Not rethrown, so onRequestError never sees it. Expected failures
-      // (e.g. a refused PTR) only warn, so error alerts stay reserved for
-      // bugs.
-      log[expected ? 'warn' : 'error']({
-        message: 'record_type_lookup_failed',
-        domain,
-        recordType: types[index],
-        error: serializeError(reason),
-      });
-      const error = expected ? reason.payload : FALLBACK_LOOKUP_ERROR;
-      response[types[index]] = { records: [], trace: [], error };
-    }
-    return response;
   }
 
   public async resolveRecordType(

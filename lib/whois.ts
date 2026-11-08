@@ -1,24 +1,44 @@
 import { log } from 'evlog';
-import { firstResult as getFirstResult, whoisDomain } from 'whoiser';
+import { type firstResult, whoisDomain } from 'whoiser';
 
 import { UserFacingError } from './user-facing-error';
-import { getBaseDomain, isValidDomain, serializeError } from './utils';
+import { getBaseDomain, serializeError } from './utils';
 
-export const formatDate = (date: Date) => date.toISOString().split('T')[0];
-
-const parseDateSafe = (date: string): Date | null => {
-  const parsed = new Date(date);
-  if (!isNaN(parsed.getTime())) return parsed;
-  return null;
+type WhoisResponse = {
+  server: string;
+  data: ReturnType<typeof firstResult>;
+  raw: string;
 };
 
-export const lookupWhois = async (domain: string) => {
-  let result: Awaited<ReturnType<typeof whoisDomain>>;
+// The one way whoiser is called. whoiser resolves socket errors and timeouts
+// as { error } per server, so a lookup no server answered rejects as well.
+const queryWhois = async (domain: string): Promise<WhoisResponse[]> => {
+  const results = Object.entries(
+    await whoisDomain(domain, { raw: true, timeout: 5000 }),
+  );
+  const answered = results.filter(([, data]) => !('error' in data));
+  if (!answered.length) {
+    throw new Error(
+      `No WHOIS server answered for ${domain}: ${results.map(([server, data]) => `${server}: ${data.error}`).join('; ')}`,
+    );
+  }
+
+  return answered.map(([server, data]) => {
+    const raw = data.__raw;
+    return {
+      server,
+      data,
+      raw: raw ? (Array.isArray(raw) ? raw.join('\n') : raw) : '',
+    };
+  });
+};
+
+export const lookupWhois = async (
+  domain: string,
+): Promise<[server: string, raw: string][]> => {
+  let responses: WhoisResponse[];
   try {
-    result = await whoisDomain(domain, {
-      raw: true,
-      timeout: 5000,
-    });
+    responses = await queryWhois(domain);
   } catch (error) {
     throw new UserFacingError(
       {
@@ -31,19 +51,9 @@ export const lookupWhois = async (domain: string) => {
     );
   }
 
-  const mappedResults: Record<string, string> = {};
-  for (const key in result) {
-    const raw = result[key].__raw;
-    if (raw) {
-      mappedResults[key] = Array.isArray(raw) ? raw.join('\n') : raw;
-    }
-  }
-
-  const filteredResults = Object.entries(mappedResults).filter(
-    ([_key, value]) => Boolean(value),
-  );
-
-  return filteredResults;
+  return responses
+    .filter(({ raw }) => raw)
+    .map(({ server, raw }) => [server, raw]);
 };
 
 const UNREGISTERED_INDICATORS = [
@@ -66,75 +76,25 @@ const UNREGISTERED_INDICATORS = [
   'unassignable', // postiglione.sa.it
 ];
 
-type WhoisSummary =
+export type WhoisOutcome =
   | {
-      registered: false;
-    }
-  | {
-      registered: true;
-      // Set when the lookup failed, so registration was assumed, not confirmed.
-      unknown?: true;
+      status: 'registered';
       registrar: string | null;
       createdAt: string | null;
       dnssec: string | null;
-    };
+    }
+  | { status: 'unregistered' }
+  // The lookup failed, so registration is neither confirmed nor ruled out.
+  | { status: 'unknown' };
 
-export const getWhoisSummary = async (
+export const getWhoisOutcome = async (
   domain: string,
-): Promise<WhoisSummary> => {
-  // TODO Allow resolving for TLDs
-  if (!isValidDomain(domain)) {
-    return {
-      registered: true,
-      registrar: null,
-      createdAt: null,
-      dnssec: null,
-    };
-  }
-
+): Promise<WhoisOutcome> => {
   const baseDomain = getBaseDomain(domain);
 
+  let response: WhoisResponse;
   try {
-    const results = await whoisDomain(baseDomain, {
-      timeout: 5000,
-      raw: true,
-    });
-
-    const firstResult = getFirstResult(results);
-
-    if (!firstResult) throw new Error(`No WHOIS result for ${domain}`);
-    // whoiser resolves socket errors and timeouts as { error } per server.
-    if ('error' in firstResult) {
-      throw new Error(`WHOIS query for ${domain} failed: ${firstResult.error}`);
-    }
-
-    const rawValue = firstResult['__raw'];
-    const rawString = rawValue
-      ? Array.isArray(rawValue)
-        ? rawValue.join('\n')
-        : rawValue
-      : '';
-
-    if (
-      UNREGISTERED_INDICATORS.some((indicator) =>
-        rawString.toLowerCase().includes(indicator),
-      )
-    ) {
-      return {
-        registered: false,
-      };
-    }
-
-    const createdAt =
-      firstResult && 'Created Date' in firstResult
-        ? parseDateSafe(firstResult['Created Date'].toString())
-        : null;
-    return {
-      registered: true,
-      registrar: firstResult['Registrar']?.toString() || null,
-      createdAt: createdAt && formatDate(createdAt),
-      dnssec: firstResult['DNSSEC']?.toString() || null,
-    };
+    [response] = await queryWhois(baseDomain);
   } catch (error) {
     // Swallowed into "Unavailable" tiles, so nothing else logs it.
     log.warn({
@@ -142,13 +102,25 @@ export const getWhoisSummary = async (
       domain: baseDomain,
       error: serializeError(error),
     });
-
-    return {
-      registered: true,
-      unknown: true,
-      registrar: null,
-      createdAt: null,
-      dnssec: null,
-    };
+    return { status: 'unknown' };
   }
+
+  const { data, raw } = response;
+  if (
+    UNREGISTERED_INDICATORS.some((indicator) =>
+      raw.toLowerCase().includes(indicator),
+    )
+  ) {
+    return { status: 'unregistered' };
+  }
+
+  const createdAt = new Date(String(data['Created Date']));
+  return {
+    status: 'registered',
+    registrar: data['Registrar']?.toString() || null,
+    createdAt: isNaN(createdAt.getTime())
+      ? null
+      : createdAt.toISOString().slice(0, 10),
+    dnssec: data['DNSSEC']?.toString() || null,
+  };
 };

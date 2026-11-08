@@ -6,6 +6,7 @@ import { AlibabaDoHResolver } from '@/lib/resolvers/alibaba';
 import { type RecordType } from '@/lib/resolvers/base';
 import { CloudflareDoHResolver } from '@/lib/resolvers/cloudflare';
 import { GoogleDoHResolver } from '@/lib/resolvers/google';
+import { UserFacingError } from '@/lib/user-facing-error';
 
 if (env.NODE_ENV === 'production' && !env.INTERNAL_API_SECRET) {
   throw new Error('INTERNAL_API_SECRET is required in production');
@@ -89,10 +90,16 @@ export const handler = async (request: Request) => {
       : resolverName === 'cloudflare'
         ? new CloudflareDoHResolver()
         : new GoogleDoHResolver();
-  const response = await resolver.resolveRecordTypes(
-    domain,
-    types as RecordType[],
-  );
-
-  return NextResponse.json(response);
+  try {
+    const response = await resolver.resolveRecordTypes(
+      domain,
+      types as RecordType[],
+    );
+    return NextResponse.json(response);
+  } catch (error) {
+    // Every type failed: pass the reason on for InternalDoHResolver to
+    // rethrow, instead of a bare 500 that reads as "resolver unavailable".
+    if (!(error instanceof UserFacingError)) throw error;
+    return NextResponse.json(error.payload, { status: 502 });
+  }
 };

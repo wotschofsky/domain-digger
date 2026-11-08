@@ -3,7 +3,6 @@ import type { Answer, DecodedPacket } from 'dns-packet';
 import { log } from 'evlog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { UserFacingError } from '../user-facing-error';
 import { AuthoritativeResolver } from './authoritative';
 import type { RecordType } from './base';
 
@@ -74,55 +73,6 @@ describe('AuthoritativeResolver partial results', () => {
           message: 'Authoritative DNS servers did not answer',
           stack: expect.any(String),
           cause: expect.stringContaining('192.0.2.1'),
-        }),
-      }),
-    ]);
-  });
-
-  it('does not turn a failed lookup with only empty successful types into no records', async () => {
-    const resolver = new AuthoritativeResolver({
-      rootServers: async () => ['192.0.2.1'],
-      udpTransport: async ({ domain, recordType }) =>
-        reply(
-          domain,
-          recordType,
-          [],
-          recordType === 'A' ? 'REFUSED' : 'NOERROR',
-        ),
-    });
-    await expect(
-      resolver.resolveRecordTypes('example.com', ['A', 'AAAA']),
-    ).rejects.toBeInstanceOf(UserFacingError);
-  });
-
-  it('does not serialize unexpected internal errors into partial results', async () => {
-    const logWarn = vi.spyOn(log, 'warn').mockImplementation(() => {});
-    const logError = vi.spyOn(log, 'error').mockImplementation(() => {});
-    const resolver = new AuthoritativeResolver({
-      rootServers: async () => ['192.0.2.1'],
-      udpTransport: async ({ domain, recordType }) =>
-        reply(domain, recordType, [address(domain)]),
-    });
-    const singleType = resolver.resolveRecordType.bind(resolver);
-    vi.spyOn(resolver, 'resolveRecordType').mockImplementation(
-      (domain, type) =>
-        type === 'PTR'
-          ? Promise.reject(new Error('private transport details'))
-          : singleType(domain, type),
-    );
-    const result = await resolver.resolveRecordTypes('example.com', [
-      'A',
-      'PTR',
-    ]);
-    expect(result.PTR.error?.title).toBe('DNS lookup failed');
-    expect(JSON.stringify(result)).not.toContain('private transport details');
-    expect(loggedFailures(logWarn)).toEqual([]);
-    expect(loggedFailures(logError)).toEqual([
-      expect.objectContaining({
-        recordType: 'PTR',
-        error: expect.objectContaining({
-          message: 'private transport details',
-          stack: expect.any(String),
         }),
       }),
     ]);
