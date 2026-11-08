@@ -1,7 +1,8 @@
+import { log } from 'evlog';
 import { firstResult as getFirstResult, whoisDomain } from 'whoiser';
 
 import { UserFacingError } from './user-facing-error';
-import { getBaseDomain, isValidDomain } from './utils';
+import { getBaseDomain, isValidDomain, serializeError } from './utils';
 
 export const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
@@ -71,6 +72,8 @@ type WhoisSummary =
     }
   | {
       registered: true;
+      // Set when the lookup failed, so registration was assumed, not confirmed.
+      unknown?: true;
       registrar: string | null;
       createdAt: string | null;
       dnssec: string | null;
@@ -99,8 +102,10 @@ export const getWhoisSummary = async (
 
     const firstResult = getFirstResult(results);
 
-    if (!firstResult) {
-      throw new Error('No valid result found for domain ' + domain);
+    if (!firstResult) throw new Error(`No WHOIS result for ${domain}`);
+    // whoiser resolves socket errors and timeouts as { error } per server.
+    if ('error' in firstResult) {
+      throw new Error(`WHOIS query for ${domain} failed: ${firstResult.error}`);
     }
 
     const rawValue = firstResult['__raw'];
@@ -130,9 +135,17 @@ export const getWhoisSummary = async (
       createdAt: createdAt && formatDate(createdAt),
       dnssec: firstResult['DNSSEC']?.toString() || null,
     };
-  } catch {
+  } catch (error) {
+    // Swallowed into "Unavailable" tiles, so nothing else logs it.
+    log.warn({
+      message: 'whois_summary_failed',
+      domain: baseDomain,
+      error: serializeError(error),
+    });
+
     return {
       registered: true,
+      unknown: true,
       registrar: null,
       createdAt: null,
       dnssec: null,

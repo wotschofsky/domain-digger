@@ -1,12 +1,20 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { cacheLife } from 'next/cache';
 import { ImageResponse } from 'next/og';
 
-export const runtime = 'edge';
 export const contentType = 'image/png';
 
 const fetchArrayBuffer = async (url: string | URL) =>
   fetch(url).then((res) => res.arrayBuffer());
 
-export const handler = async () => {
+// Cached so the image still prerenders; uncached fetches would render it on
+// every request
+const getAssets = async () => {
+  'use cache';
+  cacheLife('max');
+
   const [interRegularFont, interBoldFont, globeImage] = await Promise.all([
     fetchArrayBuffer(
       'https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff',
@@ -14,8 +22,14 @@ export const handler = async () => {
     fetchArrayBuffer(
       'https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff',
     ),
-    fetchArrayBuffer(new URL('@/assets/globe.png', import.meta.url)),
+    readFile(join(process.cwd(), 'assets/globe.png'), 'base64'),
   ]);
+
+  return { interRegularFont, interBoldFont, globeImage };
+};
+
+export const handler = async () => {
+  const { interRegularFont, interBoldFont, globeImage } = await getAssets();
 
   return new ImageResponse(
     <div
@@ -150,7 +164,7 @@ export const handler = async () => {
 
       {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
       <img
-        src={`data:image/png;base64,${Buffer.from(globeImage).toString('base64')}`}
+        src={`data:image/png;base64,${globeImage}`}
         width={1000}
         style={{
           position: 'absolute',

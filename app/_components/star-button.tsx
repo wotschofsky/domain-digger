@@ -18,7 +18,9 @@ export const StarButton: FC = () => {
         rel="noopener"
       >
         <StarIcon className="mr-1 h-4 w-4 fill-yellow-400 text-yellow-400" />
-        <span className="hidden md:inline">
+        {/* Wide enough for the count, so the search bar next to it stays put
+            when the count replaces "Star" */}
+        <span className="hidden min-w-[5ch] tabular-nums md:inline-block">
           {data?.totalStars ? data.totalStars.toLocaleString() : 'Star'}
           <span className="sr-only"> on GitHub</span>
         </span>

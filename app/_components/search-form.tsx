@@ -15,6 +15,7 @@ import {
   type KeyboardEventHandler,
   type MouseEventHandler,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -188,6 +189,18 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     null,
   );
 
+  // Navigating away hides the page instead of unmounting it, so reset the
+  // submit state here or the form is still disabled when the user goes back
+  useLayoutEffect(
+    () => () => {
+      setState(FormStates.Initial);
+      setSuggestionsVisible(false);
+      setSelectedSuggestion(null);
+      setIpDetailsOpen(false);
+    },
+    [],
+  );
+
   const handleSelectSuggestion = (value: typeof SUGGESTION_OWN_IP | string) => {
     setState(FormStates.Initial);
     setSuggestionsVisible(false);
@@ -201,6 +214,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
       setDomain(userIp);
       setIpDetailsOpen(true);
+      reportEvent('My IP: Open', {});
       return;
     }
 

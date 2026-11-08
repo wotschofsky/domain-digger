@@ -128,7 +128,7 @@ export const StarReminder: FC = () => {
                 {data.recentStargazers.map((user, index) => (
                   <img
                     key={index}
-                    className="aspect-square w-8 scale-125 rounded-full border-2 border-white dark:border-zinc-900"
+                    className="aspect-square w-8 scale-125 rounded-full border-2 border-white bg-zinc-200 dark:border-zinc-900 dark:bg-zinc-800"
                     style={{
                       animationDelay: `${1 + index * 0.15}s`,
                       animationDuration: '0.5s',

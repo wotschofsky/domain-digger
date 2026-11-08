@@ -5,7 +5,7 @@
 # refreshed alongside VERSION.
 set -euo pipefail
 
-VERSION='2.14.0'
+VERSION='2.17.0'
 
 log() { echo "[install-subfinder] $*"; }
 bail() {
@@ -14,10 +14,10 @@ bail() {
 }
 
 case "$(uname -s)_$(uname -m)" in
-  Linux_x86_64)  ASSET='linux_amd64';  SHA='6529294788f56a20ed96a9b70e71f8f3c247f1d6104ba1e2c2e9e58d8a32c6cb' ;;
-  Linux_aarch64) ASSET='linux_arm64';  SHA='e3dc19f1e1b1f01840989e5d2501fd59069e3fd6fc2387ca78fbe246ef5e0680' ;;
-  Darwin_x86_64) ASSET='macOS_amd64';  SHA='f419cf27f8d04ec7de967e9661767908caf1905636276c6c05916b19027c1959' ;;
-  Darwin_arm64)  ASSET='macOS_arm64';  SHA='622a711bf0dfd4aab5b0f6f1f5efe0d6d20fb75734f947a34a7f8ef1348f5435' ;;
+  Linux_x86_64)  ASSET='linux_amd64';  SHA='a39c3e5c7a26ef3c430915c4d6cbf7716a00f26769a75e9405aba796142eba37' ;;
+  Linux_aarch64) ASSET='linux_arm64';  SHA='24913d49dddc1d3a5e99a4a7580da5be980959b9415b96f52c4f7f4124392190' ;;
+  Darwin_x86_64) ASSET='macOS_amd64';  SHA='75bf5990b409c6fd1116c81cd64fbdfd2cfd5bfb1f43542035b42344cb9fdffa' ;;
+  Darwin_arm64)  ASSET='macOS_arm64';  SHA='012d6ff91ef932ac6d1a321fb5735cf1412168d163e6adbc6cbe5fc42fe03c3b' ;;
   *)
     log "Unsupported platform $(uname -s)/$(uname -m) — skipping (Unix only; set SUBFINDER_BIN to use a system install)"
     exit 0

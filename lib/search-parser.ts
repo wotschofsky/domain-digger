@@ -1,6 +1,7 @@
 import { toASCII } from 'punycode';
+import isIP from 'validator/lib/isIP';
 
-import { IPV4_REGEX, IPV6_REGEX, isValidDomain } from './utils';
+import { isValidDomain } from './utils';
 
 export const normalizeDomain = (input: string): string => {
   let tDomain;
@@ -30,7 +31,8 @@ export const parseSearchInput = (input: string): SearchResult => {
     } as const;
   }
 
-  if (trimmedInput.match(IPV4_REGEX) || trimmedInput.match(IPV6_REGEX)) {
+  // Whole input only: the shared IP regexes find IPs inside text, such as a URL's query.
+  if (isIP(trimmedInput)) {
     return {
       type: 'ip',
       value: trimmedInput,

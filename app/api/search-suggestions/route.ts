@@ -4,8 +4,6 @@ import { useLogger, withEvlog } from '@/lib/evlog';
 import { getSearchSuggestions } from '@/lib/search';
 import { normalizeDomain } from '@/lib/search-parser';
 
-export const preferredRegion = 'home';
-
 const VALID_QUERY_REGEX = /^[a-z0-9-_.]+$/i;
 
 export const GET = withEvlog(async (request: Request) => {
