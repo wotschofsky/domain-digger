@@ -43,10 +43,11 @@ export const GET = withEvlog(async (request: Request) => {
     // instead of letting it become a bare 500 with nothing in it.
     if (!(error instanceof UserFacingError)) throw error;
 
-    log.set({ ip, status: 422, reason: 'lookup_failed' });
+    const status = error.payload.retryable ? 503 : 422;
+    log.set({ ip, status, reason: 'lookup_failed' });
 
     return NextResponse.json(error.payload, {
-      status: error.payload.retryable ? 503 : 422,
+      status,
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'no-store',
