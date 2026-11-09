@@ -22,6 +22,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 
 import type { IpLookupResponse } from '@/app/api/ip-details/route';
+import {
+  isUserFacingErrorPayload,
+  UserFacingError,
+} from '@/lib/user-facing-error';
 
 import { CopyButton } from './copy-button';
 import { DomainLink } from './domain-link';
@@ -67,11 +71,44 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
 
   const { data, error } = useSWRImmutable<IpLookupResponse>(
     open ? `/api/ip-details?ip=${encodeURIComponent(ip)}` : null,
+    async (url: string): Promise<IpLookupResponse> => {
+      const response = await fetch(url);
+      const body: unknown = await response.json();
+
+      // The route answers an expected lookup failure with the payload itself and
+      // a 4xx, so surface it as an error rather than reading it as details.
+      if (!response.ok || isUserFacingErrorPayload(body)) {
+        throw new UserFacingError(
+          isUserFacingErrorPayload(body)
+            ? body
+            : {
+                title: "Couldn't look up this IP address",
+                description: 'The lookup did not complete. Please try again.',
+                retryable: true,
+              },
+        );
+      }
+
+      return body as IpLookupResponse;
+    },
   );
 
   const title = `IP Details for ${ip}`;
   const content = (() => {
     if (error) {
+      // Show what the API said when it said something useful, and keep the
+      // generic line for anything else.
+      if (error instanceof UserFacingError) {
+        return (
+          <div className="my-12 text-center">
+            <p>{error.payload.title}</p>
+            <p className="text-muted-foreground mt-2 text-sm">
+              {error.payload.description}
+            </p>
+          </div>
+        );
+      }
+
       return <p className="my-12 text-center">An error occurred!</p>;
     }
 
