@@ -91,6 +91,9 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
 
       return body as IpLookupResponse;
     },
+    // Reopening the modal retries; automatic retries would only repeat
+    // lookups that are expected to fail and burn ip-api's rate limit.
+    { shouldRetryOnError: false },
   );
 
   const title = `IP Details for ${ip}`;
