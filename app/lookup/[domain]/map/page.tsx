@@ -10,7 +10,7 @@ import { headers } from 'next/headers';
 import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
-import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
+import { getPageMetadata, getResultsHref } from '@/lib/lookup-features';
 import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
 import { recordLookupAfter } from '@/lib/search';
@@ -24,14 +24,15 @@ type MapResultsPageProps = {
   }>;
 };
 
-const feature = getLookupFeature('map');
-
 export const generateMetadata = async ({
   params,
 }: MapResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return getResultsMetadata(feature, domain);
+  return getPageMetadata(
+    getResultsHref('map', domain),
+    `DNS Propagation for ${domain}`,
+  );
 };
 
 const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
@@ -40,7 +41,7 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
   const headersList = await headers();
   const { isBot, userAgent } = isUserBot(headersList);
 
-  if (feature.blocksBots && isBot) {
+  if (isBot) {
     log.info({ message: 'bot_blocked', userAgent, domain });
     return (
       <IconAlert
@@ -63,8 +64,8 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
   const hasDifferences = getHasDifferences(lookupResults.map((m) => m.results));
 
   await recordLookupAfter(
-    feature,
     domain,
+    'dns',
     lookupResults.some(({ results }) =>
       // Optional: a failed lookup's records may be null (unknown, not empty).
       Object.values(results).some((records) => Boolean(records?.length)),

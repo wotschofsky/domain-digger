@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { type FC, Fragment } from 'react';
 
-import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
+import { getPageMetadata, getResultsHref } from '@/lib/lookup-features';
 import { recordLookupAfter } from '@/lib/search';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
@@ -17,8 +17,6 @@ type WhoisResultsPageProps = {
   }>;
 };
 
-const feature = getLookupFeature('whois');
-
 export const generateMetadata = async ({
   params,
   searchParams,
@@ -28,7 +26,10 @@ export const generateMetadata = async ({
 
   const search = force !== undefined ? '?force' : '';
 
-  return getResultsMetadata(feature, domain, search);
+  return getPageMetadata(
+    getResultsHref('whois', domain) + search,
+    `WHOIS Lookup for ${domain}`,
+  );
 };
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
@@ -43,7 +44,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   const lookupTarget = forceOriginal ? domain : baseDomain;
   const results = await lookupWhois(lookupTarget);
 
-  await recordLookupAfter(feature, domain, results.length > 0);
+  await recordLookupAfter(domain, 'whois', results.length > 0);
 
   if (results.length === 0) {
     notFound();
@@ -61,7 +62,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
               Lookup{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"
-                href={`/lookup/${domain}/whois`}
+                href={getResultsHref('whois', domain)}
               >
                 {baseDomain} instead
               </Link>
@@ -76,7 +77,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
               Force lookup for{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"
-                href={`/lookup/${domain}/whois?force`}
+                href={`${getResultsHref('whois', domain)}?force`}
               >
                 {domain} instead
               </Link>

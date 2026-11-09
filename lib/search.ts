@@ -5,8 +5,10 @@ import { after } from 'next/server';
 import { env } from '@/env';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
-import type { LookupFeature, LookupType } from '@/lib/lookup-features';
 import { getBaseDomain } from '@/lib/utils';
+
+// Stored in BigQuery; the map tab records its lookups as 'dns'
+type LookupType = 'dns' | 'dnssec' | 'whois' | 'certs' | 'subdomains';
 
 type LookupLogPayload = {
   domain: string;
@@ -53,8 +55,8 @@ export const recordLookup = async (payload: LookupLogPayload) => {
 };
 
 export const recordLookupAfter = async (
-  feature: LookupFeature,
   domain: string,
+  lookupType: LookupType,
   hasResults: boolean,
 ) => {
   // Resolve headers up-front; the request scope may be torn down inside after().
@@ -64,7 +66,7 @@ export const recordLookupAfter = async (
   after(async () => {
     await recordLookup({
       domain,
-      lookupType: feature.lookupType,
+      lookupType,
       hasResults,
       ip,
       userAgent,

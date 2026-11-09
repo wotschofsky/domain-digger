@@ -10,7 +10,7 @@ import {
   type DsChainZone,
   resolveDsChainWithin,
 } from '@/lib/dnssec/ds-chain';
-import { getLookupFeature, getResultsMetadata } from '@/lib/lookup-features';
+import { getPageMetadata, getResultsHref } from '@/lib/lookup-features';
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
 import { recordLookupAfter } from '@/lib/search';
 import { UserFacingError } from '@/lib/user-facing-error';
@@ -20,13 +20,14 @@ type DnssecResultsPageProps = {
   params: Promise<{ domain: string }>;
 };
 
-const feature = getLookupFeature('dnssec');
-
 export const generateMetadata = async ({
   params,
 }: DnssecResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
-  return getResultsMetadata(feature, domain);
+  return getPageMetadata(
+    getResultsHref('dnssec', domain),
+    `DNSSEC Lookup for ${domain}`,
+  );
 };
 
 const VERDICT_LABELS: Record<DsChainVerdict, string> = {
@@ -82,7 +83,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
     );
   } catch (error) {
     if (error instanceof DsChainNameNotFoundError) {
-      await recordLookupAfter(feature, domain, false);
+      await recordLookupAfter(domain, 'dnssec', false);
       notFound();
     }
 
@@ -96,7 +97,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
     throw error;
   }
 
-  await recordLookupAfter(feature, domain, chain.zones.length > 0);
+  await recordLookupAfter(domain, 'dnssec', chain.zones.length > 0);
   const coveringZone = chain.zones.at(-1)!.name;
 
   return (

@@ -70,7 +70,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
       const tab = LOOKUP_FEATURES[shortcutNumber - 1];
 
       if (tab)
-        router.push(getResultsHref(tab, domain), {
+        router.push(getResultsHref(tab.id, domain), {
           transitionTypes: getTransitionTypes(
             shortcutNumber - 1,
             selectedIndex,
@@ -87,7 +87,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           <SingleTab
             key={tab.segment}
             label={tab.label}
-            href={getResultsHref(tab, domain)}
+            href={getResultsHref(tab.id, domain)}
             selected={index === selectedIndex}
             transitionTypes={getTransitionTypes(index, selectedIndex)}
           />

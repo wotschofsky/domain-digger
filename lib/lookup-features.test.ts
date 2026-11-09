@@ -2,44 +2,30 @@ import { describe, expect, it } from 'vitest';
 
 import {
   findLookupFeatureBySegment,
-  getLandingMetadata,
-  getLookupFeature,
+  getLandingHref,
+  getPageMetadata,
   getResultsHref,
-  getResultsMetadata,
-  getSitemapResultsHrefs,
-  LOOKUP_FEATURES,
 } from './lookup-features';
 
 describe('lookup features', () => {
   it.each([
-    ['dns', '(dns)', '/lookup/example.com', '/', false],
-    ['map', 'map', '/lookup/example.com/map', '/map', true],
-    ['dnssec', 'dnssec', '/lookup/example.com/dnssec', '/dnssec', false],
-    ['whois', 'whois', '/lookup/example.com/whois', '/whois', false],
-    ['certs', 'certs', '/lookup/example.com/certs', '/certs', true],
+    ['dns', '(dns)', '/lookup/example.com', '/'],
+    ['map', 'map', '/lookup/example.com/map', '/map'],
+    ['dnssec', 'dnssec', '/lookup/example.com/dnssec', '/dnssec'],
+    ['whois', 'whois', '/lookup/example.com/whois', '/whois'],
+    ['certs', 'certs', '/lookup/example.com/certs', '/certs'],
     [
       'subdomains',
       'subdomains',
       '/lookup/example.com/subdomains',
       '/subdomains',
-      false,
     ],
   ] as const)(
-    '%s is found by segment %s and links to %s',
-    (id, segment, href, landingPath, fullWidth) => {
-      const feature = getLookupFeature(id);
-
-      expect(findLookupFeatureBySegment(segment)).toBe(feature);
-      expect(getResultsHref(feature, 'example.com')).toBe(href);
-      expect(getResultsMetadata(feature, 'example.com')).toMatchObject({
-        openGraph: { url: href },
-        alternates: { canonical: href },
-      });
-      expect(getLandingMetadata(feature)).toMatchObject({
-        openGraph: { url: landingPath },
-        alternates: { canonical: landingPath },
-      });
-      expect(Boolean(feature.fullWidth)).toBe(fullWidth);
+    '%s is found by segment %s and links to %s and %s',
+    (id, segment, resultsHref, landingHref) => {
+      expect(findLookupFeatureBySegment(segment)?.id).toBe(id);
+      expect(getResultsHref(id, 'example.com')).toBe(resultsHref);
+      expect(getLandingHref(id)).toBe(landingHref);
     },
   );
 
@@ -48,42 +34,24 @@ describe('lookup features', () => {
     expect(findLookupFeatureBySegment(null)).toBeUndefined();
   });
 
-  it('titles results pages after the feature and domain', () => {
+  it('points the canonical and og url at the page', () => {
     expect(
-      getResultsMetadata(getLookupFeature('map'), 'example.com'),
-    ).toMatchObject({
-      title: 'DNS Propagation for example.com',
-      openGraph: { title: 'DNS Propagation for example.com' },
-    });
-  });
-
-  it('keeps query parameters that change the results', () => {
-    expect(
-      getResultsMetadata(getLookupFeature('whois'), 'example.com', '?force'),
-    ).toMatchObject({
-      openGraph: { url: '/lookup/example.com/whois?force' },
+      getPageMetadata('/lookup/example.com/whois?force', 'WHOIS Lookup'),
+    ).toEqual({
+      title: 'WHOIS Lookup',
+      openGraph: {
+        title: 'WHOIS Lookup',
+        url: '/lookup/example.com/whois?force',
+      },
       alternates: { canonical: '/lookup/example.com/whois?force' },
     });
   });
 
   // A title key, even undefined, replaces the root layout's title
-  it('leaves the home page title to the root layout', () => {
-    const metadata = getLandingMetadata(getLookupFeature('dns'));
-
-    expect(metadata).not.toHaveProperty('title');
-    expect(metadata.openGraph).not.toHaveProperty('title');
-  });
-
-  it('leaves bot-blocked results pages out of the sitemap', () => {
-    expect(getSitemapResultsHrefs('example.com')).toEqual([
-      '/lookup/example.com',
-      '/lookup/example.com/dnssec',
-      '/lookup/example.com/whois',
-      '/lookup/example.com/certs',
-      '/lookup/example.com/subdomains',
-    ]);
-    expect(LOOKUP_FEATURES.filter((f) => f.blocksBots)).toEqual([
-      getLookupFeature('map'),
-    ]);
+  it('leaves the title to the root layout when none is given', () => {
+    expect(getPageMetadata('/')).toEqual({
+      openGraph: { url: '/' },
+      alternates: { canonical: '/' },
+    });
   });
 });

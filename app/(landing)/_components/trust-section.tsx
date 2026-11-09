@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import type { FC, HTMLAttributes, ReactNode } from 'react';
 
+import type { LookupFeatureId } from '@/lib/lookup-features';
+
 import { TrustedByLogos } from './trusted-by-logos';
 
 type Person = {
@@ -32,14 +34,14 @@ const MIGUEL: Person = {
 };
 
 type TrustSectionProps = HTMLAttributes<HTMLElement> & {
-  subpage?: string;
+  feature: LookupFeatureId;
 };
 
-export const TrustSection: FC<TrustSectionProps> = ({ subpage, ...props }) => (
+export const TrustSection: FC<TrustSectionProps> = ({ feature, ...props }) => (
   <section {...props}>
     <div className="flex flex-col items-center gap-5">
       <h2 className="text-center font-semibold">Trusted by experts at</h2>
-      <TrustedByLogos subpage={subpage} />
+      <TrustedByLogos feature={feature} />
     </div>
 
     <div className="mt-16 grid grid-cols-1 gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">

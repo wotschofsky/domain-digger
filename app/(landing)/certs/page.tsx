@@ -1,45 +1,21 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
-import { getLandingMetadata, getLookupFeature } from '@/lib/lookup-features';
+import { getLandingHref, getPageMetadata } from '@/lib/lookup-features';
 
-import { SearchForm } from '../../_components/search-form';
-import { AuthorSection } from '../_components/author-section';
-import { SponsorsSection } from '../_components/sponsors-section';
-import { TrustSection } from '../_components/trust-section';
+import { AboutSection, LandingPage } from '../_components/landing-page';
 
-export const metadata: Metadata = getLandingMetadata(getLookupFeature('certs'));
+export const metadata: Metadata = getPageMetadata(
+  getLandingHref('certs'),
+  'Certificate Search',
+);
 
 const CertsLandingPage: FC = () => (
-  <div className="container space-y-16">
-    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col gap-16 pb-12">
-      <div className="flex flex-col gap-20">
-        <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
-          <section>
-            <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-              Find certificate history for any domain
-            </h1>
-            <div className="mx-auto w-full max-w-2xl">
-              <SearchForm subpage="certs" autofocus />
-            </div>
-            <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-              Find all DNS records, WHOIS data, SSL/TLS certificate history,
-              subdomains and more
-            </p>
-          </section>
-          <SponsorsSection />
-        </div>
-
-        <AuthorSection />
-      </div>
-
-      <TrustSection subpage="certs" />
-    </div>
-
-    <div className="mx-auto max-w-4xl space-y-4 pt-16 text-center">
-      <h2 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-        About Certificate Logs
-      </h2>
+  <LandingPage
+    feature="certs"
+    heading="Find certificate history for any domain"
+  >
+    <AboutSection title="About Certificate Logs">
       <p>
         Certificate Transparency (CT) logs are public records that track the
         issuance of SSL/TLS certificates, providing a transparent and verifiable
@@ -61,8 +37,8 @@ const CertsLandingPage: FC = () => (
         mechanism is critical for maintaining a secure web environment and
         ensuring SSL/TLS certificates are properly issued and managed.
       </p>
-    </div>
-  </div>
+    </AboutSection>
+  </LandingPage>
 );
 
 export default CertsLandingPage;
