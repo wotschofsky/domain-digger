@@ -102,7 +102,7 @@ export const IpDetailsModal: FC<IpDetailsModalProps> = ({
         return (
           <div className="my-12 text-center">
             <p>{error.payload.title}</p>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="text-muted-foreground mt-2 text-sm">
               {error.payload.description}
             </p>
           </div>
