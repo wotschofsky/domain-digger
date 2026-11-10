@@ -1,5 +1,7 @@
 'use client';
 
+import type { FC } from 'react';
+
 import {
   ResponsiveDialog,
   type ResponsiveDialogProps,
@@ -12,7 +14,7 @@ type IpDetailsModalProps = Pick<
   'open' | 'onOpenChange'
 > & { ip: string };
 
-export const IpDetailsModal = ({ ip, ...props }: IpDetailsModalProps) => (
+export const IpDetailsModal: FC<IpDetailsModalProps> = ({ ip, ...props }) => (
   <ResponsiveDialog
     {...props}
     title={`IP Details for ${ip}`}

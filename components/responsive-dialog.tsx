@@ -1,7 +1,7 @@
 'use client';
 
 import { useWindowSize } from '@uidotdev/usehooks';
-import type { ReactNode } from 'react';
+import type { FC, ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
 
@@ -32,14 +32,14 @@ export type ResponsiveDialogProps = {
 // Keep the header outside the mobile scroll area: Vaul's background extension
 // must never become scrollable content. Closed children unmount to stop fetching
 // and reset view-specific state when the dialog is next opened.
-export const ResponsiveDialog = ({
+export const ResponsiveDialog: FC<ResponsiveDialogProps> = ({
   open,
   onOpenChange,
   title,
   description,
   children,
   className,
-}: ResponsiveDialogProps) => {
+}) => {
   const { width } = useWindowSize();
   if (width && width < 640)
     return (

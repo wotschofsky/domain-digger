@@ -2,6 +2,7 @@
 
 import naturalCompare from 'natural-compare-lite';
 import dynamic from 'next/dynamic';
+import type { FC } from 'react';
 
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
@@ -21,13 +22,12 @@ const LocationMap = dynamic(
   },
 );
 
-export const IpDetails = ({
-  ip,
-  className,
-}: {
+type IpDetailsProps = {
   ip: string;
   className?: string;
-}) => {
+};
+
+export const IpDetails: FC<IpDetailsProps> = ({ ip, className }) => {
   const { data, error } = useIpDetails(ip);
   if (error)
     return (
