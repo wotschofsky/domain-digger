@@ -25,8 +25,20 @@ vi.mock('./my-ip-modal', () => ({
     open ? <div role="dialog" /> : null,
 }));
 vi.mock('./ip-details-modal', () => ({
-  IpDetailsModal: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog" /> : null,
+  IpDetailsModal: ({
+    open,
+    ip,
+    onOpenChange,
+  }: {
+    open: boolean;
+    ip: string;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label={`IP Details for ${ip}`}>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null,
 }));
 
 describe('search form', () => {
@@ -75,8 +87,14 @@ describe('search form', () => {
   ])(
     'always offers My IP and anonymizes cached addresses (%s, %s)',
     async (ipv4, ipv6) => {
-      if (ipv4) cache.set('https://ipv4.icanhazip.com/', { data: ipv4 });
-      if (ipv6) cache.set('https://ipv6.icanhazip.com/', { data: ipv6 });
+      if (ipv4)
+        cache.set('user-ip:4', {
+          data: { status: 'detected', provider: 'icanhazip', ip: ipv4 },
+        });
+      if (ipv6)
+        cache.set('user-ip:6', {
+          data: { status: 'detected', provider: 'icanhazip', ip: ipv6 },
+        });
       await render('visible');
       expect(fetcher).not.toHaveBeenCalled();
       const input = container.querySelector<HTMLInputElement>('input')!;
@@ -105,7 +123,9 @@ describe('search form', () => {
 
   it('anonymizes cached alternative-provider results without revealing the full IP on hover', async () => {
     const ipv6 = '2001:0db8:1234:5678:90ab:cdef:1234:5678';
-    cache.set('https://6.ident.me/', { data: ipv6 });
+    cache.set('user-ip:6', {
+      data: { status: 'detected', provider: 'ident.me', ip: ipv6 },
+    });
     await render('visible');
     await act(async () =>
       container.querySelector<HTMLInputElement>('input')!.focus(),
@@ -162,6 +182,31 @@ describe('search form', () => {
     });
     await act(async () => input.focus());
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('opens details for the parsed address and returns focus to search when closed', async () => {
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, ' user@2001:db8::1 ');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.form!.requestSubmit());
+    expect(container.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(
+      container.querySelector('[role="dialog"]')?.getAttribute('aria-label'),
+    ).toBe('IP Details for 2001:db8::1');
+    expect(router.push).not.toHaveBeenCalled();
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[role="dialog"] button')!
+        .click(),
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(input);
   });
 
   it.each(['mouse', 'keyboard'])(

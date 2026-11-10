@@ -3,12 +3,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { type Cache, SWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useUserIp } from '@/lib/user-ip';
+
 import { MyIpModal } from './my-ip-modal';
 
 const reportEvent = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/analytics', () => ({ useAnalytics: () => ({ reportEvent }) }));
-vi.mock('./ip-details-modal', () => ({
-  IpDetailsContent: ({ ip }: { ip: string }) => <div>Details for {ip}</div>,
+vi.mock('./ip-details', () => ({
+  IpDetails: ({ ip }: { ip: string }) => <div>Details for {ip}</div>,
 }));
 
 describe('My IP addresses', () => {
@@ -62,6 +64,46 @@ describe('My IP addresses', () => {
     await render(false);
     await render(true);
     expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('shares in-flight detection and telemetry between the preview and dialog', async () => {
+    const finish = new Map<string, (response: Response) => void>();
+    fetch.mockImplementation(
+      (url: string) =>
+        new Promise<Response>((resolve) => {
+          finish.set(url, resolve);
+        }),
+    );
+    const Preview = () => {
+      const ipv4 = useUserIp(4, true);
+      const ipv6 = useUserIp(6, true);
+      return (
+        <p>
+          {ipv4.data} / {ipv6.data}
+        </p>
+      );
+    };
+    const renderBoth = async (open: boolean) =>
+      act(async () =>
+        root.render(
+          <SWRConfig value={{ provider: () => cache }}>
+            <Preview />
+            <MyIpModal open={open} onOpenChange={() => {}} />
+          </SWRConfig>,
+        ),
+      );
+    await renderBoth(false);
+    await renderBoth(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      finish.get('https://ipv4.icanhazip.com/')!(new Response('192.0.2.1'));
+      finish.get('https://ipv6.icanhazip.com/')!(new Response('2001:db8::1'));
+    });
+    expect(container.textContent).toContain('192.0.2.1 / 2001:db8::1');
+    expect(document.body.textContent).toContain('Details for 192.0.2.1');
+    expect(
+      reportEvent.mock.calls.filter(([event]) => event === 'My IP: Detection'),
+    ).toHaveLength(2);
   });
 
   it('keeps IPv4 usable while IPv6 fails and allows an explicit retry', async () => {
@@ -169,6 +211,59 @@ describe('My IP addresses', () => {
     await act(async () => alternative.click());
     expect(fetch.mock.calls[2][0]).toBe('https://6.ident.me/');
     expect(document.body.textContent).toContain('2001:db8::1');
+    await render(false);
+    await render(true);
+    expect(document.body.textContent).toContain('2001:db8::1');
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(
+      reportEvent.mock.calls.filter(([event]) => event === 'My IP: Detection'),
+    ).toHaveLength(3);
+  });
+
+  it('keeps failed checks cached across reopening and retries the chosen fallback provider', async () => {
+    fetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    await render(true);
+    await render(false);
+    await render(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Use ident.me for IPv6"]',
+        )!
+        .click(),
+    );
+    expect(fetch.mock.calls[2][0]).toBe('https://6.ident.me/');
+    await render(false);
+    await render(true);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(
+      document.querySelector('[aria-label="Use ident.me for IPv6"]'),
+    ).toBeNull();
+
+    let finishRetry!: (response: Response) => void;
+    fetch.mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          finishRetry = resolve;
+        }),
+    );
+    await act(async () =>
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Retry IPv6"]')!
+        .click(),
+    );
+    expect(fetch.mock.calls[3][0]).toBe('https://6.ident.me/');
+    expect(document.querySelector('[aria-label="Retry IPv6"]')).toBeNull();
+    expect(document.body.textContent).toContain('Checking…');
+    await act(async () => finishRetry(new Response('2001:db8::2')));
+    expect(document.body.textContent).toContain('Details for 2001:db8::2');
+    expect(reportEvent).toHaveBeenLastCalledWith('My IP: Detection', {
+      version: 6,
+      provider: 'ident.me',
+      result: 'detected',
+    });
   });
 
   it('shows IPv4 while the IPv6 request is still pending', async () => {

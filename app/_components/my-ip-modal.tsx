@@ -2,21 +2,24 @@
 
 import { useState } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+import {
+  ResponsiveDialog,
+  type ResponsiveDialogProps,
+} from '@/components/responsive-dialog';
 import { useAnalytics } from '@/lib/analytics';
 import { shortenIp } from '@/lib/ip-display';
-import { type IpVersion, useUserIp } from '@/lib/user-ip';
-
-import { IpDetailsContent } from './ip-details-modal';
 import {
+  IP_VERSIONS,
   type IpDetection,
-  IpProviderNote,
-  IpRetryNotice,
-  MyIpDialog,
-  type MyIpModalProps,
-} from './my-ip-shared';
+  type IpVersion,
+  useUserIp,
+} from '@/lib/user-ip';
+
+import { IpDetails } from './ip-details';
 
 type Results = { ipv4: IpDetection; ipv6: IpDetection };
 
@@ -25,7 +28,7 @@ const AddressTabs = ({ ipv4, ipv6 }: Results) => (
     aria-label="IP address details"
     className="grid h-auto w-full grid-cols-2 gap-4 rounded-none border-b border-zinc-200 bg-transparent p-0 dark:border-zinc-700"
   >
-    {([4, 6] as const).map((version) => {
+    {IP_VERSIONS.map((version) => {
       const result = version === 4 ? ipv4 : ipv6;
       const status = result.data
         ? shortenIp(result.data)
@@ -64,15 +67,15 @@ const SelectedResults = ({ ipv4, ipv6 }: Results) => {
       className="min-w-0"
     >
       <AddressTabs ipv4={ipv4} ipv6={ipv6} />
-      {([4, 6] as const).map((family) => {
+      {IP_VERSIONS.map((family) => {
         const ip = family === 4 ? ipv4.data : ipv6.data;
         return (
           <TabsContent
             key={family}
             value={String(family)}
-            className="mt-4 min-w-0 [&>div:last-child]:mb-0"
+            className="mt-4 min-w-0"
           >
-            {ip && <IpDetailsContent key={ip} ip={ip} />}
+            {ip && <IpDetails key={ip} ip={ip} />}
           </TabsContent>
         );
       })}
@@ -102,8 +105,80 @@ const MyIpBody = () => {
   );
 };
 
-export const MyIpModal = ({ open, onOpenChange }: MyIpModalProps) => (
-  <MyIpDialog open={open} onOpenChange={onOpenChange}>
-    {open && <MyIpBody />}
-  </MyIpDialog>
+export const MyIpModal = (
+  props: Pick<ResponsiveDialogProps, 'open' | 'onOpenChange'>,
+) => (
+  <ResponsiveDialog
+    {...props}
+    title="Your IP addresses"
+    description="Your public IPv4 and IPv6 addresses and network details."
+  >
+    <MyIpBody />
+  </ResponsiveDialog>
+);
+
+const IpRetryNotice = ({
+  version,
+  result,
+}: {
+  version: IpVersion;
+  result: IpDetection;
+}) => {
+  if (result.data || !result.error || result.isValidating) return null;
+  return (
+    <div
+      className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
+      role="status"
+    >
+      <span>IPv{version} not detected.</span>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-label={`Retry IPv${version}`}
+        onClick={() => {
+          void result.retry();
+        }}
+      >
+        Retry
+      </Button>
+      {result.provider === 'icanhazip' && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={`Use ident.me for IPv${version}`}
+          onClick={() => {
+            void result.tryAlternative();
+          }}
+        >
+          Try ident.me
+        </Button>
+      )}
+    </div>
+  );
+};
+
+const IpProviderNote = () => (
+  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+    Detection by{' '}
+    <a
+      href="https://icanhazip.com/"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-2"
+    >
+      icanhazip
+    </a>
+    . Your browser connects directly. If a check fails, you can try{' '}
+    <a
+      href="https://api.ident.me/"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline underline-offset-2"
+    >
+      ident.me
+    </a>
+    . A failed check can also mean the service is unreachable.
+  </p>
 );

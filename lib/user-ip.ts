@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import useSWRImmutable from 'swr/immutable';
 import isIP from 'validator/lib/isIP';
 
@@ -46,47 +45,81 @@ export const fetchUserIp = async (
   }
 };
 
-export const useUserIp = (version: IpVersion, enabled: boolean) => {
-  const { reportEvent } = useAnalytics();
-  const [provider, setProvider] = useState<IpProvider>('icanhazip');
+export const IP_VERSIONS = [4, 6] as const;
 
-  const result = useSWRImmutable<string, Error>(
-    enabled ? ipEndpoint(version, provider) : null,
-    () => fetchUserIp(version, provider),
-    {
-      shouldRetryOnError: false,
-      onSuccess: () =>
-        reportEvent('My IP: Detection', {
-          version,
-          provider,
-          result: 'detected',
-        }),
-      onError: (error) =>
-        reportEvent('My IP: Detection', {
-          version,
-          provider,
-          result: error.name === 'TimeoutError' ? 'timeout' : 'error',
-        }),
-    },
-  );
-  return { ...result, provider, tryAlternative: () => setProvider('ident.me') };
+type DetectionResult =
+  | { status: 'detected'; provider: IpProvider; ip: string }
+  | { status: 'checking'; provider: IpProvider }
+  | { status: 'error' | 'timeout'; provider: IpProvider; error: Error };
+
+export type IpDetection = {
+  data: string | undefined;
+  error: Error | undefined;
+  provider: IpProvider;
+  isValidating: boolean;
+  retry: () => Promise<void>;
+  tryAlternative: () => Promise<void>;
 };
 
-// Detect while the empty search menu is visible, and keep showing cached
-// results after it closes. Cache subscriptions never revalidate on their own.
-export const useUserIpPreview = (version: IpVersion, enabled: boolean) => {
-  const detection = useUserIp(version, enabled);
-  const options = {
+// The preview and dialog share one result per family, including the chosen
+// provider and failures. Only explicit retries may contact another provider.
+export const useUserIp = (
+  version: IpVersion,
+  enabled: boolean,
+): IpDetection => {
+  const { reportEvent } = useAnalytics();
+  const key = `user-ip:${version}`;
+  const cached = useSWRImmutable<DetectionResult>(key, {
     revalidateOnMount: false,
     isPaused: () => true,
+  });
+  const detect = async (provider: IpProvider): Promise<DetectionResult> => {
+    let result: DetectionResult;
+    try {
+      result = {
+        status: 'detected',
+        provider,
+        ip: await fetchUserIp(version, provider),
+      };
+    } catch (cause) {
+      const error =
+        cause instanceof Error
+          ? cause
+          : new Error('IP detection failed', { cause });
+      result = {
+        status: error.name === 'TimeoutError' ? 'timeout' : 'error',
+        provider,
+        error,
+      };
+    }
+    reportEvent('My IP: Detection', {
+      version,
+      provider,
+      result: result.status,
+    });
+    return result;
   };
-  const primary = useSWRImmutable<string>(
-    ipEndpoint(version, 'icanhazip'),
-    options,
+  const request = useSWRImmutable(
+    enabled ? key : null,
+    () => detect('icanhazip'),
+    { shouldRetryOnError: false },
   );
-  const alternative = useSWRImmutable<string>(
-    ipEndpoint(version, 'ident.me'),
-    options,
-  );
-  return detection.data ?? primary.data ?? alternative.data;
+  const result = request.data ?? cached.data;
+  const retry = async (provider: IpProvider) => {
+    await cached.mutate(detect(provider), {
+      optimisticData: { status: 'checking', provider },
+      revalidate: false,
+    });
+  };
+  return {
+    data: result?.status === 'detected' ? result.ip : undefined,
+    error:
+      result?.status === 'error' || result?.status === 'timeout'
+        ? result.error
+        : undefined,
+    provider: result?.provider ?? 'icanhazip',
+    isValidating: request.isValidating || result?.status === 'checking',
+    retry: () => retry(result?.provider ?? 'icanhazip'),
+    tryAlternative: () => retry('ident.me'),
+  };
 };

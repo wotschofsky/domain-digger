@@ -30,7 +30,7 @@ import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { anonymizeIp } from '@/lib/ip-display';
 import { normalizeDomain, parseSearchInput } from '@/lib/search-parser';
-import { useUserIpPreview } from '@/lib/user-ip';
+import { useUserIp } from '@/lib/user-ip';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 import { useSearchSuggestions } from '../api/search-suggestions/hook';
@@ -98,15 +98,17 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
 
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
-  const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
-  const [myIpOpen, setMyIpOpen] = useState(false);
+  const [ipDialog, setIpDialog] = useState<
+    { type: 'own' } | { type: 'lookup'; ip: string } | null
+  >(null);
   const detectPreview =
     suggestionsVisible && !domain.trim() && state !== FormStates.Submitting;
-  const cachedIpv4 = useUserIpPreview(4, detectPreview);
-  const cachedIpv6 = useUserIpPreview(6, detectPreview);
-  const cachedAddresses = [cachedIpv4, cachedIpv6].filter((ip): ip is string =>
-    Boolean(ip),
-  );
+  const ipv4 = useUserIp(4, detectPreview);
+  const ipv6 = useUserIp(6, detectPreview);
+  const preview = [ipv4.data, ipv6.data]
+    .filter((ip): ip is string => Boolean(ip))
+    .map(anonymizeIp)
+    .join(', ');
 
   const [measureRef, { width: inputWidth }] = useMeasure<HTMLFormElement>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -159,7 +161,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     switch (parsed.type) {
       case 'ip':
         setState(FormStates.Initial);
-        setIpDetailsOpen(true);
+        setIpDialog({ type: 'lookup', ip: parsed.value });
         return;
       case 'domain':
         setState(FormStates.Initial);
@@ -189,8 +191,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       setState(FormStates.Initial);
       setSuggestionsVisible(false);
       setSelectedSuggestion(null);
-      setIpDetailsOpen(false);
-      setMyIpOpen(false);
+      setIpDialog(null);
     },
     [],
   );
@@ -200,7 +201,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSuggestionsVisible(false);
 
     if (value === SUGGESTION_OWN_IP) {
-      setMyIpOpen(true);
+      setIpDialog({ type: 'own' });
       reportEvent('My IP: Open', {});
       return;
     }
@@ -279,9 +280,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSuggestionsVisible(true);
   };
 
-  const handleIpDetailsOpenChange = (open: boolean) => {
-    setIpDetailsOpen(open);
+  const handleIpDialogOpenChange = (open: boolean) => {
     if (!open) {
+      setIpDialog(null);
       inputRef.current?.focus();
     }
   };
@@ -375,13 +376,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                   {value === SUGGESTION_OWN_IP ? (
                     <>
                       <NetworkIcon className="mr-2 inline-block size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
-                      <span
-                        className="min-w-0 truncate"
-                        title={cachedAddresses.map(anonymizeIp).join(', ')}
-                      >
+                      <span className="min-w-0 truncate" title={preview}>
                         Your IP addresses
-                        {cachedAddresses.length > 0 &&
-                          ` (${cachedAddresses.map(anonymizeIp).join(', ')})`}
+                        {preview && ` (${preview})`}
                       </span>
                     </>
                   ) : (
@@ -402,21 +399,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         )}
       </form>
 
-      {myIpOpen && (
-        <MyIpModal
-          open={myIpOpen}
-          onOpenChange={(open) => {
-            setMyIpOpen(open);
-            if (!open) inputRef.current?.focus();
-          }}
+      {ipDialog?.type === 'own' && (
+        <MyIpModal open onOpenChange={handleIpDialogOpenChange} />
+      )}
+      {ipDialog?.type === 'lookup' && (
+        <IpDetailsModal
+          ip={ipDialog.ip}
+          open
+          onOpenChange={handleIpDialogOpenChange}
         />
       )}
-
-      <IpDetailsModal
-        ip={domain.trim()}
-        open={ipDetailsOpen}
-        onOpenChange={handleIpDetailsOpenChange}
-      />
     </>
   );
 };
