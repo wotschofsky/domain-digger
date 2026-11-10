@@ -1,7 +1,7 @@
 'use client';
 
 import { CheckIcon, ClipboardIcon } from 'lucide-react';
-import { type FC, useState } from 'react';
+import { type FC, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -20,33 +20,43 @@ type CopyButton = {
 export const CopyButton: FC<CopyButton> = ({ value }) => {
   const { reportEvent } = useAnalytics();
 
-  const [wasCopied, setWasCopied] = useState(false);
-  const copy = () => {
-    setWasCopied(true);
-    navigator.clipboard.writeText(value);
-    setTimeout(() => setWasCopied(false), 2000);
-
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const timeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timeout.current), []);
+  const wasCopied = copiedValue === value;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      toast.error('Could not copy to clipboard');
+      return;
+    }
+    setCopiedValue(value);
+    clearTimeout(timeout.current);
+    timeout.current = setTimeout(() => setCopiedValue(null), 2000);
     toast('Copied to clipboard');
-
     reportEvent('Copy Button: Click', { value });
   };
-
-  if (wasCopied) {
-    return <CheckIcon className="mx-1 inline-block size-4 -translate-y-0.5" />;
-  }
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <ClipboardIcon
-            role="button"
-            className="mx-1 inline-block size-4 -translate-y-0.5 cursor-pointer"
+          <button
+            type="button"
+            aria-label={wasCopied ? 'Copied' : 'Copy value'}
             onClick={copy}
-          />
+            className="mx-1 inline-flex -translate-y-0.5 cursor-pointer rounded-sm align-middle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+          >
+            {wasCopied ? (
+              <CheckIcon className="size-4" />
+            ) : (
+              <ClipboardIcon className="size-4" />
+            )}
+          </button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>Copy Value</p>
+          <p>{wasCopied ? 'Copied' : 'Copy Value'}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
