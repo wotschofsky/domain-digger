@@ -133,4 +133,36 @@ describe('shared IP details', () => {
       expect(onErrorRetry).not.toHaveBeenCalled();
     },
   );
+
+  it('keeps the full address copyable when the lookup fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json(
+          {
+            title: 'ip-api.com is unavailable',
+            description: 'Please try again later.',
+            retryable: true,
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+    await act(async () =>
+      root.render(
+        <SWRConfig value={{ provider: () => new Map() }}>
+          <IpDetails ip="2a02:8109:1234:5678:abcd:ef01:2345:6789" />
+        </SWRConfig>,
+      ),
+    );
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'ip-api.com is unavailable',
+    );
+    expect(container.textContent).toContain(
+      '2a02:8109:1234:5678:abcd:ef01:2345:6789',
+    );
+    expect(
+      container.querySelectorAll('button[aria-label="Copy value"]'),
+    ).toHaveLength(1);
+  });
 });

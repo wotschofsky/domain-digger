@@ -29,22 +29,6 @@ type IpDetailsProps = {
 
 export const IpDetails: FC<IpDetailsProps> = ({ ip, className }) => {
   const { data, error } = useIpDetails(ip);
-  if (error)
-    return (
-      <div className={cn('py-12 text-center', className)} role="alert">
-        <p>
-          {error instanceof UserFacingError
-            ? error.payload.title
-            : 'An error occurred!'}
-        </p>
-        {error instanceof UserFacingError && (
-          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            {error.payload.description}
-          </p>
-        )}
-      </div>
-    );
-
   const fields = [
     {
       label: 'IP',
@@ -84,7 +68,8 @@ export const IpDetails: FC<IpDetailsProps> = ({ ip, className }) => {
           : undefined,
     },
     { label: 'Timezone', value: data?.timezone },
-  ];
+    // A failed lookup still shows the address and its copy button.
+  ].filter(({ label }) => !error || label === 'IP');
   const location =
     data?.lat != null && data.lon != null
       ? ([data.lat, data.lon] as [number, number])
@@ -110,7 +95,21 @@ export const IpDetails: FC<IpDetailsProps> = ({ ip, className }) => {
           ))}
         </TableBody>
       </Table>
-      {(!data || location) && (
+      {error && (
+        <div className="py-12 text-center" role="alert">
+          <p>
+            {error instanceof UserFacingError
+              ? error.payload.title
+              : 'An error occurred!'}
+          </p>
+          {error instanceof UserFacingError && (
+            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+              {error.payload.description}
+            </p>
+          )}
+        </div>
+      )}
+      {!error && (!data || location) && (
         <div className="h-80 w-full [&_.leaflet-container]:size-full">
           {location ? (
             <LocationMap key={location.join(',')} location={location} />
