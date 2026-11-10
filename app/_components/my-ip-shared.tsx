@@ -101,14 +101,16 @@ export const MyIpDialog = ({
   if (width && width < 640)
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="max-h-[90dvh] overflow-y-auto">
-          <DrawerHeader>
+        <DrawerContent className="max-h-[90dvh] overflow-hidden">
+          <DrawerHeader className="shrink-0">
             <DrawerTitle>Your IP addresses</DrawerTitle>
             <DrawerDescription className="sr-only">
               Your public IPv4 and IPv6 addresses and network details.
             </DrawerDescription>
           </DrawerHeader>
-          <div className="mt-4 min-w-0 space-y-4">{children}</div>
+          <div className="mt-4 min-h-0 min-w-0 space-y-4 overflow-y-auto overscroll-contain">
+            {children}
+          </div>
         </DrawerContent>
       </Drawer>
     );
