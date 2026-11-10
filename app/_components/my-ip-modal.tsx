@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { type FC, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,7 +23,7 @@ import { IpDetails } from './ip-details';
 
 type Results = { ipv4: IpDetection; ipv6: IpDetection };
 
-const AddressTabs = ({ ipv4, ipv6 }: Results) => (
+const AddressTabs: FC<Results> = ({ ipv4, ipv6 }) => (
   <TabsList
     aria-label="IP address details"
     className="grid h-auto w-full grid-cols-2 gap-4 rounded-none border-b border-zinc-200 bg-transparent p-0 dark:border-zinc-700"
@@ -52,7 +52,7 @@ const AddressTabs = ({ ipv4, ipv6 }: Results) => (
   </TabsList>
 );
 
-const SelectedResults = ({ ipv4, ipv6 }: Results) => {
+const SelectedResults: FC<Results> = ({ ipv4, ipv6 }) => {
   // Mount once the first address arrives. Late results never change the selection.
   const [version, setVersion] = useState<IpVersion>(() => (ipv4.data ? 4 : 6));
   const { reportEvent } = useAnalytics();
@@ -83,7 +83,7 @@ const SelectedResults = ({ ipv4, ipv6 }: Results) => {
   );
 };
 
-const MyIpBody = () => {
+const MyIpBody: FC = () => {
   const ipv4 = useUserIp(4, true);
   const ipv6 = useUserIp(6, true);
   return (
@@ -105,9 +105,9 @@ const MyIpBody = () => {
   );
 };
 
-export const MyIpModal = (
-  props: Pick<ResponsiveDialogProps, 'open' | 'onOpenChange'>,
-) => (
+type MyIpModalProps = Pick<ResponsiveDialogProps, 'open' | 'onOpenChange'>;
+
+export const MyIpModal: FC<MyIpModalProps> = (props) => (
   <ResponsiveDialog
     {...props}
     title="Your IP addresses"
@@ -117,13 +117,12 @@ export const MyIpModal = (
   </ResponsiveDialog>
 );
 
-const IpRetryNotice = ({
-  version,
-  result,
-}: {
+type IpRetryNoticeProps = {
   version: IpVersion;
   result: IpDetection;
-}) => {
+};
+
+const IpRetryNotice: FC<IpRetryNoticeProps> = ({ version, result }) => {
   if (result.data || !result.error || result.isValidating) return null;
   return (
     <div
@@ -159,7 +158,7 @@ const IpRetryNotice = ({
   );
 };
 
-const IpProviderNote = () => (
+const IpProviderNote: FC = () => (
   <p className="text-xs text-zinc-500 dark:text-zinc-400">
     Detection by{' '}
     <a
