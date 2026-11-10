@@ -14,7 +14,7 @@ Discover in-depth details of any domain with just a few clicks.
 
 - **🌍 Comprehensive DNS Lookup:** Access detailed DNS information.
 - **📍 IP Details & Geolocation:** Get precise IP information, including location data.
-- **🌐 Your IPv4 & IPv6:** Detect both public addresses through [icanhazip](https://icanhazip.com/) when you open the search suggestions, with [ident.me](https://api.ident.me/) available on retry. Both addresses are copyable and include network details.
+- **🌐 Your IPv4 & IPv6:** Detect both public addresses through [icanhazip](https://icanhazip.com/) when you focus the empty search field, with [ident.me](https://api.ident.me/) available on retry. Both addresses are copyable and include network details.
 - **💡 Smart Suggestions:** Intelligent recommendations for efficient searches.
 - **🔗 Global DNS Lookup:** Perform DNS lookups across different global servers.
 - **🔄 Multiple DNS Resolvers:** Utilize various DNS resolvers for diverse insights.
