@@ -34,12 +34,15 @@ describe('search form', () => {
   let root: Root;
   let cache: Cache;
   const fetcher = vi.fn();
+  const fetch = vi.fn();
 
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     router.push.mockReset();
     reportEvent.mockReset();
     fetcher.mockReset();
+    fetch.mockReset().mockRejectedValue(new TypeError('Network unavailable'));
+    vi.stubGlobal('fetch', fetch);
     cache = new Map();
     container = document.createElement('div');
     document.body.append(container);
@@ -70,7 +73,7 @@ describe('search form', () => {
     [undefined, '2001:db8::1'],
     ['192.0.2.1', '2001:db8::1'],
   ])(
-    'always offers My IP and previews only cached addresses (%s, %s)',
+    'always offers My IP and anonymizes cached addresses (%s, %s)',
     async (ipv4, ipv6) => {
       if (ipv4) cache.set('https://ipv4.icanhazip.com/', { data: ipv4 });
       if (ipv6) cache.set('https://ipv6.icanhazip.com/', { data: ipv6 });
@@ -82,7 +85,10 @@ describe('search form', () => {
         item.textContent?.includes('Your IP addresses'),
       )!;
       expect(row).toBeDefined();
-      const addresses = [ipv4, ipv6].filter(Boolean);
+      const addresses = [
+        ipv4 ? '192.xxx.xxx.xxx' : null,
+        ipv6 ? '2001:xxxx:xxxx:xxxx:…' : null,
+      ].filter(Boolean);
       expect(row.textContent).toBe(
         `Your IP addresses${addresses.length ? ` (${addresses.join(', ')})` : ''}`,
       );
@@ -91,11 +97,13 @@ describe('search form', () => {
         window.dispatchEvent(new Event('focus'));
       });
       expect(fetcher).not.toHaveBeenCalled();
-      expect(reportEvent).not.toHaveBeenCalled();
+      expect(
+        reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
+      ).toHaveLength(0);
     },
   );
 
-  it('previews cached alternative-provider results and shortens long IPv6 addresses', async () => {
+  it('anonymizes cached alternative-provider results without revealing the full IP on hover', async () => {
     const ipv6 = '2001:0db8:1234:5678:90ab:cdef:1234:5678';
     cache.set('https://6.ident.me/', { data: ipv6 });
     await render('visible');
@@ -103,10 +111,57 @@ describe('search form', () => {
       container.querySelector<HTMLInputElement>('input')!.focus(),
     );
     expect(container.textContent).toContain(
-      'Your IP addresses (2001:0db8:12…4:5678)',
+      'Your IP addresses (2001:xxxx:xxxx:xxxx:…)',
     );
-    expect(container.querySelector(`[title="${ipv6}"]`)).not.toBeNull();
+    expect(container.querySelector(`[title="${ipv6}"]`)).toBeNull();
+    expect(container.textContent).not.toContain(ipv6);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('detects and previews both addresses before opening the dialog for the first time', async () => {
+    let finishIpv6!: (response: Response) => void;
+    const ipv6 = new Promise<Response>((resolve) => {
+      finishIpv6 = resolve;
+    });
+    fetch.mockImplementation((url: string) =>
+      url.includes('ipv4.')
+        ? Promise.resolve(new Response('203.0.113.42'))
+        : ipv6,
+    );
+    await render('visible');
+    expect(fetch).not.toHaveBeenCalled();
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => input.focus());
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain(
+      'Your IP addresses (203.xxx.xxx.xxx)',
+    );
+    expect(container.textContent).not.toContain('203.0.113.42');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => finishIpv6(new Response('2001:db8:abcd::1234')));
+    expect(container.textContent).toContain(
+      'Your IP addresses (203.xxx.xxx.xxx, 2001:xxxx:xxxx:xxxx:…)',
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => {
+      input.blur();
+      input.focus();
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not detect addresses when searching for a domain', async () => {
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, 'example.com');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.focus());
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it.each(['mouse', 'keyboard'])(
@@ -116,7 +171,9 @@ describe('search form', () => {
       const input = container.querySelector<HTMLInputElement>('input')!;
       await act(async () => input.focus());
 
-      expect(reportEvent).not.toHaveBeenCalled();
+      expect(
+        reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
+      ).toHaveLength(0);
 
       if (activation === 'mouse') {
         const suggestion = Array.from(container.querySelectorAll('li')).find(
@@ -138,7 +195,9 @@ describe('search form', () => {
       }
 
       expect(container.querySelector('[role="dialog"]')).not.toBeNull();
-      expect(reportEvent.mock.calls).toEqual([['My IP: Open', {}]]);
+      expect(
+        reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
+      ).toEqual([['My IP: Open', {}]]);
       expect(router.push).not.toHaveBeenCalled();
     },
   );

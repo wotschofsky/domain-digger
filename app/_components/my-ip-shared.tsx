@@ -68,7 +68,7 @@ export const IpRetryNotice = ({
 };
 
 export const IpProviderNote = () => (
-  <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
+  <p className="text-xs text-zinc-500 dark:text-zinc-400">
     Detection by{' '}
     <a
       href="https://icanhazip.com/"
@@ -108,7 +108,7 @@ export const MyIpDialog = ({
               Your public IPv4 and IPv6 addresses and network details.
             </DrawerDescription>
           </DrawerHeader>
-          {children}
+          <div className="mt-4 min-w-0 space-y-4">{children}</div>
         </DrawerContent>
       </Drawer>
     );
@@ -121,7 +121,7 @@ export const MyIpDialog = ({
             Your public IPv4 and IPv6 addresses and network details.
           </DialogDescription>
         </DialogHeader>
-        {children}
+        <div className="min-w-0 space-y-4">{children}</div>
       </DialogContent>
     </Dialog>
   );

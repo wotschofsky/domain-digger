@@ -28,9 +28,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
-import { shortenIp } from '@/lib/ip-display';
+import { anonymizeIp } from '@/lib/ip-display';
 import { normalizeDomain, parseSearchInput } from '@/lib/search-parser';
-import { useCachedUserIp } from '@/lib/user-ip';
+import { useUserIpPreview } from '@/lib/user-ip';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 import { useSearchSuggestions } from '../api/search-suggestions/hook';
@@ -100,8 +100,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
   const [ipDetailsOpen, setIpDetailsOpen] = useState(false);
   const [myIpOpen, setMyIpOpen] = useState(false);
-  const cachedIpv4 = useCachedUserIp(4);
-  const cachedIpv6 = useCachedUserIp(6);
+  const detectPreview =
+    suggestionsVisible && !domain.trim() && state !== FormStates.Submitting;
+  const cachedIpv4 = useUserIpPreview(4, detectPreview);
+  const cachedIpv6 = useUserIpPreview(6, detectPreview);
   const cachedAddresses = [cachedIpv4, cachedIpv6].filter((ip): ip is string =>
     Boolean(ip),
   );
@@ -375,11 +377,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                       <NetworkIcon className="mr-2 inline-block size-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
                       <span
                         className="min-w-0 truncate"
-                        title={cachedAddresses.join(', ')}
+                        title={cachedAddresses.map(anonymizeIp).join(', ')}
                       >
                         Your IP addresses
                         {cachedAddresses.length > 0 &&
-                          ` (${cachedAddresses.map(shortenIp).join(', ')})`}
+                          ` (${cachedAddresses.map(anonymizeIp).join(', ')})`}
                       </span>
                     </>
                   ) : (

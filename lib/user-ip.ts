@@ -72,9 +72,10 @@ export const useUserIp = (version: IpVersion, enabled: boolean) => {
   return { ...result, provider, tryAlternative: () => setProvider('ident.me') };
 };
 
-// Subscribe to cached detections without starting a request, even when a global
-// SWR fetcher is configured. The search suggestion is a preview, not a probe.
-export const useCachedUserIp = (version: IpVersion) => {
+// Detect while the empty search menu is visible, and keep showing cached
+// results after it closes. Cache subscriptions never revalidate on their own.
+export const useUserIpPreview = (version: IpVersion, enabled: boolean) => {
+  const detection = useUserIp(version, enabled);
   const options = {
     revalidateOnMount: false,
     isPaused: () => true,
@@ -87,5 +88,5 @@ export const useCachedUserIp = (version: IpVersion) => {
     ipEndpoint(version, 'ident.me'),
     options,
   );
-  return primary.data ?? alternative.data;
+  return detection.data ?? primary.data ?? alternative.data;
 };

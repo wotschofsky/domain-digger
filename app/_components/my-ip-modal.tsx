@@ -70,7 +70,7 @@ const SelectedResults = ({ ipv4, ipv6 }: Results) => {
           <TabsContent
             key={family}
             value={String(family)}
-            className="mt-4 min-w-0"
+            className="mt-4 min-w-0 [&>div:last-child]:mb-0"
           >
             {ip && <IpDetailsContent key={ip} ip={ip} />}
           </TabsContent>
