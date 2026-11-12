@@ -8,7 +8,7 @@ import { FeaturesSection } from './_components/features-section';
 import { SponsorsSection } from './_components/sponsors-section';
 import { TrustSection } from './_components/trust-section';
 
-export const metadata = getPageMetadata('/');
+export const metadata = getPageMetadata({ url: '/' });
 
 const MainLandingPage: FC = () => (
   <div className="container space-y-16">

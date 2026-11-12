@@ -26,10 +26,10 @@ export const generateMetadata = async ({
 
   const search = force !== undefined ? '?force' : '';
 
-  return getPageMetadata(
-    `/lookup/${domain}/whois${search}`,
-    `WHOIS Lookup for ${domain}`,
-  );
+  return getPageMetadata({
+    url: `/lookup/${domain}/whois${search}`,
+    title: `WHOIS Lookup for ${domain}`,
+  });
 };
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({

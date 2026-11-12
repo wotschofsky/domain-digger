@@ -28,10 +28,10 @@ export const generateMetadata = async ({
 }: MapResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return getPageMetadata(
-    `/lookup/${domain}/map`,
-    `DNS Propagation for ${domain}`,
-  );
+  return getPageMetadata({
+    url: `/lookup/${domain}/map`,
+    title: `DNS Propagation for ${domain}`,
+  });
 };
 
 const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {

@@ -32,10 +32,10 @@ export const generateMetadata = async ({
   if (location) normalizedParams.set('location', location);
   const suffix = normalizedParams.size ? `?${normalizedParams.toString()}` : '';
 
-  return getPageMetadata(
-    `/lookup/${domain}${suffix}`,
-    `DNS Lookup for ${domain}`,
-  );
+  return getPageMetadata({
+    url: `/lookup/${domain}${suffix}`,
+    title: `DNS Lookup for ${domain}`,
+  });
 };
 
 const DnsResultsPage: FC<DnsResultsPageProps> = async ({

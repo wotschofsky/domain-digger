@@ -1,6 +1,15 @@
 import type { Metadata } from 'next';
 
-export const getPageMetadata = (url: string, title?: string): Metadata => {
+type PageMetadataOptions = {
+  url: string;
+  // Leave out to keep the root layout's title
+  title?: string;
+};
+
+export const getPageMetadata = ({
+  url,
+  title,
+}: PageMetadataOptions): Metadata => {
   // A title key, even undefined, replaces the root layout's title
   const titles = title ? { title } : {};
   return {

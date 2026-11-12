@@ -8,7 +8,10 @@ import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = getPageMetadata('/', 'DNS Propagation Map');
+export const metadata: Metadata = getPageMetadata({
+  url: '/',
+  title: 'DNS Propagation Map',
+});
 
 const MapLandingPage: FC = () => (
   <div className="container space-y-16">

@@ -23,10 +23,10 @@ export const generateMetadata = async ({
 }: SubdomainsResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return getPageMetadata(
-    `/lookup/${domain}/subdomains`,
-    `Subdomain Search for ${domain}`,
-  );
+  return getPageMetadata({
+    url: `/lookup/${domain}/subdomains`,
+    title: `Subdomain Search for ${domain}`,
+  });
 };
 
 export const maxDuration = 60;

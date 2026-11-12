@@ -24,10 +24,10 @@ export const generateMetadata = async ({
   params,
 }: DnssecResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
-  return getPageMetadata(
-    `/lookup/${domain}/dnssec`,
-    `DNSSEC Lookup for ${domain}`,
-  );
+  return getPageMetadata({
+    url: `/lookup/${domain}/dnssec`,
+    title: `DNSSEC Lookup for ${domain}`,
+  });
 };
 
 const VERDICT_LABELS: Record<DsChainVerdict, string> = {

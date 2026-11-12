@@ -8,7 +8,10 @@ import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = getPageMetadata('/whois', 'WHOIS Lookup');
+export const metadata: Metadata = getPageMetadata({
+  url: '/whois',
+  title: 'WHOIS Lookup',
+});
 
 const WhoisLandingPage: FC = () => (
   <div className="container space-y-16">

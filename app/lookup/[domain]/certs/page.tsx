@@ -18,10 +18,10 @@ export const generateMetadata = async ({
 }: CertsResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return getPageMetadata(
-    `/lookup/${domain}/certs`,
-    `Certificate Logs for ${domain}`,
-  );
+  return getPageMetadata({
+    url: `/lookup/${domain}/certs`,
+    title: `Certificate Logs for ${domain}`,
+  });
 };
 
 const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {

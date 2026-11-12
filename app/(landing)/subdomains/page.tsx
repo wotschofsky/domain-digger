@@ -8,10 +8,10 @@ import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = getPageMetadata(
-  '/subdomains',
-  'Subdomain Search',
-);
+export const metadata: Metadata = getPageMetadata({
+  url: '/subdomains',
+  title: 'Subdomain Search',
+});
 
 const SubdomainsLandingPage: FC = () => (
   <div className="container space-y-16">

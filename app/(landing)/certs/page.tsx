@@ -8,10 +8,10 @@ import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = getPageMetadata(
-  '/certs',
-  'Certificate Search',
-);
+export const metadata: Metadata = getPageMetadata({
+  url: '/certs',
+  title: 'Certificate Search',
+});
 
 const CertsLandingPage: FC = () => (
   <div className="container space-y-16">

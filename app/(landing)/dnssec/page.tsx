@@ -8,7 +8,10 @@ import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = getPageMetadata('/dnssec', 'DNSSEC Lookup');
+export const metadata: Metadata = getPageMetadata({
+  url: '/dnssec',
+  title: 'DNSSEC Lookup',
+});
 
 const DnssecLandingPage: FC = () => (
   <div className="container space-y-16">

@@ -5,7 +5,10 @@ import { getPageMetadata } from './page-metadata';
 describe('getPageMetadata', () => {
   it('points the canonical and og url at the page', () => {
     expect(
-      getPageMetadata('/lookup/example.com/whois?force', 'WHOIS Lookup'),
+      getPageMetadata({
+        url: '/lookup/example.com/whois?force',
+        title: 'WHOIS Lookup',
+      }),
     ).toEqual({
       title: 'WHOIS Lookup',
       openGraph: {
@@ -18,7 +21,7 @@ describe('getPageMetadata', () => {
 
   // A title key, even undefined, replaces the root layout's title
   it('leaves the title to the root layout when none is given', () => {
-    expect(getPageMetadata('/')).toEqual({
+    expect(getPageMetadata({ url: '/' })).toEqual({
       openGraph: { url: '/' },
       alternates: { canonical: '/' },
     });
