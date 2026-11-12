@@ -3,6 +3,7 @@ import { notFound, redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
 import { ALL_RECORD_TYPES } from '@/lib/data';
+import { getResultsHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 import { getRecordContextEntries } from '@/lib/record-context';
 import { getResolverFromName } from '@/lib/resolvers/utils';
@@ -33,7 +34,7 @@ export const generateMetadata = async ({
   const suffix = normalizedParams.size ? `?${normalizedParams.toString()}` : '';
 
   return getPageMetadata({
-    url: `/lookup/${domain}${suffix}`,
+    url: getResultsHref('dns', domain) + suffix,
     title: `DNS Lookup for ${domain}`,
   });
 };

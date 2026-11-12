@@ -10,6 +10,7 @@ import {
   type DsChainZone,
   resolveDsChainWithin,
 } from '@/lib/dnssec/ds-chain';
+import { getResultsHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
 import { recordLookupAfter } from '@/lib/search';
@@ -25,7 +26,7 @@ export const generateMetadata = async ({
 }: DnssecResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
   return getPageMetadata({
-    url: `/lookup/${domain}/dnssec`,
+    url: getResultsHref('dnssec', domain),
     title: `DNSSEC Lookup for ${domain}`,
   });
 };

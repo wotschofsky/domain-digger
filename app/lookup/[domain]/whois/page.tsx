@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { type FC, Fragment } from 'react';
 
+import { getResultsHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
-import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 
@@ -27,7 +28,7 @@ export const generateMetadata = async ({
   const search = force !== undefined ? '?force' : '';
 
   return getPageMetadata({
-    url: `/lookup/${domain}/whois${search}`,
+    url: getResultsHref('whois', domain) + search,
     title: `WHOIS Lookup for ${domain}`,
   });
 };
@@ -47,10 +48,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   await recordLookupAfter(domain, 'whois', results.length > 0);
 
   if (results.length === 0) {
-    throw new UserFacingError({
-      title: 'No WHOIS results',
-      description: `No WHOIS data is available for ${lookupTarget}. The domain may be unregistered or the WHOIS server may not return data for this TLD.`,
-    });
+    notFound();
   }
 
   return (
@@ -65,7 +63,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
               Lookup{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"
-                href={`/lookup/${domain}/whois`}
+                href={getResultsHref('whois', domain)}
               >
                 {baseDomain} instead
               </Link>
@@ -80,7 +78,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
               Force lookup for{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"
-                href={`/lookup/${domain}/whois?force`}
+                href={`${getResultsHref('whois', domain)}?force`}
               >
                 {domain} instead
               </Link>

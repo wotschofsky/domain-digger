@@ -2,57 +2,60 @@ export const LOOKUP_FEATURES = [
   {
     id: 'dns',
     label: 'DNS',
+    // Layout segment of the results tab
     segment: '(dns)',
+    // Results path below /lookup/<domain>
     path: '',
-    landingPath: '/',
     footerLabel: 'DNS Lookup',
-    lookupType: 'dns',
   },
   {
     id: 'map',
     label: 'DNS Map',
     segment: 'map',
     path: '/map',
-    landingPath: '/map',
     footerLabel: 'Global DNS Lookup',
-    lookupType: 'dns',
   },
   {
     id: 'dnssec',
     label: 'DNSSEC',
     segment: 'dnssec',
     path: '/dnssec',
-    landingPath: '/dnssec',
     footerLabel: 'DNSSEC Lookup',
-    lookupType: 'dnssec',
   },
   {
     id: 'whois',
     label: 'Whois',
     segment: 'whois',
     path: '/whois',
-    landingPath: '/whois',
     footerLabel: 'WHOIS Lookup',
-    lookupType: 'whois',
   },
   {
     id: 'certs',
     label: 'Certs',
     segment: 'certs',
     path: '/certs',
-    landingPath: '/certs',
     footerLabel: 'Certificate Logs',
-    lookupType: 'certs',
   },
   {
     id: 'subdomains',
     label: 'Subdomains',
     segment: 'subdomains',
     path: '/subdomains',
-    landingPath: '/subdomains',
     footerLabel: 'Subdomains Finder',
-    lookupType: 'subdomains',
   },
 ] as const;
 
-export type LookupType = (typeof LOOKUP_FEATURES)[number]['lookupType'];
+export type LookupFeatureId = (typeof LOOKUP_FEATURES)[number]['id'];
+
+const getPath = (id: LookupFeatureId) =>
+  LOOKUP_FEATURES.find((feature) => feature.id === id)!.path;
+
+export const findLookupFeatureBySegment = (segment: string | null) =>
+  LOOKUP_FEATURES.find((feature) => feature.segment === segment);
+
+export const getResultsHref = (id: LookupFeatureId, domain: string) =>
+  `/lookup/${domain}${getPath(id)}`;
+
+// Each tab's landing page sits at its results path; the DNS tab's is the home
+// page
+export const getLandingHref = (id: LookupFeatureId) => getPath(id) || '/';

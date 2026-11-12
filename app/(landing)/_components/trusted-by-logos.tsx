@@ -1,18 +1,15 @@
 import Link from 'next/link';
 import type { FC } from 'react';
 
+import { getResultsHref, type LookupFeatureId } from '@/lib/lookup-features';
+
 type TrustedByLogoProps = {
-  subpage?: string;
+  feature: LookupFeatureId;
 };
 
-const formatHref = (domain: string, subpage?: string) => {
-  const suffix = subpage ? `/${subpage}` : '';
-  return `/lookup/${domain}${suffix}`;
-};
-
-export const TrustedByLogos: FC<TrustedByLogoProps> = ({ subpage }) => (
+export const TrustedByLogos: FC<TrustedByLogoProps> = ({ feature }) => (
   <div className="flex flex-wrap justify-center gap-8 **:h-6 **:w-auto">
-    <Link href={formatHref('cloudflare.com', subpage)}>
+    <Link href={getResultsHref(feature, 'cloudflare.com')}>
       <span className="sr-only">Cloudflare</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -38,7 +35,7 @@ export const TrustedByLogos: FC<TrustedByLogoProps> = ({ subpage }) => (
       </svg>
     </Link>
 
-    <Link href={formatHref('atlassian.com', subpage)}>
+    <Link href={getResultsHref(feature, 'atlassian.com')}>
       <span className="sr-only">Atlassian</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -58,7 +55,7 @@ export const TrustedByLogos: FC<TrustedByLogoProps> = ({ subpage }) => (
       </svg>
     </Link>
 
-    <Link href={formatHref('heroku.com', subpage)}>
+    <Link href={getResultsHref(feature, 'heroku.com')}>
       <span className="sr-only">Heroku</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -74,7 +71,7 @@ export const TrustedByLogos: FC<TrustedByLogoProps> = ({ subpage }) => (
       </svg>
     </Link>
 
-    <Link href={formatHref('webflow.com', subpage)}>
+    <Link href={getResultsHref(feature, 'webflow.com')}>
       <span className="sr-only">Webflow</span>
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -126,7 +123,7 @@ export const TrustedByLogos: FC<TrustedByLogoProps> = ({ subpage }) => (
       </svg>
     </Link>
 
-    <Link href={formatHref('sap.com', subpage)}>
+    <Link href={getResultsHref(feature, 'sap.com')}>
       <span className="sr-only">SAP</span>
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 1223">
         <path

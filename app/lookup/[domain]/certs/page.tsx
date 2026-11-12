@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import { lookupRelatedCerts } from '@/lib/certs';
+import { getResultsHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
 
@@ -19,7 +20,7 @@ export const generateMetadata = async ({
   const { domain } = await params;
 
   return getPageMetadata({
-    url: `/lookup/${domain}/certs`,
+    url: getResultsHref('certs', domain),
     title: `Certificate Logs for ${domain}`,
   });
 };
