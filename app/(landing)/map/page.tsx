@@ -9,7 +9,7 @@ import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
 export const metadata: Metadata = getPageMetadata({
-  url: '/',
+  url: '/map',
   title: 'DNS Propagation Map',
 });
 
