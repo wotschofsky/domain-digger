@@ -2,42 +2,15 @@ import type { FC } from 'react';
 
 import { getPageMetadata } from '@/lib/page-metadata';
 
-import { SearchForm } from '../_components/search-form';
-import { AuthorSection } from './_components/author-section';
 import { FeaturesSection } from './_components/features-section';
-import { SponsorsSection } from './_components/sponsors-section';
-import { TrustSection } from './_components/trust-section';
+import { LandingPage } from './_components/landing-page';
 
 export const metadata = getPageMetadata({ url: '/' });
 
 const MainLandingPage: FC = () => (
-  <div className="container space-y-16">
-    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col gap-16 pb-12">
-      <div className="flex flex-col gap-20">
-        <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
-          <section>
-            <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-              Get details about any Domain
-            </h1>
-            <div className="mx-auto w-full max-w-2xl">
-              <SearchForm autofocus />
-            </div>
-            <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-              Find all DNS records, WHOIS data, SSL/TLS certificate history,
-              subdomains and more
-            </p>
-          </section>
-          <SponsorsSection />
-        </div>
-
-        <AuthorSection />
-      </div>
-
-      <TrustSection />
-    </div>
-
+  <LandingPage heading="Get details about any Domain">
     <FeaturesSection className="mt-32!" />
-  </div>
+  </LandingPage>
 );
 
 export default MainLandingPage;

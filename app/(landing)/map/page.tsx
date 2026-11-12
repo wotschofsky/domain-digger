@@ -3,10 +3,7 @@ import type { FC } from 'react';
 
 import { getPageMetadata } from '@/lib/page-metadata';
 
-import { SearchForm } from '../../_components/search-form';
-import { AuthorSection } from '../_components/author-section';
-import { SponsorsSection } from '../_components/sponsors-section';
-import { TrustSection } from '../_components/trust-section';
+import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
   url: '/map',
@@ -14,35 +11,8 @@ export const metadata: Metadata = getPageMetadata({
 });
 
 const MapLandingPage: FC = () => (
-  <div className="container space-y-16">
-    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col gap-16 pb-12">
-      <div className="flex flex-col gap-20">
-        <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
-          <section>
-            <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-              Run DNS lookups across multiple regions
-            </h1>
-            <div className="mx-auto w-full max-w-2xl">
-              <SearchForm subpage="map" autofocus />
-            </div>
-            <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-              Find all DNS records, WHOIS data, SSL/TLS certificate history,
-              subdomains and more
-            </p>
-          </section>
-          <SponsorsSection />
-        </div>
-
-        <AuthorSection />
-      </div>
-
-      <TrustSection subpage="map" />
-    </div>
-
-    <div className="mx-auto max-w-4xl space-y-4 pt-16 text-center">
-      <h2 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-        About DNS Map
-      </h2>
+  <LandingPage subpage="map" heading="Run DNS lookups across multiple regions">
+    <AboutSection title="About DNS Map">
       <p>
         The DNS Map tool (also known as Global DNS) is particularly useful for
         debugging Content Delivery Network (CDN) setups and checking DNS
@@ -64,8 +34,8 @@ const MapLandingPage: FC = () => (
         allows you to catch potential delays or caching issues early and ensure
         that your CDN is delivering content efficiently to users globally.
       </p>
-    </div>
-  </div>
+    </AboutSection>
+  </LandingPage>
 );
 
 export default MapLandingPage;

@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { type FC, Fragment } from 'react';
 
 import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
-import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
 
@@ -47,10 +47,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
   await recordLookupAfter(domain, 'whois', results.length > 0);
 
   if (results.length === 0) {
-    throw new UserFacingError({
-      title: 'No WHOIS results',
-      description: `No WHOIS data is available for ${lookupTarget}. The domain may be unregistered or the WHOIS server may not return data for this TLD.`,
-    });
+    notFound();
   }
 
   return (
