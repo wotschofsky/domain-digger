@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { type FC, Fragment } from 'react';
 
+import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
 import { UserFacingError } from '@/lib/user-facing-error';
 import { getBaseDomain } from '@/lib/utils';
@@ -25,16 +26,10 @@ export const generateMetadata = async ({
 
   const search = force !== undefined ? '?force' : '';
 
-  return {
+  return getPageMetadata({
+    url: `/lookup/${domain}/whois${search}`,
     title: `WHOIS Lookup for ${domain}`,
-    openGraph: {
-      title: `WHOIS Lookup for ${domain}`,
-      url: `/lookup/${domain}/whois${search}`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/whois${search}`,
-    },
-  };
+  });
 };
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({

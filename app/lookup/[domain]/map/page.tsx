@@ -11,6 +11,7 @@ import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
 import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
 import { IconAlert } from '../_components/icon-alert';
@@ -27,16 +28,10 @@ export const generateMetadata = async ({
 }: MapResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return {
+  return getPageMetadata({
+    url: `/lookup/${domain}/map`,
     title: `DNS Propagation for ${domain}`,
-    openGraph: {
-      title: `DNS Propagation for ${domain}`,
-      url: `/lookup/${domain}/map`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/map`,
-    },
-  };
+  });
 };
 
 const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {

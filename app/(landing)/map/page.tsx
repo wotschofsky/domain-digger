@@ -1,21 +1,17 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getPageMetadata } from '@/lib/page-metadata';
+
 import { SearchForm } from '../../_components/search-form';
 import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = getPageMetadata({
+  url: '/',
   title: 'DNS Propagation Map',
-  openGraph: {
-    title: 'DNS Propagation Map',
-    url: '/',
-  },
-  alternates: {
-    canonical: '/',
-  },
-};
+});
 
 const MapLandingPage: FC = () => (
   <div className="container space-y-16">

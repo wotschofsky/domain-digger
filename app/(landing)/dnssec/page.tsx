@@ -1,19 +1,17 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getPageMetadata } from '@/lib/page-metadata';
+
 import { SearchForm } from '../../_components/search-form';
 import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = getPageMetadata({
+  url: '/dnssec',
   title: 'DNSSEC Lookup',
-  openGraph: {
-    title: 'DNSSEC Lookup',
-    url: '/dnssec',
-  },
-  alternates: { canonical: '/dnssec' },
-};
+});
 
 const DnssecLandingPage: FC = () => (
   <div className="container space-y-16">
