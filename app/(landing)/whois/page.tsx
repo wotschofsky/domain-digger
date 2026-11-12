@@ -3,10 +3,7 @@ import type { FC } from 'react';
 
 import { getPageMetadata } from '@/lib/page-metadata';
 
-import { SearchForm } from '../../_components/search-form';
-import { AuthorSection } from '../_components/author-section';
-import { SponsorsSection } from '../_components/sponsors-section';
-import { TrustSection } from '../_components/trust-section';
+import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
   url: '/whois',
@@ -14,35 +11,8 @@ export const metadata: Metadata = getPageMetadata({
 });
 
 const WhoisLandingPage: FC = () => (
-  <div className="container space-y-16">
-    <div className="flex min-h-[calc(100vh-4.5rem-2rem)] flex-col gap-16 pb-12">
-      <div className="flex flex-col gap-20">
-        <div className="flex min-h-[40vh] flex-col justify-center pt-24 pb-12">
-          <section>
-            <h1 className="mb-16 scroll-m-20 text-center text-2xl font-semibold tracking-tight sm:text-3xl">
-              Find WHOIS information for any domain
-            </h1>
-            <div className="mx-auto w-full max-w-2xl">
-              <SearchForm subpage="whois" autofocus />
-            </div>
-            <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
-              Find all DNS records, WHOIS data, SSL/TLS certificate history,
-              subdomains and more
-            </p>
-          </section>
-          <SponsorsSection />
-        </div>
-
-        <AuthorSection />
-      </div>
-
-      <TrustSection subpage="whois" />
-    </div>
-
-    <div className="mx-auto max-w-4xl space-y-4 pt-16 text-center">
-      <h2 className="scroll-m-20 text-2xl font-semibold tracking-tight">
-        About WHOIS
-      </h2>
+  <LandingPage subpage="whois" heading="Find WHOIS information for any domain">
+    <AboutSection title="About WHOIS">
       <p>
         WHOIS is a protocol used to retrieve detailed information about domain
         names and IP addresses. A WHOIS lookup provides essential data such as
@@ -64,8 +34,8 @@ const WhoisLandingPage: FC = () => (
         WHOIS offers a direct method to gather critical information about the
         internet infrastructure.
       </p>
-    </div>
-  </div>
+    </AboutSection>
+  </LandingPage>
 );
 
 export default WhoisLandingPage;
