@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   findLookupFeatureBySegment,
   getLandingHref,
-  getPageMetadata,
   getResultsHref,
 } from './lookup-features';
 
@@ -32,26 +31,5 @@ describe('lookup features', () => {
   it('has no feature for an unknown or missing segment', () => {
     expect(findLookupFeatureBySegment('exposure')).toBeUndefined();
     expect(findLookupFeatureBySegment(null)).toBeUndefined();
-  });
-
-  it('points the canonical and og url at the page', () => {
-    expect(
-      getPageMetadata('/lookup/example.com/whois?force', 'WHOIS Lookup'),
-    ).toEqual({
-      title: 'WHOIS Lookup',
-      openGraph: {
-        title: 'WHOIS Lookup',
-        url: '/lookup/example.com/whois?force',
-      },
-      alternates: { canonical: '/lookup/example.com/whois?force' },
-    });
-  });
-
-  // A title key, even undefined, replaces the root layout's title
-  it('leaves the title to the root layout when none is given', () => {
-    expect(getPageMetadata('/')).toEqual({
-      openGraph: { url: '/' },
-      alternates: { canonical: '/' },
-    });
   });
 });

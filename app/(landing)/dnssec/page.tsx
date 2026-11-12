@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
-import { getLandingHref, getPageMetadata } from '@/lib/lookup-features';
+import { getLandingHref } from '@/lib/lookup-features';
+import { getPageMetadata } from '@/lib/page-metadata';
 
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
-export const metadata: Metadata = getPageMetadata(
-  getLandingHref('dnssec'),
-  'DNSSEC Lookup',
-);
+export const metadata: Metadata = getPageMetadata({
+  url: getLandingHref('dnssec'),
+  title: 'DNSSEC Lookup',
+});
 
 const DnssecLandingPage: FC = () => (
   <LandingPage

@@ -3,7 +3,8 @@ import { notFound, redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
 import { ALL_RECORD_TYPES } from '@/lib/data';
-import { getPageMetadata, getResultsHref } from '@/lib/lookup-features';
+import { getResultsHref } from '@/lib/lookup-features';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { getRecordContextEntries } from '@/lib/record-context';
 import { getResolverFromName } from '@/lib/resolvers/utils';
 import { recordLookupAfter } from '@/lib/search';
@@ -32,10 +33,10 @@ export const generateMetadata = async ({
   if (location) normalizedParams.set('location', location);
   const suffix = normalizedParams.size ? `?${normalizedParams.toString()}` : '';
 
-  return getPageMetadata(
-    getResultsHref('dns', domain) + suffix,
-    `DNS Lookup for ${domain}`,
-  );
+  return getPageMetadata({
+    url: getResultsHref('dns', domain) + suffix,
+    title: `DNS Lookup for ${domain}`,
+  });
 };
 
 const DnsResultsPage: FC<DnsResultsPageProps> = async ({

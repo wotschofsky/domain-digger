@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import type { FC } from 'react';
 
 import { lookupRelatedCerts } from '@/lib/certs';
-import { getPageMetadata, getResultsHref } from '@/lib/lookup-features';
+import { getResultsHref } from '@/lib/lookup-features';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
 
 import { CertsTable } from './_components/table';
@@ -18,10 +19,10 @@ export const generateMetadata = async ({
 }: CertsResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return getPageMetadata(
-    getResultsHref('certs', domain),
-    `Certificate Logs for ${domain}`,
-  );
+  return getPageMetadata({
+    url: getResultsHref('certs', domain),
+    title: `Certificate Logs for ${domain}`,
+  });
 };
 
 const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {

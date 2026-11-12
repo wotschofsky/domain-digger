@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
-import { getLandingHref, getPageMetadata } from '@/lib/lookup-features';
+import { getLandingHref } from '@/lib/lookup-features';
+import { getPageMetadata } from '@/lib/page-metadata';
 
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
-export const metadata: Metadata = getPageMetadata(
-  getLandingHref('map'),
-  'DNS Propagation Map',
-);
+export const metadata: Metadata = getPageMetadata({
+  url: getLandingHref('map'),
+  title: 'DNS Propagation Map',
+});
 
 const MapLandingPage: FC = () => (
   <LandingPage feature="map" heading="Run DNS lookups across multiple regions">

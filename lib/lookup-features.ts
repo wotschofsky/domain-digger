@@ -1,5 +1,3 @@
-import type { Metadata } from 'next';
-
 export const LOOKUP_FEATURES = [
   {
     id: 'dns',
@@ -61,13 +59,3 @@ export const getResultsHref = (id: LookupFeatureId, domain: string) =>
 // Each tab's landing page sits at its results path; the DNS tab's is the home
 // page
 export const getLandingHref = (id: LookupFeatureId) => getPath(id) || '/';
-
-export const getPageMetadata = (url: string, title?: string): Metadata => {
-  // A title key, even undefined, replaces the root layout's title
-  const titles = title ? { title } : {};
-  return {
-    ...titles,
-    openGraph: { ...titles, url },
-    alternates: { canonical: url },
-  };
-};

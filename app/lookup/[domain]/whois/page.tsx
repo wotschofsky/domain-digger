@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { type FC, Fragment } from 'react';
 
-import { getPageMetadata, getResultsHref } from '@/lib/lookup-features';
+import { getResultsHref } from '@/lib/lookup-features';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
 import { getBaseDomain } from '@/lib/utils';
 import { lookupWhois } from '@/lib/whois';
@@ -26,10 +27,10 @@ export const generateMetadata = async ({
 
   const search = force !== undefined ? '?force' : '';
 
-  return getPageMetadata(
-    getResultsHref('whois', domain) + search,
-    `WHOIS Lookup for ${domain}`,
-  );
+  return getPageMetadata({
+    url: getResultsHref('whois', domain) + search,
+    title: `WHOIS Lookup for ${domain}`,
+  });
 };
 
 const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
