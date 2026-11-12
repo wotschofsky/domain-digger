@@ -6,7 +6,7 @@ import { getPageMetadata } from '@/lib/page-metadata';
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
-  url: '/',
+  url: '/map',
   title: 'DNS Propagation Map',
 });
 
