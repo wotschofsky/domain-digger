@@ -24,19 +24,23 @@ export const generateMetadata = async ({
   });
 };
 
+export const maxDuration = 60;
+
 const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
   const params = await props.params;
 
   const { domain } = params;
 
-  const certs = await lookupRelatedCerts(domain);
+  const { certs, incomplete } = await lookupRelatedCerts(domain);
 
   await recordLookupAfter(domain, 'certs', certs.length > 0);
 
   if (!certs.length) {
     return (
       <p className="mt-8 text-center text-zinc-500 dark:text-zinc-400">
-        No issued certificates found!
+        {incomplete
+          ? 'Certificate results are incomplete because part of the lookup failed. Please try again.'
+          : 'No issued certificates found!'}
       </p>
     );
   }
@@ -47,6 +51,8 @@ const CertsResultsPage: FC<CertsResultsPageProps> = async (props) => {
 
       <p className="mt-8 text-center text-zinc-500 dark:text-zinc-400">
         Found {certs.length} certificates.
+        {incomplete &&
+          ' Results are incomplete because part of the lookup failed.'}
       </p>
     </>
   );
