@@ -1,21 +1,17 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getPageMetadata } from '@/lib/page-metadata';
+
 import { SearchForm } from '../../_components/search-form';
 import { AuthorSection } from '../_components/author-section';
 import { SponsorsSection } from '../_components/sponsors-section';
 import { TrustSection } from '../_components/trust-section';
 
-export const metadata: Metadata = {
-  title: 'Certificate Search',
-  openGraph: {
-    title: 'Certificate Search',
-    url: '/certs',
-  },
-  alternates: {
-    canonical: '/certs',
-  },
-};
+export const metadata: Metadata = getPageMetadata(
+  '/certs',
+  'Certificate Search',
+);
 
 const CertsLandingPage: FC = () => (
   <div className="container space-y-16">

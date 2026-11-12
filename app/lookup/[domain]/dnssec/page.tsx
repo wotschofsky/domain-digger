@@ -10,6 +10,7 @@ import {
   type DsChainZone,
   resolveDsChainWithin,
 } from '@/lib/dnssec/ds-chain';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
 import { recordLookupAfter } from '@/lib/search';
 import { UserFacingError } from '@/lib/user-facing-error';
@@ -23,14 +24,10 @@ export const generateMetadata = async ({
   params,
 }: DnssecResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
-  return {
-    title: `DNSSEC Lookup for ${domain}`,
-    openGraph: {
-      title: `DNSSEC Lookup for ${domain}`,
-      url: `/lookup/${domain}/dnssec`,
-    },
-    alternates: { canonical: `/lookup/${domain}/dnssec` },
-  };
+  return getPageMetadata(
+    `/lookup/${domain}/dnssec`,
+    `DNSSEC Lookup for ${domain}`,
+  );
 };
 
 const VERDICT_LABELS: Record<DsChainVerdict, string> = {
