@@ -1,3 +1,4 @@
+import { TriangleAlertIcon } from 'lucide-react';
 import naturalCompare from 'natural-compare-lite';
 import { type FC, Fragment } from 'react';
 
@@ -18,6 +19,7 @@ import type { RecordContextEntry } from '@/lib/record-context';
 import type { ResolverMultiResponse } from '@/lib/resolvers/base';
 import { cn } from '@/lib/utils';
 
+import { IconAlert } from '../../_components/icon-alert';
 import { RecordRow } from './record-row';
 import { StackedRecord } from './stacked-record';
 
@@ -28,6 +30,24 @@ type DnsTableProps = {
 
 export const DnsTable: FC<DnsTableProps> = ({ records, subvalues }) => (
   <>
+    {Object.values(records).some((response) => response.error) && (
+      <IconAlert
+        className="mt-8 max-w-none"
+        icon={TriangleAlertIcon}
+        title="Some DNS lookups failed"
+      >
+        <ul>
+          {Object.entries(records).map(([type, response]) =>
+            response.error ? (
+              <li key={type}>
+                <span className="font-medium">{type}:</span>{' '}
+                {response.error.title}
+              </li>
+            ) : null,
+          )}
+        </ul>
+      </IconAlert>
+    )}
     {Object.entries(records).map(([recordType, response]) => {
       if (!response || response.records.length === 0) {
         return null;

@@ -1,5 +1,5 @@
 import isIP from 'validator/lib/isIP';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getIpDetails,
@@ -139,39 +139,147 @@ describe('getIpDetails', () => {
   });
 });
 
-describe('lookupReverse', () => {
-  it('should return an array of domain names from reverse DNS lookups', async () => {
-    const fakeResponse = {
-      json: vi.fn().mockResolvedValue({
-        Answer: [{ data: 'dns.google.' }, { data: 'another.dns.google.' }],
-      }),
-      ok: true,
-    };
-    global.fetch = vi.fn().mockResolvedValue(fakeResponse);
+describe('getIpDetails failure reporting', () => {
+  const fetchMock = vi.fn();
 
-    const results = await lookupReverse('8.8.8.8');
-    expect(results).toEqual(['dns.google', 'another.dns.google']);
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
-  it('should return an empty array if no answers are found in the DNS lookup', async () => {
-    const fakeResponse = {
-      json: vi.fn().mockResolvedValue({}),
-      ok: true,
-    };
-    global.fetch = vi.fn().mockResolvedValue(fakeResponse);
+  afterEach(() => vi.unstubAllGlobals());
 
-    const results = await lookupReverse('8.8.4.4');
-    expect(results).toEqual([]);
-  });
+  it.each([
+    ['private range', '192.168.1.1'],
+    ['reserved range', '0.0.0.0'],
+    ['invalid query', '1.1.1.1'],
+  ])(
+    'should throw a user-facing error when ip-api fails with %s',
+    async (message, ip) => {
+      // ip-api answers failures with HTTP 200 and status "fail".
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ status: 'fail', message }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
 
-  it('should throw a user-facing error when the API call for DNS lookup fails', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 503,
-      statusText: 'Service Unavailable',
+      await expect(getIpDetails(ip)).rejects.toThrow(
+        /Couldn't look up this IP address/,
+      );
+    },
+  );
+
+  it('should return the details when the lookup succeeds', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: 'success',
+          country: 'Netherlands',
+          city: 'Amsterdam',
+          isp: 'Example ISP',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    await expect(getIpDetails('8.8.8.8')).resolves.toMatchObject({
+      country: 'Netherlands',
+      city: 'Amsterdam',
     });
+  });
+});
 
-    await expect(lookupReverse('8.8.4.4')).rejects.toThrow(/Cloudflare DNS/);
+describe('lookupReverse', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('returns only PTR hostnames through the uncached Cloudflare resolver', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        Status: 0,
+        Answer: [
+          {
+            name: '8.8.8.8.in-addr.arpa',
+            type: 5,
+            TTL: 30,
+            data: 'alias.example.',
+          },
+          { name: 'alias.example', type: 12, TTL: 300, data: 'dns.google.' },
+          {
+            name: 'alias.example',
+            type: 12,
+            TTL: 300,
+            data: 'another.dns.google',
+          },
+        ],
+      }),
+    );
+
+    expect(await lookupReverse('8.8.8.8')).toEqual([
+      'dns.google',
+      'another.dns.google',
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL(
+        'https://cloudflare-dns.com/dns-query?name=8.8.8.8.in-addr.arpa&type=PTR',
+      ),
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+  });
+
+  it.each([{ Status: 0 }, { Status: 3 }, { Status: 2 }])(
+    'returns no hostnames for a DNS response without answers: %j',
+    async (body) => {
+      fetchMock.mockResolvedValue(Response.json(body));
+      expect(await lookupReverse('8.8.4.4')).toEqual([]);
+    },
+  );
+
+  it('preserves resolver errors for failed HTTP responses', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(null, {
+        status: 503,
+        statusText: 'Service Unavailable',
+      }),
+    );
+    await expect(lookupReverse('8.8.4.4')).rejects.toMatchObject({
+      payload: { title: 'DNS resolver is unavailable', retryable: true },
+    });
+  });
+
+  it('wraps network failures in a user-facing error', async () => {
+    const error = new Error('Connection failed');
+    fetchMock.mockRejectedValue(error);
+    await expect(lookupReverse('8.8.4.4')).rejects.toMatchObject({
+      payload: { title: "Couldn't reach Cloudflare DNS", retryable: true },
+      cause: error,
+    });
+  });
+
+  it('rejects malformed DNS data instead of returning an invalid hostname', async () => {
+    fetchMock.mockResolvedValue(
+      Response.json({
+        Status: 0,
+        Answer: [
+          { name: '8.8.4.4.in-addr.arpa', type: 12, TTL: 300, data: null },
+        ],
+      }),
+    );
+    await expect(lookupReverse('8.8.4.4')).rejects.toThrow();
+  });
+
+  it('rejects invalid IP addresses before starting a DNS lookup', async () => {
+    await expect(lookupReverse('not-an-ip')).rejects.toThrow(
+      'Invalid IP address',
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

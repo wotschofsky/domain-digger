@@ -6,11 +6,11 @@ import { BoundaryError } from '@/components/boundary-error';
 
 type DomainErrorProps = {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 };
 
-const DomainError: FC<DomainErrorProps> = ({ error, unstable_retry }) => (
-  <BoundaryError error={error} retry={unstable_retry} />
+const DomainError: FC<DomainErrorProps> = ({ error, retry }) => (
+  <BoundaryError error={error} retry={retry} />
 );
 
 export default DomainError;
