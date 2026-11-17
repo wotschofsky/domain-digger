@@ -67,5 +67,7 @@ export const withResolverParams = (path: string, currentSearch: string) => {
     const value = current.get(key);
     if (value) kept.set(key, value);
   }
-  return kept.size ? `${path}?${kept.toString()}` : path;
+  // Not kept.size: browsers Next.js still targets (Safari 16.4) lack it
+  const query = kept.toString();
+  return query ? `${path}?${query}` : path;
 };
