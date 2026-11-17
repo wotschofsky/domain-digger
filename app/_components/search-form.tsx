@@ -29,6 +29,7 @@ import { ClientOnly } from '@/components/client-only';
 import { useAnalytics } from '@/lib/analytics';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
 import { anonymizeIp } from '@/lib/ip-display';
+import { withResolverParams } from '@/lib/lookup-features';
 import { normalizeDomain, parseSearchInput } from '@/lib/search-parser';
 import { useUserIp } from '@/lib/user-ip';
 import { cn, isAppleDevice } from '@/lib/utils';
@@ -146,7 +147,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       return;
     }
 
-    router.push(target);
+    // Read at submit time so landing pages stay prerendered
+    router.push(withResolverParams(target, window.location.search));
   };
 
   const handleSubmit = (event: FormEvent) => {
