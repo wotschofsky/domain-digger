@@ -1394,7 +1394,7 @@ describe('AuthoritativeResolver transport policy', () => {
     ]);
     expect(result.trace).toContainEqual(
       expect.stringMatching(
-        /glue for example\.com \(8\.8\.8\.8\) failed .*8\.8\.8\.8: timeout \(4 attempts\).*resolving NS names instead/,
+        /glue for example\.com \(8\.8\.8\.8\) failed .*8\.8\.8\.8: timeout \(2 attempts\).*resolving NS names instead/,
       ),
     );
     // The healthy servers replace the dead glue in the delegation cache.
@@ -1415,7 +1415,7 @@ describe('AuthoritativeResolver transport policy', () => {
     let attempts = 0;
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType }) => {
-        if (++attempts < 3) throw new Error(`timeout ${attempts}`);
+        if (++attempts < 2) throw new Error(`timeout ${attempts}`);
         return {
           ...response(domain, recordType, 'NOERROR', [
             { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
@@ -1432,7 +1432,7 @@ describe('AuthoritativeResolver transport policy', () => {
     const result = await resolver.resolveRecordType('example.com', 'A');
 
     expect(result.trace).toEqual([
-      'A example.com @ 192.0.2.1 -> retried after 2 failed attempts: timeout 1; timeout 2',
+      'A example.com @ 192.0.2.1 -> retried after 1 failed attempts: timeout 1',
       'A example.com @ 192.0.2.1 (udp) -> answer: 203.0.113.10',
     ]);
   });
@@ -2028,10 +2028,10 @@ describe('AuthoritativeResolver transport policy', () => {
     ).resolves.toMatchObject({
       records: [expect.objectContaining({ data: '203.0.113.10' })],
     });
-    // One load of the dead server: a first try plus three retries.
+    // One load of the dead server: a first try plus one retry.
     expect(
       udpTransport.mock.calls.filter(([r]) => r.nameserver === '8.8.8.8'),
-    ).toHaveLength(4);
+    ).toHaveLength(2);
   });
 
   it('follows matching public glue from a referral', async () => {
@@ -2249,5 +2249,19 @@ describe('isMatchingDnsResponse', () => {
     expect(isMatchingDnsResponse(packet, 42, 'example.com', 'AAAA')).toBe(
       false,
     );
+  });
+
+  it('accepts a FORMERR that echoes no question', () => {
+    const bare = { ...response('example.com', 'A', 'FORMERR'), questions: [] };
+    expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(true);
+    expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A')).toBe(false);
+    expect(
+      isMatchingDnsResponse(
+        { ...response('example.com', 'A', 'NOERROR'), questions: [] },
+        42,
+        'example.com',
+        'A',
+      ),
+    ).toBe(false);
   });
 });
