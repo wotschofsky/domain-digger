@@ -407,7 +407,21 @@ export class AuthoritativeResolver extends DnsResolver {
         if (buf.length >= 2) {
           const msgLen = buf.readUInt16BE(0);
           if (buf.length >= 2 + msgLen) {
-            const packet = dnsPacket.streamDecode(buf);
+            let packet: Packet;
+            try {
+              // streamDecode would read past the declared length into
+              // whatever bytes follow, so decode only the frame itself
+              packet = dnsPacket.decode(buf.subarray(2, 2 + msgLen));
+            } catch (error) {
+              // A throw here would escape the socket listener uncaught
+              cleanup();
+              reject(
+                new Error('Could not decode the TCP DNS response', {
+                  cause: error,
+                }),
+              );
+              return;
+            }
             if (!isMatchingDnsResponse(packet, id, domain, recordType)) {
               cleanup();
               reject(new Error('DNS response did not match the TCP query'));
@@ -417,6 +431,14 @@ export class AuthoritativeResolver extends DnsResolver {
             resolve(packet);
           }
         }
+      });
+      // A server that closes before the frame is complete will never finish
+      // it, so fail now instead of waiting out the timeout
+      socket.on('end', () => {
+        cleanup();
+        reject(
+          new Error('TCP connection closed before a full DNS response arrived'),
+        );
       });
       socket.on('error', (error) => {
         cleanup();
