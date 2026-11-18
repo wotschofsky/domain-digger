@@ -577,30 +577,33 @@ describe('AuthoritativeResolver walk bounds', () => {
 });
 
 describe('AuthoritativeResolver transport fallbacks', () => {
-  it('asks again in plain DNS when a server rejects EDNS', async () => {
-    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
-      async ({ domain, recordType, plainDns }) =>
-        plainDns
-          ? reply(domain, recordType, [address(domain)])
-          : ({
-              ...reply(domain, recordType),
-              rcode: 'FORMERR',
-            } as DecodedPacket),
-    );
-    const resolver = new AuthoritativeResolver({
-      udpTransport,
-      rootServers: async () => ['192.0.2.1'],
-    });
+  it.each(['FORMERR', 'NOTIMP'])(
+    'asks again in plain DNS when a server rejects EDNS with %s',
+    async (rcode) => {
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, plainDns }) =>
+          plainDns
+            ? reply(domain, recordType, [address(domain)])
+            : ({
+                ...reply(domain, recordType),
+                rcode,
+              } as DecodedPacket),
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+      });
 
-    await expect(
-      resolver.resolveRecordType('example.com', 'A'),
-    ).resolves.toMatchObject({
-      records: [expect.objectContaining({ data: '203.0.113.10' })],
-    });
-    expect(
-      udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
-    ).toEqual([false, true]);
-  });
+      await expect(
+        resolver.resolveRecordType('example.com', 'A'),
+      ).resolves.toMatchObject({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      });
+      expect(
+        udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+      ).toEqual([false, true]);
+    },
+  );
 
   it('keeps asking in plain DNS once a server has rejected EDNS', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(

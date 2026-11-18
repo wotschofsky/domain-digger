@@ -2251,17 +2251,45 @@ describe('isMatchingDnsResponse', () => {
     );
   });
 
-  it('accepts a FORMERR that echoes no question', () => {
-    const bare = { ...response('example.com', 'A', 'FORMERR'), questions: [] };
-    expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(true);
-    expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A')).toBe(false);
-    expect(
-      isMatchingDnsResponse(
-        { ...response('example.com', 'A', 'NOERROR'), questions: [] },
-        42,
-        'example.com',
-        'A',
-      ),
-    ).toBe(false);
+  it.each(['FORMERR', 'NOTIMP'])(
+    'accepts a %s that echoes no question only for a plain-retry query',
+    (rcode) => {
+      const bare = { ...response('example.com', 'A', rcode), questions: [] };
+      expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
+        true,
+      );
+      expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A', true)).toBe(
+        false,
+      );
+      // A TCP, DNSSEC or plain query gets no plain retry, so main's matching
+      // applies.
+      expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(false);
+    },
+  );
+
+  it('accepts no other reply that echoes no question', () => {
+    const bare = { ...response('example.com', 'A', 'NOERROR'), questions: [] };
+    expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
+      false,
+    );
+    const withOpt: DecodedPacket = {
+      ...response('example.com', 'A', 'FORMERR'),
+      questions: [],
+      additionals: [
+        {
+          type: 'OPT',
+          name: '.',
+          udpPayloadSize: 1232,
+          extendedRcode: 0,
+          ednsVersion: 0,
+          flags: 0,
+          flag_do: false,
+          options: [],
+        },
+      ],
+    };
+    expect(isMatchingDnsResponse(withOpt, 42, 'example.com', 'A', true)).toBe(
+      false,
+    );
   });
 });

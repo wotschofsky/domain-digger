@@ -135,18 +135,28 @@ export type AuthoritativeResolverOptions = {
   dnssecOk?: boolean;
 };
 
+// A server that does not implement EDNS answers a query carrying the OPT
+// record with FORMERR (RFC 6891 §7), or with NOTIMP, and without an OPT
+// record of its own.
+const rejectsEdns = (packet: Packet): boolean =>
+  (packet.rcode === 'FORMERR' || packet.rcode === 'NOTIMP') &&
+  !packet.additionals?.some((record) => record.type === 'OPT');
+
 export const isMatchingDnsResponse = (
   packet: Packet,
   id: number,
   domain: string,
   recordType: RecordType,
+  // Set for a query that gets the plain-DNS retry: a server that rejects
+  // EDNS may echo no question (the servers of mail.protection.outlook.com
+  // send a bare FORMERR), and that rejection must still reach the retry.
+  acceptBareEdnsRejection = false,
 ): boolean =>
   packet.type === 'response' &&
   packet.id === id &&
-  // A server that rejects the query outright may echo no question: the
-  // servers of mail.protection.outlook.com answer EDNS with a bare FORMERR,
-  // which must still reach the plain-DNS retry.
-  ((packet.rcode === 'FORMERR' && !packet.questions?.length) ||
+  ((acceptBareEdnsRejection &&
+    !packet.questions?.length &&
+    rejectsEdns(packet)) ||
     Boolean(
       packet.questions?.some(
         (question) =>
@@ -350,7 +360,16 @@ export class AuthoritativeResolver extends DnsResolver {
         } catch {
           return;
         }
-        if (!isMatchingDnsResponse(packet, id, domain, recordType)) return;
+        if (
+          !isMatchingDnsResponse(
+            packet,
+            id,
+            domain,
+            recordType,
+            !plainDns && !dnssecOk,
+          )
+        )
+          return;
         cleanup();
         resolve(packet);
       });
@@ -463,16 +482,10 @@ export class AuthoritativeResolver extends DnsResolver {
         : this.sendUdpRequest(udpRequest);
     if (edns.rejected) request = { ...request, plainDns: true };
     let udpResponse = await sendUdp(request);
-    // A server that does not implement EDNS answers FORMERR without an OPT
-    // record (RFC 6891 §7) and may still answer plain DNS, so the query goes
-    // again without EDNS, and so do this request's later attempts. DNSSEC
-    // queries need the DO bit, so they get no plain retry.
-    if (
-      udpResponse.rcode === 'FORMERR' &&
-      !request.dnssecOk &&
-      !edns.rejected &&
-      !udpResponse.additionals?.some((record) => record.type === 'OPT')
-    ) {
+    // A server that does not implement EDNS may still answer plain DNS, so
+    // the query goes again without EDNS, and so do this request's later
+    // attempts. DNSSEC queries need the DO bit, so they get no plain retry.
+    if (rejectsEdns(udpResponse) && !request.dnssecOk && !edns.rejected) {
       edns.rejected = true;
       request = { ...request, plainDns: true };
       udpResponse = await sendUdp(request);
