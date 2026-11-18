@@ -28,11 +28,11 @@ import { WalkContext } from './walk-context';
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
 // EDNS OPT pseudo-record on UDP queries. Without it a server may only send
-// 512 bytes over UDP, which a root referral exceeds, so the reply comes back
-// truncated and the query goes again over TCP. 1232 bytes keeps UDP answers
-// unfragmented on any path (DNS Flag Day 2020); larger ones still come back
-// with TC and go to TCP. TCP queries carry it only for DNSSEC: the DNSSEC OK
-// (DO) bit asks the server for RRSIG records alongside the answer.
+// 512 bytes over UDP, which most root referrals exceed, so the reply comes
+// back truncated and the query goes again over TCP. 1232 bytes keeps UDP
+// answers unfragmented on any path (DNS Flag Day 2020); larger ones still
+// come back with TC and go to TCP. TCP queries carry it only for DNSSEC: the
+// DNSSEC OK (DO) bit asks the server for RRSIG records alongside the answer.
 const ednsOptRecord = (dnssecOk: boolean) => ({
   type: 'OPT' as const,
   name: '.',
@@ -442,9 +442,9 @@ export class AuthoritativeResolver extends DnsResolver {
     if (edns.rejected) request = { ...request, plainDns: true };
     let udpResponse = await sendUdp(request);
     // A server that does not implement EDNS answers FORMERR without an OPT
-    // record (RFC 6891 §7) but still answers plain DNS, so this and every
-    // later attempt at it go without EDNS. DNSSEC queries need the DO bit, so
-    // they get no plain retry.
+    // record (RFC 6891 §7) and may still answer plain DNS, so the query goes
+    // again without EDNS, and so do this request's later attempts. DNSSEC
+    // queries need the DO bit, so they get no plain retry.
     if (
       udpResponse.rcode === 'FORMERR' &&
       !request.dnssecOk &&
