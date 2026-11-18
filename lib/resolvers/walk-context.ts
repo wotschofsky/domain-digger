@@ -53,10 +53,14 @@ export class WalkContext<Response, Result> {
   ) {}
 
   // Runs one walk under a fresh context. A recorded fallback is adopted only
-  // if the whole walk fails, so a sibling path that answers still wins.
+  // if the whole walk fails or times out, so a sibling path that answers
+  // still wins. The timeout, unlike the fallback deadline, ends the walk
+  // wherever it is: requests already sent settle on their own in the
+  // background (retrying as usual), and no new step or request starts.
   static async run<Response, Result>(
     walk: (context: WalkContext<Response, Result>) => Promise<Result>,
     fallbackDeadlineMs = FALLBACK_DEADLINE_MS,
+    timeout?: { ms: number; error: () => Error },
   ): Promise<Result> {
     const context = new WalkContext<Response, Result>(
       {
@@ -68,11 +72,22 @@ export class WalkContext<Response, Result> {
       0,
       new Set(),
     );
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = new Promise<never>((_, reject) => {
+      if (timeout)
+        timer = setTimeout(() => reject(timeout.error()), timeout.ms);
+    });
     try {
-      return await walk(context);
+      return await Promise.race([walk(context), timedOut]);
     } catch (error) {
       if (context.shared.fallback) return context.shared.fallback;
       throw error;
+    } finally {
+      clearTimeout(timer);
+      // Whatever the walk left running after a timeout starts no further
+      // step or request.
+      context.shared.remaining = 0;
+      context.shared.remainingSteps = 0;
     }
   }
 

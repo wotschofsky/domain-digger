@@ -648,3 +648,83 @@ describe('AuthoritativeResolver transport fallbacks', () => {
     ).toEqual([false, true]);
   });
 });
+
+describe('AuthoritativeResolver walk timeout', () => {
+  it('gives up a walk at its timeout and keeps the types that resolved', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        recordType === 'TXT'
+          ? new Promise<DecodedPacket>(() => {})
+          : reply(domain, recordType, [address(domain)]),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+      timeoutMs: 20,
+    });
+
+    const records = await resolver.resolveRecordTypes('example.com', [
+      'A',
+      'TXT',
+    ]);
+
+    expect(records.A.records).toEqual([
+      expect.objectContaining({ data: '203.0.113.10' }),
+    ]);
+    expect(records.TXT).toMatchObject({
+      records: [],
+      error: { title: 'Authoritative DNS servers did not answer in time' },
+    });
+  });
+
+  it('stops sending once a walk has timed out', async () => {
+    vi.useFakeTimers();
+    try {
+      // Every server refers one level deeper after 900ms, forever.
+      let level = 0;
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType }) => {
+          level += 1;
+          const zone = [
+            ...Array.from({ length: level }, (_, i) => `l${level - i}`),
+            'example.com',
+          ].join('.');
+          return new Promise<DecodedPacket>((resolve) =>
+            setTimeout(
+              () =>
+                resolve(
+                  referral(
+                    domain,
+                    recordType,
+                    zone,
+                    [`ns.${zone}`],
+                    [`1.1.1.${level}`],
+                  ),
+                ),
+              900,
+            ),
+          );
+        },
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+        timeoutMs: 2000,
+      });
+
+      const result = resolver.resolveRecordType(
+        'www.l9.l8.l7.l6.l5.l4.l3.l2.l1.example.com',
+        'A',
+      );
+      const rejected = expect(result).rejects.toThrow('did not answer in time');
+      await vi.advanceTimersByTimeAsync(2000);
+      await rejected;
+      const sentByTimeout = udpTransport.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(udpTransport.mock.calls.length).toBe(sentByTimeout);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

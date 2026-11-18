@@ -139,10 +139,17 @@ export type AuthoritativeResolverOptions = {
   // Time budget for trying fallback nameservers, shared across the whole
   // walk (see WalkContext). Injectable for tests.
   fallbackDeadlineMs?: number;
+  // Time after which a walk gives up wherever it is. Injectable for tests.
+  timeoutMs?: number;
   // Set the EDNS DNSSEC OK (DO) bit on every query of this instance, so
   // authoritative servers include RRSIGs.
   dnssecOk?: boolean;
 };
+
+// A records page renders the types that resolved once every walk has ended,
+// so no walk may run into the platform's 15s function timeout, which would
+// discard all of them. This leaves room for the page's other lookups.
+const WALK_TIMEOUT_MS = 8_000;
 
 export const isMatchingDnsResponse = (
   packet: Packet,
@@ -622,7 +629,7 @@ export class AuthoritativeResolver extends DnsResolver {
     // rejects) still reach every server.
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
-    // platform request timeout is the backstop for adversarial chains.
+    // walk's hard timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
       if (failedNameservers.length > 0 && walk.pastDeadline) {
         failedNameservers.push(
@@ -1154,9 +1161,27 @@ export class AuthoritativeResolver extends DnsResolver {
     domain: string,
     recordType: RecordType,
   ): Promise<WalkResult> {
+    const timeoutMs = this.options.timeoutMs ?? WALK_TIMEOUT_MS;
     return WalkContext.run<DnsResponse, WalkResult>(
       (walk) => this.fetchRecordsRaw({ domain, recordType, walk }),
       this.options.fallbackDeadlineMs,
+      {
+        ms: timeoutMs,
+        error: () =>
+          new UserFacingError(
+            {
+              title: 'Authoritative DNS servers did not answer in time',
+              description:
+                'The nameservers for this record type took too long to answer. Please try again shortly.',
+              retryable: true,
+            },
+            {
+              cause: new Error(
+                `Walk for ${domain} ${recordType} timed out after ${timeoutMs}ms`,
+              ),
+            },
+          ),
+      },
     );
   }
 
