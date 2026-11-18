@@ -400,7 +400,9 @@ export class AuthoritativeResolver extends DnsResolver {
           if (buf.length >= 2 + msgLen) {
             let packet: Packet;
             try {
-              packet = dnsPacket.streamDecode(buf);
+              // streamDecode would read past the declared length into
+              // whatever bytes follow, so decode only the frame itself
+              packet = dnsPacket.decode(buf.subarray(2, 2 + msgLen));
             } catch (error) {
               // A throw here would escape the socket listener uncaught
               cleanup();
@@ -420,6 +422,14 @@ export class AuthoritativeResolver extends DnsResolver {
             resolve(packet);
           }
         }
+      });
+      // A server that closes before the frame is complete will never finish
+      // it, so fail now instead of waiting out the timeout
+      socket.on('end', () => {
+        cleanup();
+        reject(
+          new Error('TCP connection closed before a full DNS response arrived'),
+        );
       });
       socket.on('error', (error) => {
         cleanup();
