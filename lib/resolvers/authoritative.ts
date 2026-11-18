@@ -398,7 +398,19 @@ export class AuthoritativeResolver extends DnsResolver {
         if (buf.length >= 2) {
           const msgLen = buf.readUInt16BE(0);
           if (buf.length >= 2 + msgLen) {
-            const packet = dnsPacket.streamDecode(buf);
+            let packet: Packet;
+            try {
+              packet = dnsPacket.streamDecode(buf);
+            } catch (error) {
+              // A throw here would escape the socket listener uncaught
+              cleanup();
+              reject(
+                new Error('Could not decode the TCP DNS response', {
+                  cause: error,
+                }),
+              );
+              return;
+            }
             if (!isMatchingDnsResponse(packet, id, domain, recordType)) {
               cleanup();
               reject(new Error('DNS response did not match the TCP query'));
