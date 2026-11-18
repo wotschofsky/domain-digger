@@ -2250,4 +2250,18 @@ describe('isMatchingDnsResponse', () => {
       false,
     );
   });
+
+  it('accepts a FORMERR that echoes no question', () => {
+    const bare = { ...response('example.com', 'A', 'FORMERR'), questions: [] };
+    expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(true);
+    expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A')).toBe(false);
+    expect(
+      isMatchingDnsResponse(
+        { ...response('example.com', 'A', 'NOERROR'), questions: [] },
+        42,
+        'example.com',
+        'A',
+      ),
+    ).toBe(false);
+  });
 });

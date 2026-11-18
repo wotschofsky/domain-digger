@@ -575,3 +575,30 @@ describe('AuthoritativeResolver walk bounds', () => {
     expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(22);
   });
 });
+
+describe('AuthoritativeResolver transport fallbacks', () => {
+  it('asks again in plain DNS when a server rejects EDNS', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, plainDns }) =>
+        plainDns
+          ? reply(domain, recordType, [address(domain)])
+          : ({
+              ...reply(domain, recordType),
+              rcode: 'FORMERR',
+            } as DecodedPacket),
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).resolves.toMatchObject({
+      records: [expect.objectContaining({ data: '203.0.113.10' })],
+    });
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+    ).toEqual([false, true]);
+  });
+});
