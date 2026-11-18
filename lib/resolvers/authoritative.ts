@@ -27,6 +27,24 @@ import { WalkContext } from './walk-context';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
+// The IANA root hints (https://www.internic.net/domain/named.root), A through
+// M. They change about once a decade; the last change was B in 2023.
+const ROOT_SERVERS = [
+  '198.41.0.4',
+  '170.247.170.2',
+  '192.33.4.12',
+  '199.7.91.13',
+  '192.203.230.10',
+  '192.5.5.241',
+  '192.112.36.4',
+  '198.97.190.53',
+  '192.36.148.17',
+  '192.58.128.30',
+  '193.0.14.129',
+  '199.7.83.42',
+  '202.12.27.33',
+];
+
 // EDNS OPT pseudo-record carrying the DNSSEC OK (DO) bit, so the server
 // returns RRSIG records alongside the answer. 1232 bytes keeps UDP answers
 // unfragmented on any path (DNS Flag Day 2020); larger ones come back with TC
@@ -180,76 +198,8 @@ export class AuthoritativeResolver extends DnsResolver {
     super();
   }
 
-  // One fetch+parse of the root hints per resolver instance; the walk calls
-  // getRootServers on every recursion step. A failed attempt is not cached.
-  private rootServersPromise?: Promise<string[]>;
-
-  private getRootServers(): Promise<string[]> {
-    const loadRootServers =
-      this.options.rootServers ?? (() => this.fetchRootServers());
-    this.rootServersPromise ??= loadRootServers().catch((error) => {
-      this.rootServersPromise = undefined;
-      throw error;
-    });
-    return this.rootServersPromise;
-  }
-
-  private async fetchRootServers() {
-    let response: Response;
-    try {
-      response = await fetch('https://www.internic.net/domain/named.root', {
-        next: {
-          revalidate: 7 * 24 * 60 * 60,
-        },
-      });
-    } catch (error) {
-      throw new UserFacingError(
-        {
-          title: "Couldn't reach InterNIC root servers list",
-          description:
-            "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
-          retryable: true,
-        },
-        { cause: error },
-      );
-    }
-    if (!response.ok) {
-      throw new UserFacingError(
-        {
-          title: 'InterNIC root servers list is unavailable',
-          description:
-            'The InterNIC root servers list returned an error and may be temporarily down. Please try again shortly.',
-          retryable: true,
-        },
-        {
-          cause: new Error(
-            `Failed to fetch root servers: HTTP ${response.status}`,
-          ),
-        },
-      );
-    }
-    const body = await response.text();
-
-    // TODO Support IPv6
-    const aRecords = body.match(/\sA\s+(.+)/g);
-
-    if (!aRecords) {
-      throw new UserFacingError(
-        {
-          title: "Couldn't reach InterNIC root servers list",
-          description:
-            "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
-          retryable: true,
-        },
-        { cause: new Error('Failed to parse root servers') },
-      );
-    }
-
-    const ipAddresses = aRecords?.map(
-      (l) => l.replaceAll(/\s+/g, ' ').split(' ')[2],
-    );
-
-    return ipAddresses;
+  private async getRootServers(): Promise<string[]> {
+    return this.options.rootServers ? this.options.rootServers() : ROOT_SERVERS;
   }
 
   private recordToString(record: Answer): string {
