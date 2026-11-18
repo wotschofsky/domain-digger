@@ -62,7 +62,7 @@ describe('AuthoritativeResolver transport policy', () => {
     ).toEqual(['192.0.2.1', '192.0.2.2']);
   });
 
-  it('returns empty records when every nameserver refuses a plain query', async () => {
+  it('returns empty records when every nameserver refuses a non-DNSSEC query', async () => {
     // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
     // 500 the records page.
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
@@ -367,7 +367,7 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
-  it('surfaces all-REFUSED plain non-RRSIG queries as retryable failures', async () => {
+  it('surfaces all-REFUSED non-DNSSEC non-RRSIG queries as retryable failures', async () => {
     // The REFUSED-as-empty tolerance exists for RRSIG browsing only; a domain
     // whose nameservers refuse ordinary lookups must not render "no records".
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
@@ -2252,7 +2252,7 @@ describe('isMatchingDnsResponse', () => {
   });
 
   it.each(['FORMERR', 'NOTIMP'])(
-    'accepts a %s that echoes no question only for a plain-retry query',
+    'accepts a %s that echoes no question only for an EDNS query that gets the plain retry',
     (rcode) => {
       const bare = { ...response('example.com', 'A', rcode), questions: [] };
       expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
@@ -2261,8 +2261,8 @@ describe('isMatchingDnsResponse', () => {
       expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A', true)).toBe(
         false,
       );
-      // A TCP, DNSSEC or plain query gets no plain retry, so main's matching
-      // applies.
+      // A TCP, DNSSEC or plain query gets no plain retry, so the question
+      // must match.
       expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(false);
     },
   );

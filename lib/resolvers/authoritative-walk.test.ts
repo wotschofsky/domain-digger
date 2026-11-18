@@ -605,7 +605,7 @@ describe('AuthoritativeResolver transport fallbacks', () => {
     },
   );
 
-  it('keeps asking in plain DNS once a server has rejected EDNS', async () => {
+  it('keeps asking in plain DNS for the rest of the request once a server has rejected EDNS', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, plainDns }) => {
         if (plainDns) throw new Error('timeout');

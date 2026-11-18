@@ -30,8 +30,8 @@ type RawAnswer = Extract<Answer, { type: RecordType }>;
 // EDNS OPT pseudo-record on UDP queries. Without it a server may only send
 // 512 bytes over UDP, which most root referrals exceed, so the reply comes
 // back truncated and the query goes again over TCP. 1232 bytes keeps UDP
-// answers unfragmented on any path (DNS Flag Day 2020); larger ones still
-// come back with TC and go to TCP. TCP queries carry it only for DNSSEC: the
+// answers unfragmented on nearly all paths (DNS Flag Day 2020); larger ones
+// still come back with TC and go to TCP. TCP queries carry it only for DNSSEC: the
 // DNSSEC OK (DO) bit asks the server for RRSIG records alongside the answer.
 const ednsOptRecord = (dnssecOk: boolean) => ({
   type: 'OPT' as const,
@@ -509,6 +509,9 @@ export class AuthoritativeResolver extends DnsResolver {
         keys.map(async (request) => {
           const retries: string[] = [];
           // Shared by this request's attempts (see sendRequest).
+          // ponytail: remembered per request, not per server, so each other
+          // name or type sent to a server that rejects EDNS pays one more
+          // round trip first; key it by nameserver if that shows up.
           const edns = { rejected: false };
           try {
             const response = await retry(
