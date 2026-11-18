@@ -577,6 +577,25 @@ describe('AuthoritativeResolver walk bounds', () => {
 });
 
 describe('AuthoritativeResolver transport fallbacks', () => {
+  it('gives a DNSSEC query no plain-DNS retry when a server rejects EDNS', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({ ...reply(domain, recordType), rcode: 'FORMERR' }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      dnssecOk: true,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toThrow();
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+    ).toEqual([false]);
+  });
+
   it.each(['FORMERR', 'NOTIMP'])(
     'asks again in plain DNS when a server rejects EDNS with %s',
     async (rcode) => {
