@@ -50,6 +50,9 @@ export class WalkContext<Response, Result> {
     // Request keys ("name type nameserver") and NS-name keys ("NS name")
     // this branch descends from.
     private readonly ancestors: ReadonlySet<string>,
+    // Whether this branch may ask servers above the registrable domain the
+    // shared referral probe instead of its own question (see the resolver).
+    readonly probes = true,
   ) {}
 
   // Runs one walk under a fresh context. A recorded fallback is adopted only
@@ -140,14 +143,17 @@ export class WalkContext<Response, Result> {
     return pending;
   }
 
-  // Of `nameservers`, those this walk sent the request to.
+  // Of `nameservers`, those this walk sent a request for `domain` of any of
+  // `recordTypes` to.
   queried(
     domain: string,
-    recordType: RecordType,
+    recordTypes: readonly RecordType[],
     nameservers: string[],
   ): string[] {
     return nameservers.filter((nameserver) =>
-      this.shared.requests.has(requestKey(domain, recordType, nameserver)),
+      recordTypes.some((recordType) =>
+        this.shared.requests.has(requestKey(domain, recordType, nameserver)),
+      ),
     );
   }
 
@@ -163,6 +169,14 @@ export class WalkContext<Response, Result> {
   // This branch, one delegation level down.
   deeper(): WalkContext<Response, Result> {
     return this.branch(this.depth + 1);
+  }
+
+  // This branch, re-walking from the root because a cached delegation
+  // failed. It asks every server its own question: the referrals the probe
+  // was given are cached for the whole lookup and would lead it straight
+  // back to the servers that failed.
+  rewalk(): WalkContext<Response, Result> {
+    return new WalkContext(this.shared, this.depth + 1, this.ancestors, false);
   }
 
   // A sub-walk resolving an NS hostname, one level down. An NS name already
@@ -190,6 +204,7 @@ export class WalkContext<Response, Result> {
       this.shared,
       depth,
       ancestor ? new Set([...this.ancestors, ancestor]) : this.ancestors,
+      this.probes,
     );
   }
 }
