@@ -11,9 +11,13 @@ const MAX_RECURSION_DEPTH = 20;
 // ~9x this value. Far above any honest lookup's needs (a deep all-glueless
 // walk stays under ~30).
 const MAX_CANDIDATES_PER_WALK = 50;
-// Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
-// a single blackholed first server has to leave room to reach a healthy
-// fallback, while all-blackholed candidates stay bounded (~2 budgets).
+// Must exceed a blackholed candidate's full retry budget (4 attempts x 3s =
+// ~12s): a single blackholed first server has to leave room to reach a
+// healthy fallback, while all-blackholed candidates stay bounded (~2
+// budgets).
+// ponytail: a server that rejects EDNS just before its 3s timeout and then
+// drops the plain-DNS retries costs up to ~15s, past this; shorten the UDP
+// timeout if that shows up.
 const FALLBACK_DEADLINE_MS = 15_000;
 
 // Name case and a trailing dot don't make a request distinct.
