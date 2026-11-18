@@ -42,7 +42,7 @@ const request = {
   dnssecOk: false,
 } as const;
 
-// A length-prefixed reply that echoes the query's ID and question
+// A length-prefixed reply to `request` that echoes the query's ID
 const answerTo = (query: Buffer): Buffer =>
   dnsPacket.streamEncode({
     type: 'response',
@@ -60,6 +60,17 @@ describe('AuthoritativeResolver TCP transport', () => {
   it('resolves a well-formed reply', async () => {
     server.respond = answerTo;
     server.closeAfterReply = false;
+
+    const packet = await sendTcpRequest();
+
+    expect(packet.answers).toEqual([
+      expect.objectContaining({ data: '203.0.113.7' }),
+    ]);
+  });
+
+  it('resolves a full reply even when the server closes right after it', async () => {
+    server.respond = answerTo;
+    server.closeAfterReply = true;
 
     const packet = await sendTcpRequest();
 
