@@ -601,4 +601,27 @@ describe('AuthoritativeResolver transport fallbacks', () => {
       udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
     ).toEqual([false, true]);
   });
+
+  it('keeps asking in plain DNS once a server has rejected EDNS', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, plainDns }) => {
+        if (plainDns) throw new Error('timeout');
+        return {
+          ...reply(domain, recordType),
+          rcode: 'FORMERR',
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toThrow();
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+    ).toEqual([false, true, true, true, true]);
+  });
 });

@@ -27,13 +27,12 @@ import { WalkContext } from './walk-context';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
-// EDNS OPT pseudo-record on every query. Without it a server may only send
-// 512 bytes over UDP, which the root's referrals alone exceed, so every walk
-// went to TCP at its first step, and a server that then refuses TCP stalls
-// the walk. 1232 bytes keeps UDP answers unfragmented on any path (DNS Flag
-// Day 2020); larger ones come back with TC and are retried over TCP instead
-// of being lost to dropped fragments. The DNSSEC OK (DO) bit asks the server
-// for RRSIG records alongside the answer.
+// EDNS OPT pseudo-record on UDP queries. Without it a server may only send
+// 512 bytes over UDP, which a root referral exceeds, so the reply comes back
+// truncated and the query goes again over TCP. 1232 bytes keeps UDP answers
+// unfragmented on any path (DNS Flag Day 2020); larger ones still come back
+// with TC and go to TCP. TCP queries carry it only for DNSSEC: the DNSSEC OK
+// (DO) bit asks the server for RRSIG records alongside the answer.
 const ednsOptRecord = (dnssecOk: boolean) => ({
   type: 'OPT' as const,
   name: '.',
@@ -112,7 +111,7 @@ export type AuthoritativeRequest = {
   recordType: RecordType;
   nameserver: string;
   dnssecOk: boolean;
-  // Without the EDNS OPT record, for a server that rejects it.
+  // UDP without the EDNS OPT record, for a server that rejects it.
   plainDns?: true;
 };
 
@@ -369,14 +368,13 @@ export class AuthoritativeResolver extends DnsResolver {
     recordType,
     nameserver,
     dnssecOk,
-    plainDns,
   }: AuthoritativeRequest) {
     const id = randomInt(0, 65536);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
       id,
       questions: [{ type: recordType, name: domain } as Question],
-      additionals: plainDns ? [] : [ednsOptRecord(dnssecOk)],
+      ...(dnssecOk && { additionals: [ednsOptRecord(true)] }),
     });
 
     return new Promise<Packet>((resolve, reject) => {
@@ -429,6 +427,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
   private async sendRequest(
     request: AuthoritativeRequest,
+    edns: { rejected: boolean },
   ): Promise<Omit<DnsResponse, 'retries'>> {
     // DNS queries are first attempted over UDP per convention. UDP responses
     // are limited to the advertised EDNS payload size, or to 512 bytes
@@ -440,15 +439,19 @@ export class AuthoritativeResolver extends DnsResolver {
       this.options.udpTransport
         ? this.options.udpTransport(udpRequest)
         : this.sendUdpRequest(udpRequest);
+    if (edns.rejected) request = { ...request, plainDns: true };
     let udpResponse = await sendUdp(request);
-    // A server that predates EDNS answers FORMERR without an OPT record (RFC
-    // 6891 §7) but still answers plain DNS. DNSSEC queries need the DO bit,
-    // so they get no plain retry.
+    // A server that does not implement EDNS answers FORMERR without an OPT
+    // record (RFC 6891 §7) but still answers plain DNS, so this and every
+    // later attempt at it go without EDNS. DNSSEC queries need the DO bit, so
+    // they get no plain retry.
     if (
       udpResponse.rcode === 'FORMERR' &&
       !request.dnssecOk &&
+      !edns.rejected &&
       !udpResponse.additionals?.some((record) => record.type === 'OPT')
     ) {
+      edns.rejected = true;
       request = { ...request, plainDns: true };
       udpResponse = await sendUdp(request);
     }
@@ -470,9 +473,11 @@ export class AuthoritativeResolver extends DnsResolver {
       Promise.all(
         keys.map(async (request) => {
           const retries: string[] = [];
+          // Shared by this request's attempts (see sendRequest).
+          const edns = { rejected: false };
           try {
             const response = await retry(
-              () => this.sendRequest(request),
+              () => this.sendRequest(request, edns),
               3,
               (error: unknown) => retries.push(describeError(error)),
             );

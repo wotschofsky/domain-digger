@@ -5,10 +5,10 @@ const MAX_RECURSION_DEPTH = 20;
 // one is free and bounded by the walk's step budget instead -- like BIND's
 // max-recursion-queries: the depth cap alone still lets a crafted zone
 // answer every glueless delegation with 4 fresh NS names and fork
-// 4^depth sub-walks. One request costs up to 4 tries of a UDP query, a
-// plain-DNS retry and a TCP fallback each (see the resolver's
+// 4^depth sub-walks. One request costs up to 4 tries of a UDP query and a
+// TCP fallback each, plus one plain-DNS retry (see the resolver's
 // requestLoader/sendRequest), so this also caps the walk's packet ceiling at
-// ~12x this value. Far above any honest lookup's needs (a deep all-glueless
+// ~9x this value. Far above any honest lookup's needs (a deep all-glueless
 // walk stays under ~30).
 const MAX_CANDIDATES_PER_WALK = 50;
 // Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
