@@ -27,6 +27,14 @@ import { WalkContext } from './walk-context';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
+// Healthy answers arrive well within a second (p99 under 400ms, slowest
+// under 600ms when replaying logged lookups); waiting longer for one that
+// was dropped only delays trying again. TCP adds a handshake round trip.
+const UDP_TIMEOUT_MS = 1000;
+const TCP_TIMEOUT_MS = 2000;
+// One more attempt at the same server before the walk moves on to the next.
+const RETRIES_PER_SERVER = 1;
+
 // EDNS OPT pseudo-record on every query. Without it a server may only send
 // 512 bytes over UDP, which the root's referrals alone exceed, so every walk
 // went to TCP at its first step, and a server that then refuses TCP stalls
@@ -338,10 +346,10 @@ export class AuthoritativeResolver extends DnsResolver {
         cleanup();
         reject(
           new Error(
-            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`,
+            `Request to ${nameserver} for domain ${domain}, type ${recordType} timed out after ${UDP_TIMEOUT_MS}ms`,
           ),
         );
-      }, 3000);
+      }, UDP_TIMEOUT_MS);
 
       socket.on('message', (message: Buffer, remote) => {
         if (remote.address !== nameserver || remote.port !== 53) return;
@@ -396,10 +404,10 @@ export class AuthoritativeResolver extends DnsResolver {
         cleanup();
         reject(
           new Error(
-            `TCP request to ${nameserver} for domain ${domain}, type ${recordType} timed out after 3000ms`,
+            `TCP request to ${nameserver} for domain ${domain}, type ${recordType} timed out after ${TCP_TIMEOUT_MS}ms`,
           ),
         );
-      }, 3000);
+      }, TCP_TIMEOUT_MS);
 
       const chunks: Buffer[] = [];
       socket.on('data', (data: Buffer) => {
@@ -473,7 +481,7 @@ export class AuthoritativeResolver extends DnsResolver {
           try {
             const response = await retry(
               () => this.sendRequest(request),
-              3,
+              RETRIES_PER_SERVER,
               (error: unknown) => retries.push(describeError(error)),
             );
             return { ...response, retries };
@@ -605,12 +613,13 @@ export class AuthoritativeResolver extends DnsResolver {
     };
 
     // A blackholed network makes every candidate burn its full retry budget
-    // (4 attempts x 3s); serializing that across 4 fallback servers would
-    // take ~48s. The first candidate always gets its full budget -- a step
-    // reached with the deadline spent still makes progress -- unless it is
-    // skipped as a loop or an already-failed request, which counts as a
-    // failure. Further ones only start while the deadline allows, so fast
-    // failures (REFUSED, quick rejects) still reach every server.
+    // (2 attempts x 1s, up to 2s more each for TCP after a truncated answer);
+    // serializing that across 4 fallback servers would take up to ~24s. The
+    // first candidate always gets its full budget -- a step reached with the
+    // deadline spent still makes progress -- unless it is skipped as a loop
+    // or an already-failed request, which counts as a failure. Further ones
+    // only start while the deadline allows, so fast failures (REFUSED, quick
+    // rejects) still reach every server.
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // platform request timeout is the backstop for adversarial chains.
