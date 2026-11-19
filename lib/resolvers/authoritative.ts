@@ -675,7 +675,7 @@ export class AuthoritativeResolver extends DnsResolver {
     // progress -- unless it is skipped as a loop or an already-failed
     // request, which counts as a failure. Further ones only start while the
     // deadline allows, so fast failures (REFUSED, quick rejects) still reach
-    // every server.
+    // every server unless slower ones before them used up the deadline.
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // platform request timeout is the backstop for adversarial chains.
