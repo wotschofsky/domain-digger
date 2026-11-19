@@ -69,7 +69,8 @@ const isInBailiwick = (wantName: string, zone: string): boolean =>
 // they dropped part of that burst, each drop stalling a walk for a full
 // timeout. Asked the same question, the walks share one request instead. DS
 // is the exception: its parent zone's servers answer it, where the probe
-// would be referred past them to the child.
+// would be referred past them to the child. A re-walk after a cached
+// delegation fails asks its own question too (see WalkContext.rewalk).
 // ponytail: DS skips the probe above its parent too (at the root for
 // example.com), one more request there; probe while the zone cut is above
 // the DS owner's parent if that matters.
@@ -761,9 +762,11 @@ export class AuthoritativeResolver extends DnsResolver {
       return accepted;
     };
 
-    // A candidate's reply: to the probe, or to the walk's own question where
-    // the probe got anything but a referral or an authoritative NXDOMAIN (an
-    // answer, NODATA, an error or a lame reply), which may differ by type.
+    // A candidate's reply: to the walk's own question where this step asks
+    // no probe (probeType is then recordType); otherwise to the probe, or to
+    // the walk's own question as well where the probe got anything but a
+    // referral or an authoritative NXDOMAIN (an answer, NODATA, an error or a
+    // lame reply), which may differ by type.
     const query = async (candidate: string) => {
       let asked = probeType;
       let sent = await this.ask(walk, domain, asked, candidate);
