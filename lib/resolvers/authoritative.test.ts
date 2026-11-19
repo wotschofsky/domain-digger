@@ -2251,10 +2251,33 @@ describe('isMatchingDnsResponse', () => {
     );
   });
 
-  it.each(['FORMERR', 'NOTIMP'])(
+  // An OPT record whose extended RCODE bits are 1 turns a NOERROR header
+  // into BADVERS (RCODE 16).
+  const optRecord = (extendedRcode: number) => ({
+    type: 'OPT' as const,
+    name: '.',
+    udpPayloadSize: 1232,
+    extendedRcode,
+    ednsVersion: 0,
+    flags: 0,
+    flag_do: false,
+    options: [],
+  });
+
+  it.each([
+    ['FORMERR', response('example.com', 'A', 'FORMERR')],
+    ['NOTIMP', response('example.com', 'A', 'NOTIMP')],
+    [
+      'BADVERS',
+      {
+        ...response('example.com', 'A', 'NOERROR'),
+        additionals: [optRecord(1)],
+      },
+    ],
+  ])(
     'accepts a %s that echoes no question only for an EDNS query that gets the plain retry',
-    (rcode) => {
-      const bare = { ...response('example.com', 'A', rcode), questions: [] };
+    (_, rejection) => {
+      const bare = { ...rejection, questions: [] };
       expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
         true,
       );
@@ -2275,18 +2298,7 @@ describe('isMatchingDnsResponse', () => {
     const withOpt: DecodedPacket = {
       ...response('example.com', 'A', 'FORMERR'),
       questions: [],
-      additionals: [
-        {
-          type: 'OPT',
-          name: '.',
-          udpPayloadSize: 1232,
-          extendedRcode: 0,
-          ednsVersion: 0,
-          flags: 0,
-          flag_do: false,
-          options: [],
-        },
-      ],
+      additionals: [optRecord(0)],
     };
     expect(isMatchingDnsResponse(withOpt, 42, 'example.com', 'A', true)).toBe(
       false,
