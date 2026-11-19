@@ -68,7 +68,11 @@ const isInBailiwick = (wantName: string, zone: string): boolean =>
 // referrals: the 14 walks of a records page asked them one name at once and
 // they dropped part of that burst, each drop stalling a walk for a full
 // timeout. Asked the same question, the walks share one request instead. DS
-// is the exception: the parent zone holds it, so it is never referred.
+// is the exception: its parent zone's servers answer it, where the probe
+// would be referred past them to the child.
+// ponytail: DS skips the probe above its parent too (at the root for
+// example.com), one more request there; probe while the zone cut is above
+// the DS owner's parent if that matters.
 // ponytail: a registry that serves some names itself (nic.br on the br
 // servers) answers the probe instead, so those walks ask again and pay one
 // more round trip; remembering such servers would save it.
@@ -753,7 +757,8 @@ export class AuthoritativeResolver extends DnsResolver {
     };
 
     // A candidate's reply: to the probe, or to the walk's own question where
-    // the probe was answered rather than referred.
+    // the probe got anything but a referral or an NXDOMAIN (an answer, NODATA,
+    // an error or a lame reply), which may differ by type.
     const query = async (candidate: string) => {
       let asked = probeType;
       let sent = await this.ask(walk, domain, asked, candidate);
@@ -762,7 +767,7 @@ export class AuthoritativeResolver extends DnsResolver {
         asked !== recordType &&
         !answersEveryType(sent.packet, wantName)
       ) {
-        // This server answers for the name itself; ask it the real question.
+        // Its reply may differ by type; ask it the real question.
         asked = recordType;
         sent = await this.ask(walk, domain, asked, candidate);
       }
@@ -874,7 +879,9 @@ export class AuthoritativeResolver extends DnsResolver {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. replaced mid-request); drop it and re-walk from the root
       // once instead of failing the lookup. Requests that already failed in
-      // this walk are not re-sent: a server that failed here stays failed.
+      // this walk are not re-sent: a server that failed here stays failed,
+      // though one that failed the shared probe gets the walk's own question
+      // in the re-walk, which asks without the probe.
       // This takes priority over any non-authoritative lastResort answer --
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds. With the

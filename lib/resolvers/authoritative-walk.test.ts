@@ -822,7 +822,7 @@ describe('AuthoritativeResolver referral probe', () => {
     data: { preference: 10, exchange: 'mail.example.com' },
   });
 
-  it('asks servers above the registrable domain one question for every type', async () => {
+  it('asks servers above the registrable domain one question for every type but DS', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, nameserver }) => {
         if (nameserver === '192.0.2.1')
