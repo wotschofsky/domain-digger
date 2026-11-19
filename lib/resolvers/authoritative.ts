@@ -736,7 +736,7 @@ export class AuthoritativeResolver extends DnsResolver {
     // its UDP answer was truncated and retried over TCP. The in-loop accept,
     // the post-loop lastResort adoption and the parent-delegation fallback
     // use it. `asked` is the type the response answers, the probe's for a
-    // shared referral.
+    // shared referral or NXDOMAIN.
     const buildAcceptedTrace = (
       candidate: string,
       { truncated, retries }: DnsResponse,
