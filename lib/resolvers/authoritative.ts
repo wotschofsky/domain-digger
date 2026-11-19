@@ -6,6 +6,7 @@ import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
   type DecodedPacket,
+  type OptAnswer,
   type Packet,
   type Question,
   type RrsigData,
@@ -31,18 +32,20 @@ type RawAnswer = Extract<Answer, { type: RecordType }>;
 // Healthy answers arrive well within a second (p99 under 400ms, slowest
 // under 600ms when replaying logged lookups); waiting longer for one that
 // was dropped only delays trying again. TCP adds a handshake round trip.
+// ponytail: a server that always answers slower than this never gets
+// through; raise these if lookups to slow but working servers time out.
 const UDP_TIMEOUT_MS = 1000;
 const TCP_TIMEOUT_MS = 2000;
 // One more attempt at the same server before the walk moves on to the next.
 const RETRIES_PER_SERVER = 1;
 
-// EDNS OPT pseudo-record on every query. Without it a server may only send
-// 512 bytes over UDP, which the root's referrals alone exceed, so every walk
-// went to TCP at its first step, and a server that then refuses TCP stalls
-// the walk. 1232 bytes keeps UDP answers unfragmented on any path (DNS Flag
-// Day 2020); larger ones come back with TC and are retried over TCP instead
-// of being lost to dropped fragments. The DNSSEC OK (DO) bit asks the server
-// for RRSIG records alongside the answer.
+// EDNS OPT pseudo-record on UDP queries. Without it a server may only send
+// 512 bytes over UDP, which root referrals for TLDs with many nameservers,
+// such as .com and .net, exceed, so the reply comes back truncated and the
+// query goes again over TCP. 1232 bytes keeps UDP answers unfragmented on
+// nearly all paths (DNS Flag Day 2020); larger ones still come back with TC
+// and go to TCP. TCP queries carry it only for DNSSEC: the DNSSEC OK (DO)
+// bit asks the server for RRSIG records alongside the answer.
 const ednsOptRecord = (dnssecOk: boolean) => ({
   type: 'OPT' as const,
   name: '.',
@@ -160,7 +163,7 @@ export type AuthoritativeRequest = {
   recordType: RecordType;
   nameserver: string;
   dnssecOk: boolean;
-  // Without the EDNS OPT record, for a server that rejects it.
+  // UDP without the EDNS OPT record, for a server that rejects it.
   plainDns?: true;
 };
 
@@ -186,6 +189,20 @@ export type AuthoritativeResolverOptions = {
   dnssecOk?: boolean;
 };
 
+// A server that does not implement EDNS answers a query carrying the OPT
+// record with FORMERR (RFC 6891 §7), or with NOTIMP, and without an OPT
+// record of its own. One that does not implement our EDNS version 0 answers
+// BADVERS (RFC 6891 §6.1.3): RCODE 16, whose upper bits sit in its OPT
+// record, so the header alone reads NOERROR.
+const rejectsEdns = (packet: Packet): boolean => {
+  const opt = packet.additionals?.find(
+    (record): record is OptAnswer => record.type === 'OPT',
+  );
+  return opt
+    ? opt.extendedRcode === 1 && packet.rcode === 'NOERROR'
+    : packet.rcode === 'FORMERR' || packet.rcode === 'NOTIMP';
+};
+
 // A records page renders the types that resolved once every walk has ended,
 // so no walk may run into the platform's 15s function timeout, which would
 // discard all of them. This leaves room for the page's other lookups.
@@ -196,13 +213,16 @@ export const isMatchingDnsResponse = (
   id: number,
   domain: string,
   recordType: RecordType,
+  // Set for a query that gets the plain-DNS retry: a server that rejects
+  // EDNS may echo no question (the servers of mail.protection.outlook.com
+  // send a bare FORMERR), and that rejection must still reach the retry.
+  acceptBareEdnsRejection = false,
 ): boolean =>
   packet.type === 'response' &&
   packet.id === id &&
-  // A server that rejects the query outright may echo no question: the
-  // servers of mail.protection.outlook.com answer EDNS with a bare FORMERR,
-  // which must still reach the plain-DNS retry.
-  ((packet.rcode === 'FORMERR' && !packet.questions?.length) ||
+  ((acceptBareEdnsRejection &&
+    !packet.questions?.length &&
+    rejectsEdns(packet)) ||
     Boolean(
       packet.questions?.some(
         (question) =>
@@ -406,7 +426,16 @@ export class AuthoritativeResolver extends DnsResolver {
         } catch {
           return;
         }
-        if (!isMatchingDnsResponse(packet, id, domain, recordType)) return;
+        if (
+          !isMatchingDnsResponse(
+            packet,
+            id,
+            domain,
+            recordType,
+            !plainDns && !dnssecOk,
+          )
+        )
+          return;
         cleanup();
         resolve(packet);
       });
@@ -424,14 +453,13 @@ export class AuthoritativeResolver extends DnsResolver {
     recordType,
     nameserver,
     dnssecOk,
-    plainDns,
   }: AuthoritativeRequest) {
     const id = randomInt(0, 65536);
     const packetBuffer = dnsPacket.streamEncode({
       type: 'query',
       id,
       questions: [{ type: recordType, name: domain } as Question],
-      additionals: plainDns ? [] : [ednsOptRecord(dnssecOk)],
+      ...(dnssecOk && { additionals: [ednsOptRecord(true)] }),
     });
 
     return new Promise<Packet>((resolve, reject) => {
@@ -464,7 +492,21 @@ export class AuthoritativeResolver extends DnsResolver {
         if (buf.length >= 2) {
           const msgLen = buf.readUInt16BE(0);
           if (buf.length >= 2 + msgLen) {
-            const packet = dnsPacket.streamDecode(buf);
+            let packet: Packet;
+            try {
+              // streamDecode would read past the declared length into
+              // whatever bytes follow, so decode only the frame itself
+              packet = dnsPacket.decode(buf.subarray(2, 2 + msgLen));
+            } catch (error) {
+              // A throw here would escape the socket listener uncaught
+              cleanup();
+              reject(
+                new Error('Could not decode the TCP DNS response', {
+                  cause: error,
+                }),
+              );
+              return;
+            }
             if (!isMatchingDnsResponse(packet, id, domain, recordType)) {
               cleanup();
               reject(new Error('DNS response did not match the TCP query'));
@@ -475,6 +517,14 @@ export class AuthoritativeResolver extends DnsResolver {
           }
         }
       });
+      // A server that closes before the frame is complete will never finish
+      // it, so fail now instead of waiting out the timeout
+      socket.on('end', () => {
+        cleanup();
+        reject(
+          new Error('TCP connection closed before a full DNS response arrived'),
+        );
+      });
       socket.on('error', (error) => {
         cleanup();
         reject(error);
@@ -484,6 +534,7 @@ export class AuthoritativeResolver extends DnsResolver {
 
   private async sendRequest(
     request: AuthoritativeRequest,
+    edns: { rejected: boolean },
   ): Promise<Omit<DnsResponse, 'retries'>> {
     // DNS queries are first attempted over UDP per convention. UDP responses
     // are limited to the advertised EDNS payload size, or to 512 bytes
@@ -495,15 +546,13 @@ export class AuthoritativeResolver extends DnsResolver {
       this.options.udpTransport
         ? this.options.udpTransport(udpRequest)
         : this.sendUdpRequest(udpRequest);
+    if (edns.rejected) request = { ...request, plainDns: true };
     let udpResponse = await sendUdp(request);
-    // A server that predates EDNS answers FORMERR without an OPT record (RFC
-    // 6891 §7) but still answers plain DNS. DNSSEC queries need the DO bit,
-    // so they get no plain retry.
-    if (
-      udpResponse.rcode === 'FORMERR' &&
-      !request.dnssecOk &&
-      !udpResponse.additionals?.some((record) => record.type === 'OPT')
-    ) {
+    // A server that does not implement EDNS may still answer plain DNS, so
+    // the query goes again without EDNS, and so do this request's later
+    // attempts. DNSSEC queries need the DO bit, so they get no plain retry.
+    if (rejectsEdns(udpResponse) && !request.dnssecOk && !edns.rejected) {
+      edns.rejected = true;
       request = { ...request, plainDns: true };
       udpResponse = await sendUdp(request);
     }
@@ -525,9 +574,14 @@ export class AuthoritativeResolver extends DnsResolver {
       Promise.all(
         keys.map(async (request) => {
           const retries: string[] = [];
+          // Shared by this request's attempts (see sendRequest).
+          // ponytail: remembered per request, not per server, so each other
+          // name or type sent to a server that rejects EDNS pays one more
+          // round trip first; key it by nameserver if that shows up.
+          const edns = { rejected: false };
           try {
             const response = await retry(
-              () => this.sendRequest(request),
+              () => this.sendRequest(request, edns),
               RETRIES_PER_SERVER,
               (error: unknown) => retries.push(describeError(error)),
             );
@@ -715,14 +769,16 @@ export class AuthoritativeResolver extends DnsResolver {
       return { asked, sent };
     };
 
-    // A blackholed network makes every candidate burn its full retry budget
-    // (2 attempts x 1s, up to 2s more each for TCP after a truncated answer);
-    // serializing that across 4 fallback servers would take up to ~24s. The
-    // first candidate always gets its full budget -- a step reached with the
-    // deadline spent still makes progress -- unless it is skipped as a loop
-    // or an already-failed request, which counts as a failure. Further ones
-    // only start while the deadline allows, so fast failures (REFUSED, quick
-    // rejects) still reach every server.
+    // A blackholed network makes every candidate burn both of its attempts
+    // (1s each); serializing that across 4 fallback servers would take ~8s,
+    // and one that answers UDP truncated and then stalls over TCP costs up
+    // to 6s, 7s after an EDNS rejection (see the ponytail note on
+    // FALLBACK_DEADLINE_MS). The first candidate always gets its
+    // full budget -- a step reached with the deadline spent still makes
+    // progress -- unless it is skipped as a loop or an already-failed
+    // request, which counts as a failure. Further ones only start while the
+    // deadline allows, so fast failures (REFUSED, quick rejects) still reach
+    // every server unless slower ones before them used up the deadline.
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // walk's hard timeout is the backstop for adversarial chains.
@@ -1033,7 +1089,8 @@ export class AuthoritativeResolver extends DnsResolver {
       );
       if (aRedirects.length) {
         // Cap like the sibling NS-resolution/root paths: each candidate costs
-        // up to 3 retries x 3s, and the glue set is attacker-influenced.
+        // 2 attempts of 1s, up to 7s with the plain-DNS retry and TCP (see
+        // FALLBACK_DEADLINE_MS), and the glue set is attacker-influenced.
         // Dedupe before the cap so four colocated NS hostnames sharing one
         // (failing) IP can't crowd out a distinct healthy address.
         const addresses = [
