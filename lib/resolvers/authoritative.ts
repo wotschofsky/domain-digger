@@ -75,12 +75,13 @@ const isInBailiwick = (wantName: string, zone: string): boolean =>
 // example.com), one more request there; probe while the zone cut is above
 // the DS owner's parent if that matters.
 // ponytail: a registry that serves some names itself (nic.br on the br
-// servers) answers the probe instead, so those walks ask again and pay one
-// more round trip; remembering such servers would save it.
-// ponytail: the walks share the probe's fate too: a server that drops it
-// twice is skipped by every type, and every type follows its one referral to
-// the same first four glue addresses; ask a type's own question where the
-// probe failed if that shows up.
+// servers) answers the probe instead, so the walks for types other than A
+// ask again and pay one more round trip; remembering such servers would
+// save it.
+// ponytail: the walks that send the probe share its fate too: a server that
+// drops it twice is skipped by all of them, and they all follow its one
+// referral to the same first four glue addresses; ask a type's own question
+// where the probe failed if that shows up.
 const PROBE_TYPE = 'A';
 const probesZone = (
   domain: string,
@@ -137,8 +138,9 @@ const classifyCandidateResponse = (
   return hasReferral ? { kind: 'usable' } : { kind: 'lame' };
 };
 
-// What a response to the probe settles for every type: a referral onward,
-// or an authoritative NXDOMAIN (the name does not exist, whatever is asked).
+// What a response to the probe settles for every walk that sends it (all but
+// DS): a referral onward, or an authoritative NXDOMAIN (the name does not
+// exist, whatever is asked).
 // Anything else, an answer or NODATA included, is specific to the type
 // asked.
 const answersEveryType = (packet: Packet, wantName: string): boolean => {
@@ -764,9 +766,11 @@ export class AuthoritativeResolver extends DnsResolver {
 
     // A candidate's reply: to the walk's own question where this step asks
     // no probe (probeType is then recordType); otherwise to the probe, or to
-    // the walk's own question as well where the probe got anything but a
-    // referral or an authoritative NXDOMAIN (an answer, NODATA, an error or a
-    // lame reply), which may differ by type.
+    // the walk's own question as well where the probe got a reply other than
+    // a referral or an authoritative NXDOMAIN (an answer, NODATA, an error
+    // rcode or a lame reply), which may differ by type. A probe that gets no
+    // reply (lost twice, a loop or a spent budget) returns that failure, and
+    // the walk's own question is not sent.
     const query = async (candidate: string) => {
       let asked = probeType;
       let sent = await this.ask(walk, domain, asked, candidate);
