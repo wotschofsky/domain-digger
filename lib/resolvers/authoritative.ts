@@ -31,6 +31,8 @@ type RawAnswer = Extract<Answer, { type: RecordType }>;
 // Healthy answers arrive well within a second (p99 under 400ms, slowest
 // under 600ms when replaying logged lookups); waiting longer for one that
 // was dropped only delays trying again. TCP adds a handshake round trip.
+// ponytail: a server that always answers slower than this never gets
+// through; raise these if lookups to slow but working servers time out.
 const UDP_TIMEOUT_MS = 1000;
 const TCP_TIMEOUT_MS = 2000;
 // One more attempt at the same server before the walk moves on to the next.
@@ -665,13 +667,13 @@ export class AuthoritativeResolver extends DnsResolver {
     };
 
     // A blackholed network makes every candidate burn its full retry budget
-    // (2 attempts x 1s, up to 2s more each for TCP after a truncated answer);
-    // serializing that across 4 fallback servers would take up to ~24s. The
-    // first candidate always gets its full budget -- a step reached with the
-    // deadline spent still makes progress -- unless it is skipped as a loop
-    // or an already-failed request, which counts as a failure. Further ones
-    // only start while the deadline allows, so fast failures (REFUSED, quick
-    // rejects) still reach every server.
+    // (2 attempts x 1s), ~8s serialized across 4 fallback servers; one that
+    // answers UDP truncated and then stalls over TCP costs up to 7s (see
+    // FALLBACK_DEADLINE_MS). The first candidate always gets its full budget
+    // -- a step reached with the deadline spent still makes progress --
+    // unless it is skipped as a loop or an already-failed request, which
+    // counts as a failure. Further ones only start while the deadline allows,
+    // so fast failures (REFUSED, quick rejects) still reach every server.
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // platform request timeout is the backstop for adversarial chains.
@@ -996,7 +998,8 @@ export class AuthoritativeResolver extends DnsResolver {
       );
       if (aRedirects.length) {
         // Cap like the sibling NS-resolution/root paths: each candidate costs
-        // up to 2 attempts x 1s, and the glue set is attacker-influenced.
+        // a full retry budget (see FALLBACK_DEADLINE_MS), and the glue set is
+        // attacker-influenced.
         // Dedupe before the cap so four colocated NS hostnames sharing one
         // (failing) IP can't crowd out a distinct healthy address.
         const addresses = [
