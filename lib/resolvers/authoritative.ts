@@ -996,7 +996,7 @@ export class AuthoritativeResolver extends DnsResolver {
       );
       if (aRedirects.length) {
         // Cap like the sibling NS-resolution/root paths: each candidate costs
-        // up to 3 retries x 3s, and the glue set is attacker-influenced.
+        // up to 2 attempts x 1s, and the glue set is attacker-influenced.
         // Dedupe before the cap so four colocated NS hostnames sharing one
         // (failing) IP can't crowd out a distinct healthy address.
         const addresses = [
