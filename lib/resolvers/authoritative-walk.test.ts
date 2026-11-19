@@ -624,6 +624,46 @@ describe('AuthoritativeResolver transport fallbacks', () => {
     },
   );
 
+  it.each([
+    [1, [false, true]],
+    [0, [false]],
+  ])(
+    'asks again in plain DNS only for BADVERS (OPT extended RCODE %i)',
+    async (extendedRcode, plainDnsPerCall) => {
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, plainDns }) =>
+          plainDns
+            ? reply(domain, recordType, [address(domain)])
+            : // BADVERS is RCODE 16: the header's four bits read NOERROR and
+              // the OPT record carries the upper bits.
+              {
+                ...reply(domain, recordType),
+                additionals: [
+                  {
+                    type: 'OPT',
+                    name: '.',
+                    udpPayloadSize: 1232,
+                    extendedRcode,
+                    ednsVersion: 0,
+                    flags: 0,
+                    flag_do: false,
+                    options: [],
+                  },
+                ],
+              },
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+      });
+
+      await resolver.resolveRecordType('example.com', 'A');
+      expect(
+        udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+      ).toEqual(plainDnsPerCall);
+    },
+  );
+
   it('keeps asking in plain DNS for the rest of the request once a server has rejected EDNS', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType, plainDns }) => {

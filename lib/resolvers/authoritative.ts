@@ -6,6 +6,7 @@ import DataLoader from 'dataloader';
 import dnsPacket, {
   type Answer,
   type DecodedPacket,
+  type OptAnswer,
   type Packet,
   type Question,
   type RrsigData,
@@ -138,10 +139,17 @@ export type AuthoritativeResolverOptions = {
 
 // A server that does not implement EDNS answers a query carrying the OPT
 // record with FORMERR (RFC 6891 §7), or with NOTIMP, and without an OPT
-// record of its own.
-const rejectsEdns = (packet: Packet): boolean =>
-  (packet.rcode === 'FORMERR' || packet.rcode === 'NOTIMP') &&
-  !packet.additionals?.some((record) => record.type === 'OPT');
+// record of its own. One that does not implement our EDNS version 0 answers
+// BADVERS (RFC 6891 §6.1.3): RCODE 16, whose upper bits sit in its OPT
+// record, so the header alone reads NOERROR.
+const rejectsEdns = (packet: Packet): boolean => {
+  const opt = packet.additionals?.find(
+    (record): record is OptAnswer => record.type === 'OPT',
+  );
+  return opt
+    ? opt.extendedRcode === 1 && packet.rcode === 'NOERROR'
+    : packet.rcode === 'FORMERR' || packet.rcode === 'NOTIMP';
+};
 
 export const isMatchingDnsResponse = (
   packet: Packet,
