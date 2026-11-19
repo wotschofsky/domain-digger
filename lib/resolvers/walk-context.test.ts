@@ -101,4 +101,39 @@ describe('WalkContext', () => {
       return '';
     }, 0);
   });
+
+  it('stops leftover work after a timeout, not after an answer', async () => {
+    const load = async () => 'response';
+    let answered: Walk | undefined;
+    await run(async (walk) => {
+      answered = walk;
+      return 'answer';
+    });
+    // A sibling lookup that lost the race keeps its budget.
+    expect(answered!.send('example.com', 'A', '192.0.2.1', load)).not.toBe(
+      'exhausted',
+    );
+
+    vi.useFakeTimers();
+    try {
+      let stalled: Walk | undefined;
+      const result = WalkContext.run<string, string>(
+        async (walk) => {
+          stalled = walk;
+          return new Promise<string>(() => {});
+        },
+        undefined,
+        { ms: 8000, error: () => new Error('timed out') },
+      );
+      const settled = expect(result).rejects.toThrow('timed out');
+      await vi.advanceTimersByTimeAsync(8000);
+      await settled;
+      expect(stalled!.send('example.com', 'A', '192.0.2.1', load)).toBe(
+        'exhausted',
+      );
+      expect(stalled!.hasStepsLeft).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -165,7 +165,8 @@ const rejectsEdns = (packet: Packet): boolean => {
 
 // A records page renders the types that resolved once every walk has ended,
 // so no walk may run into the platform's 15s function timeout, which would
-// discard all of them. This leaves room for the page's other lookups.
+// discard all of them. This leaves room for the page's other lookups. The
+// DNSSEC page's chain walks get the same cap, inside its own 12s deadline.
 const WALK_TIMEOUT_MS = 8_000;
 
 export const isMatchingDnsResponse = (
@@ -686,6 +687,7 @@ export class AuthoritativeResolver extends DnsResolver {
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // walk's hard timeout is the backstop for adversarial chains.
+    let budgetSpent = false;
     for (const candidate of candidateNameservers) {
       if (failedNameservers.length > 0 && walk.pastDeadline) {
         failedNameservers.push(
@@ -710,6 +712,7 @@ export class AuthoritativeResolver extends DnsResolver {
         failedNameservers.push(
           `${candidate}: skipped, candidate budget exhausted`,
         );
+        budgetSpent = true;
         break;
       }
       let result: DnsResponse;
@@ -794,8 +797,11 @@ export class AuthoritativeResolver extends DnsResolver {
       }
     }
 
-    // No candidate produced a terminal answer or a followable referral.
-    if (cached) {
+    // No candidate produced a terminal answer or a followable referral. A
+    // walk that ran out of requests (or timed out) learned nothing about the
+    // cached servers it never asked, so their delegation stays for the
+    // page's other walks.
+    if (cached && !budgetSpent) {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. replaced mid-request); drop it and re-walk from the root
       // once instead of failing the lookup. Requests that already failed in

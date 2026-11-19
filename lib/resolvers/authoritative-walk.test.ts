@@ -762,7 +762,7 @@ describe('AuthoritativeResolver walk timeout', () => {
     });
   });
 
-  it('stops sending once a walk has timed out', async () => {
+  it('starts no new request once a walk has timed out', async () => {
     vi.useFakeTimers();
     try {
       // Every server refers one level deeper after 900ms, forever.
@@ -808,6 +808,49 @@ describe('AuthoritativeResolver walk timeout', () => {
       await vi.advanceTimersByTimeAsync(5000);
 
       expect(udpTransport.mock.calls.length).toBe(sentByTimeout);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a cached delegation that a timed-out walk never got to ask', async () => {
+    vi.useFakeTimers();
+    try {
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, nameserver }) => {
+          if (nameserver === '192.0.2.1')
+            return referral(
+              domain,
+              recordType,
+              'example.com',
+              ['ns1.example.com', 'ns2.example.com'],
+              ['8.8.4.1', '8.8.4.2'],
+            );
+          // The first delegated server lets TXT time out after the walk has.
+          if (recordType === 'TXT')
+            return new Promise<DecodedPacket>((_, reject) =>
+              setTimeout(() => reject(new Error('timeout')), 1500),
+            );
+          return reply(domain, recordType, [address(domain)]);
+        },
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+        timeoutMs: 1000,
+      });
+      await resolver.resolveRecordType('example.com', 'A');
+
+      const txt = resolver.resolveRecordType('example.com', 'TXT');
+      const rejected = expect(txt).rejects.toThrow('did not answer in time');
+      await vi.advanceTimersByTimeAsync(5000);
+      await rejected;
+
+      udpTransport.mockClear();
+      await resolver.resolveRecordType('example.com', 'MX');
+      expect(
+        udpTransport.mock.calls.map(([request]) => request.nameserver),
+      ).toEqual(['8.8.4.1']);
     } finally {
       vi.useRealTimers();
     }
