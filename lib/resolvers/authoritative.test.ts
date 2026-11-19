@@ -762,7 +762,10 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(ns.records.map((record) => record.data)).toEqual([
       'ns1.example.net',
     ]);
-    expect(ns.trace.at(-1)).toContain('using parent delegation');
+    // The root got the shared A question, so the trace names that.
+    expect(ns.trace.at(-1)).toMatch(
+      /^A example\.eu @ 192\.0\.2\.1 -> referral failed .*using parent delegation/,
+    );
     await expect(
       resolver.resolveRecordType('example.eu', 'A'),
     ).rejects.toBeInstanceOf(UserFacingError);

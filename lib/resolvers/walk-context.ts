@@ -54,6 +54,9 @@ export class WalkContext<Response, Result> {
     // Request keys ("name type nameserver") and NS-name keys ("NS name")
     // this branch descends from.
     private readonly ancestors: ReadonlySet<string>,
+    // Whether this branch may ask servers above the registrable domain the
+    // shared referral probe instead of its own question (see the resolver).
+    readonly probes = true,
   ) {}
 
   // Runs one walk under a fresh context. A recorded fallback is adopted only
@@ -155,14 +158,17 @@ export class WalkContext<Response, Result> {
     return pending;
   }
 
-  // Of `nameservers`, those this walk sent the request to.
+  // Of `nameservers`, those this walk sent a request for `domain` of any of
+  // `recordTypes` to.
   queried(
     domain: string,
-    recordType: RecordType,
+    recordTypes: readonly RecordType[],
     nameservers: string[],
   ): string[] {
     return nameservers.filter((nameserver) =>
-      this.shared.requests.has(requestKey(domain, recordType, nameserver)),
+      recordTypes.some((recordType) =>
+        this.shared.requests.has(requestKey(domain, recordType, nameserver)),
+      ),
     );
   }
 
@@ -178,6 +184,17 @@ export class WalkContext<Response, Result> {
   // This branch, one delegation level down.
   deeper(): WalkContext<Response, Result> {
     return this.branch(this.depth + 1);
+  }
+
+  // This branch, re-walking because a cached delegation failed: the failed
+  // cut is evicted first, and the resolver's getCachedDelegation picks which
+  // cached cut it starts at, or the root when it finds none. It asks its
+  // own question instead of the probe: a probe already sent for this name is
+  // cached for the whole lookup and can replay its referral to the servers
+  // that just failed. A server already asked the walk's own question is not
+  // asked again.
+  rewalk(): WalkContext<Response, Result> {
+    return new WalkContext(this.shared, this.depth + 1, this.ancestors, false);
   }
 
   // A sub-walk resolving an NS hostname, one level down. An NS name already
@@ -205,6 +222,7 @@ export class WalkContext<Response, Result> {
       this.shared,
       depth,
       ancestor ? new Set([...this.ancestors, ancestor]) : this.ancestors,
+      this.probes,
     );
   }
 }

@@ -46,7 +46,7 @@ describe('WalkContext', () => {
       );
       expect(load).toHaveBeenCalledTimes(50);
       expect(
-        walk.queried('example.com', 'A', ['192.0.2.1', '192.0.2.51']),
+        walk.queried('example.com', ['A'], ['192.0.2.1', '192.0.2.51']),
       ).toEqual(['192.0.2.1']);
       return '';
     });
