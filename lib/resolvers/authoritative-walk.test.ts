@@ -872,6 +872,53 @@ describe('AuthoritativeResolver walk timeout', () => {
     }
   });
 
+  it('keeps a glueless delegation it never asked after a walk times out', async () => {
+    vi.useFakeTimers();
+    try {
+      const late = (packet: DecodedPacket, ms: number) =>
+        new Promise<DecodedPacket>((resolve) =>
+          setTimeout(() => resolve(packet), ms),
+        );
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, nameserver }) => {
+          if (nameserver !== '192.0.2.1')
+            return reply(domain, recordType, [address(domain)]);
+          // The NS addresses arrive after the walk timed out, the second
+          // one later still.
+          if (domain === 'ns1.example.net')
+            return late(reply(domain, 'A', [address(domain, '8.8.4.1')]), 1200);
+          if (domain === 'ns2.example.net')
+            return late(reply(domain, 'A', [address(domain, '8.8.4.2')]), 1500);
+          return referral(domain, recordType, 'example.com', [
+            'ns1.example.net',
+            'ns2.example.net',
+          ]);
+        },
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+        fallbackDeadlineMs: 500,
+        timeoutMs: 1000,
+      });
+
+      const a = resolver.resolveRecordType('example.com', 'A');
+      const rejected = expect(a).rejects.toThrow('did not answer in time');
+      await vi.advanceTimersByTimeAsync(5000);
+      await rejected;
+
+      udpTransport.mockClear();
+      const mx = resolver
+        .resolveRecordType('example.com', 'MX')
+        .catch(() => undefined);
+      await vi.advanceTimersByTimeAsync(5000);
+      await mx;
+      expect(udpTransport.mock.calls[0]?.[0].nameserver).toBe('8.8.4.1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('leaves a cached delegation in place after a walk times out', async () => {
     vi.useFakeTimers();
     try {

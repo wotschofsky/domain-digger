@@ -1124,8 +1124,9 @@ export class AuthoritativeResolver extends DnsResolver {
             walk: walk.deeper(),
           });
         } catch (error) {
-          // A timed-out walk only failed for lack of budget, so it keeps this
-          // referral's entry for the page's other walks and tries nothing more.
+          // A timed-out walk is only finishing requests it had already sent,
+          // so it keeps this referral's entry, which the page's other walks
+          // use, and tries nothing more.
           if (walk.timedOut) throw error;
           // Glue can cover only some NS names (whu.edu glues just one, dead,
           // server). When the walk through the glue fails -- there or deeper
@@ -1290,6 +1291,9 @@ export class AuthoritativeResolver extends DnsResolver {
       // addresses the first attempt didn't see, and let them replace the
       // cache entry this referral wrote.
       await Promise.allSettled(lookups);
+      // A timed-out walk is only finishing requests it had already sent: the
+      // address it cached may never have been asked, so it stays.
+      if (walk.timedOut) throw error;
       const late = [...new Set(resolvedSets.flat())]
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
