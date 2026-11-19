@@ -209,7 +209,8 @@ const rejectsEdns = (packet: Packet): boolean => {
 
 // A records page renders the types that resolved once every walk has ended,
 // so no walk may run into the platform's 15s function timeout, which would
-// discard all of them. This leaves room for the page's other lookups.
+// discard all of them. This leaves room for the page's other lookups. The
+// DNSSEC page's chain walks get the same cap, inside its own 12s deadline.
 const WALK_TIMEOUT_MS = 8_000;
 
 export const isMatchingDnsResponse = (
@@ -886,8 +887,10 @@ export class AuthoritativeResolver extends DnsResolver {
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds. With the
       // step budget spent there is no re-walk; the walk ends below, still
-      // without adopting lastResort.
-      cached.evict();
+      // without adopting lastResort. A walk that timed out is only finishing
+      // requests it had already sent, so it leaves the delegation, which the
+      // page's other walks use, in place.
+      if (!walk.timedOut) cached.evict();
       if (walk.hasStepsLeft)
         return this.fetchRecordsRaw({
           domain,
@@ -1121,6 +1124,9 @@ export class AuthoritativeResolver extends DnsResolver {
             walk: walk.deeper(),
           });
         } catch (error) {
+          // A timed-out walk only failed for lack of budget, so it keeps this
+          // referral's entry for the page's other walks and tries nothing more.
+          if (walk.timedOut) throw error;
           // Glue can cover only some NS names (whu.edu glues just one, dead,
           // server). When the walk through the glue fails -- there or deeper
           // -- resolve the NS names of this cut, skipping the glue the walk
