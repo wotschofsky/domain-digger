@@ -62,7 +62,7 @@ describe('AuthoritativeResolver transport policy', () => {
     ).toEqual(['192.0.2.1', '192.0.2.2']);
   });
 
-  it('returns empty records when every nameserver refuses a plain query', async () => {
+  it('returns empty records when every nameserver refuses an RRSIG query', async () => {
     // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
     // 500 the records page.
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
@@ -367,7 +367,7 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
-  it('surfaces all-REFUSED plain non-RRSIG queries as retryable failures', async () => {
+  it('surfaces all-REFUSED non-RRSIG queries as retryable failures', async () => {
     // The REFUSED-as-empty tolerance exists for RRSIG browsing only; a domain
     // whose nameservers refuse ordinary lookups must not render "no records".
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
@@ -2251,17 +2251,57 @@ describe('isMatchingDnsResponse', () => {
     );
   });
 
-  it('accepts a FORMERR that echoes no question', () => {
-    const bare = { ...response('example.com', 'A', 'FORMERR'), questions: [] };
-    expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(true);
-    expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A')).toBe(false);
-    expect(
-      isMatchingDnsResponse(
-        { ...response('example.com', 'A', 'NOERROR'), questions: [] },
-        42,
-        'example.com',
-        'A',
-      ),
-    ).toBe(false);
+  // An OPT record whose extended RCODE bits are 1 turns a NOERROR header
+  // into BADVERS (RCODE 16).
+  const optRecord = (extendedRcode: number) => ({
+    type: 'OPT' as const,
+    name: '.',
+    udpPayloadSize: 1232,
+    extendedRcode,
+    ednsVersion: 0,
+    flags: 0,
+    flag_do: false,
+    options: [],
+  });
+
+  it.each([
+    ['FORMERR', response('example.com', 'A', 'FORMERR')],
+    ['NOTIMP', response('example.com', 'A', 'NOTIMP')],
+    [
+      'BADVERS',
+      {
+        ...response('example.com', 'A', 'NOERROR'),
+        additionals: [optRecord(1)],
+      },
+    ],
+  ])(
+    'accepts a %s that echoes no question only for an EDNS query that gets the plain retry',
+    (_, rejection) => {
+      const bare = { ...rejection, questions: [] };
+      expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
+        true,
+      );
+      expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A', true)).toBe(
+        false,
+      );
+      // A TCP, DNSSEC or plain query gets no plain retry, so the question
+      // must match.
+      expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(false);
+    },
+  );
+
+  it('accepts no other reply that echoes no question', () => {
+    const bare = { ...response('example.com', 'A', 'NOERROR'), questions: [] };
+    expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
+      false,
+    );
+    const withOpt: DecodedPacket = {
+      ...response('example.com', 'A', 'FORMERR'),
+      questions: [],
+      additionals: [optRecord(0)],
+    };
+    expect(isMatchingDnsResponse(withOpt, 42, 'example.com', 'A', true)).toBe(
+      false,
+    );
   });
 });
