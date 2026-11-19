@@ -883,11 +883,11 @@ export class AuthoritativeResolver extends DnsResolver {
     if (cached) {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. replaced mid-request); drop it and re-walk from the root
-      // once instead of failing the lookup. Requests that already failed in
-      // this walk are not re-sent: a server that failed here stays failed,
-      // though one that failed the shared probe gets the walk's own question
-      // in the re-walk, which asks without the probe, unless that question is
-      // the probe's own (an A walk), which counts as already failed.
+      // once instead of failing the lookup. Requests already sent in this
+      // walk are not re-sent, so the re-walk, which asks without the probe,
+      // reaches a server with the walk's own question only if this walk never
+      // sent it that question (its probe failed in transport, and it is not
+      // an A walk, whose own question is the probe).
       // This takes priority over any non-authoritative lastResort answer --
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds. With the
