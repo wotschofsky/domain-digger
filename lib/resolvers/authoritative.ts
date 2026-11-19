@@ -142,6 +142,8 @@ export type AuthoritativeResolverOptions = {
   // Time budget for trying fallback nameservers, shared across the whole
   // walk (see WalkContext). Injectable for tests.
   fallbackDeadlineMs?: number;
+  // Time after which a walk gives up wherever it is. Injectable for tests.
+  timeoutMs?: number;
   // Set the EDNS DNSSEC OK (DO) bit on every query of this instance, so
   // authoritative servers include RRSIGs.
   dnssecOk?: boolean;
@@ -160,6 +162,12 @@ const rejectsEdns = (packet: Packet): boolean => {
     ? opt.extendedRcode === 1 && packet.rcode === 'NOERROR'
     : packet.rcode === 'FORMERR' || packet.rcode === 'NOTIMP';
 };
+
+// A records page renders the types that resolved once every walk has ended,
+// so no walk may run into the platform's 15s function timeout, which would
+// discard all of them. This leaves room for the page's other lookups. The
+// DNSSEC page's chain walks get the same cap, inside its own 12s deadline.
+const WALK_TIMEOUT_MS = 8_000;
 
 export const isMatchingDnsResponse = (
   packet: Packet,
@@ -678,7 +686,7 @@ export class AuthoritativeResolver extends DnsResolver {
     // every server unless slower ones before them used up the deadline.
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
-    // platform request timeout is the backstop for adversarial chains.
+    // walk's hard timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
       if (failedNameservers.length > 0 && walk.pastDeadline) {
         failedNameservers.push(
@@ -797,8 +805,10 @@ export class AuthoritativeResolver extends DnsResolver {
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds. With the
       // step budget spent there is no re-walk; the walk ends below, still
-      // without adopting lastResort.
-      cached.evict();
+      // without adopting lastResort. A walk that timed out is only finishing
+      // requests it had already sent, so it leaves the delegation, which the
+      // page's other walks use, in place.
+      if (!walk.timedOut) cached.evict();
       if (walk.hasStepsLeft)
         return this.fetchRecordsRaw({
           domain,
@@ -809,10 +819,12 @@ export class AuthoritativeResolver extends DnsResolver {
           ],
           walk: walk.deeper(),
         });
-    } else if (lastResort) {
+    } else if (lastResort && !walk.timedOut) {
       // No candidate answered authoritatively; the deferred answer is better
       // than failing the lookup. It carries an owned answer, so
-      // resolveAcceptedResponse returns it as a terminal answer.
+      // resolveAcceptedResponse returns it as a terminal answer. A timed-out
+      // walk may have cut off the authoritative answer instead, and its
+      // leftover NS lookups would cache the deferred one, so it adopts none.
       const lastResortTrace = buildAcceptedTrace(
         lastResort.candidate,
         lastResort.result,
@@ -1025,6 +1037,10 @@ export class AuthoritativeResolver extends DnsResolver {
             walk: walk.deeper(),
           });
         } catch (error) {
+          // A timed-out walk is only finishing requests it had already sent,
+          // so it keeps this referral's entry, which the page's other walks
+          // use, and tries nothing more.
+          if (walk.timedOut) throw error;
           // Glue can cover only some NS names (whu.edu glues just one, dead,
           // server). When the walk through the glue fails -- there or deeper
           // -- resolve the NS names of this cut, skipping the glue the walk
@@ -1179,6 +1195,9 @@ export class AuthoritativeResolver extends DnsResolver {
       // addresses the first attempt didn't see, and let them replace the
       // cache entry this referral wrote.
       await Promise.allSettled(lookups);
+      // A timed-out walk is only finishing requests it had already sent: the
+      // address it cached may never have been asked, so it stays.
+      if (walk.timedOut) throw error;
       const late = [...new Set(resolvedSets.flat())]
         .filter((ip) => !tried.includes(ip))
         .slice(0, 4);
@@ -1211,9 +1230,27 @@ export class AuthoritativeResolver extends DnsResolver {
     domain: string,
     recordType: RecordType,
   ): Promise<WalkResult> {
+    const timeoutMs = this.options.timeoutMs ?? WALK_TIMEOUT_MS;
     return WalkContext.run<DnsResponse, WalkResult>(
       (walk) => this.fetchRecordsRaw({ domain, recordType, walk }),
       this.options.fallbackDeadlineMs,
+      {
+        ms: timeoutMs,
+        error: () =>
+          new UserFacingError(
+            {
+              title: 'Authoritative DNS servers did not answer in time',
+              description:
+                'The nameservers for this record type took too long to answer. Please try again shortly.',
+              retryable: true,
+            },
+            {
+              cause: new Error(
+                `Walk for ${domain} ${recordType} timed out after ${timeoutMs}ms`,
+              ),
+            },
+          ),
+      },
     );
   }
 

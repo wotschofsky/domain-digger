@@ -33,6 +33,7 @@ type SharedState<Response, Result> = {
   remainingSteps: number;
   requests: Map<string, Promise<Response>>;
   fallback?: Result;
+  timedOut?: true;
 };
 
 // The state of one top-level authoritative walk and its rules. The deadline,
@@ -56,10 +57,17 @@ export class WalkContext<Response, Result> {
   ) {}
 
   // Runs one walk under a fresh context. A recorded fallback is adopted only
-  // if the whole walk fails, so a sibling path that answers still wins.
+  // if the whole walk fails or times out, so a sibling path that answers
+  // still wins. The timeout, unlike the fallback deadline, ends the walk
+  // wherever it is: requests already sent settle on their own in the
+  // background (retrying as usual), and no new step or request starts.
+  // ponytail: requests in flight at the timeout are not aborted and run out
+  // their retry budget (up to ~7s each) in the background; thread an
+  // AbortSignal through the resolver's requests if that load shows up.
   static async run<Response, Result>(
     walk: (context: WalkContext<Response, Result>) => Promise<Result>,
     fallbackDeadlineMs = FALLBACK_DEADLINE_MS,
+    timeout?: { ms: number; error: () => Error },
   ): Promise<Result> {
     const context = new WalkContext<Response, Result>(
       {
@@ -71,11 +79,25 @@ export class WalkContext<Response, Result> {
       0,
       new Set(),
     );
+    let timer: NodeJS.Timeout | undefined;
+    const expired = new Promise<never>((_, reject) => {
+      if (timeout)
+        timer = setTimeout(() => {
+          // Whatever the walk left running starts no further step or
+          // request.
+          context.shared.timedOut = true;
+          context.shared.remaining = 0;
+          context.shared.remainingSteps = 0;
+          reject(timeout.error());
+        }, timeout.ms);
+    });
     try {
-      return await walk(context);
+      return await Promise.race([walk(context), expired]);
     } catch (error) {
       if (context.shared.fallback) return context.shared.fallback;
       throw error;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -97,6 +119,11 @@ export class WalkContext<Response, Result> {
 
   get hasStepsLeft(): boolean {
     return this.shared.remainingSteps > 0;
+  }
+
+  // Set once the walk's timeout fired: what still runs is leftover work.
+  get timedOut(): boolean {
+    return this.shared.timedOut ?? false;
   }
 
   // Past the deadline, a step stops trying fallback nameservers.
