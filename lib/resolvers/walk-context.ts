@@ -33,6 +33,7 @@ type SharedState<Response, Result> = {
   remainingSteps: number;
   requests: Map<string, Promise<Response>>;
   fallback?: Result;
+  timedOut?: true;
 };
 
 // The state of one top-level authoritative walk and its rules. The deadline,
@@ -79,18 +80,19 @@ export class WalkContext<Response, Result> {
       new Set(),
     );
     let timer: NodeJS.Timeout | undefined;
-    const timedOut = new Promise<never>((_, reject) => {
+    const expired = new Promise<never>((_, reject) => {
       if (timeout)
         timer = setTimeout(() => {
           // Whatever the walk left running starts no further step or
           // request.
+          context.shared.timedOut = true;
           context.shared.remaining = 0;
           context.shared.remainingSteps = 0;
           reject(timeout.error());
         }, timeout.ms);
     });
     try {
-      return await Promise.race([walk(context), timedOut]);
+      return await Promise.race([walk(context), expired]);
     } catch (error) {
       if (context.shared.fallback) return context.shared.fallback;
       throw error;
@@ -117,6 +119,11 @@ export class WalkContext<Response, Result> {
 
   get hasStepsLeft(): boolean {
     return this.shared.remainingSteps > 0;
+  }
+
+  // Set once the walk's timeout fired: what still runs is leftover work.
+  get timedOut(): boolean {
+    return this.shared.timedOut ?? false;
   }
 
   // Past the deadline, a step stops trying fallback nameservers.

@@ -687,7 +687,6 @@ export class AuthoritativeResolver extends DnsResolver {
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // walk's hard timeout is the backstop for adversarial chains.
-    let budgetSpent = false;
     for (const candidate of candidateNameservers) {
       if (failedNameservers.length > 0 && walk.pastDeadline) {
         failedNameservers.push(
@@ -712,7 +711,6 @@ export class AuthoritativeResolver extends DnsResolver {
         failedNameservers.push(
           `${candidate}: skipped, candidate budget exhausted`,
         );
-        budgetSpent = true;
         break;
       }
       let result: DnsResponse;
@@ -797,11 +795,8 @@ export class AuthoritativeResolver extends DnsResolver {
       }
     }
 
-    // No candidate produced a terminal answer or a followable referral. A
-    // walk that ran out of requests (or timed out) learned nothing about the
-    // cached servers it never asked, so their delegation stays for the
-    // page's other walks.
-    if (cached && !budgetSpent) {
+    // No candidate produced a terminal answer or a followable referral.
+    if (cached) {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. replaced mid-request); drop it and re-walk from the root
       // once instead of failing the lookup. Requests that already failed in
@@ -810,8 +805,10 @@ export class AuthoritativeResolver extends DnsResolver {
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds. With the
       // step budget spent there is no re-walk; the walk ends below, still
-      // without adopting lastResort.
-      cached.evict();
+      // without adopting lastResort. A walk that timed out is only finishing
+      // requests it had already sent, so it leaves the delegation, which the
+      // page's other walks use, in place.
+      if (!walk.timedOut) cached.evict();
       if (walk.hasStepsLeft)
         return this.fetchRecordsRaw({
           domain,
@@ -1038,6 +1035,9 @@ export class AuthoritativeResolver extends DnsResolver {
             walk: walk.deeper(),
           });
         } catch (error) {
+          // A timed-out walk only failed for lack of budget, so it keeps this
+          // referral's entry for the page's other walks and tries nothing more.
+          if (walk.timedOut) throw error;
           // Glue can cover only some NS names (whu.edu glues just one, dead,
           // server). When the walk through the glue fails -- there or deeper
           // -- resolve the NS names of this cut, skipping the glue the walk
