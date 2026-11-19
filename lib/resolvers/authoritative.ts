@@ -64,7 +64,7 @@ const isInBailiwick = (wantName: string, zone: string): boolean =>
   wantName === zone || wantName.endsWith(`.${zone}`);
 
 // Servers of the root, a TLD or another public suffix normally refer a name
-// below the registrable domain onward, and they rate-limit identical
+// at or below the registrable domain onward, and they rate-limit identical
 // referrals: the 14 walks of a records page asked them one name at once and
 // they dropped part of that burst, each drop stalling a walk for a full
 // timeout. Asked the same question, the walks share one request instead. DS
