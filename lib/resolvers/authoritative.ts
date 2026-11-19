@@ -886,7 +886,8 @@ export class AuthoritativeResolver extends DnsResolver {
       // once instead of failing the lookup. Requests that already failed in
       // this walk are not re-sent: a server that failed here stays failed,
       // though one that failed the shared probe gets the walk's own question
-      // in the re-walk, which asks without the probe.
+      // in the re-walk, which asks without the probe, unless that question is
+      // the probe's own (an A walk), which counts as already failed.
       // This takes priority over any non-authoritative lastResort answer --
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds. With the
