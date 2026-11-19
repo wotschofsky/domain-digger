@@ -28,12 +28,12 @@ import { WalkContext } from './walk-context';
 type RawAnswer = Extract<Answer, { type: RecordType }>;
 
 // EDNS OPT pseudo-record on UDP queries. Without it a server may only send
-// 512 bytes over UDP, which root referrals for large TLDs such as .com and
-// .net exceed, so the reply comes back truncated and the query goes again
-// over TCP. 1232 bytes keeps UDP answers unfragmented on nearly all paths
-// (DNS Flag Day 2020); larger ones still come back with TC and go to TCP.
-// TCP queries carry it only for DNSSEC: the DNSSEC OK (DO) bit asks the
-// server for RRSIG records alongside the answer.
+// 512 bytes over UDP, which root referrals for TLDs with many nameservers,
+// such as .com and .net, exceed, so the reply comes back truncated and the
+// query goes again over TCP. 1232 bytes keeps UDP answers unfragmented on
+// nearly all paths (DNS Flag Day 2020); larger ones still come back with TC
+// and go to TCP. TCP queries carry it only for DNSSEC: the DNSSEC OK (DO)
+// bit asks the server for RRSIG records alongside the answer.
 const ednsOptRecord = (dnssecOk: boolean) => ({
   type: 'OPT' as const,
   name: '.',

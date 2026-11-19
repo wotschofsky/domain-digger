@@ -62,7 +62,7 @@ describe('AuthoritativeResolver transport policy', () => {
     ).toEqual(['192.0.2.1', '192.0.2.2']);
   });
 
-  it('returns empty records when every nameserver refuses a non-DNSSEC query', async () => {
+  it('returns empty records when every nameserver refuses an RRSIG query', async () => {
     // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
     // 500 the records page.
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
@@ -367,7 +367,7 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
-  it('surfaces all-REFUSED non-DNSSEC non-RRSIG queries as retryable failures', async () => {
+  it('surfaces all-REFUSED non-RRSIG queries as retryable failures', async () => {
     // The REFUSED-as-empty tolerance exists for RRSIG browsing only; a domain
     // whose nameservers refuse ordinary lookups must not render "no records".
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
