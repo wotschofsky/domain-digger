@@ -758,8 +758,8 @@ export class AuthoritativeResolver extends DnsResolver {
     };
 
     // A candidate's reply: to the probe, or to the walk's own question where
-    // the probe got anything but a referral or an NXDOMAIN (an answer, NODATA,
-    // an error or a lame reply), which may differ by type.
+    // the probe got anything but a referral or an authoritative NXDOMAIN (an
+    // answer, NODATA, an error or a lame reply), which may differ by type.
     const query = async (candidate: string) => {
       let asked = probeType;
       let sent = await this.ask(walk, domain, asked, candidate);
@@ -867,7 +867,7 @@ export class AuthoritativeResolver extends DnsResolver {
               zone,
               trace: [
                 ...acceptedTrace,
-                `${recordType} ${domain} @ ${candidate} -> referral failed (${describeError(error)}), using parent delegation: ${delegation.map(this.recordToString).join(', ')}`,
+                `${asked} ${domain} @ ${candidate} -> referral failed (${describeError(error)}), using parent delegation: ${delegation.map(this.recordToString).join(', ')}`,
               ],
             });
         }
