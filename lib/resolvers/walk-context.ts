@@ -186,8 +186,9 @@ export class WalkContext<Response, Result> {
     return this.branch(this.depth + 1);
   }
 
-  // This branch, re-walking because a cached delegation failed: from the next
-  // cached cut above it, or from the root when none is cached. It asks every
+  // This branch, re-walking because a cached delegation failed: from the
+  // deepest cut still cached for the name once that one is evicted (which
+  // may lie below it), or from the root when none is. It asks every
   // server its own question: the referrals the probe was given are cached
   // for the whole lookup and would lead it straight back to the servers
   // that failed.
