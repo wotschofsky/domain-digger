@@ -666,14 +666,16 @@ export class AuthoritativeResolver extends DnsResolver {
       return accepted;
     };
 
-    // A blackholed network makes every candidate burn its full retry budget
-    // (2 attempts x 1s), ~8s serialized across 4 fallback servers; one that
-    // answers UDP truncated and then stalls over TCP costs up to 7s (see
-    // FALLBACK_DEADLINE_MS). The first candidate always gets its full budget
-    // -- a step reached with the deadline spent still makes progress --
-    // unless it is skipped as a loop or an already-failed request, which
-    // counts as a failure. Further ones only start while the deadline allows,
-    // so fast failures (REFUSED, quick rejects) still reach every server.
+    // A blackholed network makes every candidate burn both of its attempts
+    // (1s each); serializing that across 4 fallback servers would take ~8s,
+    // and one that answers UDP truncated and then stalls over TCP costs up
+    // to 6s, 7s after an EDNS rejection (see the ponytail note on
+    // FALLBACK_DEADLINE_MS). The first candidate always gets its
+    // full budget -- a step reached with the deadline spent still makes
+    // progress -- unless it is skipped as a loop or an already-failed
+    // request, which counts as a failure. Further ones only start while the
+    // deadline allows, so fast failures (REFUSED, quick rejects) still reach
+    // every server.
     // ponytail: past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // platform request timeout is the backstop for adversarial chains.
@@ -998,8 +1000,8 @@ export class AuthoritativeResolver extends DnsResolver {
       );
       if (aRedirects.length) {
         // Cap like the sibling NS-resolution/root paths: each candidate costs
-        // a full retry budget (see FALLBACK_DEADLINE_MS), and the glue set is
-        // attacker-influenced.
+        // 2 attempts of 1s, up to 7s with the plain-DNS retry and TCP (see
+        // FALLBACK_DEADLINE_MS), and the glue set is attacker-influenced.
         // Dedupe before the cap so four colocated NS hostnames sharing one
         // (failing) IP can't crowd out a distinct healthy address.
         const addresses = [
