@@ -92,7 +92,8 @@ describe('AuthoritativeResolver walk bounds', () => {
     ).resolves.toMatchObject({
       records: [expect.objectContaining({ data: '203.0.113.10' })],
     });
-    expect(udpTransport).toHaveBeenCalledTimes(5);
+    // Two attempts in the first walk, one in the second.
+    expect(udpTransport).toHaveBeenCalledTimes(3);
   });
 
   it('stops self-referrals and still tries the healthy sibling', async () => {
@@ -577,6 +578,51 @@ describe('AuthoritativeResolver walk bounds', () => {
 });
 
 describe('AuthoritativeResolver transport fallbacks', () => {
+  it("takes the first server's answer on its retry, not a sibling's broken referral", async () => {
+    vi.useFakeTimers();
+    try {
+      let firstTries = 0;
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, nameserver }) => {
+          if (nameserver === '192.0.2.1')
+            return new Promise<DecodedPacket>((resolve, reject) =>
+              ++firstTries === 1
+                ? setTimeout(() => reject(new Error('timeout')), 1000)
+                : setTimeout(
+                    () => resolve(reply(domain, recordType, [address(domain)])),
+                    500,
+                  ),
+            );
+          if (nameserver === '192.0.2.2')
+            return referral(
+              domain,
+              recordType,
+              'example.com',
+              [1, 2, 3, 4].map((n) => `ns${n}.example.com`),
+              [1, 2, 3, 4].map((n) => `8.8.4.${n}`),
+            );
+          return new Promise<DecodedPacket>(() => {});
+        },
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+      });
+
+      const result = resolver.resolveRecordType('www.example.com', 'A');
+      await vi.advanceTimersByTimeAsync(1500);
+
+      await expect(result).resolves.toMatchObject({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      });
+      expect(
+        udpTransport.mock.calls.map(([request]) => request.nameserver),
+      ).toEqual(['192.0.2.1', '192.0.2.1']);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('gives a DNSSEC query no plain-DNS retry when a server rejects EDNS', async () => {
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType }) =>
@@ -684,6 +730,6 @@ describe('AuthoritativeResolver transport fallbacks', () => {
     ).rejects.toThrow();
     expect(
       udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
-    ).toEqual([false, true, true, true, true]);
+    ).toEqual([false, true, true]);
   });
 });
