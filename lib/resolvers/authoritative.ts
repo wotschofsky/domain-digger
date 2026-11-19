@@ -76,6 +76,10 @@ const isInBailiwick = (wantName: string, zone: string): boolean =>
 // ponytail: a registry that serves some names itself (nic.br on the br
 // servers) answers the probe instead, so those walks ask again and pay one
 // more round trip; remembering such servers would save it.
+// ponytail: the walks share the probe's fate too: a server that drops it
+// twice is skipped by every type, and every type follows its one referral to
+// the same first four glue addresses; ask a type's own question where the
+// probe failed if that shows up.
 const PROBE_TYPE = 'A';
 const probesZone = (
   domain: string,
