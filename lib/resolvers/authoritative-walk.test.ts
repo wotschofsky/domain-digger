@@ -575,3 +575,115 @@ describe('AuthoritativeResolver walk bounds', () => {
     expect(udpTransport.mock.calls.length).toBeLessThanOrEqual(22);
   });
 });
+
+describe('AuthoritativeResolver transport fallbacks', () => {
+  it('gives a DNSSEC query no plain-DNS retry when a server rejects EDNS', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType }) =>
+        ({ ...reply(domain, recordType), rcode: 'FORMERR' }) as DecodedPacket,
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      dnssecOk: true,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toThrow();
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+    ).toEqual([false]);
+  });
+
+  it.each(['FORMERR', 'NOTIMP'])(
+    'asks again in plain DNS when a server rejects EDNS with %s',
+    async (rcode) => {
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, plainDns }) =>
+          plainDns
+            ? reply(domain, recordType, [address(domain)])
+            : ({
+                ...reply(domain, recordType),
+                rcode,
+              } as DecodedPacket),
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+      });
+
+      await expect(
+        resolver.resolveRecordType('example.com', 'A'),
+      ).resolves.toMatchObject({
+        records: [expect.objectContaining({ data: '203.0.113.10' })],
+      });
+      expect(
+        udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+      ).toEqual([false, true]);
+    },
+  );
+
+  it.each([
+    [1, [false, true]],
+    [0, [false]],
+  ])(
+    'asks again in plain DNS only for BADVERS (OPT extended RCODE %i)',
+    async (extendedRcode, plainDnsPerCall) => {
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, plainDns }) =>
+          plainDns
+            ? reply(domain, recordType, [address(domain)])
+            : // BADVERS is RCODE 16: the header's four bits read NOERROR and
+              // the OPT record carries the upper bits.
+              {
+                ...reply(domain, recordType),
+                additionals: [
+                  {
+                    type: 'OPT',
+                    name: '.',
+                    udpPayloadSize: 1232,
+                    extendedRcode,
+                    ednsVersion: 0,
+                    flags: 0,
+                    flag_do: false,
+                    options: [],
+                  },
+                ],
+              },
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+      });
+
+      await resolver.resolveRecordType('example.com', 'A');
+      expect(
+        udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+      ).toEqual(plainDnsPerCall);
+    },
+  );
+
+  it('keeps asking in plain DNS for the rest of the request once a server has rejected EDNS', async () => {
+    const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+      async ({ domain, recordType, plainDns }) => {
+        if (plainDns) throw new Error('timeout');
+        return {
+          ...reply(domain, recordType),
+          rcode: 'FORMERR',
+        } as DecodedPacket;
+      },
+    );
+    const resolver = new AuthoritativeResolver({
+      udpTransport,
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    await expect(
+      resolver.resolveRecordType('example.com', 'A'),
+    ).rejects.toThrow();
+    expect(
+      udpTransport.mock.calls.map(([request]) => request.plainDns ?? false),
+    ).toEqual([false, true, true, true, true]);
+  });
+});

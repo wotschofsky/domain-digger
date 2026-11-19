@@ -5,14 +5,19 @@ const MAX_RECURSION_DEPTH = 20;
 // one is free and bounded by the walk's step budget instead -- like BIND's
 // max-recursion-queries: the depth cap alone still lets a crafted zone
 // answer every glueless delegation with 4 fresh NS names and fork
-// 4^depth sub-walks. One attempt costs up to 4 UDP tries plus a TCP
-// fallback each (see the resolver's requestLoader/sendRequest), so this also
-// caps the walk's packet ceiling at ~8x this value. Far above any honest
-// lookup's needs (a deep all-glueless walk stays under ~30).
+// 4^depth sub-walks. One request costs up to 4 tries of a UDP query and a
+// TCP fallback each, plus one plain-DNS retry (see the resolver's
+// requestLoader/sendRequest), so this also caps the walk's packet ceiling at
+// ~9x this value. Far above any honest lookup's needs (a deep all-glueless
+// walk stays under ~30).
 const MAX_CANDIDATES_PER_WALK = 50;
-// Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
-// a single blackholed first server has to leave room to reach a healthy
-// fallback, while all-blackholed candidates stay bounded (~2 budgets).
+// Must exceed a blackholed candidate's full retry budget (4 attempts x 3s =
+// ~12s): a single blackholed first server has to leave room to reach a
+// healthy fallback, while all-blackholed candidates stay bounded (~2
+// budgets).
+// ponytail: a server that rejects EDNS just before its 3s timeout and then
+// drops the plain-DNS retries costs up to ~15s, past this; shorten the UDP
+// timeout if that shows up.
 const FALLBACK_DEADLINE_MS = 15_000;
 
 // Name case and a trailing dot don't make a request distinct.
