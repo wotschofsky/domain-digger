@@ -884,10 +884,9 @@ export class AuthoritativeResolver extends DnsResolver {
       // The cached delegation was the only candidate set and may simply be
       // stale (e.g. replaced mid-request); drop it and re-walk from the root
       // once instead of failing the lookup. Requests already sent in this
-      // walk are not re-sent, so the re-walk, which asks without the probe,
-      // reaches a server with the walk's own question only if this walk never
-      // sent it that question (its probe failed in transport, and it is not
-      // an A walk, whose own question is the probe).
+      // walk are not re-sent: the re-walk, which asks without the probe,
+      // sends a server the walk's own question only if this walk has not sent
+      // it that question yet (an A walk's own question is the probe).
       // This takes priority over any non-authoritative lastResort answer --
       // adopting a deferred answer from the stale cached server would mask
       // the healthy authoritative server the fresh root walk finds. With the
