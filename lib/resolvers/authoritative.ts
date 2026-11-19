@@ -905,11 +905,14 @@ export class AuthoritativeResolver extends DnsResolver {
           ],
           walk: walk.rewalk(),
         });
-    } else if (lastResort) {
+    } else if (lastResort && !walk.timedOut) {
       // No candidate answered authoritatively; the deferred answer is better
       // than failing the lookup. It carries an owned answer, so
       // resolveAcceptedResponse returns it as a terminal answer. An owned
-      // answer is never shared from the probe, so it answers recordType.
+      // answer is never shared from the probe, so it answers recordType. A
+      // timed-out walk may have cut off the authoritative answer instead,
+      // and its leftover NS lookups would cache the deferred one, so it
+      // adopts none.
       const lastResortTrace = buildAcceptedTrace(
         lastResort.candidate,
         lastResort.result,

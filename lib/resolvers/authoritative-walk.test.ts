@@ -859,9 +859,9 @@ describe('AuthoritativeResolver walk timeout', () => {
       await rejected;
 
       udpTransport.mockClear();
-      const mx = resolver
-        .resolveRecordType('www.sub.example.com', 'MX')
-        .catch(() => undefined);
+      const mx = expect(
+        resolver.resolveRecordType('www.sub.example.com', 'MX'),
+      ).resolves.toBeDefined();
       await vi.advanceTimersByTimeAsync(5000);
       await mx;
       expect(
@@ -908,12 +908,69 @@ describe('AuthoritativeResolver walk timeout', () => {
       await rejected;
 
       udpTransport.mockClear();
-      const mx = resolver
-        .resolveRecordType('example.com', 'MX')
-        .catch(() => undefined);
+      const mx = expect(
+        resolver.resolveRecordType('example.com', 'MX'),
+      ).resolves.toBeDefined();
       await vi.advanceTimersByTimeAsync(5000);
       await mx;
       expect(udpTransport.mock.calls[0]?.[0].nameserver).toBe('8.8.4.1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('caches no non-authoritative NS address after a walk times out', async () => {
+    vi.useFakeTimers();
+    try {
+      const udpTransport = vi.fn<AuthoritativeUdpTransport>(
+        async ({ domain, recordType, nameserver }) => {
+          if (nameserver === '192.0.2.1')
+            return domain === 'ns.example.net'
+              ? referral(
+                  domain,
+                  recordType,
+                  'example.net',
+                  ['a.example.net', 'b.example.net'],
+                  ['8.8.4.1', '8.8.4.2'],
+                )
+              : referral(domain, recordType, 'example.com', ['ns.example.net']);
+          // A deferred, non-authoritative address for the NS name...
+          if (nameserver === '8.8.4.1')
+            return {
+              ...reply(domain, recordType, [address(domain, '8.8.4.9')]),
+              flag_aa: false,
+            };
+          // ...while the authoritative path arrives after the timeout.
+          return new Promise<DecodedPacket>((resolve) =>
+            setTimeout(
+              () =>
+                resolve(
+                  referral(
+                    domain,
+                    recordType,
+                    'ns.example.net',
+                    ['ns1.ns.example.net'],
+                    ['8.8.4.3'],
+                  ),
+                ),
+              1200,
+            ),
+          );
+        },
+      );
+      const resolver = new AuthoritativeResolver({
+        udpTransport,
+        rootServers: async () => ['192.0.2.1'],
+        fallbackDeadlineMs: 500,
+        timeoutMs: 1000,
+      });
+
+      const a = resolver.resolveRecordType('example.com', 'A');
+      const rejected = expect(a).rejects.toThrow('did not answer in time');
+      await vi.advanceTimersByTimeAsync(5000);
+      await rejected;
+
+      expect(resolver['delegationCache'].get('example.com')).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }
