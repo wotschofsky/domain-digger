@@ -1,18 +1,19 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getLandingHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
-  url: '/subdomains',
+  url: getLandingHref('subdomains'),
   title: 'Subdomain Search',
 });
 
 const SubdomainsLandingPage: FC = () => (
   <LandingPage
-    subpage="subdomains"
+    feature="subdomains"
     heading="Find hidden subdomains for any domain"
   >
     <AboutSection title="What is a Subdomain Finder?">

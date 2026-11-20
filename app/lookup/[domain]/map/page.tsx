@@ -10,9 +10,11 @@ import { headers } from 'next/headers';
 import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
+import { getResultsHref } from '@/lib/lookup-features';
 import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
 import { getPageMetadata } from '@/lib/page-metadata';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
+import { recordLookupAfter } from '@/lib/search';
 
 import { IconAlert } from '../_components/icon-alert';
 import { ResultsGlobe } from './_components/results-globe';
@@ -29,7 +31,7 @@ export const generateMetadata = async ({
   const { domain } = await params;
 
   return getPageMetadata({
-    url: `/lookup/${domain}/map`,
+    url: getResultsHref('map', domain),
     title: `DNS Propagation for ${domain}`,
   });
 };
@@ -61,6 +63,15 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
     (code) => new InternalDoHResolver(code, 'cloudflare'),
   );
   const hasDifferences = getHasDifferences(lookupResults.map((m) => m.results));
+
+  await recordLookupAfter(
+    domain,
+    'dns',
+    lookupResults.some(({ results }) =>
+      // Optional: a failed lookup's records may be null (unknown, not empty).
+      Object.values(results).some((records) => Boolean(records?.length)),
+    ),
+  );
 
   return (
     <>

@@ -1,18 +1,19 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getLandingHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
-  url: '/dnssec',
+  url: getLandingHref('dnssec'),
   title: 'DNSSEC Lookup',
 });
 
 const DnssecLandingPage: FC = () => (
   <LandingPage
-    subpage="dnssec"
+    feature="dnssec"
     heading="Check the DNSSEC chain of trust for any domain"
     tagline="Follow DS digest links and DNSKEY signatures from the IANA root anchors to the name you enter. This is not full DNSSEC validation."
   >

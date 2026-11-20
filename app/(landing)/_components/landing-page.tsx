@@ -1,13 +1,15 @@
 import type { FC, ReactNode } from 'react';
 
+import type { LookupFeatureId } from '@/lib/lookup-features';
+
 import { SearchForm } from '../../_components/search-form';
 import { AuthorSection } from './author-section';
 import { SponsorsSection } from './sponsors-section';
 import { TrustSection } from './trust-section';
 
 type LandingPageProps = {
-  // The results tab that searches and the logo links open; DNS when left out
-  subpage?: string;
+  // The results tab that searches and the logo links open
+  feature: LookupFeatureId;
   heading: string;
   tagline?: ReactNode;
   // Shown below the hero
@@ -15,7 +17,7 @@ type LandingPageProps = {
 };
 
 export const LandingPage: FC<LandingPageProps> = ({
-  subpage,
+  feature,
   heading,
   tagline = 'Find all DNS records, WHOIS data, SSL/TLS certificate history, subdomains and more',
   children,
@@ -29,7 +31,7 @@ export const LandingPage: FC<LandingPageProps> = ({
               {heading}
             </h1>
             <div className="mx-auto w-full max-w-2xl">
-              <SearchForm subpage={subpage} autofocus />
+              <SearchForm feature={feature} autofocus />
             </div>
             <p className="mt-4 mb-20 text-center text-sm/6 text-zinc-500 dark:text-zinc-400">
               {tagline}
@@ -41,7 +43,7 @@ export const LandingPage: FC<LandingPageProps> = ({
         <AuthorSection />
       </div>
 
-      <TrustSection subpage={subpage} />
+      <TrustSection feature={feature} />
     </div>
 
     {children}

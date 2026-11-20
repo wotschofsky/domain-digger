@@ -4,18 +4,30 @@ import { parse as parseTldts } from 'tldts';
 
 import { env } from '@/env';
 import { EXAMPLE_DOMAINS } from '@/lib/data';
-import { LOOKUP_FEATURES } from '@/lib/lookup-features';
+import {
+  getLandingHref,
+  getResultsHref,
+  LOOKUP_FEATURES,
+} from '@/lib/lookup-features';
 import { getTopDomains } from '@/lib/search';
 import { deduplicate } from '@/lib/utils';
 
-const LANDING_PAGES = LOOKUP_FEATURES.map((feature) => feature.landingPath);
-const RESULTS_SUBPATHS = LOOKUP_FEATURES.map((feature) => feature.path);
+const LANDING_PAGES = LOOKUP_FEATURES.map((feature) =>
+  getLandingHref(feature.id),
+);
+
+// The map page shows bots a block page instead of results
+const INDEXED_RESULTS = LOOKUP_FEATURES.filter(
+  (feature) => feature.id !== 'map',
+);
 
 const getProgrammaticPaths = async () => {
   const topDomains = await getTopDomains(1000);
 
   const namedDomains = deduplicate([...EXAMPLE_DOMAINS, ...topDomains]);
-  const tlds = deduplicate(namedDomains.map((d) => parseTldts(d).publicSuffix));
+  const tlds = deduplicate(
+    namedDomains.flatMap((d) => parseTldts(d).publicSuffix ?? []),
+  );
 
   const allDomains = [
     ...namedDomains,
@@ -24,7 +36,7 @@ const getProgrammaticPaths = async () => {
   ].toSorted();
 
   const resultsPaths = allDomains.flatMap((domain) =>
-    RESULTS_SUBPATHS.map((suffix) => '/lookup/' + domain + suffix),
+    INDEXED_RESULTS.map((feature) => getResultsHref(feature.id, domain)),
   );
 
   return resultsPaths;
