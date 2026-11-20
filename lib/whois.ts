@@ -81,7 +81,6 @@ export type WhoisOutcome =
       status: 'registered';
       registrar: string | null;
       createdAt: string | null;
-      dnssec: string | null;
     }
   | { status: 'unregistered' }
   // The lookup failed, so registration is neither confirmed nor ruled out.
@@ -121,6 +120,5 @@ export const getWhoisOutcome = async (
     createdAt: isNaN(createdAt.getTime())
       ? null
       : createdAt.toISOString().slice(0, 10),
-    dnssec: data['DNSSEC']?.toString() || null,
   };
 };

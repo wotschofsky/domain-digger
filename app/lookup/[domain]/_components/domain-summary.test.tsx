@@ -17,7 +17,7 @@ const tiles = (sale: typeof fixtures.sale | null = fixtures.sale) => ({
   status: 'registered',
   registrar: 'Example registrar',
   createdAt: 'Not listed',
-  dnssec: 'Not listed',
+  dnssec: { value: 'No DS record', domain: 'example.com' },
   sale,
 });
 
@@ -92,6 +92,28 @@ describe('domain summary sale link', () => {
     });
     await act(async () => outgoing.click());
     expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('shows DNS delegation data when WHOIS is unavailable', async () => {
+    fixtures.summary.mockReturnValue({
+      data: {
+        status: 'unknown',
+        registrar: 'Unavailable',
+        createdAt: 'Unavailable',
+        dnssec: { value: 'DS present', domain: 'example.com' },
+        sale: null,
+      },
+      isLoading: false,
+    });
+
+    await render('www.example.com');
+    const value = [...container.querySelectorAll('span[title]')].find(
+      (span) => span.textContent === 'DS present',
+    );
+    expect(value?.getAttribute('title')).toBe(
+      'Parent DS records for example.com; this does not validate the full DNSSEC chain.',
+    );
+    expect(container.textContent).toContain('DNSSEC delegation');
   });
 
   it('requests WHOIS and sale information from one endpoint', async () => {
