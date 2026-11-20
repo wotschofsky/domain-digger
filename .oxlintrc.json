@@ -13,8 +13,12 @@
   "categories": {
     "correctness": "error"
   },
+  "options": {
+    "reportUnusedDisableDirectives": "error"
+  },
   "rules": {
     "no-console": "error",
+    "react/rules-of-hooks": "error",
 
     // TODO: Temporary - convert these back to errors once fixed
     // Carried over from the ESLint config they replace.
@@ -24,7 +28,10 @@
     "typescript/no-explicit-any": "warn",
     "typescript/no-unsafe-function-type": "warn",
     "no-unused-vars": "warn",
-    "react-hooks/exhaustive-deps": "warn",
+    "react/exhaustive-deps": "warn",
+    "react/preserve-manual-memoization": "warn",
+    "react/purity": "warn",
+    "react/set-state-in-effect": "warn",
     "import/no-anonymous-default-export": "warn",
 
     // eslint-config-next reported these as warnings as well, but oxlint files

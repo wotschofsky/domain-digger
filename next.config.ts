@@ -11,7 +11,6 @@ const nextConfig = async (): Promise<NextConfig> => ({
   },
   partialPrefetching: false,
   reactStrictMode: false,
-  // Code is already held to compiler rules by eslint-plugin-react-compiler
   reactCompiler: true,
   turbopack: {
     rules: {

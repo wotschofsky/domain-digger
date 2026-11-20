@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import Image from 'next/image';
 import { ImageResponse } from 'next/og';
 
 export const contentType = 'image/png';
@@ -159,8 +158,9 @@ export const handler = async ({ params: paramsPromise }: OGImageProps) => {
         <span>SSL Certs ✅</span>
       </span>
 
-      {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
+      {/* oxlint-disable-next-line nextjs/no-img-element -- ImageResponse renders this image on the server. */}
       <img
+        alt=""
         src={`data:image/png;base64,${globeImage.toString('base64')}`}
         width={1000}
         style={{

@@ -63,7 +63,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run Linter
-        run: pnpm run lint
+        run: pnpm run lint --format github
 
   types:
     name: Type Checking
