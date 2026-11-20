@@ -162,8 +162,9 @@ export const handler = async () => {
         <span>SSL Certs ✅</span>
       </span>
 
-      {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders this image on the server. */}
       <img
+        alt=""
         src={`data:image/png;base64,${globeImage}`}
         width={1000}
         style={{
