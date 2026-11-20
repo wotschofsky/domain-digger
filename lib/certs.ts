@@ -1,3 +1,5 @@
+import pRetry from 'p-retry';
+
 import { UserFacingError } from './user-facing-error';
 
 export type CertsData = {
@@ -12,22 +14,52 @@ export type CertsData = {
   serial_number: string;
 }[];
 
+// Cache successful crt.sh responses to absorb transient outages and reduce
+// the request volume that triggers their rate limiting. Non-OK responses
+// aren't cached by Next.js, so an outage can't poison the cache.
+const CRT_SH_REVALIDATE_SECONDS = 60 * 60;
+
+const fetchCerts = async (domain: string) => {
+  const url =
+    'https://crt.sh?' +
+    new URLSearchParams({ Identity: domain, output: 'json' });
+
+  return pRetry(
+    async (attemptNumber) => {
+      const response = await fetch(url, {
+        next: { revalidate: CRT_SH_REVALIDATE_SECONDS },
+        // Next.js dedupes identical fetches within a render pass, so without
+        // an opt-out each retry would replay the first failed Response instead
+        // of hitting the network. Passing a signal opts the request out of
+        // that dedupe layer while staying absent from the Data Cache key, so
+        // a successful retry is stored under the same key normal requests use
+        // (unlike a per-attempt header, which would fragment the cache key).
+        signal: attemptNumber > 1 ? new AbortController().signal : undefined,
+      });
+      // crt.sh regularly returns brief bursts of 429s and 502s that clear
+      // within seconds. Throw so p-retry backs off; non-transient statuses
+      // (including OK and other 4xx) flow through untouched.
+      if (response.status === 429 || response.status >= 500) {
+        throw new Error(
+          `crt.sh responded with HTTP ${response.status} ${response.statusText}`,
+        );
+      }
+      return response;
+    },
+    { retries: 2, minTimeout: 400, factor: 3, randomize: true },
+  );
+};
+
 export const lookupCerts = async (domain: string): Promise<CertsData> => {
   let response: Response;
   try {
-    response = await fetch(
-      'https://crt.sh?' +
-        new URLSearchParams({
-          Identity: domain,
-          output: 'json',
-        }),
-    );
+    response = await fetchCerts(domain);
   } catch (error) {
     throw new UserFacingError(
       {
         title: "Couldn't reach crt.sh",
         description:
-          "We couldn't complete the request to crt.sh. Please try again shortly.",
+          'crt.sh kept failing after several attempts. It may be briefly overloaded — please try again shortly.',
         retryable: true,
       },
       { cause: error },
