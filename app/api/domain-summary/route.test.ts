@@ -1,20 +1,47 @@
 import type * as Whoiser from 'whoiser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { UserFacingError } from '@/lib/user-facing-error';
+
 import { GET } from './route';
 
-const { whoisDomain, logger } = vi.hoisted(() => ({
-  whoisDomain: vi.fn(),
-  logger: { set: vi.fn(), error: vi.fn() },
-}));
+const { whoisDomain, resolveDs, resolverOptions, logger, log } = vi.hoisted(
+  () => ({
+    whoisDomain: vi.fn(),
+    resolveDs: vi.fn(),
+    resolverOptions: vi.fn(),
+    logger: { set: vi.fn(), error: vi.fn() },
+    log: { warn: vi.fn() },
+  }),
+);
 vi.mock('whoiser', async (importOriginal) => ({
   ...(await importOriginal<typeof Whoiser>()),
   whoisDomain,
 }));
+vi.mock('@/lib/resolvers/authoritative', () => ({
+  AuthoritativeResolver: class {
+    constructor(options: unknown) {
+      resolverOptions(options);
+    }
+    resolveAnswers = resolveDs;
+  },
+}));
 vi.mock('@/lib/evlog', () => ({
   useLogger: () => logger,
+  log,
   withEvlog: (handler: unknown) => handler,
 }));
+
+const dsAnswer = {
+  name: 'example.com',
+  type: 'DS',
+  data: {
+    keyTag: 2371,
+    algorithm: 13,
+    digestType: 2,
+    digest: Buffer.alloc(32),
+  },
+};
 
 const fetchMock = vi.fn();
 // Answer each _for-sale name from its records; other names do not exist.
@@ -62,6 +89,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   verisign({ Registrar: 'Example Registrar, Inc.' });
   listings({});
+  resolveDs.mockResolvedValue({ answers: [dsAnswer], trace: [], zone: 'com' });
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -75,6 +103,7 @@ describe('domain summary API', () => {
       });
       expect(whoisDomain).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
+      expect(resolveDs).not.toHaveBeenCalled();
     },
   );
 
@@ -91,11 +120,14 @@ describe('domain summary API', () => {
         status: 'registered',
         registrar: 'Example Registrar, Inc.',
         createdAt: '1995-08-14',
-        dnssec: 'signedDelegation',
+        dnssec: 'Signed',
         sale: null,
       },
     });
     expect(whoisDomain).toHaveBeenCalledWith('example.com', expect.anything());
+    // DNSSEC comes from the parent zone's DS records, not WHOIS.
+    expect(resolveDs).toHaveBeenCalledWith('example.com', 'DS');
+    expect(resolverOptions).toHaveBeenCalledWith({ timeoutMs: 5000 });
     expect(logger.error).not.toHaveBeenCalled();
   });
 
@@ -112,7 +144,6 @@ describe('domain summary API', () => {
         status: 'registered',
         registrar: 'Not listed',
         createdAt: 'Not listed',
-        dnssec: 'Not listed',
       },
     });
   });
@@ -138,7 +169,7 @@ describe('domain summary API', () => {
           status: 'unknown',
           registrar: 'Unavailable',
           createdAt: 'Unavailable',
-          dnssec: 'Unavailable',
+          dnssec: 'Signed',
           sale: null,
         },
       });
@@ -155,6 +186,45 @@ describe('domain summary API', () => {
       cache: 'public, max-age=600, s-maxage=1800',
       tiles: { status: 'unregistered' },
     });
+  });
+
+  it('reads an empty DS answer as unsigned, cached for long', async () => {
+    resolveDs.mockResolvedValue({ answers: [], trace: [], zone: 'com' });
+    expect(await summary('example.com')).toMatchObject({
+      cache: 'public, max-age=600, s-maxage=1800',
+      tiles: { dnssec: 'Unsigned' },
+    });
+  });
+
+  it('reads unavailable, briefly cached and warned when the DS servers do not answer', async () => {
+    const error = new UserFacingError({
+      title: 'Authoritative DNS servers did not answer',
+      description: 'Every available authoritative nameserver failed.',
+      retryable: true,
+    });
+    resolveDs.mockRejectedValue(error);
+    expect(await summary('example.com')).toMatchObject({
+      status: 200,
+      cache: 'public, max-age=60, s-maxage=60',
+      tiles: { registrar: 'Example Registrar, Inc.', dnssec: 'Unavailable' },
+    });
+    expect(log.warn).toHaveBeenCalledExactlyOnceWith({
+      message: 'ds_lookup_failed',
+      domain: 'example.com',
+      error,
+    });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('reports an unexpected DS lookup failure as an error', async () => {
+    const error = new Error('Lookup failed');
+    resolveDs.mockRejectedValue(error);
+    expect(await summary('example.com')).toMatchObject({
+      tiles: { dnssec: 'Unavailable' },
+    });
+    expect(logger.set).toHaveBeenCalledWith({ event: 'ds_lookup_failed' });
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(error);
+    expect(log.warn).not.toHaveBeenCalled();
   });
 
   it('keeps WHOIS, caches briefly and logs when the sale lookup fails', async () => {

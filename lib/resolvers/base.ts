@@ -5,7 +5,6 @@ import {
   UserFacingError,
   type UserFacingErrorPayload,
 } from '@/lib/user-facing-error';
-import { serializeError } from '@/lib/utils';
 
 export type RecordType = (typeof ALL_RECORD_TYPES)[number];
 
@@ -80,7 +79,7 @@ export abstract class DnsResolver {
         message: 'record_type_lookup_failed',
         domain,
         recordType: types[index],
-        error: serializeError(reason),
+        error: reason,
       });
       const error = expected ? reason.payload : FALLBACK_LOOKUP_ERROR;
       response[types[index]] = { records: [], trace: [], error };
