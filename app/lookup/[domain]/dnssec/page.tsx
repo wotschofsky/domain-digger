@@ -61,6 +61,9 @@ const describeKeySignature = ({
   }
 };
 
+const describeMissingKeys = (zone: DsChainZone): string =>
+  zone.keysInspected === false ? 'DNSKEY lookup skipped' : 'No DNSKEYs';
+
 const isBroken = (status: DsChainVerdict): boolean =>
   status === 'mismatch' || status === 'bad-signature';
 
@@ -72,14 +75,24 @@ const DEADLINE_MS = 12_000;
 
 const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   const { domain } = await params;
-  const resolver = new AuthoritativeResolver({ dnssecOk: true });
+  let resolver: AuthoritativeResolver | undefined;
   let chain;
 
   try {
     chain = await resolveDsChainWithin(
       domain,
-      (name, type) => resolver.resolveAnswers(name, type),
+      (name, type, signal) => {
+        resolver ??= new AuthoritativeResolver({
+          dnssecOk: true,
+          signal,
+          requestRetries: 0,
+          parentDelegations: true,
+        });
+
+        return resolver.resolveAnswers(name, type);
+      },
       DEADLINE_MS,
+      { stopAtBreak: true },
     );
   } catch (error) {
     if (error instanceof DsChainNameNotFoundError) {
@@ -109,10 +122,17 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
           {VERDICT_LABELS[chain.verdict]}
           {chain.breakAt ? ` at ${chain.breakAt}` : ''}
         </h2>
-        {coveringZone !== chain.name && (
+        {!chain.inspectionStopped && coveringZone !== chain.name && (
           <p className="text-sm">
             {chain.name} is not a zone of its own; it is covered by{' '}
             <span className="font-medium">{coveringZone}</span>.
+          </p>
+        )}
+        {chain.inspectionStopped && (
+          <p className="text-sm">
+            Inspection stopped at {chain.breakAt} because the chain verdict is
+            settled. Descendant zones and the queried name’s existence were not
+            checked.
           </p>
         )}
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -156,7 +176,7 @@ const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
                   </ul>
                 ) : (
                   <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    No DNSKEYs
+                    {describeMissingKeys(zone)}
                   </p>
                 )}
                 {zone.keySignature && (
