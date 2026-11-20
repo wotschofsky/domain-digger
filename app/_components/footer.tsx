@@ -8,6 +8,7 @@ import PoweredByVercel from '@/assets/powered-by-vercel.svg';
 import { LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn } from '@/lib/utils';
 
+import { AnalyticsConsent } from './analytics-consent';
 import { Logo } from './logo';
 
 type VercelBadgeProps = HTMLAttributes<HTMLAnchorElement>;
@@ -73,6 +74,7 @@ export const Footer: FC = () => (
           <VercelBadge />
         </div>
       </div>
+      <AnalyticsConsent />
     </div>
   </footer>
 );

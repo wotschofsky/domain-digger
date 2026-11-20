@@ -1,5 +1,9 @@
 import { initBotId } from 'botid/client/core';
 
+import { initializePostHog } from '@/lib/posthog';
+
+initializePostHog();
+
 initBotId({ protect: [{ path: '/api/is-human', method: 'POST' }] });
 
 // Queue Plausible events reported before its script loads (such as the BotID

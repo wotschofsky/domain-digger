@@ -18,6 +18,28 @@ For full functionality, Domain Digger relies on Google BigQuery.
 
 Credentials are provided through environment variables. Using [a .env file as per the Next.js docs](https://nextjs.org/docs/basic-features/environment-variables#loading-environment-variables) is recommended. All required variables are documented in the [example env file](./.env.example).
 
+### PostHog analytics trial
+
+PostHog runs alongside Plausible when `NEXT_PUBLIC_POSTHOG_KEY` is set in a
+production build. Set `NEXT_PUBLIC_POSTHOG_HOST` to the ingestion host for the
+project's region (EU: `https://eu.i.posthog.com`). Use the public project key,
+not a personal API key. Leave the key unset in preview deployments to keep
+their traffic out of the production project.
+
+Visitors can allow or decline PostHog in the analytics preferences panel and
+change their choice using the link in the footer. Capture and analytics
+persistence are disabled by default. Once allowed, PostHog records pageviews
+(including client-side navigation) and the existing custom analytics events.
+Plausible continues independently, including when PostHog is declined.
+
+Session replay, if enabled in the PostHog project, masks text and inputs.
+Autocapture, person profiles, surveys and automatic error capture are disabled.
+Custom event properties still contain the existing lookup domains, copied
+values, IP details and outbound URLs; replay masking does not redact those
+explicit event properties. PostHog therefore represents consenting visitors,
+not a census of all human visitors. Bot filtering is an estimate, not proof
+that every remaining visit is human.
+
 ### GitHub token
 
 `GITHUB_TOKEN` is used for two GitHub GraphQL queries: displaying recent
