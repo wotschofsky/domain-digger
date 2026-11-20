@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams, useSelectedLayoutSegment } from 'next/navigation';
 import type { FC } from 'react';
 
 import { Button } from '@/components/ui/button';
 
+import { LOOKUP_FEATURES, withResolverParams } from '@/lib/lookup-features';
 import { isWildcardDomain } from '@/lib/utils';
 
 type RelatedDomainsProps = {
@@ -37,6 +39,12 @@ export const RelatedDomains: FC<RelatedDomainsProps> = ({
 }) => {
   const domains = getRecommendations(original);
 
+  // Stay on the current tab and keep its resolver selection
+  const selectedSegment = useSelectedLayoutSegment();
+  const searchParams = useSearchParams();
+  const tabPath =
+    LOOKUP_FEATURES.find((f) => f.segment === selectedSegment)?.path ?? '';
+
   return (
     <div className="flex flex-wrap gap-4">
       {domains.map((domain) => (
@@ -47,7 +55,14 @@ export const RelatedDomains: FC<RelatedDomainsProps> = ({
           className="h-6 p-2 text-xs whitespace-nowrap"
           aria-label={`Results for ${domain}`}
         >
-          <Link href={`/lookup/${domain}`}>{domain}</Link>
+          <Link
+            href={withResolverParams(
+              `/lookup/${domain}${tabPath}`,
+              searchParams.toString(),
+            )}
+          >
+            {domain}
+          </Link>
         </Button>
       ))}
     </div>
