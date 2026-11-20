@@ -1,5 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npx -y pnpm@11.1.1 install --frozen-lockfile",
+  "buildCommand": "npx -y pnpm@11.1.1 run build",
   "functions": {
     "app/api/internal/resolve/arn/route.ts": { "regions": ["arn1"] },
     "app/api/internal/resolve/bom/route.ts": { "regions": ["bom1"] },
