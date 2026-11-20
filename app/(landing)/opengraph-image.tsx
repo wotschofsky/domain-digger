@@ -162,7 +162,7 @@ export const handler = async () => {
         <span>SSL Certs ✅</span>
       </span>
 
-      {/* eslint-disable-next-line @next/next/no-img-element -- ImageResponse renders this image on the server. */}
+      {/* oxlint-disable-next-line nextjs/no-img-element -- ImageResponse renders this image on the server. */}
       <img
         alt=""
         src={`data:image/png;base64,${globeImage}`}

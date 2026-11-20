@@ -293,7 +293,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     <>
       <form ref={measureRef} className="relative" onSubmit={handleSubmit}>
         {domain === initialValue ? (
-          // eslint-disable-next-line @next/next/no-img-element
+          // oxlint-disable-next-line nextjs/no-img-element -- Google serves a 64px favicon.
           <img
             className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2"
             src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(initialValue)}`}
@@ -385,7 +385,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                     </>
                   ) : (
                     <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {/* oxlint-disable-next-line nextjs/no-img-element -- Google serves a 64px favicon. */}
                       <img
                         className="mr-2 inline-block size-4"
                         src={`https://www.google.com/s2/favicons?sz=64&domain_url=${encodeURIComponent(value)}`}

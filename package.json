@@ -10,9 +10,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "oxlint",
     "test": "vitest",
     "test:format": "prettier --cache --check .",
+    "test:types": "NODE_ENV=development next typegen && tsc --noEmit",
     "format": "prettier --cache --write ."
   },
   "dependencies": {
@@ -82,15 +83,12 @@
     "@types/node": "^26.6.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "@typescript-eslint/eslint-plugin": "^8.72.1",
     "babel-plugin-react-compiler": "^1.0.0",
-    "eslint": "^10.13.0",
-    "eslint-config-next": "16.4.3",
-    "eslint-plugin-react-compiler": "19.1.0-rc.2",
     "happy-dom": "^21.0.4",
+    "oxlint": "^1.94.0",
     "prettier": "^3.9.10",
     "prettier-plugin-tailwindcss": "^0.8.1",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   },
   "pnpm": {
