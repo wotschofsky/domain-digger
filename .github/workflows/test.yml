@@ -1,5 +1,10 @@
 name: Testing
 
+# Fork PRs run this workflow without maintainer approval (repo setting: Actions >
+# "Require approval for first-time contributors who are new to GitHub"). That is
+# only safe while it stays secret-free on `pull_request` with read-only
+# permissions. Never add secrets, write permissions or `pull_request_target` here
+# without tightening that setting first.
 permissions:
   contents: read
 

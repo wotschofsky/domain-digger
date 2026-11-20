@@ -46,7 +46,7 @@ describe('WalkContext', () => {
       );
       expect(load).toHaveBeenCalledTimes(50);
       expect(
-        walk.queried('example.com', 'A', ['192.0.2.1', '192.0.2.51']),
+        walk.queried('example.com', ['A'], ['192.0.2.1', '192.0.2.51']),
       ).toEqual(['192.0.2.1']);
       return '';
     });
@@ -100,5 +100,49 @@ describe('WalkContext', () => {
       expect(walk.deeper().pastDeadline).toBe(true);
       return '';
     }, 0);
+  });
+
+  it('stops leftover work after a timeout, not after an answer', async () => {
+    const load = async () => 'response';
+    const timeout = { ms: 8000, error: () => new Error('timed out') };
+    vi.useFakeTimers();
+    try {
+      let answered: Walk | undefined;
+      await WalkContext.run<string, string>(
+        async (walk) => {
+          answered = walk;
+          return 'answer';
+        },
+        undefined,
+        timeout,
+      );
+      await vi.advanceTimersByTimeAsync(8000);
+      // A sibling lookup that lost the race keeps its budget, even past the
+      // time the timeout would have fired.
+      expect(answered!.send('example.com', 'A', '192.0.2.1', load)).not.toBe(
+        'exhausted',
+      );
+      expect(answered!.timedOut).toBe(false);
+
+      let stalled: Walk | undefined;
+      const result = WalkContext.run<string, string>(
+        async (walk) => {
+          stalled = walk;
+          return new Promise<string>(() => {});
+        },
+        undefined,
+        timeout,
+      );
+      const settled = expect(result).rejects.toThrow('timed out');
+      await vi.advanceTimersByTimeAsync(8000);
+      await settled;
+      expect(stalled!.send('example.com', 'A', '192.0.2.1', load)).toBe(
+        'exhausted',
+      );
+      expect(stalled!.hasStepsLeft).toBe(false);
+      expect(stalled!.timedOut).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

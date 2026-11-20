@@ -60,6 +60,19 @@ export const getIpDetails = async (ip: string) => {
     );
 
   const data = (await response.json()) as Record<string, any>;
+
+  // ip-api reports lookup failures with HTTP 200 and status: "fail", so the
+  // HTTP check above cannot catch them. Without this the caller receives an
+  // object whose fields are all undefined, which renders as a valid but
+  // empty result instead of an error.
+  if (data.status === 'fail')
+    throw new UserFacingError({
+      title: "Couldn't look up this IP address",
+      description: `ip-api.com could not resolve this address${
+        typeof data.message === 'string' ? `: ${data.message}` : '.'
+      }`,
+    });
+
   delete data.status;
 
   return data as IpDetails;

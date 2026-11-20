@@ -1,5 +1,6 @@
 import { act, Activity } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { type Cache, SWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SearchForm } from './search-form';
@@ -13,26 +14,48 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({}),
   useSelectedLayoutSegment: () => null,
 }));
-vi.mock('swr/immutable', () => ({ default: () => ({ data: undefined }) }));
-vi.mock('@/app/api/user-ip/hook', () => ({
-  useUserIp: () => '192.0.2.1',
+vi.mock('@/app/api/search-suggestions/hook', () => ({
+  useSearchSuggestions: () => [],
 }));
 vi.mock('@/lib/analytics', () => ({
   useAnalytics: () => ({ reportEvent }),
 }));
-vi.mock('./ip-details-modal', () => ({
-  IpDetailsModal: ({ open }: { open: boolean }) =>
+vi.mock('./my-ip-modal', () => ({
+  MyIpModal: ({ open }: { open: boolean }) =>
     open ? <div role="dialog" /> : null,
+}));
+vi.mock('./ip-details-modal', () => ({
+  IpDetailsModal: ({
+    open,
+    ip,
+    onOpenChange,
+  }: {
+    open: boolean;
+    ip: string;
+    onOpenChange: (open: boolean) => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label={`IP Details for ${ip}`}>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null,
 }));
 
 describe('search form', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let cache: Cache;
+  const fetcher = vi.fn();
+  const fetch = vi.fn();
 
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     router.push.mockReset();
     reportEvent.mockReset();
+    fetcher.mockReset();
+    fetch.mockReset().mockRejectedValue(new TypeError('Network unavailable'));
+    vi.stubGlobal('fetch', fetch);
+    cache = new Map();
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -47,12 +70,144 @@ describe('search form', () => {
   const render = async (mode: 'visible' | 'hidden') => {
     await act(async () =>
       root.render(
-        <Activity mode={mode}>
-          <SearchForm autofocus={false} />
-        </Activity>,
+        <SWRConfig value={{ provider: () => cache, fetcher }}>
+          <Activity mode={mode}>
+            <SearchForm autofocus={false} />
+          </Activity>
+        </SWRConfig>,
       ),
     );
   };
+
+  it.each([
+    [undefined, undefined],
+    ['192.0.2.1', undefined],
+    [undefined, '2001:db8::1'],
+    ['192.0.2.1', '2001:db8::1'],
+  ])(
+    'always offers My IP and anonymizes cached addresses (%s, %s)',
+    async (ipv4, ipv6) => {
+      if (ipv4)
+        cache.set('user-ip:4', {
+          data: { status: 'detected', provider: 'icanhazip', ip: ipv4 },
+        });
+      if (ipv6)
+        cache.set('user-ip:6', {
+          data: { status: 'detected', provider: 'icanhazip', ip: ipv6 },
+        });
+      await render('visible');
+      expect(fetcher).not.toHaveBeenCalled();
+      const input = container.querySelector<HTMLInputElement>('input')!;
+      await act(async () => input.focus());
+      const row = Array.from(container.querySelectorAll('li')).find((item) =>
+        item.textContent?.includes('Your IP addresses'),
+      )!;
+      expect(row).toBeDefined();
+      const addresses = [
+        ipv4 ? '192.xxx.xxx.xxx' : null,
+        ipv6 ? '2001:xxxx:xxxx:xxxx:…' : null,
+      ].filter(Boolean);
+      expect(row.textContent).toBe(
+        `Your IP addresses${addresses.length ? ` (${addresses.join(', ')})` : ''}`,
+      );
+      await act(async () => {
+        window.dispatchEvent(new Event('online'));
+        window.dispatchEvent(new Event('focus'));
+      });
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(
+        reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
+      ).toHaveLength(0);
+    },
+  );
+
+  it('anonymizes cached alternative-provider results without revealing the full IP on hover', async () => {
+    const ipv6 = '2001:0db8:1234:5678:90ab:cdef:1234:5678';
+    cache.set('user-ip:6', {
+      data: { status: 'detected', provider: 'ident.me', ip: ipv6 },
+    });
+    await render('visible');
+    await act(async () =>
+      container.querySelector<HTMLInputElement>('input')!.focus(),
+    );
+    expect(container.textContent).toContain(
+      'Your IP addresses (2001:xxxx:xxxx:xxxx:…)',
+    );
+    expect(container.querySelector(`[title="${ipv6}"]`)).toBeNull();
+    expect(container.textContent).not.toContain(ipv6);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('detects and previews both addresses before opening the dialog for the first time', async () => {
+    let finishIpv6!: (response: Response) => void;
+    const ipv6 = new Promise<Response>((resolve) => {
+      finishIpv6 = resolve;
+    });
+    fetch.mockImplementation((url: string) =>
+      url.includes('ipv4.')
+        ? Promise.resolve(new Response('203.0.113.42'))
+        : ipv6,
+    );
+    await render('visible');
+    expect(fetch).not.toHaveBeenCalled();
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => input.focus());
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toContain(
+      'Your IP addresses (203.xxx.xxx.xxx)',
+    );
+    expect(container.textContent).not.toContain('203.0.113.42');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => finishIpv6(new Response('2001:db8:abcd::1234')));
+    expect(container.textContent).toContain(
+      'Your IP addresses (203.xxx.xxx.xxx, 2001:xxxx:xxxx:xxxx:…)',
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => {
+      input.blur();
+      input.focus();
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not detect addresses when searching for a domain', async () => {
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, 'example.com');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.focus());
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('opens details for the parsed address and returns focus to search when closed', async () => {
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, ' user@2001:db8::1 ');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.form!.requestSubmit());
+    expect(container.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(
+      container.querySelector('[role="dialog"]')?.getAttribute('aria-label'),
+    ).toBe('IP Details for 2001:db8::1');
+    expect(router.push).not.toHaveBeenCalled();
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('[role="dialog"] button')!
+        .click(),
+    );
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(input);
+  });
 
   it.each(['mouse', 'keyboard'])(
     'tracks opening My IP via %s without sending the IP address',
@@ -61,7 +216,9 @@ describe('search form', () => {
       const input = container.querySelector<HTMLInputElement>('input')!;
       await act(async () => input.focus());
 
-      expect(reportEvent).not.toHaveBeenCalled();
+      expect(
+        reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
+      ).toHaveLength(0);
 
       if (activation === 'mouse') {
         const suggestion = Array.from(container.querySelectorAll('li')).find(
@@ -83,7 +240,9 @@ describe('search form', () => {
       }
 
       expect(container.querySelector('[role="dialog"]')).not.toBeNull();
-      expect(reportEvent.mock.calls).toEqual([['My IP: Open', {}]]);
+      expect(
+        reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
+      ).toEqual([['My IP: Open', {}]]);
       expect(router.push).not.toHaveBeenCalled();
     },
   );
