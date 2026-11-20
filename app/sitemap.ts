@@ -9,13 +9,18 @@ import { getTopDomains } from '@/lib/search';
 import { deduplicate } from '@/lib/utils';
 
 const LANDING_PAGES = LOOKUP_FEATURES.map((feature) => feature.landingPath);
-const RESULTS_SUBPATHS = LOOKUP_FEATURES.map((feature) => feature.path);
+// The map page shows bots a block page instead of results
+const RESULTS_SUBPATHS = LOOKUP_FEATURES.filter(
+  (feature) => feature.id !== 'map',
+).map((feature) => feature.path);
 
 const getProgrammaticPaths = async () => {
   const topDomains = await getTopDomains(1000);
 
   const namedDomains = deduplicate([...EXAMPLE_DOMAINS, ...topDomains]);
-  const tlds = deduplicate(namedDomains.map((d) => parseTldts(d).publicSuffix));
+  const tlds = deduplicate(
+    namedDomains.flatMap((d) => parseTldts(d).publicSuffix ?? []),
+  );
 
   const allDomains = [
     ...namedDomains,
