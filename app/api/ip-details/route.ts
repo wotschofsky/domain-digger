@@ -3,6 +3,7 @@ import isIP from 'validator/lib/isIP';
 
 import { useLogger, withEvlog } from '@/lib/evlog';
 import { getIpDetails, lookupReverse } from '@/lib/ips';
+import { UserFacingError } from '@/lib/user-facing-error';
 
 export type IpLookupResponse = Pick<
   Awaited<ReturnType<typeof getIpDetails>>,
@@ -32,10 +33,27 @@ export const GET = withEvlog(async (request: Request) => {
     );
   }
 
-  const [data, reverse] = await Promise.all([
-    getIpDetails(ip),
-    lookupReverse(ip),
-  ]);
+  let data: Awaited<ReturnType<typeof getIpDetails>>;
+  let reverse: string[];
+  try {
+    [data, reverse] = await Promise.all([getIpDetails(ip), lookupReverse(ip)]);
+  } catch (error) {
+    // A lookup that failed for a reason the visitor can act on (a private
+    // range, a reserved range) is not a server fault, so pass the message on
+    // instead of letting it become a bare 500 with nothing in it.
+    if (!(error instanceof UserFacingError)) throw error;
+
+    const status = error.payload.retryable ? 503 : 422;
+    log.set({ ip, status, reason: 'lookup_failed' });
+
+    return NextResponse.json(error.payload, {
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
 
   log.set({
     ip,
