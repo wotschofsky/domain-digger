@@ -81,4 +81,13 @@ describe('GET /api/ip-details', () => {
     expect(response.status).toBe(400);
     expect(getIpDetails).not.toHaveBeenCalled();
   });
+
+  it('rejects device-local interface IDs before making network requests', async () => {
+    const response = await call(encodeURIComponent('fe80::1%lo0'));
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).message).toContain('Interface-scoped');
+    expect(getIpDetails).not.toHaveBeenCalled();
+    expect(lookupReverse).not.toHaveBeenCalled();
+  });
 });

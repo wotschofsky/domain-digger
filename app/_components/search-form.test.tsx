@@ -247,6 +247,42 @@ describe('search form', () => {
     },
   );
 
+  it('opens details for an IP URL host instead of navigating', async () => {
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, 'https://8.8.8.8/path');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.form!.requestSubmit());
+    expect(
+      container.querySelector('[role="dialog"]')?.getAttribute('aria-label'),
+    ).toBe('IP Details for 8.8.8.8');
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
+  it('explains why local interface-scoped addresses are unsupported', async () => {
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, 'fe80::1%lo0');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => input.form!.requestSubmit());
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'Interface-scoped',
+    );
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(router.push).not.toHaveBeenCalled();
+  });
+
   // Navigating away hides the page with Activity instead of unmounting it, so
   // pressing Back shows the same form instance again rather than a fresh one
   it('can search again after navigating back to it', async () => {

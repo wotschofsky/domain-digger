@@ -15,6 +15,7 @@ import {
   type KeyboardEventHandler,
   type MouseEventHandler,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -110,6 +111,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     .filter((ip): ip is string => Boolean(ip))
     .map(anonymizeIp)
     .join(', ');
+  const [invalidReason, setInvalidReason] = useState<string | null>(null);
+  const errorId = useId();
 
   const [measureRef, { width: inputWidth }] = useMeasure<HTMLFormElement>();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +162,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         ?.toString() || '';
 
     const parsed = parseSearchInput(domain);
+    setInvalidReason(null);
 
     switch (parsed.type) {
       case 'ip':
@@ -173,6 +177,11 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         });
         return;
       case 'invalid':
+        if (parsed.reason === 'scoped-ip')
+          setInvalidReason(
+            'Interface-scoped IPv6 addresses cannot be looked up from this server.',
+          );
+
         setState(FormStates.Invalid);
         return;
     }
@@ -317,6 +326,10 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
               : 'Search'
           }
           aria-label="Domain"
+          aria-invalid={state === FormStates.Invalid || undefined}
+          aria-describedby={
+            state === FormStates.Invalid && invalidReason ? errorId : undefined
+          }
           enterKeyHint="go"
           value={(() => {
             if (selectedSuggestion !== null) {
@@ -401,6 +414,15 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         )}
       </form>
 
+      {state === FormStates.Invalid && invalidReason && (
+        <p
+          id={errorId}
+          role="alert"
+          className="mt-2 text-sm text-red-700 dark:text-red-400"
+        >
+          {invalidReason}
+        </p>
+      )}
       {ipDialog?.type === 'own' && (
         <MyIpModal open onOpenChange={handleIpDialogOpenChange} />
       )}
