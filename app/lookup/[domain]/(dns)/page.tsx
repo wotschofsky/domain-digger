@@ -3,6 +3,7 @@ import { notFound, redirect, RedirectType } from 'next/navigation';
 import type { FC } from 'react';
 
 import { ALL_RECORD_TYPES } from '@/lib/data';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { getRecordContextEntries } from '@/lib/record-context';
 import { getResolverFromName } from '@/lib/resolvers/utils';
 import { recordLookupAfter } from '@/lib/search';
@@ -31,16 +32,10 @@ export const generateMetadata = async ({
   if (location) normalizedParams.set('location', location);
   const suffix = normalizedParams.size ? `?${normalizedParams.toString()}` : '';
 
-  return {
+  return getPageMetadata({
+    url: `/lookup/${domain}${suffix}`,
     title: `DNS Lookup for ${domain}`,
-    openGraph: {
-      title: `DNS Lookup for ${domain}`,
-      url: `/lookup/${domain}${suffix}`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}${suffix}`,
-    },
-  };
+  });
 };
 
 const DnsResultsPage: FC<DnsResultsPageProps> = async ({

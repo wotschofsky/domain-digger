@@ -1,6 +1,13 @@
+import { log } from 'evlog';
 import { describe, expect, it, vi } from 'vitest';
 
 import { getGlobalLookupResults, getHasDifferences } from './map';
+import {
+  DnsResolver,
+  type RecordType,
+  type ResolverResponse,
+} from './resolvers/base';
+import { UserFacingError } from './user-facing-error';
 
 vi.mock('./data', () => ({
   REGIONS: {
@@ -58,6 +65,71 @@ describe('getGlobalLookupResults', () => {
         },
       },
     ]);
+  });
+});
+
+// Answers every type the same way in each region, except the failing ones,
+// which fail like a SERVFAIL from a DoH resolver.
+class RegionResolver extends DnsResolver {
+  constructor(private readonly failing: readonly RecordType[] = []) {
+    super();
+  }
+
+  public async resolveRecordType(
+    domain: string,
+    type: RecordType,
+  ): Promise<ResolverResponse> {
+    if (this.failing.includes(type)) {
+      throw new UserFacingError({
+        title: 'DNS resolver could not complete the lookup',
+        description: 'SERVFAIL',
+      });
+    }
+    return {
+      records: [{ name: domain, type, TTL: 300, data: `${type} data` }],
+      trace: [],
+    };
+  }
+}
+
+describe('getGlobalLookupResults with failures', () => {
+  vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+  it('treats a failed type as unknown rather than as different records', async () => {
+    const results = await getGlobalLookupResults('example.com', (code) =>
+      code === 'fra' ? new RegionResolver(['A']) : new RegionResolver(),
+    );
+    expect(results.map((region) => region.results)).toEqual([
+      { A: null, AAAA: ['AAAA data'], CNAME: ['CNAME data'] },
+      { A: ['A data'], AAAA: ['AAAA data'], CNAME: ['CNAME data'] },
+    ]);
+    expect(getHasDifferences(results.map((region) => region.results))).toBe(
+      false,
+    );
+  });
+
+  it('keeps the other regions when one region fails entirely', async () => {
+    const results = await getGlobalLookupResults('example.com', (code) =>
+      code === 'fra'
+        ? new RegionResolver(['A', 'AAAA', 'CNAME'])
+        : new RegionResolver(),
+    );
+    expect(results.map((region) => region.results)).toEqual([
+      { A: null, AAAA: null, CNAME: null },
+      { A: ['A data'], AAAA: ['AAAA data'], CNAME: ['CNAME data'] },
+    ]);
+    expect(getHasDifferences(results.map((region) => region.results))).toBe(
+      false,
+    );
+  });
+
+  it('throws when every region fails', async () => {
+    await expect(
+      getGlobalLookupResults(
+        'example.com',
+        () => new RegionResolver(['A', 'AAAA', 'CNAME']),
+      ),
+    ).rejects.toBeInstanceOf(UserFacingError);
   });
 });
 

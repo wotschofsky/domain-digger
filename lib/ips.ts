@@ -1,6 +1,7 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
+import { INCOMPLETE_LOOKUP_ERROR } from './resolvers/base-doh';
 import { CloudflareDoHResolver } from './resolvers/cloudflare';
 import { UserFacingError } from './user-facing-error';
 
@@ -59,6 +60,19 @@ export const getIpDetails = async (ip: string) => {
     );
 
   const data = (await response.json()) as Record<string, any>;
+
+  // ip-api reports lookup failures with HTTP 200 and status: "fail", so the
+  // HTTP check above cannot catch them. Without this the caller receives an
+  // object whose fields are all undefined, which renders as a valid but
+  // empty result instead of an error.
+  if (data.status === 'fail')
+    throw new UserFacingError({
+      title: "Couldn't look up this IP address",
+      description: `ip-api.com could not resolve this address${
+        typeof data.message === 'string' ? `: ${data.message}` : '.'
+      }`,
+    });
+
   delete data.status;
 
   return data as IpDetails;
@@ -118,7 +132,12 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
     );
     return records.map((record) => record.data.replace(/\.$/, ''));
   } catch (error) {
-    if (error instanceof UserFacingError) throw error;
+    if (error instanceof UserFacingError) {
+      // A reverse zone that fails to resolve (often a lame delegation) has
+      // no hostnames to show; the IP's other details are still worth it.
+      if (error.payload === INCOMPLETE_LOOKUP_ERROR) return [];
+      throw error;
+    }
     throw new UserFacingError(
       {
         title: "Couldn't reach Cloudflare DNS",
