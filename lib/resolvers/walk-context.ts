@@ -5,15 +5,20 @@ const MAX_RECURSION_DEPTH = 20;
 // one is free and bounded by the walk's step budget instead -- like BIND's
 // max-recursion-queries: the depth cap alone still lets a crafted zone
 // answer every glueless delegation with 4 fresh NS names and fork
-// 4^depth sub-walks. One attempt costs up to 4 UDP tries plus a TCP
-// fallback each (see the resolver's requestLoader/sendRequest), so this also
-// caps the walk's packet ceiling at ~8x this value. Far above any honest
-// lookup's needs (a deep all-glueless walk stays under ~30).
+// 4^depth sub-walks. One request costs up to 2 tries of a UDP query and a
+// TCP fallback each, plus one plain-DNS retry (see the resolver's
+// requestLoader/sendRequest), so this also caps the walk's packet ceiling at
+// ~5x this value. Far above any honest lookup's needs (a deep all-glueless
+// walk stays under ~30).
 const MAX_CANDIDATES_PER_WALK = 50;
-// Must exceed one candidate's full retry budget (4 attempts x 3s = ~12s):
-// a single blackholed first server has to leave room to reach a healthy
-// fallback, while all-blackholed candidates stay bounded (~2 budgets).
-const FALLBACK_DEADLINE_MS = 15_000;
+// Must exceed a blackholed candidate's retry budget (2 attempts x 1s, plus
+// up to 1s when it rejects EDNS first): a single blackholed first server has
+// to leave room to reach a healthy fallback, while all-blackholed candidates
+// stay bounded.
+// ponytail: a server that answers UDP truncated and then times out over TCP
+// costs up to 6s (7s after an EDNS rejection), reaching this; raise the
+// deadline if that shows up.
+const FALLBACK_DEADLINE_MS = 6_000;
 
 // Name case and a trailing dot don't make a request distinct.
 const requestKey = (
@@ -28,6 +33,7 @@ type SharedState<Response, Result> = {
   remainingSteps: number;
   requests: Map<string, Promise<Response>>;
   fallback?: Result;
+  timedOut?: true;
 };
 
 // The state of one top-level authoritative walk and its rules. The deadline,
@@ -48,13 +54,23 @@ export class WalkContext<Response, Result> {
     // Request keys ("name type nameserver") and NS-name keys ("NS name")
     // this branch descends from.
     private readonly ancestors: ReadonlySet<string>,
+    // Whether this branch may ask servers above the registrable domain the
+    // shared referral probe instead of its own question (see the resolver).
+    readonly probes = true,
   ) {}
 
   // Runs one walk under a fresh context. A recorded fallback is adopted only
-  // if the whole walk fails, so a sibling path that answers still wins.
+  // if the whole walk fails or times out, so a sibling path that answers
+  // still wins. The timeout, unlike the fallback deadline, ends the walk
+  // wherever it is: requests already sent settle on their own in the
+  // background (retrying as usual), and no new step or request starts.
+  // ponytail: requests in flight at the timeout are not aborted and run out
+  // their retry budget (up to ~7s each) in the background; thread an
+  // AbortSignal through the resolver's requests if that load shows up.
   static async run<Response, Result>(
     walk: (context: WalkContext<Response, Result>) => Promise<Result>,
     fallbackDeadlineMs = FALLBACK_DEADLINE_MS,
+    timeout?: { ms: number; error: () => Error },
   ): Promise<Result> {
     const context = new WalkContext<Response, Result>(
       {
@@ -66,11 +82,25 @@ export class WalkContext<Response, Result> {
       0,
       new Set(),
     );
+    let timer: NodeJS.Timeout | undefined;
+    const expired = new Promise<never>((_, reject) => {
+      if (timeout)
+        timer = setTimeout(() => {
+          // Whatever the walk left running starts no further step or
+          // request.
+          context.shared.timedOut = true;
+          context.shared.remaining = 0;
+          context.shared.remainingSteps = 0;
+          reject(timeout.error());
+        }, timeout.ms);
+    });
     try {
-      return await walk(context);
+      return await Promise.race([walk(context), expired]);
     } catch (error) {
       if (context.shared.fallback) return context.shared.fallback;
       throw error;
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -92,6 +122,11 @@ export class WalkContext<Response, Result> {
 
   get hasStepsLeft(): boolean {
     return this.shared.remainingSteps > 0;
+  }
+
+  // Set once the walk's timeout fired: what still runs is leftover work.
+  get timedOut(): boolean {
+    return this.shared.timedOut ?? false;
   }
 
   // Past the deadline, a step stops trying fallback nameservers.
@@ -123,14 +158,17 @@ export class WalkContext<Response, Result> {
     return pending;
   }
 
-  // Of `nameservers`, those this walk sent the request to.
+  // Of `nameservers`, those this walk sent a request for `domain` of any of
+  // `recordTypes` to.
   queried(
     domain: string,
-    recordType: RecordType,
+    recordTypes: readonly RecordType[],
     nameservers: string[],
   ): string[] {
     return nameservers.filter((nameserver) =>
-      this.shared.requests.has(requestKey(domain, recordType, nameserver)),
+      recordTypes.some((recordType) =>
+        this.shared.requests.has(requestKey(domain, recordType, nameserver)),
+      ),
     );
   }
 
@@ -146,6 +184,17 @@ export class WalkContext<Response, Result> {
   // This branch, one delegation level down.
   deeper(): WalkContext<Response, Result> {
     return this.branch(this.depth + 1);
+  }
+
+  // This branch, re-walking because a cached delegation failed: the failed
+  // cut is evicted first, and the resolver's getCachedDelegation picks which
+  // cached cut it starts at, or the root when it finds none. It asks its
+  // own question instead of the probe: a probe already sent for this name is
+  // cached for the whole lookup and can replay its referral to the servers
+  // that just failed. A server already asked the walk's own question is not
+  // asked again.
+  rewalk(): WalkContext<Response, Result> {
+    return new WalkContext(this.shared, this.depth + 1, this.ancestors, false);
   }
 
   // A sub-walk resolving an NS hostname, one level down. An NS name already
@@ -173,6 +222,7 @@ export class WalkContext<Response, Result> {
       this.shared,
       depth,
       ancestor ? new Set([...this.ancestors, ancestor]) : this.ancestors,
+      this.probes,
     );
   }
 }

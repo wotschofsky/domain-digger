@@ -12,6 +12,9 @@ vi.mock('next/dynamic', () => ({
       <div role="img" aria-label={`Map at ${location.join(', ')}`} />
     ),
 }));
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('@/lib/analytics', () => ({
   useAnalytics: () => ({ reportEvent: vi.fn() }),
 }));

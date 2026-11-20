@@ -33,6 +33,7 @@ import {
   findLookupFeatureBySegment,
   getResultsHref,
   type LookupFeatureId,
+  withResolverParams,
 } from '@/lib/lookup-features';
 import { normalizeDomain, parseSearchInput } from '@/lib/search-parser';
 import { useUserIp } from '@/lib/user-ip';
@@ -143,7 +144,8 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
       return;
     }
 
-    router.push(target);
+    // Read at submit time so landing pages stay prerendered
+    router.push(withResolverParams(target, window.location.search));
   };
 
   const handleSubmit = (event: FormEvent) => {
