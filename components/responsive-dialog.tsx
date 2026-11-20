@@ -61,7 +61,18 @@ export const ResponsiveDialog: FC<ResponsiveDialogProps> = ({
     );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={className}>
+      <DialogContent
+        className={cn('outline-hidden', className)}
+        // Focus the dialog itself, not its first control: the first control is
+        // usually a minor action like a copy button, and focusing the dialog
+        // lets screen readers announce the title first. It also keeps that
+        // button's tooltip from popping up while the dialog animates in.
+        // Vaul's drawer already skips autofocus.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          (event.currentTarget as HTMLElement).focus({ preventScroll: true });
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="sr-only">
