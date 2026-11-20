@@ -8,6 +8,7 @@ import {
   lookupForSale,
 } from '@/lib/for-sale';
 import { formatSalePrice } from '@/lib/format-sale-price';
+import { measureLookup } from '@/lib/lookup-observability';
 import { isValidDomain } from '@/lib/utils';
 import { getWhoisOutcome, type WhoisOutcome } from '@/lib/whois';
 
@@ -93,18 +94,23 @@ export const GET = withEvlog(async (request: Request) => {
   log.set({ domain });
 
   const [whois, sale, dnssec] = await Promise.all([
-    getWhoisOutcome(domain),
-    lookupForSale(domain).catch((error: unknown) => {
-      log.set({ event: 'sale_lookup_failed' });
-      log.error(error instanceof Error ? error : new Error(String(error)));
-      return null;
-    }),
-    getDnssecSummary(domain),
+    measureLookup('registration_summary', domain, () =>
+      getWhoisOutcome(domain),
+    ),
+    measureLookup('sale_summary', domain, () => lookupForSale(domain)).catch(
+      (error: unknown) => {
+        log.set({ event: 'sale_lookup_failed' });
+        log.error(error instanceof Error ? error : new Error(String(error)));
+        return null;
+      },
+    ),
+    measureLookup('dnssec_summary', domain, () => getDnssecSummary(domain)),
   ]);
 
   const tiles = toTiles(domain, whois, sale, dnssec);
-  // The status tells a failed WHOIS lookup ("Unavailable") apart from a
-  // registry that leaves fields out ("Not listed").
+  // Log returned states too: a resolved stage can still be unknown WHOIS
+  // ("Unavailable", unlike a registry that leaves fields out: "Not listed")
+  // or unavailable DNSSEC.
   log.set({ tiles });
 
   return NextResponse.json(tiles, {

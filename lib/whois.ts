@@ -2,7 +2,7 @@ import { log } from 'evlog';
 import { type firstResult, whoisDomain } from 'whoiser';
 
 import { UserFacingError } from './user-facing-error';
-import { getBaseDomain, serializeError } from './utils';
+import { getBaseDomain } from './utils';
 
 type WhoisResponse = {
   server: string;
@@ -99,7 +99,7 @@ export const getWhoisOutcome = async (
     log.warn({
       message: 'whois_summary_failed',
       domain: baseDomain,
-      error: serializeError(error),
+      error,
     });
     return { status: 'unknown' };
   }
