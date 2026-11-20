@@ -15,9 +15,28 @@ export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
 export const deduplicate = <T>(array: T[]): T[] => Array.from(new Set(array));
 
+// evlog JSON-stringifies events in production, which drops an Error's own fields, cause included.
+export const serializeError = (error: unknown) => {
+  const err = error instanceof Error ? error : new Error(String(error));
+
+  return {
+    name: err.name,
+    message: err.message,
+    stack: err.stack,
+    cause: (err.cause as Error | undefined)?.message,
+  };
+};
+
 // From https://stackoverflow.com/a/30471209/12475254
-export const retry = <T extends Function>(fn: T, maxRetries: number) =>
+// onError sees every failed attempt, the last one included. It runs inside the
+// existing catch, so observing attempts doesn't delay when the result settles.
+export const retry = <T extends Function>(
+  fn: T,
+  maxRetries: number,
+  onError?: (err: Error) => void,
+) =>
   fn().catch((err: Error) => {
+    onError?.(err);
     if (maxRetries <= 0) {
       throw err;
     }
@@ -25,7 +44,7 @@ export const retry = <T extends Function>(fn: T, maxRetries: number) =>
       message: 'retrying_after_error',
       error: err.message?.toString(),
     });
-    return retry(fn, maxRetries - 1);
+    return retry(fn, maxRetries - 1, onError);
   });
 
 // ABased on https://en.wikipedia.org/wiki/Domain_name#Domain_name_syntax
@@ -78,9 +97,11 @@ export const isValidDomain = (domain: string) => {
 export const getBaseDomain = (domain: string) => {
   // Remove wildcard prefix to avoid base domain not being extracted correctly
   // Remove trailing dot
-  const cleanedDomain = domain.replace(/^\*\./, '').replace(/\.$/, '');
-  const baseDomain = getDomain(cleanedDomain) || cleanedDomain;
-  return baseDomain;
+  const cleanedDomain = domain
+    .replace(/^\*\./, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
+  return getDomain(cleanedDomain) || cleanedDomain;
 };
 
 export const isWildcardDomain = (domain: string) =>

@@ -8,13 +8,20 @@ import { useRouter } from 'next/navigation';
 import { type FC, type RefObject, useEffect, useRef, useState } from 'react';
 import type { GlobeMethods } from 'react-globe.gl';
 
+import type { MapLookupResults } from '@/lib/map';
 import { cn } from '@/lib/utils';
 
 import styles from './results-globe.module.css';
 
 const Globe = dynamic(() => import('react-globe.gl'), { ssr: false });
 
-const createMarkerResults = (results: string[]) => {
+const createMarkerResults = (type: string, results: string[] | null) => {
+  if (results === null) {
+    return h(
+      'p.text-xs.text-zinc-500.dark:text-zinc-400.italic',
+      `${type} lookup failed`,
+    );
+  }
   if (results.length === 0) {
     return undefined;
   }
@@ -39,11 +46,7 @@ const createMarkerResults = (results: string[]) => {
 
 const createMarker = (
   label: string,
-  results: {
-    A: string[];
-    AAAA: string[];
-    CNAME: string[];
-  },
+  results: MapLookupResults,
   href: string,
   onClick: () => void,
 ) =>
@@ -70,13 +73,11 @@ const createMarker = (
 
       h(['h3', 'text-sm', 'font-bold'].join('.'), label),
 
-      createMarkerResults(results.A),
-      createMarkerResults(results.AAAA),
-      createMarkerResults(results.CNAME),
+      createMarkerResults('A', results.A),
+      createMarkerResults('AAAA', results.AAAA),
+      createMarkerResults('CNAME', results.CNAME),
 
-      results.A.length === 0 &&
-        results.AAAA.length === 0 &&
-        results.CNAME.length === 0
+      Object.values(results).every((values) => values?.length === 0)
         ? h(
             [
               'p',
@@ -113,11 +114,7 @@ type ResultsGlobeProps = {
     name: string;
     lat: number;
     lng: number;
-    results: {
-      A: string[];
-      AAAA: string[];
-      CNAME: string[];
-    };
+    results: MapLookupResults;
   }[];
 };
 
@@ -153,8 +150,10 @@ export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
     return createMarker(data.name, data.results, href, onClick);
   };
 
+  // The globe is as tall as the window, so its height is reserved up front or
+  // the footer jumps down once the globe has loaded
   return (
-    <div ref={wrapperRef} className={cn(styles.wrapper, 'w-full')}>
+    <div ref={wrapperRef} className={cn(styles.wrapper, 'min-h-screen w-full')}>
       <Globe
         ref={handleGlobeRef as unknown as RefObject<GlobeMethods | undefined>}
         atmosphereColor="#d4d4d8" // Zinc 300

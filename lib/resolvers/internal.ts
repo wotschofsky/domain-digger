@@ -1,6 +1,9 @@
 import { env } from '@/env';
 
-import { UserFacingError } from '../user-facing-error';
+import {
+  isUserFacingErrorPayload,
+  UserFacingError,
+} from '../user-facing-error';
 import {
   DnsResolver,
   type RecordType,
@@ -26,7 +29,7 @@ export class InternalDoHResolver extends DnsResolver {
     return baseUrl;
   }
 
-  private get requestInit() {
+  private get requestInit(): RequestInit {
     const headers: Record<string, string> = {};
 
     if (env.INTERNAL_API_SECRET) {
@@ -38,43 +41,18 @@ export class InternalDoHResolver extends DnsResolver {
         env.VERCEL_AUTOMATION_BYPASS_SECRET;
     }
 
-    if (Object.keys(headers).length === 0) {
-      return {};
-    }
-
-    return { headers };
+    return { cache: 'no-store', headers };
   }
 
   public async resolveRecordType(
     domain: string,
     type: RecordType,
   ): Promise<ResolverResponse> {
-    const url = this.getBaseUrl(this.location);
-    url.searchParams.set('resolver', this.resolver);
-    url.searchParams.set('type', type);
-    url.searchParams.set('domain', domain);
-
-    const response = await fetch(url, this.requestInit);
-    if (!response.ok) {
-      throw new UserFacingError(
-        {
-          title: `DNS resolver (${this.location}) is unavailable`,
-          description: `The DNS resolver for ${this.location} returned an error and may be temporarily down. Please try again shortly.`,
-          retryable: true,
-        },
-        {
-          cause: new Error(
-            `Failed to fetch results for ${this.location} from ${url}: ${response.status} ${response.statusText}`,
-          ),
-        },
-      );
-    }
-
-    const results = (await response.json()) as ResolverMultiResponse;
-
-    return results[type];
+    return (await this.resolveRecordTypes(domain, [type]))[type];
   }
 
+  // One request for every type; the route applies resolveRecordTypes' policy
+  // and returns failed types with their error intact.
   public async resolveRecordTypes(
     domain: string,
     types: readonly RecordType[],
@@ -86,6 +64,15 @@ export class InternalDoHResolver extends DnsResolver {
 
     const response = await fetch(url, this.requestInit);
     if (!response.ok) {
+      // The route answers a lookup where every type failed with its reason.
+      const payload: unknown = await response.json().catch(() => null);
+      if (isUserFacingErrorPayload(payload)) {
+        throw new UserFacingError(payload, {
+          cause: new Error(
+            `Lookup failed for ${this.location} at ${url}: ${response.status}`,
+          ),
+        });
+      }
       throw new UserFacingError(
         {
           title: `DNS resolver (${this.location}) is unavailable`,

@@ -1,6 +1,5 @@
 import { handler } from '../base';
 
-export const runtime = 'edge';
-export const preferredRegion = 'cpt1';
-
+// Pinned to cpt1 in vercel.json. Without that entry this route runs in the
+// project's default region and stops resolving from the location it promises.
 export const GET = handler;
