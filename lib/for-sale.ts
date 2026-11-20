@@ -23,6 +23,7 @@ export type ForSaleSummary = {
 };
 
 const safeLink = (value: string): string | null => {
+  // oxlint-disable-next-line no-control-regex -- rejecting control characters is the point
   if (/[\s\u0000-\u001f\u007f-\u009f\p{Bidi_Control}]/u.test(value))
     return null;
   try {
