@@ -25,8 +25,9 @@ through separate ingest requests; do not add them to server failures. Correlate
 using page, digest, timestamp, and browser/server deployment, where available.
 
 `lookup_stage_completed` means a promise returned. Registration can still be
-`unknown`, and DNSSEC can still be `unavailable`: use the domain-summary event's
-returned states to measure data availability. Use `subdomains_lookup_completed`
+`unknown` (`tiles.status`), and DNSSEC can still be `Unavailable`
+(`tiles.dnssec.value`): use the domain-summary event's returned states to
+measure data availability. Use `subdomains_lookup_completed`
 and `certificate_lookup_completed` to distinguish full, partial and timed-out
 work. Compare human and bot traffic and cache outcomes separately before
 interpreting changes in completion rates or latency. Check compute usage too.

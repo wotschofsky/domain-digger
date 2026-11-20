@@ -32,17 +32,14 @@ export const IpLink: FC<IpLinkProps> = ({ value }) => {
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild onClick={open}>
-            <a
-              className="cursor-pointer underline decoration-dotted underline-offset-4"
+            <button
+              type="button"
+              className="inline cursor-pointer text-left underline decoration-dotted underline-offset-4"
               aria-label={`Details for IP ${value}`}
-              tabIndex={0}
             >
               <span className="select-all">{value}</span>
-              <InfoIcon
-                role="button"
-                className="mx-1 inline-block size-3 -translate-y-0.5"
-              />
-            </a>
+              <InfoIcon className="mx-1 inline-block size-3 -translate-y-0.5" />
+            </button>
           </TooltipTrigger>
           <TooltipContent>
             <p>View IP Info</p>
@@ -50,7 +47,7 @@ export const IpLink: FC<IpLinkProps> = ({ value }) => {
         </Tooltip>
       </TooltipProvider>
 
-      <IpDetailsModal ip={value} open={isOpen} onOpenChange={setOpen} />
+      {isOpen && <IpDetailsModal ip={value} open onOpenChange={setOpen} />}
     </>
   );
 };

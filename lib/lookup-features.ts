@@ -56,3 +56,18 @@ export const LOOKUP_FEATURES = [
 ] as const;
 
 export type LookupType = (typeof LOOKUP_FEATURES)[number]['lookupType'];
+
+// The DNS tab's resolver selection, kept when a link switches to another domain
+const RESOLVER_PARAMS = ['resolver', 'location'] as const;
+
+export const withResolverParams = (path: string, currentSearch: string) => {
+  const current = new URLSearchParams(currentSearch);
+  const kept = new URLSearchParams();
+  for (const key of RESOLVER_PARAMS) {
+    const value = current.get(key);
+    if (value) kept.set(key, value);
+  }
+  // Not kept.size: browsers Next.js still targets (Safari 16.4) lack it
+  const query = kept.toString();
+  return query ? `${path}?${query}` : path;
+};
