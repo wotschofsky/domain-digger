@@ -25,21 +25,26 @@ export class UserFacingError extends Error {
   }
 }
 
+export const isUserFacingErrorPayload = (
+  value: unknown,
+): value is UserFacingErrorPayload => {
+  const payload = value as Record<string, unknown> | null;
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    typeof payload.title === 'string' &&
+    typeof payload.description === 'string' &&
+    (payload.retryable === undefined || typeof payload.retryable === 'boolean')
+  );
+};
+
 export const parseUserFacingDigest = (
   digest: string | undefined,
 ): UserFacingErrorPayload | null => {
   if (!digest || !digest.startsWith(SENTINEL)) return null;
   try {
-    const parsed = JSON.parse(digest.slice(SENTINEL.length));
-    if (
-      parsed &&
-      typeof parsed === 'object' &&
-      typeof parsed.title === 'string' &&
-      typeof parsed.description === 'string' &&
-      (parsed.retryable === undefined || typeof parsed.retryable === 'boolean')
-    ) {
-      return parsed as UserFacingErrorPayload;
-    }
+    const parsed: unknown = JSON.parse(digest.slice(SENTINEL.length));
+    if (isUserFacingErrorPayload(parsed)) return parsed;
   } catch {
     // fall through
   }

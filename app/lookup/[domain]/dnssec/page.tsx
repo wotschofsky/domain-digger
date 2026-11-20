@@ -1,3 +1,4 @@
+import { log } from 'evlog';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { FC } from 'react';
@@ -7,10 +8,13 @@ import {
   DsChainNameNotFoundError,
   type DsChainVerdict,
   type DsChainZone,
-  resolveDsChain,
+  resolveDsChainWithin,
 } from '@/lib/dnssec/ds-chain';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
 import { recordLookupAfter } from '@/lib/search';
+import { UserFacingError } from '@/lib/user-facing-error';
+import { serializeError } from '@/lib/utils';
 
 type DnssecResultsPageProps = {
   params: Promise<{ domain: string }>;
@@ -20,14 +24,10 @@ export const generateMetadata = async ({
   params,
 }: DnssecResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
-  return {
+  return getPageMetadata({
+    url: `/lookup/${domain}/dnssec`,
     title: `DNSSEC Lookup for ${domain}`,
-    openGraph: {
-      title: `DNSSEC Lookup for ${domain}`,
-      url: `/lookup/${domain}/dnssec`,
-    },
-    alternates: { canonical: `/lookup/${domain}/dnssec` },
-  };
+  });
 };
 
 const VERDICT_LABELS: Record<DsChainVerdict, string> = {
@@ -67,19 +67,33 @@ const isBroken = (status: DsChainVerdict): boolean =>
 const shortFingerprint = (hex: string): string =>
   hex.length > 24 ? `${hex.slice(0, 16)}…${hex.slice(-8)}` : hex;
 
+// Under the 15s function limit: a platform timeout logs nothing about which queries hung.
+const DEADLINE_MS = 12_000;
+
 const DnssecResultsPage: FC<DnssecResultsPageProps> = async ({ params }) => {
   const { domain } = await params;
   const resolver = new AuthoritativeResolver({ dnssecOk: true });
   let chain;
+
   try {
-    chain = await resolveDsChain(domain, (name, type) =>
-      resolver.resolveAnswers(name, type),
+    chain = await resolveDsChainWithin(
+      domain,
+      (name, type) => resolver.resolveAnswers(name, type),
+      DEADLINE_MS,
     );
   } catch (error) {
     if (error instanceof DsChainNameNotFoundError) {
       await recordLookupAfter(domain, 'dnssec', false);
       notFound();
     }
+
+    // onRequestError logs the rethrown error too, but without its cause.
+    log[error instanceof UserFacingError ? 'warn' : 'error']({
+      message: 'dnssec_lookup_failed',
+      domain,
+      error: serializeError(error),
+    });
+
     throw error;
   }
 

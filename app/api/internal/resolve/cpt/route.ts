@@ -1,10 +1,5 @@
 import { handler } from '../base';
 
-// Do not remove: Vercel only honours `preferredRegion` for functions on the edge
-// runtime. Without it this route falls back to the project's default region and
-// silently stops resolving DNS from the location its path name promises.
-// https://nextjs.org/docs/app/api-reference/file-conventions/route-segment-config/preferredRegion
-export const runtime = 'edge';
-export const preferredRegion = 'cpt1';
-
+// Pinned to cpt1 in vercel.json. Without that entry this route runs in the
+// project's default region and stops resolving from the location it promises.
 export const GET = handler;

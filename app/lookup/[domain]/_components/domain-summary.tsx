@@ -15,18 +15,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
-import type { DomainSummaryResponse } from '@/app/api/domain-summary/route';
-import { formatSalePrice } from '@/lib/format-sale-price';
-import { canonicalDnsName } from '@/lib/resolvers/base';
+import type { DomainSummaryTiles } from '@/app/api/domain-summary/route';
 
 type DomainSummaryTileProps = {
   title: string;
 } & (
-  | { loading: true; value?: ReactNode }
-  | { loading?: false; value: ReactNode }
+  { loading: true; value?: ReactNode } | { loading?: false; value: ReactNode }
 );
 
 const DomainSummaryTile: FC<DomainSummaryTileProps> = ({
@@ -47,7 +43,7 @@ const DomainSummaryTile: FC<DomainSummaryTileProps> = ({
 );
 
 type SaleListingLinkProps = {
-  href?: string;
+  href: string | null;
   children: ReactNode;
 };
 
@@ -106,25 +102,27 @@ const SaleListingLink: FC<SaleListingLinkProps> = ({ href, children }) => {
 
 export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
   const { data, error, isLoading, isValidating, mutate } =
-    useSWR<DomainSummaryResponse>(
+    useSWR<DomainSummaryTiles>(
       `/api/domain-summary?domain=${encodeURIComponent(domain)}`,
     );
 
   if (error && !data) {
     return (
-      <div className="flex items-center gap-4">
-        <p role="alert" className="text-sm text-zinc-500 dark:text-zinc-400">
-          Domain summary unavailable.
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
+      <p
+        role="alert"
+        className="flex flex-wrap items-baseline gap-x-1.5 text-sm text-zinc-500 dark:text-zinc-400"
+      >
+        <span>Domain summary unavailable</span>
+        <button
+          type="button"
+          className="cursor-pointer font-medium text-zinc-950 underline decoration-dotted underline-offset-4 hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-4 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-50 dark:hover:text-zinc-300"
           disabled={isValidating}
+          aria-busy={isValidating}
           onClick={() => void mutate().catch(() => undefined)}
         >
           {isValidating ? 'Retrying…' : 'Retry'}
-        </Button>
-      </div>
+        </button>
+      </p>
     );
   }
 
@@ -138,7 +136,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     );
   }
 
-  if (!data.whois.registered) {
+  if (data.status === 'unregistered') {
     return (
       <div className="flex flex-wrap gap-8">
         <DomainSummaryTile title="Status" value="Not registered" />
@@ -146,34 +144,22 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     );
   }
 
-  const { whois } = data;
-  // No sale tile when the WHOIS lookup failed and registration is only assumed.
-  const sale = whois.unknown ? null : data.sale;
-  const listing = sale?.listing;
-  const saleUrl =
-    listing?.links.find((link) => /^https?:\/\//i.test(link)) ??
-    listing?.links.find((link) => link.startsWith('mailto:'));
+  const { sale } = data;
 
   return (
     <div className="flex flex-wrap gap-8">
-      <DomainSummaryTile
-        title="Registrar"
-        value={whois.registrar || 'Unavailable'}
-      />
-      <DomainSummaryTile
-        title="Creation Date"
-        value={whois.createdAt || 'Unavailable'}
-      />
-      <DomainSummaryTile title="DNSSEC" value={whois.dnssec || 'Unavailable'} />
-      {sale && listing && (
+      <DomainSummaryTile title="Registrar" value={data.registrar} />
+      <DomainSummaryTile title="Creation Date" value={data.createdAt} />
+      <DomainSummaryTile title="DNSSEC" value={data.dnssec} />
+      {sale && (
         <DomainSummaryTile
           // Advertised prices are not binding and are labelled as such, as
           // RFC 10023 (§4) asks of anyone displaying them.
-          title={`For sale${sale.domain !== canonicalDnsName(domain) ? ` (${sale.domain})` : ''}${listing.prices.length ? ' · indicative price' : ''}`}
+          title={`For sale${sale.fallbackDomain ? ` (${sale.fallbackDomain})` : ''}${sale.prices.length ? ' · indicative price' : ''}`}
           value={
-            <SaleListingLink href={saleUrl}>
-              {listing.prices.length
-                ? listing.prices.map(formatSalePrice).join(' / ')
+            <SaleListingLink href={sale.link}>
+              {sale.prices.length
+                ? sale.prices.join(' / ')
                 : 'Advertised for sale'}
             </SaleListingLink>
           }

@@ -8,6 +8,7 @@ import {
   DsChainNameNotFoundError,
   type DsChainQuery,
   resolveDsChain,
+  resolveDsChainWithin,
 } from './ds-chain';
 import { genKey, signDnskeyRrset } from './test-helpers';
 import { ROOT_DNSKEY_RRSIG, ROOT_DNSKEYS, ROOT_NOW } from './test-vectors';
@@ -437,5 +438,26 @@ describe('resolveDsChain', () => {
     ]);
     expect(chain.verdict).toBe('bad-signature');
     expect(chain.zones[1].keySignature?.outcome).toBe('invalid');
+  });
+
+  it('names the queries still in flight when the deadline passes', async () => {
+    vi.useFakeTimers();
+
+    try {
+      const settled = resolveDsChainWithin(
+        'com',
+        () => new Promise(() => {}),
+        1000,
+      ).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(1000);
+      const error = await settled;
+
+      expect(error).toBeInstanceOf(UserFacingError);
+      expect((error as Error).cause).toMatchObject({
+        message: 'Still waiting after 1000ms for: . DNSKEY',
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
