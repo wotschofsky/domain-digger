@@ -1,8 +1,18 @@
 import { log } from 'evlog';
 import { type firstResult, whoisDomain } from 'whoiser';
 
+import { getRdapSummary } from './rdap';
 import { UserFacingError } from './user-facing-error';
 import { getBaseDomain, serializeError } from './utils';
+
+const WHOIS_FAILURE_PATTERN =
+  /rate[ -]?limit|limit exceeded|too many (?:requests|queries)|quota exceeded|try again later|temporarily unavailable|access denied/i;
+
+// The queried name is removed first: ratelimit.com's own record would otherwise read as a decline.
+const isDeclinedWhois = (raw: string, domain: string) =>
+  WHOIS_FAILURE_PATTERN.test(
+    raw.toLowerCase().replaceAll(domain.toLowerCase(), ''),
+  );
 
 type WhoisResponse = {
   server: string;
@@ -51,9 +61,20 @@ export const lookupWhois = async (
     );
   }
 
-  return responses
-    .filter(({ raw }) => raw)
-    .map(({ server, raw }) => [server, raw]);
+  // A blank response is no data (the not-found page); a declined one is a
+  // failure worth retrying.
+  const withData = responses.filter(({ raw }) => raw.trim() !== '');
+  const usable = withData.filter(({ raw }) => !isDeclinedWhois(raw, domain));
+  if (withData.length && !usable.length) {
+    throw new UserFacingError({
+      title: 'WHOIS lookup failed',
+      description:
+        'The WHOIS server declined the lookup. Please try again shortly.',
+      retryable: true,
+    });
+  }
+
+  return usable.map(({ server, raw }) => [server, raw]);
 };
 
 const UNREGISTERED_INDICATORS = [
@@ -92,9 +113,32 @@ export const getWhoisOutcome = async (
 ): Promise<WhoisOutcome> => {
   const baseDomain = getBaseDomain(domain);
 
+  try {
+    const rdap = await getRdapSummary(baseDomain);
+    if (rdap) return rdap;
+  } catch (error) {
+    log.warn({
+      message: 'rdap_summary_failed',
+      domain: baseDomain,
+      error: serializeError(error),
+    });
+  }
+
   let response: WhoisResponse;
   try {
     [response] = await queryWhois(baseDomain);
+    const { data, raw } = response;
+    if (
+      !raw.trim() &&
+      !data['Registrar'] &&
+      !data['Created Date'] &&
+      !data['DNSSEC']
+    ) {
+      throw new Error('WHOIS server returned no registration data');
+    }
+    if (isDeclinedWhois(raw, baseDomain)) {
+      throw new Error('WHOIS server declined or rate limited the lookup');
+    }
   } catch (error) {
     // Swallowed into "Unavailable" tiles, so nothing else logs it.
     log.warn({
