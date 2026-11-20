@@ -150,6 +150,13 @@ describe('parseSearchInput', () => {
       });
     });
 
+    it('looks up the host of a URL whose path or query contains an IP', () => {
+      expect(
+        parseSearchInput('https://www.example.com/?y=ipr:192.0.2.1:1793711503'),
+      ).toEqual({ type: 'domain', value: 'www.example.com' });
+      expect(parseSearchInput('example.com/8.8.8.8').type).not.toBe('ip');
+    });
+
     it('handles wildcard domains', () => {
       expect(parseSearchInput('*.example.com')).toEqual({
         type: 'domain',

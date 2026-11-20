@@ -1,6 +1,8 @@
 import DataLoader from 'dataloader';
 import isIP from 'validator/lib/isIP';
 
+import { INCOMPLETE_LOOKUP_ERROR } from './resolvers/base-doh';
+import { CloudflareDoHResolver } from './resolvers/cloudflare';
 import { UserFacingError } from './user-facing-error';
 
 type IpDetails = {
@@ -58,6 +60,19 @@ export const getIpDetails = async (ip: string) => {
     );
 
   const data = (await response.json()) as Record<string, any>;
+
+  // ip-api reports lookup failures with HTTP 200 and status: "fail", so the
+  // HTTP check above cannot catch them. Without this the caller receives an
+  // object whose fields are all undefined, which renders as a valid but
+  // empty result instead of an error.
+  if (data.status === 'fail')
+    throw new UserFacingError({
+      title: "Couldn't look up this IP address",
+      description: `ip-api.com could not resolve this address${
+        typeof data.message === 'string' ? `: ${data.message}` : '.'
+      }`,
+    });
+
   delete data.status;
 
   return data as IpDetails;
@@ -110,17 +125,19 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
     });
   }
 
-  const reverseDnsName = ipToDnsName(ip);
-
-  let response: Response;
   try {
-    response = await fetch(
-      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(reverseDnsName)}&type=PTR`,
-      {
-        headers: { Accept: 'application/dns-json' },
-      },
+    const { records } = await new CloudflareDoHResolver().resolveRecordType(
+      ipToDnsName(ip),
+      'PTR',
     );
+    return records.map((record) => record.data.replace(/\.$/, ''));
   } catch (error) {
+    if (error instanceof UserFacingError) {
+      // A reverse zone that fails to resolve (often a lame delegation) has
+      // no hostnames to show; the IP's other details are still worth it.
+      if (error.payload === INCOMPLETE_LOOKUP_ERROR) return [];
+      throw error;
+    }
     throw new UserFacingError(
       {
         title: "Couldn't reach Cloudflare DNS",
@@ -131,27 +148,6 @@ export const lookupReverse = async (ip: string): Promise<string[]> => {
       { cause: error },
     );
   }
-
-  if (!response.ok)
-    throw new UserFacingError(
-      {
-        title: 'Cloudflare DNS is unavailable',
-        description:
-          'Cloudflare DNS returned an error and may be temporarily down. Please try again shortly.',
-        retryable: true,
-      },
-      {
-        cause: new Error(
-          `Cloudflare DNS responded with HTTP ${response.status} ${response.statusText}`,
-        ),
-      },
-    );
-
-  const data = await response.json();
-
-  return data.Answer
-    ? data.Answer.map((record: { data: string }) => record.data.slice(0, -1))
-    : [];
 };
 
 // Standardize last segment of IP address to reduce the number of requests and avoid rate limiting

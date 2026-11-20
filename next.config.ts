@@ -3,7 +3,16 @@ import type { NextConfig } from 'next';
 import { getSponsorImageRemotePatterns } from './lib/sponsors';
 
 const nextConfig = async (): Promise<NextConfig> => ({
+  cacheComponents: true,
+  env: {
+    // A stale browser bundle reports its own deployment, not the one ingesting the log.
+    NEXT_PUBLIC_DEPLOYMENT_COMMIT: process.env.VERCEL_GIT_COMMIT_SHA ?? 'local',
+    NEXT_PUBLIC_DEPLOYMENT_ID: process.env.VERCEL_DEPLOYMENT_ID ?? 'local',
+  },
+  partialPrefetching: false,
   reactStrictMode: false,
+  // Code is already held to compiler rules by eslint-plugin-react-compiler
+  reactCompiler: true,
   turbopack: {
     rules: {
       '*.svg': {
@@ -45,6 +54,12 @@ const nextConfig = async (): Promise<NextConfig> => ({
     },
   ],
   experimental: {
+    // Native Rust port of the React Compiler instead of the Babel transform
+    turbopackRustReactCompiler: true,
+    // Dev and build: drop stale compilation work from memory and the disk cache
+    turbopackGc: true,
+    // Dev only: compile client-side import() targets on first request
+    turbopackLazyDynamicImports: true,
     staleTimes: {
       dynamic: 60,
       static: 300,

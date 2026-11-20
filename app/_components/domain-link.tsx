@@ -1,5 +1,8 @@
+'use client';
+
 import { ExternalLinkIcon } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import type { FC } from 'react';
 
 import {
@@ -9,49 +12,57 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+import { withResolverParams } from '@/lib/lookup-features';
 import { isWildcardDomain } from '@/lib/utils';
 
 type DomainLinkProps = {
   domain: string;
 };
 
-export const DomainLink: FC<DomainLinkProps> = ({ domain }) => (
-  <>
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Link
-            className="underline decoration-dotted underline-offset-4 select-all"
-            href={`/lookup/${domain.toLowerCase()}`}
-            prefetch={false}
-            aria-label={`Results for ${domain}`}
-          >
-            <span>{domain}</span>
-          </Link>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>View Domain Records</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-    {!isWildcardDomain(domain) && (
+export const DomainLink: FC<DomainLinkProps> = ({ domain }) => {
+  const searchParams = useSearchParams();
+
+  return (
+    <>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <a
-              href={`https://${domain.toLowerCase()}`}
-              target="_blank"
-              rel="noreferrer nofollow"
-              aria-label={`Visit for ${domain}`}
+            <Link
+              className="underline decoration-dotted underline-offset-4 select-all"
+              href={withResolverParams(
+                `/lookup/${domain.toLowerCase()}`,
+                searchParams.toString(),
+              )}
+              prefetch={false}
+              aria-label={`Results for ${domain}`}
             >
-              <ExternalLinkIcon className="mx-1 inline-block size-3 -translate-y-0.5" />
-            </a>
+              <span>{domain}</span>
+            </Link>
           </TooltipTrigger>
           <TooltipContent>
-            <p>Visit URL</p>
+            <p>View Domain Records</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-    )}
-  </>
-);
+      {!isWildcardDomain(domain) && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href={`https://${domain.toLowerCase()}`}
+                target="_blank"
+                rel="noreferrer nofollow"
+                aria-label={`Visit for ${domain}`}
+              >
+                <ExternalLinkIcon className="mx-1 inline-block size-3 -translate-y-0.5" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Visit URL</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+    </>
+  );
+};

@@ -159,6 +159,13 @@ describe('getBaseDomain', () => {
     expect(getBaseDomain('xn--fiqs8s')).toBe('xn--fiqs8s');
     expect(getBaseDomain('com')).toBe('com');
   });
+
+  it('always returns lowercase, including when no base domain is found', () => {
+    expect(getBaseDomain('WWW.Example.COM')).toBe('example.com');
+    expect(getBaseDomain('*.Example.COM.')).toBe('example.com');
+    expect(getBaseDomain('COM')).toBe('com');
+    expect(getBaseDomain('ARPA')).toBe('arpa');
+  });
 });
 
 describe('isWildcardDomain', () => {

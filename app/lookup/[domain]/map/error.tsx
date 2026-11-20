@@ -6,11 +6,11 @@ import { BoundaryError } from '@/components/boundary-error';
 
 type MapErrorProps = {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 };
 
-const MapError: FC<MapErrorProps> = ({ error, unstable_retry }) => (
-  <BoundaryError error={error} retry={unstable_retry} />
+const MapError: FC<MapErrorProps> = ({ error, retry }) => (
+  <BoundaryError error={error} retry={retry} />
 );
 
 export default MapError;
