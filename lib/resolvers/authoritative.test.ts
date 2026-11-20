@@ -62,7 +62,7 @@ describe('AuthoritativeResolver transport policy', () => {
     ).toEqual(['192.0.2.1', '192.0.2.2']);
   });
 
-  it('returns empty records when every nameserver refuses a plain query', async () => {
+  it('returns empty records when every nameserver refuses an RRSIG query', async () => {
     // Cloudflare authoritatives REFUSE direct RRSIG queries; that must not
     // 500 the records page.
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
@@ -367,7 +367,7 @@ describe('AuthoritativeResolver transport policy', () => {
     );
   });
 
-  it('surfaces all-REFUSED plain non-RRSIG queries as retryable failures', async () => {
+  it('surfaces all-REFUSED non-RRSIG queries as retryable failures', async () => {
     // The REFUSED-as-empty tolerance exists for RRSIG browsing only; a domain
     // whose nameservers refuse ordinary lookups must not render "no records".
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
@@ -726,6 +726,105 @@ describe('AuthoritativeResolver transport policy', () => {
     expect(
       udpTransport.mock.calls.map(([request]) => request.nameserver),
     ).toContain('192.0.2.2');
+  });
+
+  it('answers NS from the parent delegation when the zone itself is lame', async () => {
+    // The parent delegates to servers that refuse the zone (e.g. NS left at
+    // a provider that dropped it): NS still has the parent's answer, other
+    // types still fail.
+    const resolver = new AuthoritativeResolver({
+      udpTransport: async ({ domain, recordType, nameserver }) =>
+        nameserver === '192.0.2.1'
+          ? ({
+              ...response(domain, recordType, 'NOERROR'),
+              authorities: [
+                {
+                  name: 'example.eu',
+                  type: 'NS',
+                  ttl: 86400,
+                  data: 'ns1.example.net',
+                },
+              ],
+              additionals: [
+                {
+                  name: 'ns1.example.net',
+                  type: 'A',
+                  ttl: 300,
+                  data: '8.8.8.8',
+                },
+              ],
+            } as DecodedPacket)
+          : response(domain, recordType, 'REFUSED'),
+      rootServers: async () => ['192.0.2.1'],
+    });
+
+    const ns = await resolver.resolveRecordType('example.eu', 'NS');
+    expect(ns.records.map((record) => record.data)).toEqual([
+      'ns1.example.net',
+    ]);
+    // The root got the shared A question, so the trace names that.
+    expect(ns.trace.at(-1)).toMatch(
+      /^A example\.eu @ 192\.0\.2\.1 -> referral failed .*using parent delegation/,
+    );
+    await expect(
+      resolver.resolveRecordType('example.eu', 'A'),
+    ).rejects.toBeInstanceOf(UserFacingError);
+  });
+
+  it('prefers a healthy sibling path over a lame parent delegation', async () => {
+    // Two parent servers disagree: one delegates to a server that refuses
+    // the zone, the other to a healthy one. The healthy answer must win.
+    const referral = (
+      domain: string,
+      recordType: RecordType,
+      zone: string,
+      ns: string,
+      ip: string,
+    ) =>
+      ({
+        ...response(domain, recordType, 'NOERROR'),
+        authorities: [{ name: zone, type: 'NS', ttl: 300, data: ns }],
+        additionals: [{ name: ns, type: 'A', ttl: 300, data: ip }],
+      }) as DecodedPacket;
+    const resolver = new AuthoritativeResolver({
+      udpTransport: async ({ domain, recordType, nameserver }) => {
+        switch (nameserver) {
+          case '192.0.2.1':
+            return referral(domain, recordType, 'eu', 'a.eu', '8.8.8.8');
+          case '192.0.2.2':
+            return referral(domain, recordType, 'eu', 'b.eu', '9.9.9.9');
+          case '8.8.8.8':
+            return referral(
+              domain,
+              recordType,
+              'example.eu',
+              'lame.net',
+              '1.1.1.1',
+            );
+          case '9.9.9.9':
+            return referral(
+              domain,
+              recordType,
+              'example.eu',
+              'ok.net',
+              '1.0.0.1',
+            );
+          case '1.0.0.1':
+            return {
+              ...response(domain, recordType, 'NOERROR', [
+                { name: domain, type: 'NS', ttl: 300, data: 'ok.net' },
+              ]),
+              flag_aa: true,
+            } as DecodedPacket;
+          default:
+            return response(domain, recordType, 'REFUSED');
+        }
+      },
+      rootServers: async () => ['192.0.2.1', '192.0.2.2'],
+    });
+
+    const ns = await resolver.resolveRecordType('example.eu', 'NS');
+    expect(ns.records.map((record) => record.data)).toEqual(['ok.net']);
   });
 
   it('falls back to a deferred answer when a later referral fails', async () => {
@@ -1298,7 +1397,7 @@ describe('AuthoritativeResolver transport policy', () => {
     ]);
     expect(result.trace).toContainEqual(
       expect.stringMatching(
-        /glue for example\.com \(8\.8\.8\.8\) failed .*8\.8\.8\.8: timeout \(4 attempts\).*resolving NS names instead/,
+        /glue for example\.com \(8\.8\.8\.8\) failed .*8\.8\.8\.8: timeout \(2 attempts\).*resolving NS names instead/,
       ),
     );
     // The healthy servers replace the dead glue in the delegation cache.
@@ -1319,7 +1418,7 @@ describe('AuthoritativeResolver transport policy', () => {
     let attempts = 0;
     const udpTransport = vi.fn<AuthoritativeUdpTransport>(
       async ({ domain, recordType }) => {
-        if (++attempts < 3) throw new Error(`timeout ${attempts}`);
+        if (++attempts < 2) throw new Error(`timeout ${attempts}`);
         return {
           ...response(domain, recordType, 'NOERROR', [
             { name: domain, type: 'A', ttl: 300, data: '203.0.113.10' },
@@ -1336,7 +1435,7 @@ describe('AuthoritativeResolver transport policy', () => {
     const result = await resolver.resolveRecordType('example.com', 'A');
 
     expect(result.trace).toEqual([
-      'A example.com @ 192.0.2.1 -> retried after 2 failed attempts: timeout 1; timeout 2',
+      'A example.com @ 192.0.2.1 -> retried after 1 failed attempts: timeout 1',
       'A example.com @ 192.0.2.1 (udp) -> answer: 203.0.113.10',
     ]);
   });
@@ -1932,10 +2031,10 @@ describe('AuthoritativeResolver transport policy', () => {
     ).resolves.toMatchObject({
       records: [expect.objectContaining({ data: '203.0.113.10' })],
     });
-    // One load of the dead server: a first try plus three retries.
+    // One load of the dead server: a first try plus one retry.
     expect(
       udpTransport.mock.calls.filter(([r]) => r.nameserver === '8.8.8.8'),
-    ).toHaveLength(4);
+    ).toHaveLength(2);
   });
 
   it('follows matching public glue from a referral', async () => {
@@ -2151,6 +2250,60 @@ describe('isMatchingDnsResponse', () => {
     expect(isMatchingDnsResponse(packet, 43, 'example.com', 'A')).toBe(false);
     expect(isMatchingDnsResponse(packet, 42, 'other.example', 'A')).toBe(false);
     expect(isMatchingDnsResponse(packet, 42, 'example.com', 'AAAA')).toBe(
+      false,
+    );
+  });
+
+  // An OPT record whose extended RCODE bits are 1 turns a NOERROR header
+  // into BADVERS (RCODE 16).
+  const optRecord = (extendedRcode: number) => ({
+    type: 'OPT' as const,
+    name: '.',
+    udpPayloadSize: 1232,
+    extendedRcode,
+    ednsVersion: 0,
+    flags: 0,
+    flag_do: false,
+    options: [],
+  });
+
+  it.each([
+    ['FORMERR', response('example.com', 'A', 'FORMERR')],
+    ['NOTIMP', response('example.com', 'A', 'NOTIMP')],
+    [
+      'BADVERS',
+      {
+        ...response('example.com', 'A', 'NOERROR'),
+        additionals: [optRecord(1)],
+      },
+    ],
+  ])(
+    'accepts a %s that echoes no question only for an EDNS query that gets the plain retry',
+    (_, rejection) => {
+      const bare = { ...rejection, questions: [] };
+      expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
+        true,
+      );
+      expect(isMatchingDnsResponse(bare, 43, 'example.com', 'A', true)).toBe(
+        false,
+      );
+      // A TCP, DNSSEC or plain query gets no plain retry, so the question
+      // must match.
+      expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A')).toBe(false);
+    },
+  );
+
+  it('accepts no other reply that echoes no question', () => {
+    const bare = { ...response('example.com', 'A', 'NOERROR'), questions: [] };
+    expect(isMatchingDnsResponse(bare, 42, 'example.com', 'A', true)).toBe(
+      false,
+    );
+    const withOpt: DecodedPacket = {
+      ...response('example.com', 'A', 'FORMERR'),
+      questions: [],
+      additionals: [optRecord(0)],
+    };
+    expect(isMatchingDnsResponse(withOpt, 42, 'example.com', 'A', true)).toBe(
       false,
     );
   });

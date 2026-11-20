@@ -1,40 +1,36 @@
+import type * as Whoiser from 'whoiser';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { UserFacingError } from '@/lib/user-facing-error';
 
 import { GET } from './route';
 
-const { lookupSale, lookupWhois, resolveDs, logger, log } = vi.hoisted(() => ({
-  lookupSale: vi.fn(),
-  lookupWhois: vi.fn(),
-  resolveDs: vi.fn(),
-  logger: { set: vi.fn(), error: vi.fn() },
-  log: { warn: vi.fn() },
+const { whoisDomain, resolveDs, resolverOptions, logger, log } = vi.hoisted(
+  () => ({
+    whoisDomain: vi.fn(),
+    resolveDs: vi.fn(),
+    resolverOptions: vi.fn(),
+    logger: { set: vi.fn(), error: vi.fn() },
+    log: { warn: vi.fn() },
+  }),
+);
+vi.mock('whoiser', async (importOriginal) => ({
+  ...(await importOriginal<typeof Whoiser>()),
+  whoisDomain,
 }));
-vi.mock('@/lib/for-sale', () => ({ lookupForSale: lookupSale }));
-vi.mock('@/lib/whois', () => ({ getWhoisSummary: lookupWhois }));
-
 vi.mock('@/lib/resolvers/authoritative', () => ({
   AuthoritativeResolver: class {
+    constructor(options: unknown) {
+      resolverOptions(options);
+    }
     resolveAnswers = resolveDs;
   },
 }));
-
 vi.mock('@/lib/evlog', () => ({
   useLogger: () => logger,
   log,
   withEvlog: (handler: unknown) => handler,
 }));
-
-const whois = {
-  registered: true,
-  registrar: 'Example registrar',
-  createdAt: '2020-01-01',
-};
-const sale = {
-  domain: 'example.com',
-  listing: { prices: ['EUR 2500'], links: [], texts: [] },
-};
 
 const dsAnswer = {
   name: 'example.com',
@@ -47,228 +43,239 @@ const dsAnswer = {
   },
 };
 
-const request = (domain?: string) =>
-  new Request(
-    `https://digger.tools/api/domain-summary${domain === undefined ? '' : `?domain=${encodeURIComponent(domain)}`}`,
+const fetchMock = vi.fn();
+// Answer each _for-sale name from its records; other names do not exist.
+const listings = (records: Record<string, string[]>) =>
+  fetchMock.mockImplementation(async (url: URL) => {
+    const name = url.searchParams.get('name')!;
+    const answers = records[name.replace(/^_for-sale\./, '')];
+    return new Response(
+      JSON.stringify(
+        answers
+          ? {
+              Status: 0,
+              Answer: answers.map((data) => ({
+                name: `${name}.`,
+                type: 16,
+                TTL: 300,
+                data,
+              })),
+            }
+          : { Status: 3 },
+      ),
+    );
+  });
+
+const verisign = (fields: Record<string, string>) =>
+  whoisDomain.mockResolvedValue({
+    'whois.verisign-grs.com': { ...fields, __raw: 'Domain Name: EXAMPLE.COM' },
+  });
+
+const summary = async (domain?: string) => {
+  const response = await GET(
+    new Request(
+      `https://digger.tools/api/domain-summary${domain === undefined ? '' : `?domain=${encodeURIComponent(domain)}`}`,
+    ),
   );
+  return {
+    status: response.status,
+    cache: response.headers.get('Cache-Control'),
+    tiles: await response.json(),
+  };
+};
+
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.stubGlobal('fetch', fetchMock);
+  verisign({ Registrar: 'Example Registrar, Inc.' });
+  listings({});
+  resolveDs.mockResolvedValue({ answers: [dsAnswer], trace: [], zone: 'com' });
+});
+afterEach(() => vi.unstubAllGlobals());
 
 describe('domain summary API', () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    lookupWhois.mockResolvedValue(whois);
-    lookupSale.mockResolvedValue(sale);
-
-    resolveDs.mockResolvedValue({
-      answers: [dsAnswer],
-      trace: [],
-      zone: 'com',
-    });
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   it.each([undefined, '', 'bad/domain'])(
-    'rejects invalid domains before starting either lookup: %s',
+    'rejects invalid domains before looking anything up: %s',
     async (domain) => {
-      const response = await GET(request(domain));
-      expect(response.status).toBe(400);
-      expect(response.headers.get('Cache-Control')).toBe('no-store');
-      expect(lookupWhois).not.toHaveBeenCalled();
-      expect(lookupSale).not.toHaveBeenCalled();
+      expect(await summary(domain)).toMatchObject({
+        status: 400,
+        cache: 'no-store',
+      });
+      expect(whoisDomain).not.toHaveBeenCalled();
+      expect(fetchMock).not.toHaveBeenCalled();
       expect(resolveDs).not.toHaveBeenCalled();
     },
   );
 
-  it('returns all summaries with the existing WHOIS cache policy', async () => {
-    const response = await GET(request('www.example.com'));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ whois, dnssec: true, sale });
-
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=600, s-maxage=1800',
-    );
-
-    expect(lookupWhois).toHaveBeenCalledWith('www.example.com');
-    expect(lookupSale).toHaveBeenCalledWith('www.example.com');
+  it('shows the registry’s fields for a registered domain, cached for long', async () => {
+    verisign({
+      Registrar: 'Example Registrar, Inc.',
+      'Created Date': '1995-08-14T04:00:00Z',
+      DNSSEC: 'signedDelegation',
+    });
+    expect(await summary('www.example.com')).toEqual({
+      status: 200,
+      cache: 'public, max-age=600, s-maxage=1800',
+      tiles: {
+        status: 'registered',
+        registrar: 'Example Registrar, Inc.',
+        createdAt: '1995-08-14',
+        dnssec: 'Signed',
+        sale: null,
+      },
+    });
+    expect(whoisDomain).toHaveBeenCalledWith('example.com', expect.anything());
+    // DNSSEC comes from the parent zone's DS records, not WHOIS.
     expect(resolveDs).toHaveBeenCalledWith('example.com', 'DS');
+    expect(resolverOptions).toHaveBeenCalledWith({ timeoutMs: 5000 });
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
-  it('reports an empty DS answer as unsigned and caches it', async () => {
+  it('shows fields the registry leaves out as not listed', async () => {
+    whoisDomain.mockResolvedValue({
+      'whois.denic.de': {
+        'Domain Name': 'example.de',
+        __raw: 'Domain: example.de\nStatus: connect',
+      },
+    });
+    expect(await summary('example.de')).toMatchObject({
+      cache: 'public, max-age=600, s-maxage=1800',
+      tiles: {
+        status: 'registered',
+        registrar: 'Not listed',
+        createdAt: 'Not listed',
+      },
+    });
+  });
+
+  it.each([
+    ['rejects', () => whoisDomain.mockRejectedValue(new Error('Timeout'))],
+    [
+      'resolves a server error',
+      () =>
+        whoisDomain.mockResolvedValue({
+          'whois.verisign-grs.com': { error: 'Timeout' },
+        }),
+    ],
+  ])(
+    'reads unavailable, without a sale tile, briefly cached when WHOIS %s',
+    async (_, fail) => {
+      fail();
+      listings({ 'example.com': ['v=FORSALE1;fval=EUR2500'] });
+      expect(await summary('example.com')).toEqual({
+        status: 200,
+        cache: 'public, max-age=60, s-maxage=60',
+        tiles: {
+          status: 'unknown',
+          registrar: 'Unavailable',
+          createdAt: 'Unavailable',
+          dnssec: 'Signed',
+          sale: null,
+        },
+      });
+    },
+  );
+
+  it('shows an unregistered domain without a sale tile', async () => {
+    whoisDomain.mockResolvedValue({
+      'whois.verisign-grs.com': { __raw: 'No match for "EXAMPLE.COM".' },
+    });
+    listings({ 'example.com': ['v=FORSALE1;fval=EUR2500'] });
+    expect(await summary('example.com')).toEqual({
+      status: 200,
+      cache: 'public, max-age=600, s-maxage=1800',
+      tiles: { status: 'unregistered' },
+    });
+  });
+
+  it('reads an empty DS answer as unsigned, cached for long', async () => {
     resolveDs.mockResolvedValue({ answers: [], trace: [], zone: 'com' });
-    const response = await GET(request('example.com'));
-    expect(await response.json()).toEqual({ whois, dnssec: false, sale });
-
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=600, s-maxage=1800',
-    );
+    expect(await summary('example.com')).toMatchObject({
+      cache: 'public, max-age=600, s-maxage=1800',
+      tiles: { dnssec: 'Unsigned' },
+    });
   });
 
-  it('keeps the summary with a short cache when the DS servers do not answer', async () => {
+  it('reads unavailable, briefly cached and warned when the DS servers do not answer', async () => {
     const error = new UserFacingError({
       title: 'Authoritative DNS servers did not answer',
       description: 'Every available authoritative nameserver failed.',
       retryable: true,
     });
-
     resolveDs.mockRejectedValue(error);
-    const response = await GET(request('example.com'));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ whois, dnssec: null, sale });
-
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=60, s-maxage=60',
-    );
-
-    expect(log.warn).toHaveBeenCalledWith({
+    expect(await summary('example.com')).toMatchObject({
+      status: 200,
+      cache: 'public, max-age=60, s-maxage=60',
+      tiles: { registrar: 'Example Registrar, Inc.', dnssec: 'Unavailable' },
+    });
+    expect(log.warn).toHaveBeenCalledExactlyOnceWith({
       message: 'ds_lookup_failed',
       domain: 'example.com',
       error,
     });
-
     expect(logger.error).not.toHaveBeenCalled();
-    expect(logger.set).toHaveBeenCalledWith({ whois, dnssec: null });
   });
 
   it('reports an unexpected DS lookup failure as an error', async () => {
     const error = new Error('Lookup failed');
     resolveDs.mockRejectedValue(error);
-    const response = await GET(request('example.com'));
-    expect(await response.json()).toEqual({ whois, dnssec: null, sale });
-    expect(logger.error).toHaveBeenCalledOnce();
-    expect(logger.error).toHaveBeenCalledWith(error);
+    expect(await summary('example.com')).toMatchObject({
+      tiles: { dnssec: 'Unavailable' },
+    });
+    expect(logger.set).toHaveBeenCalledWith({ event: 'ds_lookup_failed' });
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(error);
     expect(log.warn).not.toHaveBeenCalled();
   });
 
-  it('gives up on a hanging DS lookup at its deadline', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    resolveDs.mockReturnValue(new Promise(() => {}));
-    let settled = false;
-
-    const responsePromise = GET(request('example.com')).finally(() => {
-      settled = true;
+  it('keeps WHOIS, caches briefly and logs when the sale lookup fails', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ Status: 2 })));
+    expect(await summary('example.com')).toMatchObject({
+      cache: 'public, max-age=60, s-maxage=60',
+      tiles: { registrar: 'Example Registrar, Inc.', sale: null },
     });
-
-    await vi.advanceTimersByTimeAsync(4999);
-    expect(settled).toBe(false);
-    await vi.advanceTimersByTimeAsync(1);
-    const response = await responsePromise;
-    expect(await response.json()).toEqual({ whois, dnssec: null, sale });
-
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=60, s-maxage=60',
-    );
-
-    expect(log.warn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'ds_lookup_failed',
-        error: expect.objectContaining({ message: 'DS lookup timed out' }),
-      }),
-    );
-
-    expect(logger.error).not.toHaveBeenCalled();
+    expect(logger.set).toHaveBeenCalledWith({ event: 'sale_lookup_failed' });
+    expect(logger.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error));
   });
 
-  it('also caches successful responses without a sale listing', async () => {
-    const noListing = { domain: 'example.com', listing: null };
-    lookupSale.mockResolvedValue(noListing);
-    const response = await GET(request('example.com'));
+  it.each([
+    ['example.com', 'example.com', null],
+    ['Example.COM.', 'example.com', null],
+    ['*.example.com', 'example.com', null],
+    ['shop.example.com', 'shop.example.com', null],
+    ['www.example.com', 'example.com', 'example.com'],
+    ['*.www.example.com', 'example.com', 'example.com'],
+  ])(
+    'names the fallback domain for a search of %s listed on %s',
+    async (domain, listedOn, fallbackDomain) => {
+      listings({ [listedOn]: ['v=FORSALE1;'] });
+      expect((await summary(domain)).tiles).toMatchObject({
+        sale: { fallbackDomain, prices: [], link: null },
+      });
+    },
+  );
 
-    expect(await response.json()).toEqual({
-      whois,
-      dnssec: true,
-      sale: noListing,
+  it('formats each advertised price', async () => {
+    listings({
+      'example.com': ['v=FORSALE1;fval=USD195000', 'v=FORSALE1;fval=EUR2500'],
     });
-
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=600, s-maxage=1800',
-    );
-  });
-
-  it('preserves and caches the unregistered WHOIS result', async () => {
-    lookupWhois.mockResolvedValue({ registered: false });
-    const response = await GET(request('example.com'));
-
-    expect(await response.json()).toEqual({
-      whois: { registered: false },
-      dnssec: true,
-      sale,
+    expect((await summary('example.com')).tiles).toMatchObject({
+      sale: { prices: ['€2,500', '$195,000'] },
     });
-
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=600, s-maxage=1800',
-    );
   });
 
-  it('fails the request without caching when the WHOIS lookup rejects', async () => {
-    const error = new Error('Lookup failed');
-    lookupWhois.mockRejectedValue(error);
-    const response = await GET(request('example.com'));
-    expect(response.status).toBe(500);
-    expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(await response.json()).toEqual({
-      error: true,
-      message: 'Error fetching domain summary',
+  it.each([
+    [
+      ['mailto:seller@example.com', 'https://seller.example/buy', 'tel:+4930'],
+      'https://seller.example/buy',
+    ],
+    [['tel:+4930', 'mailto:seller@example.com'], 'mailto:seller@example.com'],
+    [['tel:+4930'], null],
+  ])('links one actionable listing out of %j', async (links, link) => {
+    listings({
+      'example.com': links.map((link) => `v=FORSALE1;furi=${link}`),
     });
-    expect(logger.error).toHaveBeenCalledOnce();
-    expect(logger.error).toHaveBeenCalledWith(error);
-  });
-
-  it('keeps WHOIS with a short cache when the sale lookup rejects', async () => {
-    const error = new Error('Lookup failed');
-    lookupSale.mockRejectedValue(error);
-    const response = await GET(request('example.com'));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ whois, dnssec: true, sale: null });
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=60, s-maxage=60',
-    );
-    expect(logger.error).toHaveBeenCalledOnce();
-    expect(logger.error).toHaveBeenCalledWith(error);
-  });
-
-  it('uses the short cache when WHOIS registration is unknown', async () => {
-    const unknown = { ...whois, unknown: true };
-    lookupWhois.mockResolvedValue(unknown);
-    const response = await GET(request('example.com'));
-
-    expect(await response.json()).toEqual({
-      whois: unknown,
-      dnssec: true,
-      sale,
-    });
-
-    expect(response.headers.get('Cache-Control')).toBe(
-      'public, max-age=60, s-maxage=60',
-    );
-  });
-
-  it('starts all lookups before waiting for any to finish', async () => {
-    let resolveWhois!: (value: typeof whois) => void;
-    let resolveSale!: (value: typeof sale) => void;
-    lookupWhois.mockReturnValue(
-      new Promise((resolve) => {
-        resolveWhois = resolve;
-      }),
-    );
-    lookupSale.mockReturnValue(
-      new Promise((resolve) => {
-        resolveSale = resolve;
-      }),
-    );
-
-    const responsePromise = GET(request('example.com'));
-    expect(lookupWhois).toHaveBeenCalledOnce();
-    expect(lookupSale).toHaveBeenCalledOnce();
-    expect(resolveDs).toHaveBeenCalledOnce();
-    resolveWhois(whois);
-    resolveSale(sale);
-
-    expect(await (await responsePromise).json()).toEqual({
-      whois,
-      dnssec: true,
-      sale,
+    expect((await summary('example.com')).tiles).toMatchObject({
+      sale: { link },
     });
   });
 });
