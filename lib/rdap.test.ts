@@ -37,7 +37,7 @@ describe('RDAP registration summary', () => {
       .mockResolvedValueOnce(Response.json(domain));
 
     await expect(getRdapSummary('example.com')).resolves.toEqual({
-      registered: true,
+      status: 'registered',
       registrar: 'Example registrar',
       createdAt: '2000-01-02',
       dnssec: 'signed',
@@ -58,7 +58,7 @@ describe('RDAP registration summary', () => {
       );
 
     await expect(getRdapSummary('example.com')).resolves.toEqual({
-      registered: false,
+      status: 'unregistered',
     });
 
     fetchMock

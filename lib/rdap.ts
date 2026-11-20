@@ -26,9 +26,9 @@ const domainSchema = z.object({
 });
 
 export type RdapSummary =
-  | { registered: false }
+  | { status: 'unregistered' }
   | {
-      registered: true;
+      status: 'registered';
       registrar: string | null;
       createdAt: string | null;
       dnssec: string | null;
@@ -97,7 +97,7 @@ export const getRdapSummary = async (
           response.status === 404 &&
           z.object({ errorCode: z.literal(404) }).safeParse(body).success
         )
-          return { registered: false };
+          return { status: 'unregistered' };
 
         if (!response.ok)
           throw new Error(`RDAP registry HTTP ${response.status}`);
@@ -125,7 +125,7 @@ export const getRdapSummary = async (
         if (signed !== undefined) dnssec = signed ? 'signed' : 'unsigned';
 
         return {
-          registered: true,
+          status: 'registered',
           registrar: typeof name === 'string' ? name : null,
           createdAt:
             parsedDate && !Number.isNaN(parsedDate.getTime())

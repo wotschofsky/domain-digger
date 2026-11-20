@@ -1,7 +1,10 @@
 import { z } from 'zod';
 
 import { RECORD_TYPES_BY_DECIMAL } from '../data';
-import { UserFacingError } from '../user-facing-error';
+import {
+  UserFacingError,
+  type UserFacingErrorPayload,
+} from '../user-facing-error';
 import { DnsResolver, type RecordType, type ResolverResponse } from './base';
 
 const answerSchema = z.object({
@@ -32,6 +35,15 @@ export type DoHResolverOptions = {
 
 const recordTypes: Readonly<Record<number, RecordType | undefined>> =
   RECORD_TYPES_BY_DECIMAL;
+
+// The resolver answered, but with an error status (e.g. SERVFAIL for a
+// broken DNSSEC chain) or a truncated response.
+export const INCOMPLETE_LOOKUP_ERROR: UserFacingErrorPayload = {
+  title: 'DNS resolver could not complete the lookup',
+  description:
+    'The DNS resolver returned an error or incomplete response. Please try again shortly.',
+  retryable: true,
+};
 
 export abstract class BaseDoHResolver extends DnsResolver {
   constructor(
@@ -105,26 +117,25 @@ export abstract class BaseDoHResolver extends DnsResolver {
   ): Promise<DoHResolverResponse> {
     const { failure, ...response } = await this.query(domain, type);
     if (failure) {
-      throw new UserFacingError(
-        {
-          title: 'DNS resolver could not complete the lookup',
-          description:
-            'The DNS resolver returned an error or incomplete response. Please try again shortly.',
-          retryable: true,
-        },
-        { cause: new Error(failure) },
-      );
+      throw new UserFacingError(INCOMPLETE_LOOKUP_ERROR, {
+        cause: new Error(failure),
+      });
     }
     return response;
   }
 
-  // A DNS-level failure yields no records and is noted in the trace, so one
-  // unanswerable type (e.g. SERVFAIL for RRSIG) cannot fail a whole batch.
+  // Throws on a DNS-level failure, except for RRSIG: Cloudflare and Google
+  // SERVFAIL direct RRSIG queries for healthy zones (e.g. Cloudflare-hosted
+  // ones), so a failed RRSIG lookup reads as empty (noted in the trace), like
+  // a refused one on the authoritative path. HTTP failures still throw.
   public async resolveRecordType(
     domain: string,
     type: RecordType,
   ): Promise<ResolverResponse> {
-    const { answers, trace } = await this.query(domain, type);
+    const { answers, trace } =
+      type === 'RRSIG'
+        ? await this.query(domain, type)
+        : await this.resolveAnswers(domain, type);
 
     const records = answers
       .filter((answer) => recordTypes[answer.type] === type)

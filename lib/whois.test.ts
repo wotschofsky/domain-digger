@@ -2,7 +2,8 @@ import type * as Whoiser from 'whoiser';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getRdapSummary } from './rdap';
-import { formatDate, getWhoisSummary, lookupWhois } from './whois';
+import { UserFacingError } from './user-facing-error';
+import { getWhoisOutcome, lookupWhois } from './whois';
 
 vi.mock('./rdap', () => ({ getRdapSummary: vi.fn().mockResolvedValue(null) }));
 
@@ -12,24 +13,17 @@ vi.mock('whoiser', async (importOriginal) => ({
   whoisDomain,
 }));
 
-describe('formatDate', () => {
-  it('formats a date as an ISO string without the time', () => {
-    const date = new Date('2021-01-01T12:34:56Z');
-    expect(formatDate(date)).toBe('2021-01-01');
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(getRdapSummary).mockResolvedValue(null);
 });
 
-describe('getWhoisSummary', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.mocked(getRdapSummary).mockResolvedValue(null);
-  });
-
+describe('getWhoisOutcome', () => {
   it('uses RDAP before WHOIS and preserves authoritative not-found results', async () => {
-    vi.mocked(getRdapSummary).mockResolvedValue({ registered: false });
+    vi.mocked(getRdapSummary).mockResolvedValue({ status: 'unregistered' });
 
-    expect(await getWhoisSummary('www.example.com')).toEqual({
-      registered: false,
+    expect(await getWhoisOutcome('www.example.com')).toEqual({
+      status: 'unregistered',
     });
 
     expect(getRdapSummary).toHaveBeenCalledWith('example.com');
@@ -46,8 +40,8 @@ describe('getWhoisSummary', () => {
       },
     });
 
-    expect(await getWhoisSummary('example.com')).toMatchObject({
-      registered: true,
+    expect(await getWhoisOutcome('example.com')).toMatchObject({
+      status: 'registered',
       registrar: 'Fallback registrar',
     });
   });
@@ -59,9 +53,8 @@ describe('getWhoisSummary', () => {
   ])('keeps a declined or empty WHOIS response unknown: %s', async (raw) => {
     whoisDomain.mockResolvedValue({ 'whois.example': { __raw: raw } });
 
-    expect(await getWhoisSummary('example.com')).toMatchObject({
-      registered: true,
-      unknown: true,
+    expect(await getWhoisOutcome('example.com')).toEqual({
+      status: 'unknown',
     });
   });
 
@@ -73,8 +66,8 @@ describe('getWhoisSummary', () => {
       },
     });
 
-    expect(await getWhoisSummary('ratelimit.com')).toEqual({
-      registered: true,
+    expect(await getWhoisOutcome('ratelimit.com')).toEqual({
+      status: 'registered',
       registrar: 'Example registrar',
       createdAt: null,
       dnssec: null,
@@ -84,47 +77,21 @@ describe('getWhoisSummary', () => {
       'whois.example': { __raw: 'No match for "RATELIMIT.COM".' },
     });
 
-    expect(await getWhoisSummary('ratelimit.com')).toEqual({
-      registered: false,
-    });
-  });
-
-  it('marks registration as unknown when the lookup fails', async () => {
-    whoisDomain.mockRejectedValue(new Error('timeout'));
-    expect(await getWhoisSummary('example.com')).toEqual({
-      registered: true,
-      unknown: true,
-      registrar: null,
-      createdAt: null,
-      dnssec: null,
-    });
-  });
-
-  it('marks registration as unknown when the WHOIS server query errors', async () => {
-    // whoiser resolves socket errors and timeouts instead of rejecting.
-    whoisDomain.mockResolvedValue({ 'whois.example': { error: 'Timeout' } });
-    expect(await getWhoisSummary('example.com')).toMatchObject({
-      registered: true,
-      unknown: true,
-    });
-  });
-
-  it('does not mark a parsed result as unknown', async () => {
-    whoisDomain.mockResolvedValue({
-      'whois.example': { Registrar: 'Example registrar', __raw: 'ok' },
-    });
-    expect(await getWhoisSummary('example.com')).toEqual({
-      registered: true,
-      registrar: 'Example registrar',
-      createdAt: null,
-      dnssec: null,
+    expect(await getWhoisOutcome('ratelimit.com')).toEqual({
+      status: 'unregistered',
     });
   });
 });
 
 describe('lookupWhois', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it('fails retryably when every WHOIS server errored', async () => {
+    // whoiser resolves socket errors and timeouts instead of rejecting.
+    whoisDomain.mockResolvedValue({ 'whois.example': { error: 'Timeout' } });
+    const lookup = lookupWhois('example.com');
+    await expect(lookup).rejects.toBeInstanceOf(UserFacingError);
+    await expect(lookup).rejects.toMatchObject({
+      payload: { title: 'WHOIS lookup failed', retryable: true },
+    });
   });
 
   it('keeps a record whose own domain name matches the decline pattern', async () => {
@@ -136,14 +103,19 @@ describe('lookupWhois', () => {
     ]);
   });
 
-  it.each(['\r\n ', 'Query limit exceeded; try again later'])(
-    'surfaces a retryable error for a blank or declined response: %j',
-    async (raw) => {
-      whoisDomain.mockResolvedValue({ 'whois.example': { __raw: raw } });
+  it('returns no results for a blank response', async () => {
+    whoisDomain.mockResolvedValue({ 'whois.example': { __raw: '\r\n ' } });
 
-      await expect(lookupWhois('example.com')).rejects.toMatchObject({
-        payload: { retryable: true },
-      });
-    },
-  );
+    expect(await lookupWhois('example.com')).toEqual([]);
+  });
+
+  it('surfaces a retryable error for a declined response', async () => {
+    whoisDomain.mockResolvedValue({
+      'whois.example': { __raw: 'Query limit exceeded; try again later' },
+    });
+
+    await expect(lookupWhois('example.com')).rejects.toMatchObject({
+      payload: { title: 'WHOIS lookup failed', retryable: true },
+    });
+  });
 });

@@ -7,12 +7,19 @@ import { DomainSummary } from './domain-summary';
 const fixtures = vi.hoisted(() => ({
   summary: vi.fn(),
   retry: vi.fn(),
-  listing: {
-    prices: ['EUR 2500'],
-    links: ['https://seller.example/buy'],
-    texts: ['Seller details should not appear'],
+  sale: {
+    fallbackDomain: null as string | null,
+    prices: ['€2,500'],
+    link: 'https://seller.example/buy' as string | null,
   },
 }));
+const tiles = (sale: typeof fixtures.sale | null = fixtures.sale) => ({
+  status: 'registered',
+  registrar: 'Example registrar',
+  createdAt: 'Not listed',
+  dnssec: 'Not listed',
+  sale,
+});
 
 vi.mock('swr', () => ({ default: fixtures.summary }));
 
@@ -24,17 +31,15 @@ describe('domain summary sale link', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     fixtures.summary.mockReset();
     fixtures.retry.mockReset().mockResolvedValue(undefined);
+    fixtures.sale.fallbackDomain = null;
+    fixtures.sale.prices = ['€2,500'];
+    fixtures.sale.link = 'https://seller.example/buy';
     fixtures.summary.mockReturnValue({
-      data: {
-        whois: { registered: true, registrar: 'Example registrar' },
-        sale: { domain: 'example.com', listing: fixtures.listing },
-      },
+      data: tiles(),
       isLoading: false,
       isValidating: false,
       mutate: fixtures.retry,
     });
-    fixtures.listing.prices = ['EUR 2500'];
-    fixtures.listing.links = ['https://seller.example/buy'];
     container = document.createElement('div');
     document.body.append(container);
     root = createRoot(container);
@@ -59,8 +64,6 @@ describe('domain summary sale link', () => {
     expect(button.querySelector('.sr-only')?.textContent).toContain(
       'external website',
     );
-    expect(container.textContent).not.toContain('Seller details');
-    expect(container.querySelector('details')).toBeNull();
     expect(document.querySelector('a')).toBeNull();
 
     await act(async () => container.querySelector('button')!.click());
@@ -108,81 +111,27 @@ describe('domain summary sale link', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
-  it('shows WHOIS without a sale tile when there is no listing', async () => {
-    fixtures.summary.mockReturnValue({
-      data: {
-        whois: { registered: true, registrar: 'Example registrar' },
-        sale: { domain: 'example.com', listing: null },
-      },
-      isLoading: false,
-    });
+  it('shows WHOIS without a sale tile', async () => {
+    fixtures.summary.mockReturnValue({ data: tiles(null), isLoading: false });
     await render();
     expect(container.textContent).toContain('Example registrar');
-    expect(container.textContent).not.toContain('For sale');
-  });
-
-  it('shows WHOIS without a sale tile when the sale lookup failed', async () => {
-    fixtures.summary.mockReturnValue({
-      data: {
-        whois: { registered: true, registrar: 'Example registrar' },
-        sale: null,
-      },
-      isLoading: false,
-    });
-    await render();
-    expect(container.textContent).toContain('Example registrar');
-    expect(container.textContent).not.toContain('For sale');
-  });
-
-  it('hides sale information when WHOIS could not establish registration', async () => {
-    fixtures.summary.mockReturnValue({
-      data: {
-        whois: { registered: true, unknown: true, registrar: null },
-        sale: { domain: 'example.com', listing: fixtures.listing },
-      },
-      isLoading: false,
-    });
-    await render();
-    expect(container.textContent).toContain('Unavailable');
-    expect(container.textContent).not.toContain('For sale');
-  });
-
-  it('shows a field the registry left out as not listed, not as a failed lookup', async () => {
-    fixtures.summary.mockReturnValue({
-      data: {
-        whois: {
-          registered: true,
-          registrar: null,
-          createdAt: null,
-          dnssec: null,
-        },
-        sale: { domain: 'example.com', listing: null },
-      },
-      isLoading: false,
-    });
-
-    await render();
-
     expect(container.textContent).toContain('Not listed');
-    expect(container.textContent).not.toContain('Unavailable');
+    expect(container.textContent).not.toContain('For sale');
   });
 
-  it('hides sale information for an unregistered domain', async () => {
+  it('shows only the status of an unregistered domain', async () => {
     fixtures.summary.mockReturnValue({
-      data: {
-        whois: { registered: false },
-        sale: { domain: 'example.com', listing: fixtures.listing },
-      },
+      data: { status: 'unregistered' },
       isLoading: false,
     });
     await render();
     expect(container.textContent).toContain('Not registered');
-    expect(container.textContent).not.toContain('For sale');
+    expect(container.textContent).not.toContain('Registrar');
   });
 
   it('links an email listing to the seller’s email address', async () => {
-    fixtures.listing.prices = ['USD 195000'];
-    fixtures.listing.links = ['mailto:sales@sun.com.py'];
+    fixtures.sale.prices = ['$195,000'];
+    fixtures.sale.link = 'mailto:sales@sun.com.py';
     await render();
     const link = container.querySelector('a')!;
     expect(link.querySelector('span')?.textContent).toBe('$195,000');
@@ -197,8 +146,8 @@ describe('domain summary sale link', () => {
   });
 
   it('supports email listings without an asking price', async () => {
-    fixtures.listing.prices = [];
-    fixtures.listing.links = ['mailto:seller@example.com'];
+    fixtures.sale.prices = [];
+    fixtures.sale.link = 'mailto:seller@example.com';
     await render();
     expect(container.querySelector('a span')?.textContent).toBe(
       'Advertised for sale',
@@ -207,63 +156,29 @@ describe('domain summary sale link', () => {
   });
 
   it.each([
-    { links: ['https://seller.example/buy'] },
-    { links: ['mailto:seller@example.com'] },
-    { links: [] },
-  ])('labels an advertised price as indicative: $links', async ({ links }) => {
-    fixtures.listing.links = links;
+    { link: 'https://seller.example/buy' },
+    { link: 'mailto:seller@example.com' },
+    { link: null },
+  ])('labels an advertised price as indicative: $link', async ({ link }) => {
+    fixtures.sale.link = link;
     await render();
     expect(
       [...container.querySelectorAll('h3')].map((title) => title.textContent),
     ).toContain('For sale · indicative price');
   });
 
-  it('prefers a website listing when an email address is also available', async () => {
-    fixtures.listing.links = [
-      'mailto:seller@example.com',
-      'https://seller.example/buy',
-    ];
-    await render();
-    expect(container.querySelector('a')).toBeNull();
-    await act(async () => container.querySelector('button')!.click());
-    expect(
-      document.querySelector('[role="alertdialog"] a')?.getAttribute('href'),
-    ).toBe('https://seller.example/buy');
-  });
-
-  it('shows a plain value when there is no website or email URL', async () => {
-    fixtures.listing.links = ['tel:+4930123456'];
+  it('shows a plain value when there is no link', async () => {
+    fixtures.sale.link = null;
     await render();
     expect(container.textContent).toContain('€2,500');
     expect(container.querySelector('button')).toBeNull();
     expect(container.querySelector('a')).toBeNull();
   });
 
-  it.each(['EXAMPLE.COM', 'Example.com.'])(
-    'omits a redundant base-domain suffix for %s',
-    async (domain) => {
-      await render(domain);
-      expect(container.textContent).toContain('For sale');
-      expect(container.textContent).not.toContain('For sale (example.com)');
-    },
-  );
-
-  it('identifies the listing domain for a subdomain search', async () => {
+  it('identifies the fallback domain a listing sits on', async () => {
+    fixtures.sale.fallbackDomain = 'example.com';
     await render('www.example.com');
     expect(container.textContent).toContain('For sale (example.com)');
-  });
-
-  it('omits the suffix when the listing is on the searched subdomain itself', async () => {
-    fixtures.summary.mockReturnValue({
-      data: {
-        whois: { registered: true, registrar: 'Example registrar' },
-        sale: { domain: 'dynamic.example.com', listing: fixtures.listing },
-      },
-      isLoading: false,
-    });
-    await render('dynamic.example.com');
-    expect(container.textContent).toContain('For sale');
-    expect(container.textContent).not.toContain('(dynamic.example.com)');
   });
 
   it('shows a retryable error instead of loading forever, then recovers', async () => {
