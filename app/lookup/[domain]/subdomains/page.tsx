@@ -5,6 +5,7 @@ import type { FC } from 'react';
 import { Button } from '@/components/ui/button';
 
 import { generateCsv } from '@/lib/csv';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
 import { getSourceLabel } from '@/lib/subfinder-sources';
@@ -22,16 +23,10 @@ export const generateMetadata = async ({
 }: SubdomainsResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return {
+  return getPageMetadata({
+    url: `/lookup/${domain}/subdomains`,
     title: `Subdomain Search for ${domain}`,
-    openGraph: {
-      title: `Subdomain Search for ${domain}`,
-      url: `/lookup/${domain}/subdomains`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/subdomains`,
-    },
-  };
+  });
 };
 
 export const maxDuration = 60;

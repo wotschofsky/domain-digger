@@ -1,11 +1,17 @@
 import { log } from 'evlog';
-import { CheckCircleIcon, InfoIcon, ShieldAlertIcon } from 'lucide-react';
+import {
+  CheckCircleIcon,
+  InfoIcon,
+  ShieldAlertIcon,
+  TriangleAlertIcon,
+} from 'lucide-react';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import type { FC } from 'react';
 
 import { isUserBot } from '@/lib/api';
 import { getGlobalLookupResults, getHasDifferences } from '@/lib/map';
+import { getPageMetadata } from '@/lib/page-metadata';
 import { InternalDoHResolver } from '@/lib/resolvers/internal';
 
 import { IconAlert } from '../_components/icon-alert';
@@ -22,16 +28,10 @@ export const generateMetadata = async ({
 }: MapResultsPageProps): Promise<Metadata> => {
   const { domain } = await params;
 
-  return {
+  return getPageMetadata({
+    url: `/lookup/${domain}/map`,
     title: `DNS Propagation for ${domain}`,
-    openGraph: {
-      title: `DNS Propagation for ${domain}`,
-      url: `/lookup/${domain}/map`,
-    },
-    alternates: {
-      canonical: `/lookup/${domain}/map`,
-    },
-  };
+  });
 };
 
 const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
@@ -74,6 +74,19 @@ const MapResultsPage: FC<MapResultsPageProps> = async ({ params }) => {
           <i>could</i> be an indication for the use of GeoDNS.
           <br /> Keep in mind however, that some providers rotate their IP
           addresses, which can also lead to different results.
+        </IconAlert>
+      ) : lookupResults.some(({ results }) =>
+          // null marks a failed lookup, which can't confirm propagation.
+          Object.values(results).includes(null),
+        ) ? (
+        <IconAlert
+          className="mx-auto mt-12"
+          icon={TriangleAlertIcon}
+          title="Some lookups failed"
+        >
+          The regions that answered all have the same records, but not every
+          region could be checked, so propagation can&apos;t be confirmed.
+          Failed lookups are marked on the map.
         </IconAlert>
       ) : (
         <IconAlert

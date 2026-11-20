@@ -139,6 +139,57 @@ describe('getIpDetails', () => {
   });
 });
 
+describe('getIpDetails failure reporting', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it.each([
+    ['private range', '192.168.1.1'],
+    ['reserved range', '0.0.0.0'],
+    ['invalid query', '1.1.1.1'],
+  ])(
+    'should throw a user-facing error when ip-api fails with %s',
+    async (message, ip) => {
+      // ip-api answers failures with HTTP 200 and status "fail".
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ status: 'fail', message }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+      await expect(getIpDetails(ip)).rejects.toThrow(
+        /Couldn't look up this IP address/,
+      );
+    },
+  );
+
+  it('should return the details when the lookup succeeds', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: 'success',
+          country: 'Netherlands',
+          city: 'Amsterdam',
+          isp: 'Example ISP',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    await expect(getIpDetails('8.8.8.8')).resolves.toMatchObject({
+      country: 'Netherlands',
+      city: 'Amsterdam',
+    });
+  });
+});
+
 describe('lookupReverse', () => {
   const fetchMock = vi.fn();
 
