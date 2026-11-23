@@ -23,16 +23,20 @@ type Column<T> = {
 }[keyof T];
 
 type SortDirection = 'asc' | 'desc';
+type SortableValue = string | number | boolean | string[] | null;
+type KeyColumn<T> = {
+  [K in keyof T]: T[K] extends string | number ? K : never;
+}[keyof T];
 
-type SortableTableProps<T extends Record<string, any>> = {
+type SortableTableProps<T extends Record<keyof T, SortableValue>> = {
   data: T[];
   columns: Column<T>[];
-  keyColumn: keyof T;
+  keyColumn: KeyColumn<T>;
   defaultSort: keyof T;
   defaultSortDirection: SortDirection;
 };
 
-export const SortableTable = <T extends Record<string, any>>({
+export const SortableTable = <T extends Record<keyof T, SortableValue>>({
   data,
   columns,
   keyColumn,
@@ -44,8 +48,10 @@ export const SortableTable = <T extends Record<string, any>>({
     useState<SortDirection>(defaultSortDirection);
 
   const sortedData = data.toSorted((a, b) => {
-    if (a[sort] > b[sort]) return sortDirection === 'asc' ? 1 : -1;
-    if (a[sort] < b[sort]) return sortDirection === 'asc' ? -1 : 1;
+    const left = a[sort] ?? 0;
+    const right = b[sort] ?? 0;
+    if (left > right) return sortDirection === 'asc' ? 1 : -1;
+    if (left < right) return sortDirection === 'asc' ? -1 : 1;
     return 0;
   });
 
@@ -92,7 +98,10 @@ export const SortableTable = <T extends Record<string, any>>({
       </TableHeader>
       <TableBody>
         {sortedData.map((row) => (
-          <TableRow key={row[keyColumn]} className="hover:bg-transparent">
+          <TableRow
+            key={String(row[keyColumn])}
+            className="hover:bg-transparent"
+          >
             {columns.map(({ key, render }, index, allColumns) => (
               <TableCell
                 key={key.toString()}
@@ -101,7 +110,7 @@ export const SortableTable = <T extends Record<string, any>>({
                   'pr-0': index === allColumns.length - 1,
                 })}
               >
-                {render ? render(row[key], row) : row[key].toString()}
+                {render ? render(row[key], row) : String(row[key] ?? '')}
               </TableCell>
             ))}
           </TableRow>

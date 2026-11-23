@@ -7,11 +7,14 @@ import { SearchForm } from './search-form';
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 const reportEvent = vi.hoisted(() => vi.fn());
+const routeParams = vi.hoisted(() => ({
+  domain: undefined as string | undefined,
+}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => router,
   usePathname: () => '/',
-  useParams: () => ({}),
+  useParams: () => routeParams,
   useSelectedLayoutSegment: () => null,
 }));
 vi.mock('@/app/api/search-suggestions/hook', () => ({
@@ -21,8 +24,7 @@ vi.mock('@/lib/analytics', () => ({
   useAnalytics: () => ({ reportEvent }),
 }));
 vi.mock('./my-ip-modal', () => ({
-  MyIpModal: ({ open }: { open: boolean }) =>
-    open ? <div role="dialog" /> : null,
+  MyIpModal: ({ open }: { open: boolean }) => (open ? <dialog open /> : null),
 }));
 vi.mock('./ip-details-modal', () => ({
   IpDetailsModal: ({
@@ -35,9 +37,9 @@ vi.mock('./ip-details-modal', () => ({
     onOpenChange: (open: boolean) => void;
   }) =>
     open ? (
-      <div role="dialog" aria-label={`IP Details for ${ip}`}>
+      <dialog open aria-label={`IP Details for ${ip}`}>
         <button onClick={() => onOpenChange(false)}>Close</button>
-      </div>
+      </dialog>
     ) : null,
 }));
 
@@ -52,6 +54,7 @@ describe('search form', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     router.push.mockReset();
     reportEvent.mockReset();
+    routeParams.domain = undefined;
     fetcher.mockReset();
     fetch.mockReset().mockRejectedValue(new TypeError('Network unavailable'));
     vi.stubGlobal('fetch', fetch);
@@ -99,9 +102,9 @@ describe('search form', () => {
       expect(fetcher).not.toHaveBeenCalled();
       const input = container.querySelector<HTMLInputElement>('input')!;
       await act(async () => input.focus());
-      const row = Array.from(container.querySelectorAll('li')).find((item) =>
-        item.textContent?.includes('Your IP addresses'),
-      )!;
+      const row = Array.from(
+        container.querySelectorAll('[role="option"]'),
+      ).find((item) => item.textContent?.includes('Your IP addresses'))!;
       expect(row).toBeDefined();
       const addresses = [
         ipv4 ? '192.xxx.xxx.xxx' : null,
@@ -157,12 +160,12 @@ describe('search form', () => {
       'Your IP addresses (203.xxx.xxx.xxx)',
     );
     expect(container.textContent).not.toContain('203.0.113.42');
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector('dialog[open]')).toBeNull();
     await act(async () => finishIpv6(new Response('2001:db8:abcd::1234')));
     expect(container.textContent).toContain(
       'Your IP addresses (203.xxx.xxx.xxx, 2001:xxxx:xxxx:xxxx:…)',
     );
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector('dialog[open]')).toBeNull();
     await act(async () => {
       input.blur();
       input.focus();
@@ -184,6 +187,29 @@ describe('search form', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('keeps edits on the same route and fills in the next lookup domain', async () => {
+    routeParams.domain = 'first.example';
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    expect(input.value).toBe('first.example');
+
+    await act(async () => {
+      input.focus();
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, 'draft.example');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await render('visible');
+    expect(input.value).toBe('draft.example');
+
+    routeParams.domain = 'second.example';
+    await render('visible');
+    expect(input.value).toBe('second.example');
+    expect(document.activeElement).toBe(input);
+  });
+
   it('opens details for the parsed address and returns focus to search when closed', async () => {
     await render('visible');
     const input = container.querySelector<HTMLInputElement>('input')!;
@@ -195,17 +221,17 @@ describe('search form', () => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     await act(async () => input.form!.requestSubmit());
-    expect(container.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(container.querySelectorAll('dialog[open]')).toHaveLength(1);
     expect(
-      container.querySelector('[role="dialog"]')?.getAttribute('aria-label'),
+      container.querySelector('dialog[open]')?.getAttribute('aria-label'),
     ).toBe('IP Details for 2001:db8::1');
     expect(router.push).not.toHaveBeenCalled();
     await act(async () =>
       container
-        .querySelector<HTMLButtonElement>('[role="dialog"] button')!
+        .querySelector<HTMLButtonElement>('dialog[open] button')!
         .click(),
     );
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector('dialog[open]')).toBeNull();
     expect(document.activeElement).toBe(input);
   });
 
@@ -216,14 +242,21 @@ describe('search form', () => {
       const input = container.querySelector<HTMLInputElement>('input')!;
       await act(async () => input.focus());
 
+      expect(input.getAttribute('role')).toBe('combobox');
+      expect(input.getAttribute('aria-expanded')).toBe('true');
+      const listId = input.getAttribute('aria-controls')!;
+      expect(document.getElementById(listId)?.getAttribute('role')).toBe(
+        'listbox',
+      );
+
       expect(
         reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
       ).toHaveLength(0);
 
       if (activation === 'mouse') {
-        const suggestion = Array.from(container.querySelectorAll('li')).find(
-          (item) => item.textContent?.includes('Your IP address'),
-        )!;
+        const suggestion = Array.from(
+          container.querySelectorAll<HTMLElement>('[role="option"]'),
+        ).find((item) => item.textContent?.includes('Your IP address'))!;
         await act(async () => suggestion.click());
       } else {
         for (const key of ['ArrowDown', 'Enter']) {
@@ -236,10 +269,19 @@ describe('search form', () => {
               }),
             );
           });
+          if (key === 'ArrowDown') {
+            const optionId = input.getAttribute('aria-activedescendant')!;
+            const option = document.getElementById(optionId);
+            expect(option?.textContent).toContain('Your IP addresses');
+            expect(option?.getAttribute('aria-selected')).toBe('true');
+            expect(document.activeElement).toBe(input);
+          }
         }
       }
 
-      expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(container.querySelector('dialog[open]')).not.toBeNull();
+      expect(input.getAttribute('aria-expanded')).toBe('false');
+      expect(input.hasAttribute('aria-activedescendant')).toBe(false);
       expect(
         reportEvent.mock.calls.filter(([event]) => event === 'My IP: Open'),
       ).toEqual([['My IP: Open', {}]]);

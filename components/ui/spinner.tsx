@@ -5,16 +5,10 @@ import { cn } from '@/lib/utils';
 import styles from './spinner.module.css';
 
 const Spinner = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
+  HTMLOutputElement,
+  React.OutputHTMLAttributes<HTMLOutputElement>
 >(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn('size-9', className)}
-    role="status"
-    aria-label="loading"
-    {...props}
-  >
+  <output ref={ref} className={cn('block size-9', className)} {...props}>
     <span className="sr-only">Loading...</span>
 
     <svg
@@ -22,6 +16,7 @@ const Spinner = React.forwardRef<
       height="24"
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
       className="h-full w-full text-gray-900 dark:text-gray-400"
     >
       <g className={cn('origin-center', styles.circle)}>
@@ -116,8 +111,7 @@ const Spinner = React.forwardRef<
         ></rect>
       </g>
     </svg>
-    <span className="sr-only">Loading...</span>
-  </div>
+  </output>
 ));
 Spinner.displayName = 'Spinner';
 

@@ -7,7 +7,7 @@ export const normalizeDomain = (input: string): string => {
   let tDomain;
   try {
     tDomain = new URL(input.trim().toLowerCase()).hostname;
-  } catch (err) {
+  } catch {
     tDomain = input.trim().toLowerCase();
   }
 

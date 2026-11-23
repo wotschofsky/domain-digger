@@ -16,8 +16,7 @@ describe('generateCsv', () => {
   });
 
   it('should handle empty arrays', () => {
-    const data: Record<string, any>[] = [];
-    expect(generateCsv(data)).toBe('');
+    expect(generateCsv([])).toBe('');
   });
 
   it('should handle arrays with a single object', () => {

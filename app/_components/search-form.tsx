@@ -15,6 +15,7 @@ import {
   type KeyboardEventHandler,
   type MouseEventHandler,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -88,14 +89,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const pathname = usePathname();
   const selectedSegment = useSelectedLayoutSegment();
 
-  const { domain: initialValue } = useParams<{ domain: string }>();
+  const { domain: initialValue } = useParams<{ domain?: string }>();
   const [domain, setDomain] = useState(initialValue ?? '');
+  const [previousRouteDomain, setPreviousRouteDomain] = useState(initialValue);
 
-  useEffect(() => {
+  if (initialValue !== previousRouteDomain) {
+    setPreviousRouteDomain(initialValue);
     if (initialValue) {
       setDomain(initialValue);
     }
-  }, [initialValue]);
+  }
 
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
@@ -185,6 +188,12 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(
     null,
   );
+  const suggestionsId = useId();
+  const suggestionsOpen = suggestionsVisible && Boolean(suggestions?.length);
+  const activeSuggestion =
+    suggestionsOpen && selectedSuggestion !== null
+      ? suggestions?.[selectedSuggestion]
+      : undefined;
 
   // Navigating away hides the page instead of unmounting it, so reset the
   // submit state here or the form is still disabled when the user goes back
@@ -222,7 +231,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
     setSelectedSuggestion(null);
   };
 
-  const handleSuggestionMouseDown: MouseEventHandler<HTMLLIElement> = (
+  const handleSuggestionMouseDown: MouseEventHandler<HTMLDivElement> = (
     event,
   ) => {
     // Keep the input focused so blur does not remove the option before click fires
@@ -242,14 +251,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         event.preventDefault();
         setSelectedSuggestion((prev) => {
           if (prev === null) return 0;
-          if (prev === suggestions?.length - 1) return null;
+          if (prev >= suggestions.length - 1) return null;
           return prev + 1;
         });
         break;
       case 'ArrowUp':
         event.preventDefault();
         setSelectedSuggestion((prev) => {
-          if (prev === null) return suggestions?.length - 1;
+          if (prev === null || prev >= suggestions.length) {
+            return suggestions.length - 1;
+          }
           if (prev === 0) return null;
           return prev - 1;
         });
@@ -262,9 +273,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
         }
         break;
       case 'Enter':
-        if (selectedSuggestion !== null) {
+        if (activeSuggestion !== undefined) {
           event.preventDefault();
-          handleSelectSuggestion(suggestions[selectedSuggestion]);
+          handleSelectSuggestion(activeSuggestion);
         }
         break;
       case 'Escape':
@@ -292,7 +303,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   return (
     <>
       <form ref={measureRef} className="relative" onSubmit={handleSubmit}>
-        {domain === initialValue ? (
+        {initialValue && domain === initialValue ? (
           // oxlint-disable-next-line nextjs/no-img-element -- Google serves a 64px favicon.
           <img
             className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2"
@@ -317,17 +328,19 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
               : 'Search'
           }
           aria-label="Domain"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={suggestionsOpen}
+          aria-controls={suggestionsOpen ? suggestionsId : undefined}
+          aria-activedescendant={
+            activeSuggestion === undefined
+              ? undefined
+              : `${suggestionsId}-${selectedSuggestion}`
+          }
           enterKeyHint="go"
-          value={(() => {
-            if (selectedSuggestion !== null) {
-              const selection = suggestions?.[selectedSuggestion];
-              if (selection === SUGGESTION_OWN_IP) {
-                return domain;
-              }
-              return selection;
-            }
-            return domain;
-          })()}
+          value={
+            typeof activeSuggestion === 'string' ? activeSuggestion : domain
+          }
           onChange={handleInput}
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
@@ -338,6 +351,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
             }, 100);
           }}
           disabled={state === FormStates.Submitting}
+          // oxlint-disable-next-line jsx-a11y/no-autofocus -- Enabled only on pages where search is the primary action.
           autoFocus={props.autofocus}
         />
 
@@ -359,12 +373,23 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
           </ClientOnly>
         )}
 
-        {suggestionsVisible && suggestions && suggestions.length > 0 && (
+        {suggestionsOpen && (
           <Card className="absolute top-full left-0 z-10 h-min max-w-full p-1">
-            <ul>
-              {suggestions.map((value, index) => (
-                <li
+            <div
+              id={suggestionsId}
+              // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- Native suggestions cannot render the icons and IP preview.
+              role="listbox"
+              aria-label="Search suggestions"
+            >
+              {suggestions?.map((value, index) => (
+                // oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Arrow keys and Enter are handled by the focused combobox.
+                <div
                   key={value.toString()}
+                  id={`${suggestionsId}-${index}`}
+                  // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- A native option cannot render this rich suggestion.
+                  role="option"
+                  tabIndex={-1}
+                  aria-selected={selectedSuggestion === index}
                   className={cn(
                     'flex cursor-pointer items-center rounded-lg px-2 py-1 text-sm hover:bg-black/5 dark:hover:bg-white/10',
                     {
@@ -394,9 +419,9 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
                       {value}
                     </>
                   )}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           </Card>
         )}
       </form>

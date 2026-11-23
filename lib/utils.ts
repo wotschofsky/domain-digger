@@ -30,11 +30,11 @@ export const serializeError = (error: unknown) => {
 // From https://stackoverflow.com/a/30471209/12475254
 // onError sees every failed attempt, the last one included. It runs inside the
 // existing catch, so observing attempts doesn't delay when the result settles.
-export const retry = <T extends Function>(
-  fn: T,
+export const retry = <T>(
+  fn: () => Promise<T>,
   maxRetries: number,
   onError?: (err: Error) => void,
-) =>
+): Promise<T> =>
   fn().catch((err: Error) => {
     onError?.(err);
     if (maxRetries <= 0) {
@@ -84,7 +84,7 @@ export const isValidDomain = (domain: string) => {
   try {
     const result = tldtsParse(cleanedDomain);
     return Boolean(result.isIcann || result.isPrivate);
-  } catch (error) {
+  } catch {
     return false;
   }
 };
