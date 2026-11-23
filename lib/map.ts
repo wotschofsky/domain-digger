@@ -3,7 +3,6 @@ import { log } from 'evlog';
 import { REGIONS } from '@/lib/data';
 import type { DnsResolver } from '@/lib/resolvers/base';
 import { UserFacingError } from '@/lib/user-facing-error';
-import { serializeError } from '@/lib/utils';
 
 const DISPLAYED_RECORD_TYPES = ['A', 'AAAA', 'CNAME'] as const;
 
@@ -38,7 +37,7 @@ export const getGlobalLookupResults = async (
         message: 'map_region_lookup_failed',
         domain,
         region: code,
-        error: serializeError(result.reason),
+        error: result.reason,
       });
       return { ...data, code, results: FAILED_RESULTS };
     }

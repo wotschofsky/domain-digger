@@ -2,7 +2,7 @@ import { log } from 'evlog';
 import { type firstResult, whoisDomain } from 'whoiser';
 
 import { UserFacingError } from './user-facing-error';
-import { getBaseDomain, serializeError } from './utils';
+import { getBaseDomain } from './utils';
 
 type WhoisResponse = {
   server: string;
@@ -81,7 +81,6 @@ export type WhoisOutcome =
       status: 'registered';
       registrar: string | null;
       createdAt: string | null;
-      dnssec: string | null;
     }
   | { status: 'unregistered' }
   // The lookup failed, so registration is neither confirmed nor ruled out.
@@ -100,7 +99,7 @@ export const getWhoisOutcome = async (
     log.warn({
       message: 'whois_summary_failed',
       domain: baseDomain,
-      error: serializeError(error),
+      error,
     });
     return { status: 'unknown' };
   }
@@ -121,6 +120,5 @@ export const getWhoisOutcome = async (
     createdAt: isNaN(createdAt.getTime())
       ? null
       : createdAt.toISOString().slice(0, 10),
-    dnssec: data['DNSSEC']?.toString() || null,
   };
 };

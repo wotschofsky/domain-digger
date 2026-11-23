@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server';
 
-import { useLogger, withEvlog } from '@/lib/evlog';
+import { log, useLogger, withEvlog } from '@/lib/evlog';
 import {
   forSaleName,
   type ForSaleSummary,
   lookupForSale,
 } from '@/lib/for-sale';
 import { formatSalePrice } from '@/lib/format-sale-price';
-import { isValidDomain } from '@/lib/utils';
+import { AuthoritativeResolver } from '@/lib/resolvers/authoritative';
+import { UserFacingError } from '@/lib/user-facing-error';
+import { getBaseDomain, isValidDomain } from '@/lib/utils';
 import { getWhoisOutcome, type WhoisOutcome } from '@/lib/whois';
 
 // What the summary tiles show, decided here so the browser only renders it.
@@ -30,9 +32,29 @@ export type DomainSummaryTiles =
       } | null;
     };
 
+// Matches the WHOIS timeout, so the summary waits no longer than it already
+// does; the resolver's default walk timeout (8s) leaves less room under the
+// function limit.
+const DS_DEADLINE_MS = 5000;
+
+// Whether the parent zone publishes DS records for the registered domain.
+// Unlike WHOIS, this works for every TLD.
+const isDelegationSigned = async (domain: string): Promise<boolean> => {
+  const { answers } = await new AuthoritativeResolver({
+    timeoutMs: DS_DEADLINE_MS,
+  }).resolveAnswers(getBaseDomain(domain), 'DS');
+  return answers.length > 0;
+};
+
+const describeDnssec = (signed: boolean | null): string => {
+  if (signed === null) return 'Unavailable';
+  return signed ? 'Signed' : 'Unsigned';
+};
+
 const toTiles = (
   domain: string,
   whois: WhoisOutcome,
+  dnssec: boolean | null,
   sale: ForSaleSummary | null,
 ): DomainSummaryTiles => {
   if (whois.status === 'unregistered') return { status: 'unregistered' };
@@ -46,7 +68,8 @@ const toTiles = (
     status: whois.status,
     registrar: known?.registrar || missing,
     createdAt: known?.createdAt || missing,
-    dnssec: known?.dnssec || missing,
+    // Read from DNS, so it stands even when the WHOIS lookup failed.
+    dnssec: describeDnssec(dnssec),
     // No sale tile when the WHOIS lookup failed and registration is only
     // assumed.
     sale:
@@ -66,38 +89,49 @@ const toTiles = (
 };
 
 export const GET = withEvlog(async (request: Request) => {
-  const log = useLogger();
+  const logger = useLogger();
   const domain = new URL(request.url).searchParams.get('domain');
 
   if (!domain || !isValidDomain(domain)) {
-    log.set({ status: 400, reason: 'invalid_domain' });
+    logger.set({ status: 400, reason: 'invalid_domain' });
     return NextResponse.json(
       { error: true, message: 'Invalid domain' },
       { status: 400, headers: { 'Cache-Control': 'no-store' } },
     );
   }
 
-  log.set({ domain });
+  logger.set({ domain });
 
-  const [whois, sale] = await Promise.all([
+  const [whois, dnssec, sale] = await Promise.all([
     getWhoisOutcome(domain),
+    isDelegationSigned(domain).catch((error: unknown) => {
+      // Unresponsive nameservers are routine; error alerts stay reserved for
+      // bugs.
+      if (error instanceof UserFacingError) {
+        log.warn({ message: 'ds_lookup_failed', domain, error });
+      } else {
+        logger.set({ event: 'ds_lookup_failed' });
+        logger.error(error instanceof Error ? error : new Error(String(error)));
+      }
+      return null;
+    }),
     lookupForSale(domain).catch((error: unknown) => {
-      log.set({ event: 'sale_lookup_failed' });
-      log.error(error instanceof Error ? error : new Error(String(error)));
+      logger.set({ event: 'sale_lookup_failed' });
+      logger.error(error instanceof Error ? error : new Error(String(error)));
       return null;
     }),
   ]);
 
-  const tiles = toTiles(domain, whois, sale);
+  const tiles = toTiles(domain, whois, dnssec, sale);
   // The status tells a failed WHOIS lookup ("Unavailable") apart from a
   // registry that leaves fields out ("Not listed").
-  log.set({ tiles });
+  logger.set({ tiles });
 
   return NextResponse.json(tiles, {
     headers: {
       // Retry a failed lookup soon instead of hiding a listing.
       'Cache-Control':
-        sale && whois.status !== 'unknown'
+        sale && dnssec !== null && whois.status !== 'unknown'
           ? 'public, max-age=600, s-maxage=1800'
           : 'public, max-age=60, s-maxage=60',
     },

@@ -267,6 +267,9 @@ type FetchRecordsParams = {
   zone?: string;
   trace?: string[];
   walk: Walk;
+  // See resolveAnswers. Not passed to a referral's NS-name lookups: their cuts
+  // belong to other names.
+  onZoneCut?: (zone: string) => void;
 };
 
 export class AuthoritativeResolver extends DnsResolver {
@@ -708,6 +711,7 @@ export class AuthoritativeResolver extends DnsResolver {
     zone: delegatedZone,
     trace = [],
     walk,
+    onZoneCut,
   }: FetchRecordsParams): Promise<WalkResult> {
     walk.enter(domain, recordType);
 
@@ -720,6 +724,9 @@ export class AuthoritativeResolver extends DnsResolver {
         : (cached?.ips ?? (await this.getRootServers()).slice(0, 4));
     const zone = (nameservers?.length ? delegatedZone : cached?.zone) || '.';
     if (cached) {
+      // Only referrals write the cache, so a cached zone is a proven cut.
+      onZoneCut?.(cached.zone);
+
       trace = [
         ...trace,
         `${recordType} ${domain} -> starting at cached delegation ${cached.zone}: ${cached.ips.join(', ')}`,
@@ -855,6 +862,7 @@ export class AuthoritativeResolver extends DnsResolver {
           zone,
           trace: acceptedTrace,
           walk: walk.via(domain, asked, candidate),
+          onZoneCut,
         });
       } catch (error) {
         failedNameservers.push(
@@ -910,6 +918,7 @@ export class AuthoritativeResolver extends DnsResolver {
             `${recordType} ${domain} -> cached delegation ${cached.zone} failed (${failedNameservers.join('; ')}), re-walking from root`,
           ],
           walk: walk.rewalk(),
+          onZoneCut,
         });
     } else if (lastResort && !walk.timedOut) {
       // No candidate answered authoritatively; the deferred answer is better
@@ -938,6 +947,7 @@ export class AuthoritativeResolver extends DnsResolver {
         zone,
         trace: lastResortTrace,
         walk,
+        onZoneCut,
       });
     }
 
@@ -990,6 +1000,7 @@ export class AuthoritativeResolver extends DnsResolver {
     zone,
     trace,
     walk,
+    onZoneCut,
   }: {
     packet: Packet;
     protocol: DnsResponse['protocol'];
@@ -1001,6 +1012,7 @@ export class AuthoritativeResolver extends DnsResolver {
     zone: string;
     trace: string[];
     walk: Walk;
+    onZoneCut?: (zone: string) => void;
   }): Promise<WalkResult> {
     // Only records owned by the queried name (any type, e.g. a CNAME alias)
     // make this a terminal answer. An answer section carrying nothing but
@@ -1091,6 +1103,9 @@ export class AuthoritativeResolver extends DnsResolver {
       if (currentZone && !nextZone.endsWith(`.${currentZone}`)) {
         throw new Error(`DNS referral loop detected: ${zone} -> ${nextZone}`);
       }
+
+      onZoneCut?.(nextZone);
+
       // Trust a glue A record only if it names one of this referral's
       // delegated NS hostnames and points at a publicly routable IP.
       // We deliberately accept out-of-bailiwick glue (an NS host not under
@@ -1135,6 +1150,7 @@ export class AuthoritativeResolver extends DnsResolver {
               `${askedType} ${domain} @ ${candidate} (${protocol}) -> redirect to ${aRedirects.map((r) => r.data).join(', ')}`,
             ],
             walk: walk.deeper(),
+            onZoneCut,
           });
         } catch (error) {
           // A timed-out walk is only finishing requests it had already sent,
@@ -1193,6 +1209,7 @@ export class AuthoritativeResolver extends DnsResolver {
               `${recordType} ${domain} -> glue for ${nextZone}${sent.length ? ` (${sent.join(', ')})` : ''} failed (${describeError(error)}), resolving NS names instead`,
             ],
             walk,
+            onZoneCut,
           });
         }
       }
@@ -1207,6 +1224,7 @@ export class AuthoritativeResolver extends DnsResolver {
         protocol,
         trace,
         walk,
+        onZoneCut,
       });
     }
 
@@ -1226,6 +1244,7 @@ export class AuthoritativeResolver extends DnsResolver {
     protocol,
     trace,
     walk,
+    onZoneCut,
   }: {
     nsRedirects: StringAnswer[];
     failed?: string[];
@@ -1236,6 +1255,7 @@ export class AuthoritativeResolver extends DnsResolver {
     protocol: DnsResponse['protocol'];
     trace: string[];
     walk: Walk;
+    onZoneCut?: (zone: string) => void;
   }): Promise<WalkResult> {
     const zone = canonicalDnsName(nsRedirects[0].name);
     const subTrace: string[] = [];
@@ -1295,6 +1315,7 @@ export class AuthoritativeResolver extends DnsResolver {
         zone,
         trace: redirectTrace,
         walk: walk.deeper(),
+        onZoneCut,
       });
     } catch (error) {
       // Sibling NS lookups are still usable failover: the race above only
@@ -1326,6 +1347,7 @@ export class AuthoritativeResolver extends DnsResolver {
           `${recordType} ${domain} -> nameservers${queried.length ? ` ${queried.join(', ')}` : ''} failed (${describeError(error)}), retrying with late sibling nameservers: ${late.join(', ')}`,
         ],
         walk: walk.deeper(),
+        onZoneCut,
       });
     }
   }
@@ -1334,14 +1356,16 @@ export class AuthoritativeResolver extends DnsResolver {
   // stays distinct from NODATA) and the zone cut whose servers answered. For
   // callers that need structured rdata (DNSSEC) rather than presentation
   // strings. With the dnssecOk option, the RRSIGs covering the answer come
-  // back too.
+  // back too. onZoneCut fires for each cut the walk enters (by referral or
+  // from cache) before its servers are asked, so even when they never answer.
   public async resolveAnswers(
     domain: string,
     recordType: RecordType,
+    onZoneCut?: (zone: string) => void,
   ): Promise<WalkResult> {
     const timeoutMs = this.options.timeoutMs ?? WALK_TIMEOUT_MS;
     return WalkContext.run<DnsResponse, WalkResult>(
-      (walk) => this.fetchRecordsRaw({ domain, recordType, walk }),
+      (walk) => this.fetchRecordsRaw({ domain, recordType, walk, onZoneCut }),
       this.options.fallbackDeadlineMs,
       {
         ms: timeoutMs,
