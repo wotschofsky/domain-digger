@@ -88,14 +88,16 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   const pathname = usePathname();
   const selectedSegment = useSelectedLayoutSegment();
 
-  const { domain: initialValue } = useParams<{ domain: string }>();
+  const { domain: initialValue } = useParams<{ domain?: string }>();
   const [domain, setDomain] = useState(initialValue ?? '');
+  const [previousRouteDomain, setPreviousRouteDomain] = useState(initialValue);
 
-  useEffect(() => {
+  if (initialValue !== previousRouteDomain) {
+    setPreviousRouteDomain(initialValue);
     if (initialValue) {
       setDomain(initialValue);
     }
-  }, [initialValue]);
+  }
 
   const [state, setState] = useState<FormStates>(FormStates.Initial);
   const [suggestionsVisible, setSuggestionsVisible] = useState(false);
@@ -292,7 +294,7 @@ export const SearchForm: FC<SearchFormProps> = (props) => {
   return (
     <>
       <form ref={measureRef} className="relative" onSubmit={handleSubmit}>
-        {domain === initialValue ? (
+        {initialValue && domain === initialValue ? (
           // oxlint-disable-next-line nextjs/no-img-element -- Google serves a 64px favicon.
           <img
             className="pointer-events-none absolute top-1/2 left-3 z-10 size-4 -translate-y-1/2"

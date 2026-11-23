@@ -7,11 +7,14 @@ import { SearchForm } from './search-form';
 
 const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 const reportEvent = vi.hoisted(() => vi.fn());
+const routeParams = vi.hoisted(() => ({
+  domain: undefined as string | undefined,
+}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => router,
   usePathname: () => '/',
-  useParams: () => ({}),
+  useParams: () => routeParams,
   useSelectedLayoutSegment: () => null,
 }));
 vi.mock('@/app/api/search-suggestions/hook', () => ({
@@ -52,6 +55,7 @@ describe('search form', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
     router.push.mockReset();
     reportEvent.mockReset();
+    routeParams.domain = undefined;
     fetcher.mockReset();
     fetch.mockReset().mockRejectedValue(new TypeError('Network unavailable'));
     vi.stubGlobal('fetch', fetch);
@@ -182,6 +186,29 @@ describe('search form', () => {
     });
     await act(async () => input.focus());
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps edits on the same route and fills in the next lookup domain', async () => {
+    routeParams.domain = 'first.example';
+    await render('visible');
+    const input = container.querySelector<HTMLInputElement>('input')!;
+    expect(input.value).toBe('first.example');
+
+    await act(async () => {
+      input.focus();
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        'value',
+      )!.set!.call(input, 'draft.example');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await render('visible');
+    expect(input.value).toBe('draft.example');
+
+    routeParams.domain = 'second.example';
+    await render('visible');
+    expect(input.value).toBe('second.example');
+    expect(document.activeElement).toBe(input);
   });
 
   it('opens details for the parsed address and returns focus to search when closed', async () => {

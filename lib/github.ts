@@ -10,6 +10,18 @@ type StargazerSummary = {
   totalStars: number;
 };
 
+type StargazersResponse = {
+  errors?: unknown;
+  data: {
+    repository: {
+      stargazerCount: number;
+      stargazers: {
+        nodes: { name: string | null; login: string; avatarUrl: string }[];
+      };
+    };
+  };
+};
+
 export const getStargazersSummary = async (
   owner: string,
   repo: string,
@@ -63,19 +75,17 @@ export const getStargazersSummary = async (
     );
   }
 
-  const result = await graphqlResponse.json();
+  const result: StargazersResponse = await graphqlResponse.json();
 
   if (result.errors) {
     throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
   }
 
   return {
-    recentStargazers: result.data.repository.stargazers.nodes.map(
-      (user: any) => ({
-        name: user.name || user.login,
-        avatarUrl: user.avatarUrl,
-      }),
-    ),
+    recentStargazers: result.data.repository.stargazers.nodes.map((user) => ({
+      name: user.name || user.login,
+      avatarUrl: user.avatarUrl,
+    })),
     totalStars: result.data.repository.stargazerCount,
   };
 };

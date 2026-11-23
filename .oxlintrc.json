@@ -3,7 +3,6 @@
   "plugins": [
     "typescript",
     "react",
-    "react-perf",
     "nextjs",
     "import",
     "jsx-a11y",
@@ -20,19 +19,13 @@
     "no-console": "error",
     "react/rules-of-hooks": "error",
 
-    // TODO: Temporary - convert these back to errors once fixed
-    // Carried over from the ESLint config they replace.
-    "typescript/ban-ts-comment": "warn",
-    "typescript/consistent-type-imports": "warn",
-    "typescript/no-empty-object-type": "warn",
-    "typescript/no-explicit-any": "warn",
-    "typescript/no-unsafe-function-type": "warn",
-    "no-unused-vars": "warn",
-    "react/exhaustive-deps": "warn",
-    "react/preserve-manual-memoization": "warn",
-    "react/purity": "warn",
-    "react/set-state-in-effect": "warn",
-    "import/no-anonymous-default-export": "warn",
+    "typescript/ban-ts-comment": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "react/exhaustive-deps": "error",
+    "import/no-anonymous-default-export": "error",
 
     // eslint-config-next reported these as warnings as well, but oxlint files
     // them under `correctness`, so they need pinning back down.

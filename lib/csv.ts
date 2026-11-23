@@ -1,4 +1,4 @@
-export const generateCsv = <T extends Record<string, any>>(data: T[]) => {
+export const generateCsv = (data: Record<string, unknown>[]) => {
   if (!data.length) return '';
   const columns = Object.keys(data[0]);
   const header = columns.join(',');

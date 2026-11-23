@@ -105,7 +105,7 @@ const createMarker = (
         ),
       ),
     ),
-  );
+  ) as HTMLDivElement;
 
 type ResultsGlobeProps = {
   domain: string;
@@ -144,7 +144,9 @@ export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
     ref.controls().enableZoom = false;
   };
 
-  const htmlElementHandler = (data: ResultsGlobeProps['markers'][number]) => {
+  const htmlElementHandler = (marker: object) => {
+    // Globe passes one of the markers provided through htmlElementsData.
+    const data = marker as ResultsGlobeProps['markers'][number];
     const href = `/lookup/${domain}?resolver=cloudflare&location=${data.code}`;
     const onClick = () => router.push(href);
     return createMarker(data.name, data.results, href, onClick);
@@ -166,7 +168,6 @@ export const ResultsGlobe: FC<ResultsGlobeProps> = ({ domain, markers }) => {
         backgroundColor="rgba(0,0,0,0)"
         width={width}
         htmlElementsData={markers}
-        // @ts-expect-error
         htmlElement={htmlElementHandler}
       />
     </div>

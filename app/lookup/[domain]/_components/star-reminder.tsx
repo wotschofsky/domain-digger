@@ -26,8 +26,7 @@ const SKIP_BUTTON_DELAY = ms('5s');
 
 export const StarReminder: FC = () => {
   const { reportEvent } = useAnalytics();
-  const [_, setForceUpdate] = useState(0);
-  const forceUpdate = () => setForceUpdate((prev) => prev + 1);
+  const [eligibleDismissal, setEligibleDismissal] = useState<number>();
   const [secondsRemaining, setSecondsRemaining] = useState(
     Math.ceil(SKIP_BUTTON_DELAY / 1000),
   );
@@ -38,28 +37,36 @@ export const StarReminder: FC = () => {
     'star-reminder.starred',
     false,
   );
-  const [lastDismissed, setLastDismissed] = useLocalStorage(
+  const [lastDismissed, setLastDismissed] = useLocalStorage<number | undefined>(
     'star-reminder.last-dismissed',
-    Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY,
+    undefined,
   );
 
-  const timeUntilVisible = TIMEOUT_PERIOD - (Date.now() - lastDismissed);
-  const visible = Boolean(data) && timeUntilVisible <= 0 && !isStarred;
+  const visible =
+    Boolean(data) &&
+    lastDismissed !== undefined &&
+    eligibleDismissal === lastDismissed &&
+    !isStarred;
 
   useEffect(() => {
-    if (timeUntilVisible > 0) {
-      const timeout = setTimeout(() => {
-        forceUpdate();
-      }, timeUntilVisible + 100);
-      return () => clearTimeout(timeout);
+    if (lastDismissed === undefined) {
+      setLastDismissed(Date.now() - TIMEOUT_PERIOD + INITIAL_DELAY);
+      return;
     }
-  }, [timeUntilVisible]);
+
+    const timeUntilVisible = lastDismissed + TIMEOUT_PERIOD - Date.now();
+    const timeout = setTimeout(
+      () => setEligibleDismissal(lastDismissed),
+      timeUntilVisible > 0 ? timeUntilVisible + 100 : 0,
+    );
+    return () => clearTimeout(timeout);
+  }, [lastDismissed, setLastDismissed]);
 
   useEffect(() => {
     if (visible) {
       reportEvent('Star Reminder: Show', {});
     }
-  }, [visible]);
+  }, [visible, reportEvent]);
 
   useEffect(() => {
     if (!visible) return;

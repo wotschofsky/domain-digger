@@ -22,7 +22,7 @@ export const insertRows = async ({
 }: {
   datasetName: string;
   tableName: string;
-  rows: Record<string, any>[];
+  rows: Record<string, unknown>[];
 }): Promise<void> => {
   const accessToken = await getAccessToken({
     // @ts-expect-error still works
@@ -64,7 +64,12 @@ export const insertRows = async ({
   }
 };
 
-export const query = async <T extends Record<string, any>>({
+type BigQueryResult = {
+  schema: { fields: { name: string }[] };
+  rows?: { f: { v: unknown }[] }[];
+};
+
+export const query = async <T extends Record<string, unknown>>({
   query,
   params,
 }: {
@@ -125,19 +130,18 @@ export const query = async <T extends Record<string, any>>({
     );
   }
 
-  const { schema, rows } = await response.json();
+  const { schema, rows }: BigQueryResult = await response.json();
 
   if (!rows) {
     return [];
   }
 
-  return rows.map((row: any) =>
-    Object.fromEntries(
-      row.f.map((field: any, index: number) => [
-        schema.fields[index].name,
-        field.v,
-      ]),
-    ),
+  // Callers supply the row type for the columns selected by their query.
+  return rows.map(
+    (row) =>
+      Object.fromEntries(
+        row.f.map((field, index) => [schema.fields[index].name, field.v]),
+      ) as T,
   );
 };
 

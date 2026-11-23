@@ -21,6 +21,9 @@ type IpDetails = {
   query: string;
 };
 
+type IpApiResponse =
+  (IpDetails & { status?: 'success' }) | { status: 'fail'; message?: unknown };
+
 export const getIpDetails = async (ip: string) => {
   if (!isIP(ip))
     throw new UserFacingError({
@@ -59,7 +62,7 @@ export const getIpDetails = async (ip: string) => {
       },
     );
 
-  const data = (await response.json()) as Record<string, any>;
+  const data: IpApiResponse = await response.json();
 
   // ip-api reports lookup failures with HTTP 200 and status: "fail", so the
   // HTTP check above cannot catch them. Without this the caller receives an
@@ -75,7 +78,7 @@ export const getIpDetails = async (ip: string) => {
 
   delete data.status;
 
-  return data as IpDetails;
+  return data;
 };
 
 export const ipv4ToDnsName = (ipv4: string) =>
