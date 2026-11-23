@@ -25,6 +25,7 @@ import {
   type ResolverResponse,
 } from './base';
 import { isPublicIp } from './ip-filter';
+import { ROOT_SERVER_IPS } from './root-servers';
 import { WalkContext } from './walk-context';
 
 type RawAnswer = Extract<Answer, { type: RecordType }>;
@@ -187,6 +188,11 @@ export type AuthoritativeTcpTransport = (
 ) => Promise<Packet>;
 
 export type AuthoritativeResolverOptions = {
+  signal?: AbortSignal;
+  // Attempts per server after the first; defaults to RETRIES_PER_SERVER.
+  requestRetries?: number;
+  // DNSSEC inspection can read parent NS delegations without contacting children.
+  parentDelegations?: boolean;
   udpTransport?: AuthoritativeUdpTransport;
   tcpTransport?: AuthoritativeTcpTransport;
   rootServers?: () => Promise<string[]>;
@@ -246,6 +252,7 @@ export const isMatchingDnsResponse = (
 // A walk's final answer. `zone` is the zone cut whose servers gave it: the
 // deepest delegation followed, or the root.
 type WalkResult = {
+  delegated?: boolean;
   answers: RawAnswer[];
   trace: string[];
   rcode?: string;
@@ -276,76 +283,17 @@ export class AuthoritativeResolver extends DnsResolver {
     super();
   }
 
-  // One fetch+parse of the root hints per resolver instance; the walk calls
-  // getRootServers on every recursion step. A failed attempt is not cached.
+  // Root hints are bundled; test/custom loaders are shared within an instance.
   private rootServersPromise?: Promise<string[]>;
 
   private getRootServers(): Promise<string[]> {
     const loadRootServers =
-      this.options.rootServers ?? (() => this.fetchRootServers());
+      this.options.rootServers ?? (async () => [...ROOT_SERVER_IPS]);
     this.rootServersPromise ??= loadRootServers().catch((error) => {
       this.rootServersPromise = undefined;
       throw error;
     });
     return this.rootServersPromise;
-  }
-
-  private async fetchRootServers() {
-    let response: Response;
-    try {
-      response = await fetch('https://www.internic.net/domain/named.root', {
-        next: {
-          revalidate: 7 * 24 * 60 * 60,
-        },
-      });
-    } catch (error) {
-      throw new UserFacingError(
-        {
-          title: "Couldn't reach InterNIC root servers list",
-          description:
-            "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
-          retryable: true,
-        },
-        { cause: error },
-      );
-    }
-    if (!response.ok) {
-      throw new UserFacingError(
-        {
-          title: 'InterNIC root servers list is unavailable',
-          description:
-            'The InterNIC root servers list returned an error and may be temporarily down. Please try again shortly.',
-          retryable: true,
-        },
-        {
-          cause: new Error(
-            `Failed to fetch root servers: HTTP ${response.status}`,
-          ),
-        },
-      );
-    }
-    const body = await response.text();
-
-    // TODO Support IPv6
-    const aRecords = body.match(/\sA\s+(.+)/g);
-
-    if (!aRecords) {
-      throw new UserFacingError(
-        {
-          title: "Couldn't reach InterNIC root servers list",
-          description:
-            "We couldn't complete the request to the InterNIC root servers list. Please try again shortly.",
-          retryable: true,
-        },
-        { cause: new Error('Failed to parse root servers') },
-      );
-    }
-
-    const ipAddresses = aRecords?.map(
-      (l) => l.replaceAll(/\s+/g, ' ').split(' ')[2],
-    );
-
-    return ipAddresses;
   }
 
   private recordToString(record: Answer): string {
@@ -418,6 +366,7 @@ export class AuthoritativeResolver extends DnsResolver {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        this.options.signal?.removeEventListener('abort', onAbort);
         socket.close();
       };
 
@@ -429,6 +378,18 @@ export class AuthoritativeResolver extends DnsResolver {
           ),
         );
       }, UDP_TIMEOUT_MS);
+
+      const onAbort = () => {
+        cleanup();
+        reject(this.options.signal?.reason ?? new Error('DNS lookup aborted'));
+      };
+
+      this.options.signal?.addEventListener('abort', onAbort, { once: true });
+
+      if (this.options.signal?.aborted) {
+        onAbort();
+        return;
+      }
 
       socket.on('message', (message: Buffer, remote) => {
         if (remote.address !== nameserver || remote.port !== 53) return;
@@ -484,6 +445,7 @@ export class AuthoritativeResolver extends DnsResolver {
         if (settled) return;
         settled = true;
         clearTimeout(timeout);
+        this.options.signal?.removeEventListener('abort', onAbort);
         socket.destroy();
       };
 
@@ -495,6 +457,18 @@ export class AuthoritativeResolver extends DnsResolver {
           ),
         );
       }, TCP_TIMEOUT_MS);
+
+      const onAbort = () => {
+        cleanup();
+        reject(this.options.signal?.reason ?? new Error('DNS lookup aborted'));
+      };
+
+      this.options.signal?.addEventListener('abort', onAbort, { once: true });
+
+      if (this.options.signal?.aborted) {
+        onAbort();
+        return;
+      }
 
       const chunks: Buffer[] = [];
       socket.on('data', (data: Buffer) => {
@@ -564,11 +538,15 @@ export class AuthoritativeResolver extends DnsResolver {
     // the query goes again without EDNS, and so do this request's later
     // attempts. DNSSEC queries need the DO bit, so they get no plain retry.
     if (rejectsEdns(udpResponse) && !request.dnssecOk && !edns.rejected) {
+      // A custom UDP transport may answer after cancellation.
+      this.options.signal?.throwIfAborted();
       edns.rejected = true;
       request = { ...request, plainDns: true };
       udpResponse = await sendUdp(request);
     }
     if (udpResponse.flag_tc) {
+      // A custom UDP transport may answer after cancellation.
+      this.options.signal?.throwIfAborted();
       const packet = this.options.tcpTransport
         ? await this.options.tcpTransport(request)
         : await this.sendTcpRequest(request);
@@ -593,8 +571,11 @@ export class AuthoritativeResolver extends DnsResolver {
           const edns = { rejected: false };
           try {
             const response = await retry(
-              () => this.sendRequest(request, edns),
-              RETRIES_PER_SERVER,
+              () => {
+                this.options.signal?.throwIfAborted();
+                return this.sendRequest(request, edns);
+              },
+              this.options.requestRetries ?? RETRIES_PER_SERVER,
               (error: unknown) => retries.push(describeError(error)),
             );
             return { ...response, retries };
@@ -709,6 +690,7 @@ export class AuthoritativeResolver extends DnsResolver {
     trace = [],
     walk,
   }: FetchRecordsParams): Promise<WalkResult> {
+    this.options.signal?.throwIfAborted();
     walk.enter(domain, recordType);
 
     const cached = nameservers?.length
@@ -1032,6 +1014,11 @@ export class AuthoritativeResolver extends DnsResolver {
 
       return {
         answers: filteredAnswers,
+        ...(recordType === 'NS' &&
+        this.options.parentDelegations &&
+        filteredAnswers.length
+          ? { delegated: true }
+          : {}),
         // The name owns a record, so it exists: an NXDOMAIN here describes
         // the end of a CNAME/DNAME chain (RFC 6604), not the queried name.
         rcode: packet.rcode === 'NXDOMAIN' ? 'NOERROR' : packet.rcode,
@@ -1042,6 +1029,24 @@ export class AuthoritativeResolver extends DnsResolver {
         ],
         coveringRrsigs,
       };
+    }
+
+    // An exact-name NS referral proves a zone cut even when the child servers are unreachable.
+    // Opt-in for the DNSSEC delegation probe; normal NS browsing still follows the referral.
+    if (recordType === 'NS' && this.options.parentDelegations) {
+      const delegation = (packet.authorities ?? []).filter(
+        (answer) =>
+          answer.type === 'NS' && canonicalDnsName(answer.name) === wantName,
+      ) as RawAnswer[];
+
+      if (delegation.length)
+        return {
+          answers: delegation,
+          delegated: true,
+          trace,
+          rcode: packet.rcode,
+          zone,
+        };
     }
 
     // Authoritative NXDOMAIN/NODATA is final when its SOA shows it came from

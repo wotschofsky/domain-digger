@@ -19,6 +19,7 @@ export type DsChainVerdict =
 
 export type DsChainZone = {
   name: string;
+  keysInspected?: boolean;
   keys: Array<{
     keyTag: number;
     algorithm: number;
@@ -50,6 +51,7 @@ export type DsChain = {
   // it lives in.
   name: string;
   zones: DsChainZone[];
+  inspectionStopped?: boolean;
   verdict: DsChainVerdict;
   breakAt?: string;
 };
@@ -59,10 +61,14 @@ export type DsChain = {
 // the queried name itself. zone is the zone cut whose servers answered (the
 // deepest delegation followed, '.' for the root). coveringRrsigs are the
 // RRSIGs over the answered RRset, so the query must set the DNSSEC OK bit.
+// delegated: an NS answer proves a zone cut at name (a parent's referral or the
+// zone's own NS RRset), so a stopAtBreak walk without a parent DS ends there as unsigned.
 export type DsChainQuery = (
   name: string,
-  type: Extract<RecordType, 'SOA' | 'DNSKEY' | 'DS'>,
+  type: Extract<RecordType, 'SOA' | 'DNSKEY' | 'DS' | 'NS'>,
+  signal?: AbortSignal,
 ) => Promise<{
+  delegated?: boolean;
   answers: Answer[];
   rcode?: string;
   zone: string;
@@ -119,6 +125,7 @@ export const resolveDsChain = async (
   domain: string,
   query: DsChainQuery,
   now?: number,
+  options: { stopAtBreak?: boolean } = {},
 ): Promise<DsChain> => {
   const queried = canonicalDnsName(domain) || '.';
   const names = suffixesFor(queried);
@@ -128,10 +135,36 @@ export const resolveDsChain = async (
 
   for (const [index, name] of names.entries()) {
     const isRoot = index === 0;
+
+    const parentDs =
+      !isRoot && options.stopAtBreak ? await query(name, 'DS') : null;
+
+    if (parentDs && !dsOf(parentDs).length) {
+      const delegation = await query(name, 'NS');
+
+      if (delegation.delegated) {
+        zones.push({
+          name,
+          keys: [],
+          keysInspected: false,
+          dsRecords: [],
+          status: 'unsigned',
+        });
+
+        return {
+          name: queried,
+          zones,
+          verdict: 'unsigned',
+          breakAt: name,
+          inspectionStopped: true,
+        };
+      }
+    }
+
     const [soaResponse, keyResponse, dsResponse] = await Promise.all([
       isRoot ? null : query(name, 'SOA'),
       query(name, 'DNSKEY'),
-      isRoot ? null : query(name, 'DS'),
+      isRoot ? null : (parentDs ?? query(name, 'DS')),
     ]);
     if (
       index === names.length - 1 &&
@@ -218,6 +251,16 @@ export const resolveDsChain = async (
       ...(keySignature && { keySignature }),
       status: verdict,
     });
+
+    if (options.stopAtBreak && verdict !== 'intact') {
+      return {
+        name: queried,
+        zones,
+        verdict,
+        breakAt,
+        inspectionStopped: true,
+      };
+    }
   }
 
   return {
@@ -229,22 +272,28 @@ export const resolveDsChain = async (
 };
 
 // Rejects with a retryable error at deadlineMs, naming the queries still in flight.
-// ponytail: the abandoned walk runs on until the resolver's own budgets expire; thread an
-// AbortSignal through DsChainQuery if that background load shows up.
+// The deadline aborts the transport, and no query starts after it even if a transport
+// ignores the signal.
 export const resolveDsChainWithin = async (
   domain: string,
   query: DsChainQuery,
   deadlineMs: number,
+  options: { stopAtBreak?: boolean } = {},
 ): Promise<DsChain> => {
+  const controller = new AbortController();
   const pending = new Set<string>();
   let timer: NodeJS.Timeout | undefined;
 
   const trackedQuery: DsChainQuery = async (name, type) => {
+    controller.signal.throwIfAborted();
+
     const key = `${name} ${type}`;
     pending.add(key);
 
     try {
-      return await query(name, type);
+      const response = await query(name, type, controller.signal);
+      controller.signal.throwIfAborted();
+      return response;
     } finally {
       pending.delete(key);
     }
@@ -267,12 +316,18 @@ export const resolveDsChainWithin = async (
           { cause },
         ),
       );
+
+      controller.abort();
     }, deadlineMs);
   });
 
   try {
-    return await Promise.race([resolveDsChain(domain, trackedQuery), deadline]);
+    return await Promise.race([
+      resolveDsChain(domain, trackedQuery, undefined, options),
+      deadline,
+    ]);
   } finally {
     clearTimeout(timer);
+    controller.abort();
   }
 };
