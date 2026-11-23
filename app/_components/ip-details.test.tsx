@@ -9,7 +9,7 @@ vi.mock('next/dynamic', () => ({
   default:
     () =>
     ({ location }: { location: [number, number] }) => (
-      <div role="img" aria-label={`Map at ${location.join(', ')}`} />
+      <svg role="img" aria-label={`Map at ${location.join(', ')}`} />
     ),
 }));
 vi.mock('next/navigation', () => ({

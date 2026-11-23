@@ -133,6 +133,7 @@ export const StarReminder: FC = () => {
             <div className="space-y-4">
               <div className="flex justify-center">
                 {data.recentStargazers.map((user, index) => (
+                  // oxlint-disable-next-line nextjs/no-img-element -- Fetch these small, optional avatars directly from GitHub.
                   <img
                     key={index}
                     className="aspect-square w-8 scale-125 rounded-full border-2 border-white bg-zinc-200 dark:border-zinc-900 dark:bg-zinc-800"

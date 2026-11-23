@@ -10,9 +10,7 @@ const zones = [
 
 const DnssecLoading: FC = () => (
   <div className="space-y-8">
-    <p className="sr-only" role="status">
-      Loading DNSSEC chain
-    </p>
+    <output className="sr-only">Loading DNSSEC chain</output>
     <div aria-hidden="true" className="space-y-8">
       <header className="space-y-2">
         <Skeleton className="h-8 w-48 rounded-sm" />

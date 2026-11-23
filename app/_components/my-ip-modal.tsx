@@ -125,11 +125,8 @@ type IpRetryNoticeProps = {
 const IpRetryNotice: FC<IpRetryNoticeProps> = ({ version, result }) => {
   if (result.data || !result.error || result.isValidating) return null;
   return (
-    <div
-      className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400"
-      role="status"
-    >
-      <span>IPv{version} not detected.</span>
+    <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+      <output>IPv{version} not detected.</output>
       <Button
         type="button"
         variant="outline"
