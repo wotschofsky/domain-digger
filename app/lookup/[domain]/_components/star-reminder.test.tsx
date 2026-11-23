@@ -64,4 +64,8 @@ it('keeps the initial deadline across remounts and waits after dismissal', async
 
   await advance(24 * 60 * 60 * 1000);
   expect(getDialog()).toBeNull();
+
+  await advance(6 * 24 * 60 * 60 * 1000 + 100);
+  expect(getDialog()).not.toBeNull();
+  expect(reportEvent).toHaveBeenLastCalledWith('Star Reminder: Show', {});
 });

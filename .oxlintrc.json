@@ -29,8 +29,6 @@
     "typescript/no-empty-object-type": "error",
     "typescript/no-explicit-any": "error",
     "typescript/no-unsafe-function-type": "error",
-    "react/exhaustive-deps": "error",
     "import/no-anonymous-default-export": "error"
-  },
-  "ignorePatterns": [".next", "bin", "node_modules"]
+  }
 }

@@ -24,11 +24,14 @@ type Column<T> = {
 
 type SortDirection = 'asc' | 'desc';
 type SortableValue = string | number | boolean | string[] | null;
+type KeyColumn<T> = {
+  [K in keyof T]: T[K] extends string | number ? K : never;
+}[keyof T];
 
 type SortableTableProps<T extends Record<keyof T, SortableValue>> = {
   data: T[];
   columns: Column<T>[];
-  keyColumn: keyof T;
+  keyColumn: KeyColumn<T>;
   defaultSort: keyof T;
   defaultSortDirection: SortDirection;
 };
@@ -107,7 +110,7 @@ export const SortableTable = <T extends Record<keyof T, SortableValue>>({
                   'pr-0': index === allColumns.length - 1,
                 })}
               >
-                {render ? render(row[key], row) : String(row[key])}
+                {render ? render(row[key], row) : String(row[key] ?? '')}
               </TableCell>
             ))}
           </TableRow>
