@@ -131,7 +131,7 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
       <div className="flex flex-wrap gap-8">
         <DomainSummaryTile title="Registrar" loading />
         <DomainSummaryTile title="Creation Date" loading />
-        <DomainSummaryTile title="DNSSEC" loading />
+        <DomainSummaryTile title="DNSSEC delegation" loading />
       </div>
     );
   }
@@ -150,7 +150,16 @@ export const DomainSummary: FC<{ domain: string }> = ({ domain }) => {
     <div className="flex flex-wrap gap-8">
       <DomainSummaryTile title="Registrar" value={data.registrar} />
       <DomainSummaryTile title="Creation Date" value={data.createdAt} />
-      <DomainSummaryTile title="DNSSEC" value={data.dnssec} />
+      <DomainSummaryTile
+        title="DNSSEC delegation"
+        value={
+          <span
+            title={`Parent DS records for ${data.dnssec.domain}; this does not validate the full DNSSEC chain.`}
+          >
+            {data.dnssec.value}
+          </span>
+        }
+      />
       {sale && (
         <DomainSummaryTile
           // Advertised prices are not binding and are labelled as such, as

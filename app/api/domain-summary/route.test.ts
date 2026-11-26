@@ -17,10 +17,25 @@ vi.mock('@/lib/evlog', () => ({
 }));
 
 const fetchMock = vi.fn();
-// Answer each _for-sale name from its records; other names do not exist.
+// Domains whose parent publishes DS records.
+const signed = new Set<string>();
+// Answer each _for-sale name from its records and DS for signed domains;
+// other names do not exist.
 const listings = (records: Record<string, string[]>) =>
   fetchMock.mockImplementation(async (url: URL) => {
     const name = url.searchParams.get('name')!;
+    if (url.searchParams.get('type') === 'DS') {
+      return new Response(
+        JSON.stringify(
+          signed.has(name)
+            ? {
+                Status: 0,
+                Answer: [{ name: `${name}.`, type: 43, TTL: 300, data: '' }],
+              }
+            : { Status: 3 },
+        ),
+      );
+    }
     const answers = records[name.replace(/^_for-sale\./, '')];
     return new Response(
       JSON.stringify(
@@ -60,6 +75,7 @@ const summary = async (domain?: string) => {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal('fetch', fetchMock);
+  signed.clear();
   verisign({ Registrar: 'Example Registrar, Inc.' });
   listings({});
 });
@@ -79,6 +95,7 @@ describe('domain summary API', () => {
   );
 
   it('shows the registry’s fields for a registered domain, cached for long', async () => {
+    signed.add('example.com');
     verisign({
       Registrar: 'Example Registrar, Inc.',
       'Created Date': '1995-08-14T04:00:00Z',
@@ -91,7 +108,7 @@ describe('domain summary API', () => {
         status: 'registered',
         registrar: 'Example Registrar, Inc.',
         createdAt: '1995-08-14',
-        dnssec: 'signedDelegation',
+        dnssec: { value: 'DS present', domain: 'example.com' },
         sale: null,
       },
     });
@@ -112,7 +129,7 @@ describe('domain summary API', () => {
         status: 'registered',
         registrar: 'Not listed',
         createdAt: 'Not listed',
-        dnssec: 'Not listed',
+        dnssec: { value: 'No DS record', domain: 'example.de' },
       },
     });
   });
@@ -130,6 +147,7 @@ describe('domain summary API', () => {
     'reads unavailable, without a sale tile, briefly cached when WHOIS %s',
     async (_, fail) => {
       fail();
+      signed.add('example.com');
       listings({ 'example.com': ['v=FORSALE1;fval=EUR2500'] });
       expect(await summary('example.com')).toEqual({
         status: 200,
@@ -138,7 +156,8 @@ describe('domain summary API', () => {
           status: 'unknown',
           registrar: 'Unavailable',
           createdAt: 'Unavailable',
-          dnssec: 'Unavailable',
+          // Read from DNS, so it shows without WHOIS.
+          dnssec: { value: 'DS present', domain: 'example.com' },
           sale: null,
         },
       });
@@ -165,6 +184,24 @@ describe('domain summary API', () => {
     });
     expect(logger.set).toHaveBeenCalledWith({ event: 'sale_lookup_failed' });
     expect(logger.error).toHaveBeenCalledExactlyOnceWith(expect.any(Error));
+  });
+
+  it('keeps registration data and caches briefly when the DS lookup fails', async () => {
+    listings({});
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: URL) =>
+      url.searchParams.get('type') === 'DS'
+        ? new Response(JSON.stringify({ Status: 2 }))
+        : answer(url),
+    );
+    expect(await summary('www.example.co.uk')).toMatchObject({
+      cache: 'public, max-age=60, s-maxage=60',
+      tiles: {
+        status: 'registered',
+        registrar: 'Example Registrar, Inc.',
+        dnssec: { value: 'Unavailable', domain: 'example.co.uk' },
+      },
+    });
   });
 
   it.each([

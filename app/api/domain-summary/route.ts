@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { type DnssecSummary, getDnssecSummary } from '@/lib/dnssec/summary';
 import { useLogger, withEvlog } from '@/lib/evlog';
 import {
   forSaleName,
@@ -18,7 +19,9 @@ export type DomainSummaryTiles =
       status: 'registered' | 'unknown';
       registrar: string;
       createdAt: string;
-      dnssec: string;
+      // From the parent's DS records, not WHOIS, so it shows even when WHOIS
+      // fails; `domain` is the registrable domain the records were read for.
+      dnssec: { value: string; domain: string };
       sale: {
         // The registrable domain the listing sits on, when it isn't the
         // searched name.
@@ -30,10 +33,17 @@ export type DomainSummaryTiles =
       } | null;
     };
 
+const describeDnssecStatus = (status: DnssecSummary['status']): string => {
+  if (status === 'ds-present') return 'DS present';
+  if (status === 'no-ds') return 'No DS record';
+  return 'Unavailable';
+};
+
 const toTiles = (
   domain: string,
   whois: WhoisOutcome,
   sale: ForSaleSummary | null,
+  dnssec: DnssecSummary,
 ): DomainSummaryTiles => {
   if (whois.status === 'unregistered') return { status: 'unregistered' };
 
@@ -46,7 +56,10 @@ const toTiles = (
     status: whois.status,
     registrar: known?.registrar || missing,
     createdAt: known?.createdAt || missing,
-    dnssec: known?.dnssec || missing,
+    dnssec: {
+      value: describeDnssecStatus(dnssec.status),
+      domain: dnssec.domain,
+    },
     // No sale tile when the WHOIS lookup failed and registration is only
     // assumed.
     sale:
@@ -79,16 +92,17 @@ export const GET = withEvlog(async (request: Request) => {
 
   log.set({ domain });
 
-  const [whois, sale] = await Promise.all([
+  const [whois, sale, dnssec] = await Promise.all([
     getWhoisOutcome(domain),
     lookupForSale(domain).catch((error: unknown) => {
       log.set({ event: 'sale_lookup_failed' });
       log.error(error instanceof Error ? error : new Error(String(error)));
       return null;
     }),
+    getDnssecSummary(domain),
   ]);
 
-  const tiles = toTiles(domain, whois, sale);
+  const tiles = toTiles(domain, whois, sale, dnssec);
   // The status tells a failed WHOIS lookup ("Unavailable") apart from a
   // registry that leaves fields out ("Not listed").
   log.set({ tiles });
@@ -97,7 +111,7 @@ export const GET = withEvlog(async (request: Request) => {
     headers: {
       // Retry a failed lookup soon instead of hiding a listing.
       'Cache-Control':
-        sale && whois.status !== 'unknown'
+        sale && whois.status !== 'unknown' && dnssec.status !== 'unavailable'
           ? 'public, max-age=600, s-maxage=1800'
           : 'public, max-age=60, s-maxage=60',
     },
