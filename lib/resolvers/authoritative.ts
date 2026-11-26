@@ -32,7 +32,7 @@ type RawAnswer = Extract<Answer, { type: RecordType }>;
 // Healthy answers arrive well within a second (p99 under 400ms, slowest
 // under 600ms when replaying logged lookups); waiting longer for one that
 // was dropped only delays trying again. TCP adds a handshake round trip.
-// ponytail: a server that always answers slower than this never gets
+// a server that always answers slower than this never gets
 // through; raise these if lookups to slow but working servers time out.
 const UDP_TIMEOUT_MS = 1000;
 const TCP_TIMEOUT_MS = 2000;
@@ -71,14 +71,14 @@ const isInBailiwick = (wantName: string, zone: string): boolean =>
 // is the exception: its parent zone's servers answer it, where the probe
 // would be referred past them to the child. A re-walk after a cached
 // delegation fails asks its own question too (see WalkContext.rewalk).
-// ponytail: DS skips the probe above its parent too (at the root for
+// DS skips the probe above its parent too (at the root for
 // example.com), one more request there; probe while the zone cut is above
 // the DS owner's parent if that matters.
-// ponytail: a registry that serves some names itself (nic.br on the br
+// a registry that serves some names itself (nic.br on the br
 // servers) answers the probe instead, so the other walks that send it ask
 // again and pay one more round trip; remembering such servers would save
 // it.
-// ponytail: the walks that send the probe share its fate too: a server that
+// the walks that send the probe share its fate too: a server that
 // drops it twice is skipped by all of them, and they all follow its one
 // referral to the same first four glue addresses; ask a type's own question
 // where the probe failed if that shows up.
@@ -587,7 +587,7 @@ export class AuthoritativeResolver extends DnsResolver {
         keys.map(async (request) => {
           const retries: string[] = [];
           // Shared by this request's attempts (see sendRequest).
-          // ponytail: remembered per request, not per server, so each other
+          // remembered per request, not per server, so each other
           // name or type sent to a server that rejects EDNS pays one more
           // round trip first; key it by nameserver if that shows up.
           const edns = { rejected: false };
@@ -788,14 +788,14 @@ export class AuthoritativeResolver extends DnsResolver {
     // A blackholed network makes every candidate burn both of its attempts
     // (1s each); serializing that across 4 fallback servers would take ~8s,
     // and one that answers UDP truncated and then stalls over TCP costs up
-    // to 6s, 7s after an EDNS rejection (see the ponytail note on
+    // to 6s, 7s after an EDNS rejection (see the note on
     // FALLBACK_DEADLINE_MS). The first candidate always gets its
     // full budget -- a step reached with the deadline spent still makes
     // progress -- unless it is skipped as a loop or an already-failed
     // request, which counts as a failure. Further ones only start while the
     // deadline allows, so fast failures (REFUSED, quick rejects) still reach
     // every server unless slower ones before them used up the deadline.
-    // ponytail: past the deadline every step still sends to its first
+    // past the deadline every step still sends to its first
     // candidate, so the ceiling is MAX_CANDIDATES_PER_WALK retry budgets; the
     // walk's hard timeout is the backstop for adversarial chains.
     for (const candidate of candidateNameservers) {
@@ -1149,7 +1149,7 @@ export class AuthoritativeResolver extends DnsResolver {
           // go first; the rest go last, in case their glue is stale. Names
           // inside the zone need its own servers, so skip them; NS of another
           // owner would become the zone the fallback caches under.
-          // ponytail: this also runs after a deeper failure, re-asking this
+          // this also runs after a deeper failure, re-asking this
           // cut's other servers, and re-resolves names whose glue all went
           // out, so a provider whose own zone sits on the same dead hosts
           // costs one more retry budget per zone before failing. Checking what

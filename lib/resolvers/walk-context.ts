@@ -15,7 +15,7 @@ const MAX_CANDIDATES_PER_WALK = 50;
 // up to 1s when it rejects EDNS first): a single blackholed first server has
 // to leave room to reach a healthy fallback, while all-blackholed candidates
 // stay bounded.
-// ponytail: a server that answers UDP truncated and then times out over TCP
+// a server that answers UDP truncated and then times out over TCP
 // costs up to 6s (7s after an EDNS rejection), reaching this; raise the
 // deadline if that shows up.
 const FALLBACK_DEADLINE_MS = 6_000;
@@ -64,7 +64,7 @@ export class WalkContext<Response, Result> {
   // still wins. The timeout, unlike the fallback deadline, ends the walk
   // wherever it is: requests already sent settle on their own in the
   // background (retrying as usual), and no new step or request starts.
-  // ponytail: requests in flight at the timeout are not aborted and run out
+  // requests in flight at the timeout are not aborted and run out
   // their retry budget (up to ~7s each) in the background; thread an
   // AbortSignal through the resolver's requests if that load shows up.
   static async run<Response, Result>(
@@ -210,7 +210,7 @@ export class WalkContext<Response, Result> {
   }
 
   // The first fallback offered anywhere in the walk is kept; see run.
-  // ponytail: callers build a fallback even once one is kept and it is
+  // callers build a fallback even once one is kept and it is
   // dropped here; that is a few strings per failed NS referral. Expose a
   // check first if building one ever gets expensive.
   offerFallback(result: Result): void {

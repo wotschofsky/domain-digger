@@ -49,7 +49,7 @@ const CustomizedPlausibleProvider: FC<CustomizedPlausibleProviderProps> = ({
 
   return (
     <PlausibleProvider
-      // ponytail: legacy script keeps the existing env vars working; move to the
+      // legacy script keeps the existing env vars working; move to the
       // site-specific pa-XXXXX.js URL from the Plausible dashboard to drop this.
       src={`${env.NEXT_PUBLIC_PLAUSIBLE_HOST ?? 'https://plausible.io'}/js/script.outbound-links.tagged-events.js`}
       scriptProps={

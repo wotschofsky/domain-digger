@@ -229,7 +229,7 @@ export const resolveDsChain = async (
 };
 
 // Rejects with a retryable error at deadlineMs, naming the queries still in flight.
-// ponytail: the abandoned walk runs on until the resolver's own budgets expire; thread an
+// the abandoned walk runs on until the resolver's own budgets expire; thread an
 // AbortSignal through DsChainQuery if that background load shows up.
 export const resolveDsChainWithin = async (
   domain: string,

@@ -103,7 +103,7 @@ const metadataFailure = (
   if (canonicalDnsName(rrsig.signersName) !== canonicalDnsName(signerName)) {
     return 'invalid';
   }
-  // ponytail: exact label count, so no wildcard expansions; add RFC 4035
+  // exact label count, so no wildcard expansions; add RFC 4035
   // §5.3.4 handling when leaf RRsets (which can be expansions) get checked.
   if (rrsig.labels !== labelCount(ownerName)) return 'invalid';
   if (now < rrsig.inception) return 'not-yet-valid';
