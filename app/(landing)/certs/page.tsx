@@ -1,18 +1,19 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getLandingHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
-  url: '/certs',
+  url: getLandingHref('certs'),
   title: 'Certificate Search',
 });
 
 const CertsLandingPage: FC = () => (
   <LandingPage
-    subpage="certs"
+    feature="certs"
     heading="Find certificate history for any domain"
   >
     <AboutSection title="About Certificate Logs">

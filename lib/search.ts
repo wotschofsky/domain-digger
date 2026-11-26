@@ -5,8 +5,10 @@ import { after } from 'next/server';
 import { env } from '@/env';
 import { getVisitorIp, isUserBot } from '@/lib/api';
 import { bigquery } from '@/lib/bigquery';
-import type { LookupType } from '@/lib/lookup-features';
 import { getBaseDomain } from '@/lib/utils';
+
+// Stored in BigQuery; the map tab records its lookups as 'dns'
+type LookupType = 'dns' | 'dnssec' | 'whois' | 'certs' | 'subdomains';
 
 type LookupLogPayload = {
   domain: string;

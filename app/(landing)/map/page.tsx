@@ -1,17 +1,18 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getLandingHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
-  url: '/',
+  url: getLandingHref('map'),
   title: 'DNS Propagation Map',
 });
 
 const MapLandingPage: FC = () => (
-  <LandingPage subpage="map" heading="Run DNS lookups across multiple regions">
+  <LandingPage feature="map" heading="Run DNS lookups across multiple regions">
     <AboutSection title="About DNS Map">
       <p>
         The DNS Map tool (also known as Global DNS) is particularly useful for

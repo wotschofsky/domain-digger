@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-import { withResolverParams } from '@/lib/lookup-features';
+import { getResultsHref, withResolverParams } from '@/lib/lookup-features';
 import { isWildcardDomain } from '@/lib/utils';
 
 type DomainLinkProps = {
@@ -30,7 +30,7 @@ export const DomainLink: FC<DomainLinkProps> = ({ domain }) => {
             <Link
               className="underline decoration-dotted underline-offset-4 select-all"
               href={withResolverParams(
-                `/lookup/${domain.toLowerCase()}`,
+                getResultsHref('dns', domain.toLowerCase()),
                 searchParams.toString(),
               )}
               prefetch={false}

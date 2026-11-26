@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { type FC, Fragment } from 'react';
 
+import { getResultsHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
 import { getBaseDomain } from '@/lib/utils';
@@ -27,7 +28,7 @@ export const generateMetadata = async ({
   const search = force !== undefined ? '?force' : '';
 
   return getPageMetadata({
-    url: `/lookup/${domain}/whois${search}`,
+    url: getResultsHref('whois', domain) + search,
     title: `WHOIS Lookup for ${domain}`,
   });
 };
@@ -62,7 +63,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
               Lookup{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"
-                href={`/lookup/${domain}/whois`}
+                href={getResultsHref('whois', domain)}
               >
                 {baseDomain} instead
               </Link>
@@ -77,7 +78,7 @@ const WhoisResultsPage: FC<WhoisResultsPageProps> = async ({
               Force lookup for{' '}
               <Link
                 className="underline decoration-dotted underline-offset-4"
-                href={`/lookup/${domain}/whois?force`}
+                href={`${getResultsHref('whois', domain)}?force`}
               >
                 {domain} instead
               </Link>

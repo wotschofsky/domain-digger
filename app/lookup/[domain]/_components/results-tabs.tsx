@@ -8,7 +8,7 @@ import type { FC } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
 
 import { ClientOnly } from '@/components/client-only';
-import { LOOKUP_FEATURES } from '@/lib/lookup-features';
+import { getResultsHref, LOOKUP_FEATURES } from '@/lib/lookup-features';
 import { cn, isAppleDevice } from '@/lib/utils';
 
 // Read by the <ViewTransition> around the results to slide them in the
@@ -70,7 +70,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
       const tab = LOOKUP_FEATURES[shortcutNumber - 1];
 
       if (tab)
-        router.push(`/lookup/${domain}${tab.path}`, {
+        router.push(getResultsHref(tab.id, domain), {
           transitionTypes: getTransitionTypes(
             shortcutNumber - 1,
             selectedIndex,
@@ -87,7 +87,7 @@ export const ResultsTabs: FC<ResultsTabsProps> = ({ domain }) => {
           <SingleTab
             key={tab.segment}
             label={tab.label}
-            href={`/lookup/${domain}${tab.path}`}
+            href={getResultsHref(tab.id, domain)}
             selected={index === selectedIndex}
             transitionTypes={getTransitionTypes(index, selectedIndex)}
           />

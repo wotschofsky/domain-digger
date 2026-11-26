@@ -5,6 +5,7 @@ import type { FC } from 'react';
 import { Button } from '@/components/ui/button';
 
 import { generateCsv } from '@/lib/csv';
+import { getResultsHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 import { recordLookupAfter } from '@/lib/search';
 import { findSubdomains } from '@/lib/subdomains';
@@ -24,7 +25,7 @@ export const generateMetadata = async ({
   const { domain } = await params;
 
   return getPageMetadata({
-    url: `/lookup/${domain}/subdomains`,
+    url: getResultsHref('subdomains', domain),
     title: `Subdomain Search for ${domain}`,
   });
 };

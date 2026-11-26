@@ -6,7 +6,11 @@ import type { FC } from 'react';
 
 import { Button } from '@/components/ui/button';
 
-import { LOOKUP_FEATURES, withResolverParams } from '@/lib/lookup-features';
+import {
+  findLookupFeatureBySegment,
+  getResultsHref,
+  withResolverParams,
+} from '@/lib/lookup-features';
 import { isWildcardDomain } from '@/lib/utils';
 
 type RelatedDomainsProps = {
@@ -42,8 +46,7 @@ export const RelatedDomains: FC<RelatedDomainsProps> = ({
   // Stay on the current tab and keep its resolver selection
   const selectedSegment = useSelectedLayoutSegment();
   const searchParams = useSearchParams();
-  const tabPath =
-    LOOKUP_FEATURES.find((f) => f.segment === selectedSegment)?.path ?? '';
+  const feature = findLookupFeatureBySegment(selectedSegment)?.id ?? 'dns';
 
   return (
     <div className="flex flex-wrap gap-4">
@@ -57,7 +60,7 @@ export const RelatedDomains: FC<RelatedDomainsProps> = ({
         >
           <Link
             href={withResolverParams(
-              `/lookup/${domain}${tabPath}`,
+              getResultsHref(feature, domain),
               searchParams.toString(),
             )}
           >

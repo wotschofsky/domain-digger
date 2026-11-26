@@ -1,17 +1,18 @@
 import type { Metadata } from 'next';
 import type { FC } from 'react';
 
+import { getLandingHref } from '@/lib/lookup-features';
 import { getPageMetadata } from '@/lib/page-metadata';
 
 import { AboutSection, LandingPage } from '../_components/landing-page';
 
 export const metadata: Metadata = getPageMetadata({
-  url: '/whois',
+  url: getLandingHref('whois'),
   title: 'WHOIS Lookup',
 });
 
 const WhoisLandingPage: FC = () => (
-  <LandingPage subpage="whois" heading="Find WHOIS information for any domain">
+  <LandingPage feature="whois" heading="Find WHOIS information for any domain">
     <AboutSection title="About WHOIS">
       <p>
         WHOIS is a protocol used to retrieve detailed information about domain
