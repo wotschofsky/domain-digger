@@ -11,6 +11,8 @@ vi.mock('whoiser', async (importOriginal) => ({
   ...(await importOriginal<typeof Whoiser>()),
   whoisDomain,
 }));
+// RDAP has its own tests; these cover the WHOIS fallback.
+vi.mock('@/lib/rdap', () => ({ getRdapSummary: async () => null }));
 vi.mock('@/lib/evlog', () => ({
   useLogger: () => logger,
   withEvlog: (handler: unknown) => handler,
